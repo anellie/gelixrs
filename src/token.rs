@@ -1,11 +1,20 @@
+/// A token in the gelix language. These are produced by a [Tokenizer].
 #[derive(Debug, Clone, Copy)]
 pub struct Token<'t> {
+    /// The type of the token.
     pub t_type: Type,
+    /// The lexeme of the token. Includes escape chars (ex. String lexeme is <i>"I'm a string!"</i>)
     pub lexeme: &'t str,
+    /// The line the token is on. For multiline tokens, this is the last line.
     pub line: usize,
 }
 
-plain_enum_mod! {this, Type {
+// All types of tokens available. Most are keywords or special chars.
+
+// The ScanError token is a special token signifying a syntax error.
+// Its lexeme is an error message to be displayed to the user.
+plain_enum_mod! {this,
+Type {
     LeftParen, RightParen,
     LeftBracket, RightBracket,
     LeftBrace, RightBrace,
@@ -25,5 +34,5 @@ plain_enum_mod! {this, Type {
     Print, Return, Super, Take, This,
     True, Var, Val, While,
 
-    ScanError, EOF,
+    ScanError,
 }}

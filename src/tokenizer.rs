@@ -1,14 +1,22 @@
 use super::token::{Token, Type};
 
+/// A tokenizer is an iterator that turns gelix source code into [Token]s.
 pub struct Tokenizer<'t> {
+    /// The source it is turning into tokens
     source: &'t str,
+    /// The chars of the source
     chars: Vec<char>,
+    /// The start position of the token currently being scanned
     start: usize,
+    /// The current position of the scan
     current: usize,
+    /// The line of the current position
     line: usize,
 }
 
 impl<'t> Tokenizer<'t> {
+    /// Returns the next token. 
+    /// This function does not check for EOF; failing to do so is undefined behavior.
     fn next_token(&mut self) -> Token<'t> {
         self.skip_whitespace();
         self.start = self.current;
@@ -53,16 +61,19 @@ impl<'t> Tokenizer<'t> {
         }
     }
 
+    /// Matches the next char to check for double-char tokens. Will emit token based on match. 
     fn check_double_token(&mut self, next: char, matched: Type, not_matched: Type) -> Token<'t> {
         let token = if self.match_next(next) { matched } else { not_matched };
         self.make_token(token)
     }
 
+    /// Creates a newline token.
     fn newline(&mut self) -> Token<'t> {
         self.line += 1;
         self.make_token(Type::Newline)
     }
 
+    /// Creates an identifier or keyword token.
     fn identifier(&mut self) -> Token<'t> {
         while self.peek().is_ascii_alphanumeric() || self.check('_') {
             self.advance();
@@ -70,6 +81,7 @@ impl<'t> Tokenizer<'t> {
         self.make_token(self.identifier_type())
     }
 
+    /// Returns the correct token type for the current token. Can be a keyword or identifier.
     fn identifier_type(&self) -> Type {
         match self.chars[self.start] {
             'a' => self.check_identifier_keyword(1, &['n', 'd'], Type::And),
@@ -93,13 +105,15 @@ impl<'t> Tokenizer<'t> {
                 _ => Type::Identifier,
             },
 
-            'v' => if self.chars[self.start + 1] == 'a' {
+            'v' => {
+                if self.chars[self.start + 1] == 'a' {
                 match self.chars[self.start + 2] {
                     'r' => self.check_identifier_keyword(3, &[], Type::Var),
                     'l' => self.check_identifier_keyword(3, &[], Type::Val),
                     _ => Type::Identifier,
                 }
-            } else { Type::Identifier },
+                } else { Type::Identifier }
+            }
 
             'f' => match self.chars[self.start + 1] {
                 'a' => self.check_identifier_keyword(2, &['l', 's', 'e'], Type::False),
@@ -119,6 +133,7 @@ impl<'t> Tokenizer<'t> {
         }
     }
 
+    /// Helper function for [identifier_type], checks if rest of keyword matches
     fn check_identifier_keyword(&self, start: usize, pattern: &[char], t_type: Type) -> Type {
         // Loop all chars in the pattern; if one does not match it is NOT the keyword
         for ch in 0..pattern.len() {
@@ -128,14 +143,15 @@ impl<'t> Tokenizer<'t> {
         }
 
         // If the next char is alphabetic, it is an identifier that starts with a keyword ('superb')
-        // Length of the remaining chars also needs to be checked; otherwise could lead to a OOB panic
-        return if self.chars.len() != (self.start + start + pattern.len()) && self.chars[self.start + start + pattern.len()].is_ascii_alphabetic() {
+        // If it is not (other token, whitespace, etc.) it is the keyword type
+        if self.chars.get(self.start + start + pattern.len()).get_or_insert(&'\0').is_ascii_alphabetic() {
             Type::Identifier
         } else {
             t_type
         }
     }
 
+    /// Creates a Int or Float token
     fn number(&mut self) -> Token<'t> {
         while self.peek().is_ascii_digit() {
             self.advance();
@@ -152,6 +168,7 @@ impl<'t> Tokenizer<'t> {
         }
     }
 
+    /// Creates a string token
     fn string(&mut self) -> Token<'t> {
         while !self.check('"') && !self.is_at_end() {
             if self.check('\n') {
@@ -168,6 +185,7 @@ impl<'t> Tokenizer<'t> {
         }
     }
 
+    /// Creates a char token
     fn ch(&mut self) -> Token<'t> {
         self.advance();
         if self.match_next('\'') {
@@ -178,6 +196,7 @@ impl<'t> Tokenizer<'t> {
         }
     }
 
+    /// Creates a token based on the current position of self.start and self.current
     fn make_token(&mut self, t_type: Type) -> Token<'t> {
         Token {
             t_type,
@@ -186,6 +205,7 @@ impl<'t> Tokenizer<'t> {
         }
     }
 
+    /// Creates a ScanError token with the given message at the current location
     fn error_token(&mut self, message: &'t str) -> Token<'t> {
         Token {
             t_type: Type::ScanError,
@@ -194,6 +214,7 @@ impl<'t> Tokenizer<'t> {
         }
     }
 
+    /// Skips all whitespace and comments; newline tokens are still created within comments
     fn skip_whitespace(&mut self) {
         loop {
             match self.peek() {
@@ -206,7 +227,7 @@ impl<'t> Tokenizer<'t> {
                         while !self.check('\n') && !self.is_at_end() {
                             self.advance();
                         }
-                    },
+                    }
 
                     '*' => {
                         self.advance();
@@ -227,48 +248,57 @@ impl<'t> Tokenizer<'t> {
                     }
 
                     _ => return,
-                }
+                },
 
                 _ => return,
             }
         }
     }
 
+    /// Is the current cursor at the EOF?
     fn is_at_end(&self) -> bool {
         self.check('\0')
     }
 
+    /// Matches the next char and consumes it if it matches. Returns if it matched.
     fn match_next(&mut self, expected: char) -> bool {
         let matches = self.check(expected);
         if matches { self.advance(); }
         matches
     }
 
+    /// Checks if the next char matches.
     fn check(&self, expected: char) -> bool {
         self.peek() == expected
     }
 
+    /// Checks if the next 2 char match.
     fn check_two(&self, expected: char, expected_second: char) -> bool {
         self.peek() == expected && self.peek_twice() == expected_second
     }
 
+    /// Advances the char pointer by 1 and returns the consumed char.
     fn advance(&mut self) -> char {
         self.current += 1;
         self.char_at(self.current - 1)
     }
 
+    /// Returns the current char without consuming it.
     fn peek(&self) -> char {
         self.char_at(self.current)
     }
 
+    /// Returns the next char without consuming it.
     fn peek_twice(&self) -> char {
         self.char_at(self.current + 1)
     }
 
+    /// Returns the char at the given position or \0 for OOB.
     fn char_at(&self, pos: usize) -> char {
         **self.chars.get(pos).get_or_insert(&'\0')
     }
 
+    /// Create a new tokenizer for scanning the given source.
     pub fn new(source: &'t str) -> Tokenizer {
         let chars: Vec<char> = source.chars().collect();
         Tokenizer {
