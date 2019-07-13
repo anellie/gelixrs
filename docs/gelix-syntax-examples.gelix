@@ -1,0 +1,156 @@
+// Comments can be two SLASH tokens...
+/* Or a C-style multiline.
+    /* Multiline comments can also nest. */
+*/
+
+
+// Variables are declared with var:
+var x = 5
+// val makes them immutable:
+val y = 78
+
+// vars can be reassigned:
+x = 8
+// vals can't:
+y = 7 // Compile Error
+
+// Gelix is statically typed:
+x = "String" // Compile Error
+
+
+// Gelix has if statements:
+var z = 0
+if (x == 5) {
+    z++
+} else {
+    z--
+}
+
+// if statements are expressions:
+print(if (2 > 3) "Math is weird!" else "All good.")
+// Both branches must return the same type when used as expression.
+
+
+// Gelix also has switch/when expressions:
+val isNumberTen = when (10) {
+    10 -> true
+    20 -> {
+        print("But it was 20 instead!")
+        false
+    }
+    else -> {
+        print("It was neither.")
+        false
+    }
+}
+
+
+// For is the only looping construct in Gelix:
+var sum = 0
+for (i in [0, 1, 2]) { // Looping an array literal
+    sum = sum + i
+}
+
+var j = 0
+for (j < 10) { // For with an expression (Similar to 'while' in other languages)
+    j--
+}
+
+
+// Functions are declared like so:
+func add(i32 x, i64 y) -> i64 { // Note the type annotations; iX are ints where X is the size in bits
+    if (x > y) return y
+    x + y // Blocks in gelix are expressions
+}
+
+// Single-statement functions have a shorthand notation:
+func add(i32 x, i64 y) = x + y // Return type is inferred
+
+
+// Classes are declared like this:
+class Animal {
+
+    var alive = true
+    val name
+
+    // Functions do not need the func keyword in classes
+    init(String name) { // Init is a special function called on instance creation
+        // 'this' can be used to access instance variables/functions
+        // Note: init is the only function that can mutate val; use for initialization purposes if needed
+        this.name = name
+    }
+
+    speak() {
+        // print and format are built-in functions in the global namespace
+        if (this.alive) print(format("I'm {}!", name))
+        else print("No response...")
+    }
+}
+
+// Inheritance:
+class Pet ext Animal {
+
+    // Not set on init results in defaulting to null
+    var owner
+
+    setOwner(String newOwner) {
+        this.owner = newOwner
+    }
+}
+
+
+// Error handling; note the return type
+// Result is a special type, and the only one at current to support generic arguments
+// The first is the type on success, the second on failure
+
+// To return a normal result, simply return something of the first type argument
+
+// To return an error, use the 'error' keyword (same as return; except for errors)
+// Using the error keyword in a function that does not return Result results in a compilation error
+func numberIsTooBig(i64 number) -> Result<i64, String> {
+    if (number > 30) error "Result is too big!"
+    number
+}
+
+// result is now of type Result
+val result = numberIsTooBig(450)
+
+// Will take out the value of result; will exit the program with a hard error when 'result' is an error
+val value = take result
+
+// Will take 'result', or use given default on error
+val value = take result else 65
+
+// The else branch can be any expression; if it is a block, the error can be accessed using the error keyword/variable
+val value = take result else {
+    print("Error!: " + error)
+}
+
+
+// Enums
+enum Animal {
+    Dog, Cat, Mouse
+}
+
+val cat = Animal.Cat
+
+// When/Switch expression with enums
+val isCat = when (cat) {
+    Animal.Cat -> true
+    else -> {
+        print("Not a cat!")
+        false
+    }
+}
+
+/* Lastly, a look at all inbuilt types in Gelix:                            Literals:
+ * bool                 -> Simple true/false bool.                          true | false
+ * i8, i16, i32, i64    -> Integers of varying bit sizes.                   12 | (i8 255) 
+ * f32, f64             -> Single and double-prescision floats.             24f | 564.03    (f denotes single-precision)
+ * char                 -> A text character.  TODO: Determine encoding.     c'c' | c"c"
+ * String               -> A simple sequence of chars.                      "Hello" | 'World'
+ *
+ * File                 -> A wrapper for file I/O. API TBD.                 ---
+ *
+ * All types are classes, Gelix does not have 'primitive' values.
+ */
