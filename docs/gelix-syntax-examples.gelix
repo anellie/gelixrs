@@ -154,3 +154,5 @@ val isCat = when (cat) {
  *
  * All types are classes, Gelix does not have 'primitive' values.
  */
+ 
+"Thanks for reading!"

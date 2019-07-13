@@ -3,4 +3,14 @@
 [[package]]
 name = "gelixrs"
 version = "0.1.0"
+dependencies = [
+ "plain_enum 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
+[[package]]
+name = "plain_enum"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[metadata]
+"checksum plain_enum 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "15722276cee0c04008d080749544144ae373306ddb59a04f79b4151f96131fe7"
