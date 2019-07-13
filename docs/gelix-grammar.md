@@ -22,18 +22,18 @@ statement      → exprStmt
 
 exprStmt       → expression ;
 forStmt        → "for" "(" (IDENTIFIER "in" expression | expression) ")" statement ;
-ifStmt         → "if" "(" expression ")" statement ( "else" statement )? ;
 returnStmt     → "return" expression? ";" ;
 errorStmt      → "error" expression? ";" ;
-takeStmt      → "take" expression ("else" expression)? ";" ;
+takeStmt       → "take" expression ("else" expression)? ";" ;
 
 whenExpr       → "when" "(" expression ")" 
                     "{" (expression "->" statement)* "}";
 block          → "{" declaration* "}" ;
+ifExpr         → "if" "(" expression ")" statement ( "else" statement )? ;
 
-expression     → block | assignment | whenExpr ;
+expression     → block | assignment | whenExpr | ifExpr ;
 
-assignment     → ( call "." )? IDENTIFIER "=" assignment
+assignment     → ( call "." )? IDENTIFIER ( slice )? "=" assignment
                | logic_or;
 
 logic_or       → logic_and ( "or" logic_and )* ;
@@ -45,6 +45,7 @@ multiplication → unary ( ( "/" | "*" ) unary )* ;
 
 unary          → ( "!" | "-" ) unary | call ("++" | "--");
 call           → primary ( "(" arguments? ")" | "." IDENTIFIER )* ;
+slice          → primary ( "[" expression "]" | "." IDENTIFIER )* ;
 primary        → "true" | "false" | "null" | "this" | "error" 
                | ARRAY | NUMBER | STRING | IDENTIFIER | "(" expression ")"
                | "super" "." IDENTIFIER ;

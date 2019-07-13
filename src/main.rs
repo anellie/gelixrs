@@ -1,6 +1,8 @@
 #[macro_use]
 extern crate plain_enum;
 
+pub mod ast;
+pub mod parser;
 pub mod token;
 pub mod tokenizer;
 
