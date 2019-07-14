@@ -73,14 +73,14 @@ class Animal {
     var alive = true
     val name
 
-    // Functions do not need the func keyword in classes
-    init(String name) { // Init is a special function called on instance creation
+    // Init is a special function called on instance creation
+    func init(String name) { 
         // 'this' can be used to access instance variables/functions
         // Note: init is the only function that can mutate val; use for initialization purposes if needed
         this.name = name
     }
 
-    speak() {
+    func speak() {
         // print and format are built-in functions in the global namespace
         if (this.alive) print(format("I'm {}!", name))
         else print("No response...")
@@ -93,7 +93,7 @@ class Pet ext Animal {
     // Not set on init results in defaulting to null
     var owner
 
-    setOwner(String newOwner) {
+    func setOwner(String newOwner) {
         this.owner = newOwner
     }
 }
@@ -154,5 +154,5 @@ val isCat = when (cat) {
  *
  * All types are classes, Gelix does not have 'primitive' values.
  */
- 
+
 "Thanks for reading!"

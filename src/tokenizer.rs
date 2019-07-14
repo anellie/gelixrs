@@ -15,7 +15,7 @@ pub struct Tokenizer<'t> {
 }
 
 impl<'t> Tokenizer<'t> {
-    /// Returns the next token. 
+    /// Returns the next token.
     /// This function does not check for EOF; failing to do so is undefined behavior.
     fn next_token(&mut self) -> Token<'t> {
         self.skip_whitespace();
@@ -41,7 +41,6 @@ impl<'t> Tokenizer<'t> {
             ';' => self.make_token(Type::Semicolon),
             ',' => self.make_token(Type::Comma),
             '.' => self.make_token(Type::Dot),
-            '-' => self.make_token(Type::Minus),
             '+' => self.make_token(Type::Plus),
             '*' => self.make_token(Type::Star),
             '/' => self.make_token(Type::Slash),
@@ -52,6 +51,7 @@ impl<'t> Tokenizer<'t> {
             '=' => self.check_double_token('=', Type::EqualEqual, Type::Equal),
             '<' => self.check_double_token('=', Type::LessEqual, Type::Less),
             '>' => self.check_double_token('=', Type::GreaterEqual, Type::Greater),
+            '-' => self.check_double_token('>', Type::Arrow, Type::Minus),
 
             // Literals
             '"' => self.string(),
@@ -315,7 +315,7 @@ impl<'t> Iterator for Tokenizer<'t> {
     type Item = Token<'t>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.is_at_end() { Option::None } 
-        else { Option::Some(self.next_token()) }
+        if self.is_at_end() { None } 
+        else { Some(self.next_token()) }
     }
 }

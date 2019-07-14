@@ -2,6 +2,7 @@ use super::super::token::Token;
 use super::expression::Expression;
 
 /// An enum with all statements that can be in an Gelix AST.
+#[derive(Debug)]
 pub enum Statement<'s> {
     /// A class definition.
     Class {
@@ -54,15 +55,18 @@ pub enum Statement<'s> {
 // The below structs are not in the enum directly to allow using them in the 'Class' variant.
 
 /// A function definition.
+#[derive(Debug)]
 pub struct Function<'f> {
-    name: Token<'f>,
-    parameters: Vec<Token<'f>>,
-    body: Vec<Statement<'f>>
+    pub name: Token<'f>,
+    pub return_type: Option<Token<'f>>,
+    pub parameters: Vec<(Token<'f>, Token<'f>)>,
+    pub body: Box<Statement<'f>>
 }
 
 /// A variable definition.
+#[derive(Debug)]
 pub struct Variable<'v> {
-    name: Token<'v>,
-    is_val: bool,
-    initializer: Option<Expression<'v>>
+    pub name: Token<'v>,
+    pub is_val: bool,
+    pub initializer: Option<Expression<'v>>
 }

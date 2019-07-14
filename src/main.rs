@@ -1,3 +1,5 @@
+#![feature(bind_by_move_pattern_guards)]
+
 #[macro_use]
 extern crate plain_enum;
 
@@ -9,10 +11,11 @@ pub mod tokenizer;
 use std::fs;
 
 fn main() {
-    let file = fs::read_to_string("docs/gelix-syntax-examples.gelix").unwrap();
+    let file = fs::read_to_string("examples/classes.gelix").unwrap();
     let tokenizer = tokenizer::Tokenizer::new(&file);
+    let mut parser = parser::Parser::new(tokenizer);
 
-    for token in tokenizer {
-        println!("{:?}", token);
+    for statement in parser.parse() {
+        println!("{:#?}", statement);
     }
 }

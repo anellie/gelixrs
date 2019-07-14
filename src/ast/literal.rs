@@ -1,4 +1,5 @@
 /// An enum containing all literals possible in Gelix.
+#[derive(Debug)]
 pub enum Literal {
     Null,
     Int(u64),

@@ -8,7 +8,7 @@ declaration    → classDecl
                | statement ;
 
 classDecl      → "class" IDENTIFIER ( "ext" IDENTIFIER )?
-                 "{" (varDecl | function) "}" ;
+                 "{" (varDecl | funDecl) "}" ;
 funDecl        → "func" function ;
 varDecl        → ("var" | "val") IDENTIFIER ( "=" expression )? ;
 enumDecl       → "enum" IDENTIFIER "{" IDENTIFIER* "}" ;

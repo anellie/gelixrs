@@ -1,0 +1,10 @@
+class Classy {
+    val a
+
+    func b() -> Something 5
+}
+
+func helloThere(String name, bool nice) -> Person "Hi there!"
+
+val boolean = true
+

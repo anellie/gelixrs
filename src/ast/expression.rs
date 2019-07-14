@@ -1,10 +1,9 @@
-use std::collections::HashMap;
-
 use super::super::token::Token;
 use super::statement::Statement;
 use super::literal::Literal;
 
 /// An enum with all expression types in Gelix.
+#[derive(Debug)]
 pub enum Expression<'e> {
     /// Assigment a la x = 5
     Assignment {
@@ -77,7 +76,7 @@ pub enum Expression<'e> {
     /// A when expression.
     When {
         value: Box<Expression<'e>>,
-        body: HashMap<Expression<'e>, Statement<'e>>
+        body: Vec<(Expression<'e>, Statement<'e>)>
     }
 }
 
