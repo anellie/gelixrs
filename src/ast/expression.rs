@@ -1,6 +1,6 @@
 use super::super::token::Token;
-use super::statement::Statement;
 use super::literal::Literal;
+use super::statement::Statement;
 
 /// An enum with all expression types in Gelix.
 #[derive(Debug)]
@@ -8,14 +8,14 @@ pub enum Expression<'e> {
     /// Assigment a la x = 5
     Assignment {
         name: Token<'e>,
-        value: Box<Expression<'e>>
+        value: Box<Expression<'e>>,
     },
 
     /// Binary operations like 5 + 5
     Binary {
         left: Box<Expression<'e>>,
         operator: Token<'e>,
-        right: Box<Expression<'e>>
+        right: Box<Expression<'e>>,
     },
 
     /// A block of code; last statement is value
@@ -25,13 +25,13 @@ pub enum Expression<'e> {
     Call {
         callee: Box<Expression<'e>>,
         token: Token<'e>,
-        arguments: Vec<Expression<'e>>
+        arguments: Vec<Expression<'e>>,
     },
 
     /// A getter (x.y)
     Get {
         object: Box<Expression<'e>>,
-        name: Token<'e>
+        name: Token<'e>,
     },
 
     /// A grouping of expressions. (5 + 5) / 5
@@ -41,7 +41,7 @@ pub enum Expression<'e> {
     If {
         condition: Box<Expression<'e>>,
         then_branch: Box<Expression<'e>>,
-        else_branch: Option<Box<Expression<'e>>>
+        else_branch: Option<Box<Expression<'e>>>,
     },
 
     /// A simple [Literal].
@@ -51,14 +51,14 @@ pub enum Expression<'e> {
     Logical {
         left: Box<Expression<'e>>,
         operator: Token<'e>,
-        right: Box<Expression<'e>>
+        right: Box<Expression<'e>>,
     },
 
     /// A setter (x.y = 5)
     Set {
         object: Box<Expression<'e>>,
         name: Token<'e>,
-        value: Box<Expression<'e>>
+        value: Box<Expression<'e>>,
     },
 
     /// 'this' keyword
@@ -67,7 +67,7 @@ pub enum Expression<'e> {
     /// A unary operation. (!false)
     Unary {
         operator: Token<'e>,
-        right: Box<Expression<'e>>
+        right: Box<Expression<'e>>,
     },
 
     /// Simply a variable.
@@ -76,7 +76,6 @@ pub enum Expression<'e> {
     /// A when expression.
     When {
         value: Box<Expression<'e>>,
-        body: Vec<(Expression<'e>, Statement<'e>)>
-    }
+        body: Vec<(Expression<'e>, Statement<'e>)>,
+    },
 }
-

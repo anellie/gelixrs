@@ -1,10 +1,7 @@
 mod helpers;
 mod parser;
 
-use super::{
-    tokenizer::Tokenizer,
-    token::Token,
-};
+use super::{token::Token, tokenizer::Tokenizer};
 
 /// A parser that turns a stream of [Token]s into an AST.
 pub struct Parser<'p> {
@@ -20,6 +17,5 @@ pub struct Parser<'p> {
     // If an error occured while creating a statement. Will signal the compiler that it should not compile.
     had_error: bool,
     // If the parser is waiting to 'sync' after a parsing error occured.
-    waiting_for_sync: bool
+    waiting_for_sync: bool,
 }
-

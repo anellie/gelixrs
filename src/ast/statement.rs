@@ -8,19 +8,19 @@ pub enum Statement<'s> {
     Class {
         name: Token<'s>,
         variables: Vec<Variable<'s>>,
-        methods: Vec<Function<'s>>
+        methods: Vec<Function<'s>>,
     },
 
     /// An enum definition.
     Enum {
         name: Token<'s>,
-        variants: Vec<Token<'s>>
+        variants: Vec<Token<'s>>,
     },
 
     /// 'error' keyword.
     Error {
         keyword: Token<'s>,
-        value: Option<Expression<'s>>
+        value: Option<Expression<'s>>,
     },
 
     /// An [Expression].
@@ -29,7 +29,7 @@ pub enum Statement<'s> {
     /// A for loop. Only conditional loops are in the AST; iteration loops are unrolled.
     For {
         condition: Expression<'s>,
-        body: Box<Statement<'s>>
+        body: Box<Statement<'s>>,
     },
 
     /// A function definition.
@@ -38,18 +38,18 @@ pub enum Statement<'s> {
     /// 'return' keyword.
     Return {
         keyword: Token<'s>,
-        value: Option<Expression<'s>>
+        value: Option<Expression<'s>>,
     },
 
     /// 'take' keyword.
     Take {
         keyword: Token<'s>,
         value: Expression<'s>,
-        else_branch: Box<Statement<'s>>
+        else_branch: Box<Statement<'s>>,
     },
 
     /// A variable definition.
-    Variable(Variable<'s>)
+    Variable(Variable<'s>),
 }
 
 // The below structs are not in the enum directly to allow using them in the 'Class' variant.
@@ -60,7 +60,7 @@ pub struct Function<'f> {
     pub name: Token<'f>,
     pub return_type: Option<Token<'f>>,
     pub parameters: Vec<(Token<'f>, Token<'f>)>,
-    pub body: Box<Statement<'f>>
+    pub body: Box<Statement<'f>>,
 }
 
 /// A variable definition.
@@ -68,5 +68,5 @@ pub struct Function<'f> {
 pub struct Variable<'v> {
     pub name: Token<'v>,
     pub is_val: bool,
-    pub initializer: Option<Expression<'v>>
+    pub initializer: Option<Expression<'v>>,
 }

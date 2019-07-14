@@ -144,7 +144,12 @@ impl<'t> Tokenizer<'t> {
 
         // If the next char is alphabetic, it is an identifier that starts with a keyword ('superb')
         // If it is not (other token, whitespace, etc.) it is the keyword type
-        if self.chars.get(self.start + start + pattern.len()).get_or_insert(&'\0').is_ascii_alphabetic() {
+        if self
+            .chars
+            .get(self.start + start + pattern.len())
+            .get_or_insert(&'\0')
+            .is_ascii_alphabetic()
+        {
             Type::Identifier
         } else {
             t_type
@@ -263,7 +268,9 @@ impl<'t> Tokenizer<'t> {
     /// Matches the next char and consumes it if it matches. Returns if it matched.
     fn match_next(&mut self, expected: char) -> bool {
         let matches = self.check(expected);
-        if matches { self.advance(); }
+        if matches {
+            self.advance();
+        }
         matches
     }
 
@@ -315,7 +322,10 @@ impl<'t> Iterator for Tokenizer<'t> {
     type Item = Token<'t>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.is_at_end() { None } 
-        else { Some(self.next_token()) }
+        if self.is_at_end() {
+            None
+        } else {
+            Some(self.next_token())
+        }
     }
 }

@@ -1,13 +1,13 @@
 //! This module contains all 'helper' functions of the parser.
-//! These functions do not generate AST themselves, and are only used by other functions 
+//! These functions do not generate AST themselves, and are only used by other functions
 //! to manipulate the stream of tokens.
 
-use super::Parser;
 use super::super::{
-    tokenizer::Tokenizer,
-    token::{Token, Type},
     ast::statement::Statement,
+    token::{Token, Type},
+    tokenizer::Tokenizer,
 };
+use super::Parser;
 use std::mem;
 
 impl<'p> Parser<'p> {
@@ -16,10 +16,10 @@ impl<'p> Parser<'p> {
         let mut statements: Vec<Statement> = Vec::new();
         self.advance();
 
-        while !self.is_at_end() { 
-            if let Some(f) = self.declaration() { 
-                statements.push(f) 
-            } 
+        while !self.is_at_end() {
+            if let Some(f) = self.declaration() {
+                statements.push(f)
+            }
         }
 
         statements
@@ -28,10 +28,12 @@ impl<'p> Parser<'p> {
     /// Checks if the current token is the given type. If yes, it consumes it.
     pub fn match_token(&mut self, t_type: Type) -> bool {
         let matches = self.check(t_type);
-        if matches { self.advance(); }
+        if matches {
+            self.advance();
+        }
         matches
     }
-    
+
     /// Same as [match_token], but checks for multiple types.
     pub fn match_tokens(&mut self, types: &[Type]) -> bool {
         types.iter().any(|&t| self.match_token(t))
@@ -61,17 +63,22 @@ impl<'p> Parser<'p> {
                 self.hit_newline = true;
                 while let Some(next) = self.tokens.next() {
                     previous = mem::replace(&mut self.current, next);
-                    if self.current.t_type != Type::Newline { break; }
+                    if self.current.t_type != Type::Newline {
+                        break;
+                    }
                 }
             }
-            
+
             previous
         } else {
-            mem::replace(&mut self.current, Token {
-                t_type: Type::EndOfFile,
-                lexeme: "\0",
-                line: 0
-            })
+            mem::replace(
+                &mut self.current,
+                Token {
+                    t_type: Type::EndOfFile,
+                    lexeme: "\0",
+                    line: 0,
+                },
+            )
         }
     }
 
@@ -91,7 +98,7 @@ impl<'p> Parser<'p> {
     }
 
     /// Displays an error message at the given line
-    /// and sets appropriate state to allow for error recovery. 
+    /// and sets appropriate state to allow for error recovery.
     pub fn error_at(&mut self, line: usize, message: &str) {
         if self.waiting_for_sync {
             return;
@@ -139,12 +146,12 @@ impl<'p> Parser<'p> {
             current: Token {
                 t_type: Type::Newline,
                 lexeme: "\n",
-                line: 0
+                line: 0,
             },
             hit_newline: false,
 
             had_error: false,
-            waiting_for_sync: false
+            waiting_for_sync: false,
         }
     }
 }

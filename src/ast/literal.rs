@@ -7,5 +7,5 @@ pub enum Literal {
     Double(f64),
     Char(char),
     String(String),
-    Array(Vec<Literal>)
+    Array(Vec<Literal>),
 }

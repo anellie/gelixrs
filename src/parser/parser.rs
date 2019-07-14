@@ -1,15 +1,15 @@
 //! This module contains all functions directly responsible for parsing the tokens
 //! and creating the AST from them.
 
-use super::Parser;
 use super::super::{
-    token::{Token, Type},
     ast::{
         expression::Expression,
         literal::Literal,
-        statement::{Statement, Function, Variable},
+        statement::{Function, Statement, Variable},
     },
+    token::{Token, Type},
 };
+use super::Parser;
 
 // TODO: Implement the rest of the parser.
 impl<'p> Parser<'p> {
@@ -26,7 +26,7 @@ impl<'p> Parser<'p> {
             _ if self.match_token(Type::Func) => Statement::Function(self.function()?),
             _ if self.match_token(Type::Var) => Statement::Variable(self.var_declaration(false)?),
             _ if self.match_token(Type::Val) => Statement::Variable(self.var_declaration(true)?),
-            _ => self.statement()?
+            _ => self.statement()?,
         })
     }
 
@@ -47,7 +47,11 @@ impl<'p> Parser<'p> {
         }
 
         self.consume(Type::RightBrace, "Expected '}' after class body.");
-        Some(Statement::Class { name, methods, variables })
+        Some(Statement::Class {
+            name,
+            methods,
+            variables,
+        })
     }
 
     fn function(&mut self) -> Option<Function<'p>> {
@@ -57,11 +61,13 @@ impl<'p> Parser<'p> {
         let mut parameters: Vec<(Token<'p>, Token<'p>)> = Vec::new();
         if !self.check(Type::RightParen) {
             loop {
-                parameters.push(
-                    (self.consume(Type::Identifier, "Expected parameter type.")?,
-                    self.consume(Type::Identifier, "Expected parameter name.")?)
-                );
-                if !self.match_token(Type::Comma) { break; }
+                parameters.push((
+                    self.consume(Type::Identifier, "Expected parameter type.")?,
+                    self.consume(Type::Identifier, "Expected parameter name.")?,
+                ));
+                if !self.match_token(Type::Comma) {
+                    break;
+                }
             }
         }
         self.consume(Type::RightParen, "Expected ')' after parameters.");
@@ -73,21 +79,30 @@ impl<'p> Parser<'p> {
 
         let body = self.statement()?;
 
-        Some(Function { name, return_type, parameters, body: Box::new(body) })
+        Some(Function {
+            name,
+            return_type,
+            parameters,
+            body: Box::new(body),
+        })
     }
 
     fn var_declaration(&mut self, is_val: bool) -> Option<Variable<'p>> {
         let name = self.consume(Type::Identifier, "Expected variable name.")?;
 
         let mut initializer: Option<Expression<'p>> = None;
-        if self.match_token(Type::Equal) { initializer = Some(self.expression()); }
+        if self.match_token(Type::Equal) {
+            initializer = Some(self.expression());
+        }
 
-        if !self.hit_newline { self.error_at_current("Expected newline after variable declaration."); }
+        if !self.hit_newline {
+            self.error_at_current("Expected newline after variable declaration.");
+        }
 
         Some(Variable {
             name,
             is_val,
-            initializer
+            initializer,
         })
     }
 
@@ -99,7 +114,9 @@ impl<'p> Parser<'p> {
 
     fn expression_statement(&mut self) -> Option<Statement<'p>> {
         let statement = Statement::Expression(self.expression());
-        if !self.hit_newline { self.error_at_current("Expected newline after expression."); }
+        if !self.hit_newline {
+            self.error_at_current("Expected newline after expression.");
+        }
         Some(statement)
     }
 
