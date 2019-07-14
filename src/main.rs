@@ -11,7 +11,7 @@ pub mod tokenizer;
 use std::fs;
 
 fn main() {
-    let file = fs::read_to_string("examples/classes.gelix").unwrap();
+    let file = fs::read_to_string("examples/testing.gelix").unwrap();
     let tokenizer = tokenizer::Tokenizer::new(&file);
     let mut parser = parser::Parser::new(tokenizer);
 

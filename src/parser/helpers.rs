@@ -10,11 +10,16 @@ use super::super::{
 use super::Parser;
 use std::mem;
 
+static EOF_TOKEN: Token = Token {
+    t_type: Type::EndOfFile,
+    lexeme: "\0",
+    line: 0,
+};
+
 impl<'p> Parser<'p> {
     /// Parses the tokens and returns a full AST.
     pub fn parse(&mut self) -> Vec<Statement> {
         let mut statements: Vec<Statement> = Vec::new();
-        self.advance();
 
         while !self.is_at_end() {
             if let Some(f) = self.declaration() {
@@ -34,9 +39,13 @@ impl<'p> Parser<'p> {
         matches
     }
 
-    /// Same as [match_token], but checks for multiple types.
-    pub fn match_tokens(&mut self, types: &[Type]) -> bool {
-        types.iter().any(|&t| self.match_token(t))
+    /// Same as [match_token], but checks for multiple types. Returns the token consumed.
+    pub fn match_tokens(&mut self, types: &[Type]) -> Option<Token<'p>> {
+        if types.iter().any(|&t| self.check(t)) {
+            Some(self.advance())
+        } else {
+            None
+        }
     }
 
     /// Consumes the current token if it is the type given.
@@ -55,36 +64,24 @@ impl<'p> Parser<'p> {
     /// Advancing after the end will simply return EndOfFile tokens indefinitely.
     pub fn advance(&mut self) -> Token<'p> {
         if let Some(next) = self.tokens.next() {
-            let mut previous = mem::replace(&mut self.current, next);
-
-            // TODO: This way of skipping over newlines is kinda ugly...
-            self.hit_newline = false;
-            if self.current.t_type == Type::Newline {
-                self.hit_newline = true;
-                while let Some(next) = self.tokens.next() {
-                    previous = mem::replace(&mut self.current, next);
-                    if self.current.t_type != Type::Newline {
-                        break;
-                    }
-                }
-            }
-
-            previous
+            mem::replace(&mut self.current, next)
         } else {
-            mem::replace(
-                &mut self.current,
-                Token {
-                    t_type: Type::EndOfFile,
-                    lexeme: "\0",
-                    line: 0,
-                },
-            )
+            mem::replace(&mut self.current, EOF_TOKEN.clone())
         }
     }
 
     /// Is the current token the given token?
     pub fn check(&mut self, t_type: Type) -> bool {
         !self.is_at_end() && self.current.t_type == t_type
+    }
+
+    /// Is the next token the given token?
+    pub fn check_next(&mut self, t_type: Type) -> bool {
+        self.tokens.peek().get_or_insert(&Token {
+            t_type: Type::EndOfFile,
+            lexeme: "\0",
+            line: 0,
+        }).t_type == t_type
     }
 
     /// Is the parser at the end of the token stream?
@@ -118,7 +115,8 @@ impl<'p> Parser<'p> {
         self.waiting_for_sync = false;
 
         while !self.is_at_end() {
-            if self.hit_newline {
+            if self.check(Type::Semicolon) {
+                self.advance();
                 return;
             }
 
@@ -140,18 +138,21 @@ impl<'p> Parser<'p> {
 
     /// Creates a new parser for parsing the given tokens.
     pub fn new(tokens: Tokenizer<'p>) -> Parser<'p> {
-        Parser {
-            tokens,
+        let mut parser = Parser {
+            tokens: tokens.peekable(),
 
             current: Token {
-                t_type: Type::Newline,
+                t_type: Type::Null,
                 lexeme: "\n",
                 line: 0,
             },
-            hit_newline: false,
 
             had_error: false,
             waiting_for_sync: false,
-        }
+        };
+
+        // Set state correctly.
+        parser.advance();
+        parser
     }
 }

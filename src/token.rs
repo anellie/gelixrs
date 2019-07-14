@@ -1,5 +1,5 @@
 /// A token in the gelix language. These are produced by a [Tokenizer].
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Token<'t> {
     /// The type of the token.
     pub t_type: Type,
@@ -30,10 +30,10 @@ Type {
 
     Identifier, String, Int, Float, Char,
 
-    And, Class, Else, Error, Ext, False,
+    And, Class, Else, Enum, Error, Ext, False,
     For, Func, If, In, Null, Or,
-    Print, Return, Super, Take, This,
-    True, Var, Val, While,
+    Return, Super, Take, This,
+    True, Var, Val, When, While,
 
     ScanError, EndOfFile,
 }}

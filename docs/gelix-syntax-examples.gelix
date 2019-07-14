@@ -5,62 +5,62 @@
 
 
 // Variables are declared with var:
-var x = 5
+var x = 5;
 // val makes them immutable:
-val y = 78
+val y = 78;
 
 // vars can be reassigned:
-x = 8
+x = 8;
 // vals can't:
-y = 7 // Compile Error
+y = 7; // Compile Error
 
 // Gelix is statically typed:
-x = "String" // Compile Error
+x = "String"; // Compile Error
 
 
 // Gelix has if statements:
-var z = 0
+var z = 0;
 if (x == 5) {
-    z++
+    z++;
 } else {
-    z--
+    z--;
 }
 
 // if statements are expressions:
-print(if (2 > 3) "Math is weird!" else "All good.")
+print(if (2 > 3) "Math is weird!" else "All good.");
 // Both branches must return the same type when used as expression.
 
 
 // Gelix also has switch/when expressions:
 val isNumberTen = when (10) {
-    10 -> true
+    10 -> true;
     20 -> {
-        print("But it was 20 instead!")
-        false
+        print("But it was 20 instead!");
+        false;
     }
     else -> {
-        print("It was neither.")
-        false
+        print("It was neither.");
+        false;
     }
 }
 
 
 // For is the only looping construct in Gelix:
-var sum = 0
+var sum = 0;
 for (i in [0, 1, 2]) { // Looping an array literal
-    sum = sum + i
+    sum = sum + i;
 }
 
-var j = 0
+var j = 0;
 for (j < 10) { // For with an expression (Similar to 'while' in other languages)
-    j--
+    j--;
 }
 
 
 // Functions are declared like so:
 func add(i32 x, i64 y) -> i64 { // Note the type annotations; iX are ints where X is the size in bits
-    if (x > y) return y
-    x + y // Blocks in gelix are expressions
+    if (x > y) return y;
+    x + y; // Blocks in gelix are expressions
 }
 
 // Single-statement functions have a shorthand notation:
@@ -70,20 +70,20 @@ func add(i32 x, i64 y) = x + y // Return type is inferred
 // Classes are declared like this:
 class Animal {
 
-    var alive = true
-    val name
+    var alive = true;
+    val name;
 
     // Init is a special function called on instance creation
     func init(String name) { 
         // 'this' can be used to access instance variables/functions
         // Note: init is the only function that can mutate val; use for initialization purposes if needed
-        this.name = name
+        this.name = name;
     }
 
     func speak() {
         // print and format are built-in functions in the global namespace
-        if (this.alive) print(format("I'm {}!", name))
-        else print("No response...")
+        if (this.alive) print(format("I'm {}!", name));
+        else print("No response...");
     }
 }
 
@@ -91,10 +91,10 @@ class Animal {
 class Pet ext Animal {
 
     // Not set on init results in defaulting to null
-    var owner
+    var owner;
 
     func setOwner(String newOwner) {
-        this.owner = newOwner
+        this.owner = newOwner;
     }
 }
 
@@ -108,22 +108,22 @@ class Pet ext Animal {
 // To return an error, use the 'error' keyword (same as return; except for errors)
 // Using the error keyword in a function that does not return Result results in a compilation error
 func numberIsTooBig(i64 number) -> Result<i64, String> {
-    if (number > 30) error "Result is too big!"
-    number
+    if (number > 30) error "Result is too big!";
+    number;
 }
 
 // result is now of type Result
-val result = numberIsTooBig(450)
+val result = numberIsTooBig(450);
 
 // Will take out the value of result; will exit the program with a hard error when 'result' is an error
-val value = take result
+val value = take result;
 
 // Will take 'result', or use given default on error
-val value = take result else 65
+val value = take result else 65;
 
-// The else branch can be any expression; if it is a block, the error can be accessed using the error keyword/variable
+// The else branch can be any expression; if it is a block, the error can be accessed using the err variable
 val value = take result else {
-    print("Error!: " + error)
+    print("Error!: " + err);
 }
 
 
@@ -132,14 +132,14 @@ enum Animal {
     Dog, Cat, Mouse
 }
 
-val cat = Animal.Cat
+val cat = Animal.Cat;
 
 // When/Switch expression with enums
 val isCat = when (cat) {
-    Animal.Cat -> true
+    Animal.Cat -> true;
     else -> {
-        print("Not a cat!")
-        false
+        print("Not a cat!");
+        false;
     }
 }
 
@@ -155,4 +155,4 @@ val isCat = when (cat) {
  * All types are classes, Gelix does not have 'primitive' values.
  */
 
-"Thanks for reading!"
+"Thanks for reading!";

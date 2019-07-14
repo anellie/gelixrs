@@ -15,22 +15,25 @@ pub struct Tokenizer<'t> {
 }
 
 impl<'t> Tokenizer<'t> {
-    /// Returns the next token.
-    /// This function does not check for EOF; failing to do so is undefined behavior.
-    fn next_token(&mut self) -> Token<'t> {
+    /// Returns the next token, or None if at EOF.
+    fn next_token(&mut self) -> Option<Token<'t>> {
         self.skip_whitespace();
         self.start = self.current;
+
+        if self.is_at_end() {
+            return None
+        }
 
         let ch = self.advance();
 
         if ch.is_ascii_alphabetic() || ch == '_' {
-            return self.identifier();
+            return Some(self.identifier());
         }
         if ch.is_ascii_digit() {
-            return self.number();
+            return Some(self.number());
         }
 
-        match ch {
+        Some(match ch {
             // Single-char
             '(' => self.make_token(Type::LeftParen),
             ')' => self.make_token(Type::RightParen),
@@ -44,7 +47,6 @@ impl<'t> Tokenizer<'t> {
             '+' => self.make_token(Type::Plus),
             '*' => self.make_token(Type::Star),
             '/' => self.make_token(Type::Slash),
-            '\n' => self.newline(),
 
             // Double-char
             '!' => self.check_double_token('=', Type::BangEqual, Type::Bang),
@@ -58,19 +60,13 @@ impl<'t> Tokenizer<'t> {
             '\'' => self.ch(),
 
             _ => self.error_token("Unexpected symbol."),
-        }
+        })
     }
 
     /// Matches the next char to check for double-char tokens. Will emit token based on match. 
     fn check_double_token(&mut self, next: char, matched: Type, not_matched: Type) -> Token<'t> {
         let token = if self.match_next(next) { matched } else { not_matched };
         self.make_token(token)
-    }
-
-    /// Creates a newline token.
-    fn newline(&mut self) -> Token<'t> {
-        self.line += 1;
-        self.make_token(Type::Newline)
     }
 
     /// Creates an identifier or keyword token.
@@ -88,9 +84,9 @@ impl<'t> Tokenizer<'t> {
             'c' => self.check_identifier_keyword(1, &['l', 'a', 's', 's'], Type::Class),
             'n' => self.check_identifier_keyword(1, &['u', 'l', 'l'], Type::Null),
             'o' => self.check_identifier_keyword(1, &['r'], Type::Or),
-            'p' => self.check_identifier_keyword(1, &['r', 'i', 'n', 't'], Type::Print),
             'r' => self.check_identifier_keyword(1, &['e', 't', 'u', 'r', 'n'], Type::Return),
             's' => self.check_identifier_keyword(1, &['u', 'p', 'e', 'r'], Type::Super),
+            'w' => self.check_identifier_keyword(1, &['h', 'e', 'n'], Type::When),
 
             'i' => match self.chars[self.start + 1] {
                 'f' => self.check_identifier_keyword(2, &[], Type::If),
@@ -100,6 +96,7 @@ impl<'t> Tokenizer<'t> {
 
             'e' => match self.chars[self.start + 1] {
                 'l' => self.check_identifier_keyword(2, &['s', 'e'], Type::Else),
+                'n' => self.check_identifier_keyword(2, &['u', 'm'], Type::Enum),
                 'r' => self.check_identifier_keyword(2, &['r', 'o', 'r'], Type::Error),
                 'x' => self.check_identifier_keyword(2, &['t'], Type::Ext),
                 _ => Type::Identifier,
@@ -219,11 +216,16 @@ impl<'t> Tokenizer<'t> {
         }
     }
 
-    /// Skips all whitespace and comments; newline tokens are still created within comments
+    /// Skips all whitespace and comments
     fn skip_whitespace(&mut self) {
         loop {
             match self.peek() {
                 ' ' | '\r' | '\t' => {
+                    self.advance();
+                }
+
+                '\n' => {
+                    self.line += 1;
                     self.advance();
                 }
 
@@ -322,10 +324,6 @@ impl<'t> Iterator for Tokenizer<'t> {
     type Item = Token<'t>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.is_at_end() {
-            None
-        } else {
-            Some(self.next_token())
-        }
+        self.next_token()
     }
 }

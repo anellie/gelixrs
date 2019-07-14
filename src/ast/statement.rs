@@ -18,10 +18,7 @@ pub enum Statement<'s> {
     },
 
     /// 'error' keyword.
-    Error {
-        keyword: Token<'s>,
-        value: Option<Expression<'s>>,
-    },
+    Error(Option<Expression<'s>>),
 
     /// An [Expression].
     Expression(Expression<'s>),
@@ -36,17 +33,7 @@ pub enum Statement<'s> {
     Function(Function<'s>),
 
     /// 'return' keyword.
-    Return {
-        keyword: Token<'s>,
-        value: Option<Expression<'s>>,
-    },
-
-    /// 'take' keyword.
-    Take {
-        keyword: Token<'s>,
-        value: Expression<'s>,
-        else_branch: Box<Statement<'s>>,
-    },
+    Return(Option<Expression<'s>>),
 
     /// A variable definition.
     Variable(Variable<'s>),

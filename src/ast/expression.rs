@@ -60,6 +60,12 @@ pub enum Expression<'e> {
         name: Token<'e>,
         value: Box<Expression<'e>>,
     },
+   
+    /// 'take' keyword
+    Take {
+        value: Box<Expression<'e>>,
+        else_branch: Option<Box<Expression<'e>>>,
+    },
 
     /// 'this' keyword
     This(Token<'e>),
@@ -76,6 +82,7 @@ pub enum Expression<'e> {
     /// A when expression.
     When {
         value: Box<Expression<'e>>,
-        body: Vec<(Expression<'e>, Statement<'e>)>,
+        branches: Vec<(Expression<'e>, Expression<'e>)>,
+        else_branch: Box<Expression<'e>>
     },
 }

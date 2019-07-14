@@ -17,21 +17,21 @@ statement      → exprStmt
                | forStmt
                | ifStmt
                | returnStmt 
-               | errorStmt
-               | takeStmt;
+               | errorStmt;
 
 exprStmt       → expression ;
 forStmt        → "for" "(" (IDENTIFIER "in" expression | expression) ")" statement ;
 returnStmt     → "return" expression? ";" ;
 errorStmt      → "error" expression? ";" ;
-takeStmt       → "take" expression ("else" expression)? ";" ;
 
+takeExpr       → "take" expression ("else" expression)? ";" ;
 whenExpr       → "when" "(" expression ")" 
                     "{" (expression "->" statement)* "}";
 block          → "{" declaration* "}" ;
 ifExpr         → "if" "(" expression ")" statement ( "else" statement )? ;
 
-expression     → block | assignment | whenExpr | ifExpr ;
+// TODO: return and error should propably also be an expression. This would allow use in 'if' without a block.
+expression     → block | assignment | whenExpr | ifExpr | takeExpr ;
 
 assignment     → ( call "." )? IDENTIFIER ( slice )? "=" assignment
                | logic_or;

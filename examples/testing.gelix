@@ -1,0 +1,107 @@
+
+var x = 5;
+val y = 78;
+
+x = 8;
+y = 7;
+
+x = "String";
+
+
+var z = 0;
+if (x == 5) {
+    z = z + 1;
+} else {
+    z = z - 1;
+}
+
+if (2 > 3) "Math is weird!" else "All good."
+
+/*
+val isNumberTen = when (10) {
+    10 -> true;
+    20 -> {
+        print("But it was 20 instead!");
+        false;
+    }
+    else -> {
+        print("It was neither.");
+        false;
+    }
+} */
+
+
+var sum = 0;
+// for (i in [0, 1, 2]) {
+//     sum = sum + i;
+// }
+
+var j = 0;
+for (j < 10) {
+    j = j + 1;
+}
+
+
+func add(i32 x, i64 y) -> i64 {
+    if (x > y) { return y; }
+    x + y; 
+}
+
+
+class Animal {
+
+    var alive = true;
+    val name;
+
+    func init(String name) { 
+        this.name = name;
+    }
+
+    func speak() {
+        if (this.alive) { return "I'm {}!"; }
+        else "No response..."
+    }
+}
+
+class Pet {
+
+    var owner;
+
+    func setOwner(String newOwner) {
+        this.owner = newOwner;
+    }
+}
+
+
+func numberIsTooBig(i64 number) -> Result {
+    if (number > 30) { error "Result is too big!"; }
+    number;
+}
+
+val result = numberIsTooBig(450);
+
+
+val value = take result;
+
+val value = take result else 65;
+
+val value = take result else {
+    print("Error!: " + err);
+};
+
+
+enum Animal {
+    Dog, Cat, Mouse
+}
+
+val cat = Animal.Cat;
+
+/*
+val isCat = when (cat) {
+    // Animal.Cat -> true;
+    else -> {
+        // print("Not a cat!");
+        false;
+    }
+};
+*/

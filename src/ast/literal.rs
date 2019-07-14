@@ -2,7 +2,8 @@
 #[derive(Debug)]
 pub enum Literal {
     Null,
-    Int(u64),
+    Bool(bool),
+    Int(i64),
     Float(f32),
     Double(f64),
     Char(char),
