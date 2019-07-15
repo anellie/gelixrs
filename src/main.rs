@@ -1,21 +1,12 @@
-#![feature(bind_by_move_pattern_guards)]
-
-#[macro_use]
-extern crate plain_enum;
-
-pub mod ast;
-pub mod parser;
-pub mod token;
-pub mod tokenizer;
-
-use std::fs;
+use std::process;
 
 fn main() {
-    let file = fs::read_to_string("examples/testing.gelix").unwrap();
-    let tokenizer = tokenizer::Tokenizer::new(&file);
-    let mut parser = parser::Parser::new(tokenizer);
-
-    for statement in parser.parse() {
-        println!("{:#?}", statement);
+    let args: Vec<String> = std::env::args().collect();
+    match args.len() {
+        2 => gelixrs::run_file(&args[1]),
+        _ => {
+            println!("Usage: gelixrs [file path]");
+            process::exit(64);
+        }
     }
 }
