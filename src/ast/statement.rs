@@ -1,4 +1,4 @@
-use super::super::token::Token;
+use super::super::lexer::token::Token;
 use super::expression::Expression;
 
 /// An enum with all statements that can be in an Gelix AST.

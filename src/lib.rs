@@ -5,14 +5,13 @@ extern crate plain_enum;
 
 pub mod ast;
 pub mod parser;
-pub mod token;
-pub mod tokenizer;
+pub mod lexer;
 
 use std::{fs, process};
 
 fn compile_and_run(code: String) {
-    let tokenizer = tokenizer::Tokenizer::new(&code);
-    let mut parser = parser::Parser::new(tokenizer);
+    let lexer = lexer::Lexer::new(&code);
+    let mut parser = parser::Parser::new(lexer);
 
     for statement in parser.parse() {
         println!("{:#?}", statement);

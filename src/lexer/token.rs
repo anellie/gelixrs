@@ -1,4 +1,4 @@
-/// A token in the gelix language. These are produced by a [Tokenizer].
+/// A token in the gelix language. These are produced by a [Lexer].
 #[derive(Debug, Clone)]
 pub struct Token<'t> {
     /// The type of the token.

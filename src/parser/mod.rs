@@ -1,13 +1,13 @@
 mod helpers;
 mod parser;
 
-use super::{token::Token, tokenizer::Tokenizer};
+use super::lexer::{Lexer, token::Token};
 use std::iter::Peekable;
 
 /// A parser that turns a stream of [Token]s into an AST.
 pub struct Parser<'p> {
     // The token stream used.
-    tokens: Peekable<Tokenizer<'p>>,
+    tokens: Peekable<Lexer<'p>>,
 
     // The token currently being processed.
     current: Token<'p>,

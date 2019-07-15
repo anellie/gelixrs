@@ -4,8 +4,7 @@
 
 use super::super::{
     ast::statement::Statement,
-    token::{Token, Type},
-    tokenizer::Tokenizer,
+    lexer::{Lexer, token::{Token, Type}},
 };
 use super::Parser;
 use std::mem;
@@ -137,7 +136,7 @@ impl<'p> Parser<'p> {
     }
 
     /// Creates a new parser for parsing the given tokens.
-    pub fn new(tokens: Tokenizer<'p>) -> Parser<'p> {
+    pub fn new(tokens: Lexer<'p>) -> Parser<'p> {
         let mut parser = Parser {
             tokens: tokens.peekable(),
 

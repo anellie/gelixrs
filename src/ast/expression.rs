@@ -1,4 +1,4 @@
-use super::super::token::Token;
+use super::super::lexer::token::Token;
 use super::literal::Literal;
 use super::statement::Statement;
 

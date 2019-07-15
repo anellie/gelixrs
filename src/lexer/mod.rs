@@ -1,7 +1,9 @@
-use super::token::{Token, Type};
+pub mod token;
 
-/// A tokenizer is an iterator that turns gelix source code into [Token]s.
-pub struct Tokenizer<'t> {
+use token::{Token, Type};
+
+/// A lexer is an iterator that turns gelix source code into [Token]s.
+pub struct Lexer<'t> {
     /// The source it is turning into tokens
     source: &'t str,
     /// The chars of the source
@@ -14,7 +16,7 @@ pub struct Tokenizer<'t> {
     line: usize,
 }
 
-impl<'t> Tokenizer<'t> {
+impl<'t> Lexer<'t> {
     /// Returns the next token, or None if at EOF.
     fn next_token(&mut self) -> Option<Token<'t>> {
         self.skip_whitespace();
@@ -307,10 +309,10 @@ impl<'t> Tokenizer<'t> {
         **self.chars.get(pos).get_or_insert(&'\0')
     }
 
-    /// Create a new tokenizer for scanning the given source.
-    pub fn new(source: &'t str) -> Tokenizer {
+    /// Create a new lexer for scanning the given source.
+    pub fn new(source: &'t str) -> Lexer {
         let chars: Vec<char> = source.chars().collect();
-        Tokenizer {
+        Lexer {
             source,
             chars,
             start: 0,
@@ -320,7 +322,7 @@ impl<'t> Tokenizer<'t> {
     }
 }
 
-impl<'t> Iterator for Tokenizer<'t> {
+impl<'t> Iterator for Lexer<'t> {
     type Item = Token<'t>;
 
     fn next(&mut self) -> Option<Self::Item> {

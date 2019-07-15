@@ -7,7 +7,7 @@ use super::super::{
         literal::Literal,
         statement::{Function, Statement, Variable},
     },
-    token::{Token, Type},
+    lexer::token::{Token, Type},
 };
 use super::Parser;
 
