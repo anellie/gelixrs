@@ -11,7 +11,7 @@ use inkwell::{
     context::Context,
     module::Module,
     passes::PassManager,
-    types::BasicType,
+    types::{BasicType},
     values::{BasicValueEnum, FunctionValue, PointerValue},
     IntPredicate,
 };
@@ -37,7 +37,7 @@ pub struct IRGenerator<'i> {
 impl<'i> IRGenerator<'i> {
     /// Generates IR. Will process all statements given.
     pub fn generate(&mut self) {
-        let main_fn = self.declare_function(Function {
+        let main_fn = self.declare_function(&Function {
                 name: Token {
                     t_type: Type::Identifier,
                     lexeme: "entry",
@@ -45,7 +45,7 @@ impl<'i> IRGenerator<'i> {
                 },
                 return_type: None,
                 parameters: Vec::with_capacity(0),
-                body: Box::new(Statement::Error(None)),
+                body: Box::new(Expression::This(Token { t_type: Type::Identifier, line: 0, lexeme: "NOPE" })),
         });
 
         let main_block = self.context.append_basic_block(&main_fn, "entry");
@@ -55,6 +55,9 @@ impl<'i> IRGenerator<'i> {
         while !self.statements.is_empty() {
             let statement = self.statements.pop().unwrap();
             let result = self.statement(statement);
+
+            // Ensure the builder is not in some other function that was created during the statement
+            self.builder.position_at_end(&main_fn.get_last_basic_block().unwrap());
 
             if let Err(msg) = result {
                 eprintln!("Error during code generation: {}", msg); // TODO: Maybe some more useful error messages at some point
@@ -75,11 +78,40 @@ impl<'i> IRGenerator<'i> {
     fn statement(&mut self, statement: Statement) -> Result<(), &'static str> {
         match statement {
             Statement::Expression(expr) => { self.expression(expr)?; },
+            Statement::Function(func) => { self.func_declaration(func)?; },
             Statement::Variable(var) => { self.var_declaration(var)?; },
             _ => return Err("Encountered unimplemented statement."),
         };
 
         Ok(())
+    }
+
+    fn func_declaration(&mut self, func: Function) -> Result<(), &'static str> {
+        let function = self.declare_function(&func);
+
+        let entry = self.context.append_basic_block(&function, "entry");
+        self.builder.position_at_end(&entry);
+
+        self.current_fn = Some(function);
+
+        self.variables.reserve(func.parameters.len());
+        for (i, arg) in function.get_param_iter().enumerate() {
+            let arg_name = func.parameters[i].0.lexeme;
+            let alloca = self.create_entry_block_alloca(arg.get_type(), arg_name);
+            self.builder.build_store(alloca, arg);
+            self.variables.insert(func.parameters[i].0.lexeme.to_string(), alloca);
+        }
+
+        let body = self.expression(*func.body)?;
+        self.builder.build_return(None);
+
+        if function.verify(true) {
+            self.fpm.run_on(&function);
+            Ok(())
+        } else {
+            unsafe { function.delete(); }
+            Err("Invalid generated function.")
+        }
     }
 
     fn var_declaration(&mut self, var: Variable) -> Result<(), &'static str> {
@@ -206,8 +238,8 @@ impl<'i> IRGenerator<'i> {
         }
     }
 
-    fn declare_function(&mut self, func: Function) -> FunctionValue {
-        let fn_type = self.context.void_type().fn_type(&[], false);
+    fn declare_function(&mut self, func: &Function) -> FunctionValue {
+        let fn_type = self.context.void_type().fn_type(&[], false); // todo
         self.module.add_function(func.name.lexeme, fn_type, None)
     }
 

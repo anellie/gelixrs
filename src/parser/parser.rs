@@ -92,7 +92,7 @@ impl<'p> Parser<'p> {
             return_type = self.consume(Type::Identifier, "Expected return type after '->'.");
         }
 
-        let body = self.statement()?;
+        let body = self.expression()?;
 
         Some(Function {
             name,

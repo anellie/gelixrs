@@ -47,7 +47,7 @@ pub struct Function<'f> {
     pub name: Token<'f>,
     pub return_type: Option<Token<'f>>,
     pub parameters: Vec<(Token<'f>, Token<'f>)>,
-    pub body: Box<Statement<'f>>,
+    pub body: Box<Expression<'f>>,
 }
 
 /// A variable definition.

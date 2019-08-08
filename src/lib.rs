@@ -1,4 +1,5 @@
 #![feature(bind_by_move_pattern_guards)]
+#![feature(associated_type_bounds)]
 
 #[macro_use]
 extern crate plain_enum;
