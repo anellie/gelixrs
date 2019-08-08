@@ -18,19 +18,24 @@ use inkwell::{
 use std::collections::HashMap;
 use std::convert::TryInto;
 
+/// A generator that creates LLVM IR from a vector of Statements.
 pub struct IRGenerator<'i> {
+    /// LLVM-related. Refer to their docs for more info.
     context: Context,
     builder: Builder,
     module: Module,
     fpm: PassManager<FunctionValue>,
 
+    // All variables in the current scope and the currently compiled function.
     variables: HashMap<String, PointerValue>,
     current_fn: Option<FunctionValue>,
 
+    // All statements remaining to be compiled. Reverse order.
     statements: Vec<Statement<'i>>,
 }
 
 impl<'i> IRGenerator<'i> {
+    /// Generates IR. Will process all statements given.
     pub fn generate(&mut self) {
         let main_fn = self.declare_function(Function {
                 name: Token {
@@ -174,6 +179,7 @@ impl<'i> IRGenerator<'i> {
         self.current_fn.unwrap()
     }
 
+    /// Creates a new generator. Put into action by generate().
     pub fn new(mut statements: Vec<Statement>) -> IRGenerator {
         let context = Context::create();
         let module = context.create_module("main");
