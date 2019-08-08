@@ -10,9 +10,5 @@ func main() {
         var u = 2 * 4
         u = 2 / u
         u
-    } else {
-        4
     }
-
-    print(5)
 }

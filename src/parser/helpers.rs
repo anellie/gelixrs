@@ -20,7 +20,7 @@ static EOF_TOKEN: Token = Token {
 
 impl<'p> Parser<'p> {
     /// Parses the tokens and returns a full AST.
-    pub fn parse(&mut self) -> Vec<Declaration> {
+    pub fn parse(&mut self) -> Option<Vec<Declaration>> {
         let mut declarations: Vec<Declaration> = Vec::new();
 
         while !self.is_at_end() {
@@ -29,7 +29,11 @@ impl<'p> Parser<'p> {
             }
         }
 
-        declarations
+        if self.had_error {
+            None 
+        } else {
+            Some(declarations)
+        }
     }
 
     /// Checks if the current token is the given type. If yes, it consumes it.
@@ -79,11 +83,20 @@ impl<'p> Parser<'p> {
     /// Advancing after the end will simply return EndOfFile tokens indefinitely.
     pub fn advance(&mut self) -> Token<'p> {
         self.previous_line = self.current.line;
-        if let Some(next) = self.tokens.next() {
+
+        let old_token = if let Some(next) = self.tokens.next() {
             mem::replace(&mut self.current, next)
         } else {
-            mem::replace(&mut self.current, EOF_TOKEN.clone())
+            let mut eof_clone = EOF_TOKEN.clone();
+            eof_clone.line = self.current.line;
+            mem::replace(&mut self.current, eof_clone)
+        };
+
+        if self.check(Type::ScanError) {
+            self.lexer_error();
         }
+
+        old_token
     }
 
     /// Is the current token the given token?
@@ -111,21 +124,28 @@ impl<'p> Parser<'p> {
         self.current.t_type == Type::EndOfFile
     }
 
-    /// Causes an error at the current token with the given message; see fn below.
-    pub fn error_at_current(&mut self, message: &str) {
-        self.error_at(self.current.line, message)
+    /// Causes an error at the current token with the given message.
+    /// Will set appropriate state.
+    /// Returns None; allows returning from calling function with ?
+    pub fn error_at_current(&mut self, message: &str) -> Option<()> {
+        if self.waiting_for_sync {
+            return None;
+        }
+
+        eprintln!("[Line {}][Token '{}' / {:?}] {}", self.current.line, self.current.lexeme, self.current.t_type, message);
+        self.had_error = true;
+        self.waiting_for_sync = true;
+
+        None
     }
 
-    /// Displays an error message at the given line
-    /// and sets appropriate state to allow for error recovery.
-    pub fn error_at(&mut self, line: usize, message: &str) {
+    /// Reports an error produced by the lexer.
+    fn lexer_error(&mut self) {
         if self.waiting_for_sync {
             return;
         }
 
-        eprint!("[Line {}] Error", line);
-        eprintln!(": {}", message);
-
+        eprintln!("[Line {}] Lexer error: {}", self.current.line, self.current.lexeme);
         self.had_error = true;
         self.waiting_for_sync = true;
     }
@@ -137,25 +157,15 @@ impl<'p> Parser<'p> {
         self.waiting_for_sync = false;
 
         while !self.is_at_end() {
-            if self.check(Type::Semicolon) {
-                self.advance();
-                return;
-            }
-
             match self.current.t_type {
-                Type::Class
-                | Type::Error
+                Type::CFunc
+                | Type::Class
                 | Type::Func
-                | Type::Var
-                | Type::Val
-                | Type::For
-                | Type::If
-                | Type::Return => return,
+                | Type::Enum => return,
                 _ => (),
             }
+            self.advance();
         }
-
-        self.advance();
     }
 
     /// Creates a new parser for parsing the given tokens.

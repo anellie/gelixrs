@@ -24,8 +24,12 @@ fn compile_and_run(code: String) {
     let lexer = lexer::Lexer::new(&code);
     let mut parser = parser::Parser::new(lexer);
 
-    let mut generator = codegen::IRGenerator::new(parser.parse());
-    generator.generate();
+    if let Some(declarations) = parser.parse() {
+        let mut generator = codegen::IRGenerator::new(declarations);
+        generator.generate();
+    } else {
+        eprint!("Encountered errors during parsing. Exiting.");
+    }
 }
 
 pub fn do_file(path: &str, print_and_exit: bool) {

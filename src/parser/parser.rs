@@ -21,6 +21,9 @@ impl<'p> Parser<'p> {
         if self.waiting_for_sync {
             self.syncronize();
         }
+        if self.is_at_end() {
+            return None
+        }
 
         Some(match () {
             _ if self.match_token(Type::CFunc) => self.external_func_decl()?,
@@ -431,7 +434,7 @@ impl<'p> Parser<'p> {
                         }
                     }
 
-                    let paren = self.consume(Type::RightParen, "Expected ')' after arguments.")?;
+                    let paren = self.consume(Type::RightParen, "Expected ')' after call arguments.")?;
                     expression = Expression::Call {
                         callee: Box::new(expression),
                         token: paren,
@@ -463,8 +466,8 @@ impl<'p> Parser<'p> {
             _ if self.check(Type::Float) => self.float()?,
             _ if self.check(Type::String) => self.string(),
             _ => {
-                self.error_at_current("Expected primary expression.");
-                None? // lol
+                self.error_at_current("Expected expression.");
+                None?
             }
         })
     }

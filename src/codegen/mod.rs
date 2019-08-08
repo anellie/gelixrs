@@ -148,11 +148,11 @@ impl<'i> IRGenerator<'i> {
             self.statement(then_b)?;
             self.builder.build_unconditional_branch(&cont_bb);
 
+            self.builder.position_at_end(&else_bb);
             if let Some(else_b) = else_b {
-                self.builder.position_at_end(&else_bb);
                 self.statement(*else_b)?;
-                self.builder.build_unconditional_branch(&cont_bb);
             }
+            self.builder.build_unconditional_branch(&cont_bb);
 
             self.builder.position_at_end(&cont_bb);
             Ok(())

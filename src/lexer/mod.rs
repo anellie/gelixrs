@@ -181,6 +181,7 @@ impl<'t> Lexer<'t> {
 
     /// Creates a string token
     fn string(&mut self) -> Token<'t> {
+        let start_line = self.line;
         while !self.check('"') && !self.is_at_end() {
             if self.check('\n') {
                 self.line += 1;
@@ -189,7 +190,9 @@ impl<'t> Lexer<'t> {
         }
 
         if self.is_at_end() {
-            self.error_token("Unterminated string!")
+            let mut token = self.error_token("Unterminated string!");
+            token.line = start_line;
+            token
         } else {
             self.advance();
             self.make_token(Type::String)
