@@ -3,3 +3,6 @@ var x = 1 + 2 - 4 - 6 + 5
 var y = x + 7
 
 x = 910
+
+
+var a = if (y > x) 345345 else 1

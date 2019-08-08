@@ -96,6 +96,7 @@ impl<'i> IRGenerator<'i> {
         Ok(match expression {
             Expression::Assignment { name, value } => self.assignment(name, *value)?,
             Expression::Binary { left, operator, right } => self.binary(*left, operator, *right)?,
+            Expression::If { condition, then_branch, else_branch } => self.if_expr(*condition, *then_branch, else_branch)?,
             Expression::Literal(literal) => self.literal(literal),
             Expression::Variable(name) => self.variable(name)?,
             _ => Err("Encountered unimplemented expression.")?,
@@ -138,6 +139,53 @@ impl<'i> IRGenerator<'i> {
             Type::BangEqual => self.builder.build_int_compare(IntPredicate::NE, left, right, "tmpcmp"),
             _ => Err("Unsupported binary operand.")?
         }))
+    }
+
+    // TODO: Do if without else even work?
+    fn if_expr(&mut self, condition: Expression, then_b: Expression, else_b: Option<Box<Expression>>) -> Result<BasicValueEnum, &'static str> {
+        let parent = self.cur_fn();
+        let condition = self.expression(condition)?;
+
+        if let BasicValueEnum::IntValue(value) = condition {
+            let condition = self.builder.build_int_compare(IntPredicate::NE, value, self.context.bool_type().const_int(0, false), "ifcond");
+
+            let then_bb = self.context.append_basic_block(&parent, "then");
+            let else_bb = self.context.append_basic_block(&parent, "else");
+            let cont_bb = self.context.append_basic_block(&parent, "ifcont");
+
+            if else_b.is_none() {
+                self.builder.build_conditional_branch(condition, &then_bb, &cont_bb);
+            } else {
+                self.builder.build_conditional_branch(condition, &then_bb, &else_bb);
+            }
+
+            self.builder.position_at_end(&then_bb);
+            let then_val = self.expression(then_b)?;
+            self.builder.build_unconditional_branch(&cont_bb);
+
+            let then_bb = self.builder.get_insert_block().unwrap();
+
+            self.builder.position_at_end(&cont_bb);
+            let phi = self.builder.build_phi(self.context.i64_type(), "ifphi"); // todo
+
+            if let Some(else_b) = else_b {
+                self.builder.position_at_end(&else_bb);
+                let else_val = self.expression(*else_b)?;
+                self.builder.build_unconditional_branch(&cont_bb);
+                let else_bb = self.builder.get_insert_block().unwrap();
+
+                phi.add_incoming(&[
+                    (&then_val, &then_bb),
+                    (&else_val, &else_bb)
+                ]);
+            }
+
+            self.builder.position_at_end(&cont_bb);
+
+            Ok(phi.as_basic_value())
+        } else {
+            Err("If condition needs to be a boolean or integer.")
+        }
     }
 
     fn literal(&mut self, literal: Literal) -> BasicValueEnum {
