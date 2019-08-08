@@ -66,10 +66,7 @@ impl<'p> Parser<'p> {
         }
         self.consume(Type::RightBrace, "Expected '}' after enum body.");
 
-        Some(Statement::Enum {
-            name,
-            variants,
-        })
+        Some(Statement::Enum { name, variants })
     }
 
     fn function(&mut self) -> Option<Function<'p>> {
@@ -156,10 +153,7 @@ impl<'p> Parser<'p> {
             self.consume(Type::RightParen, "Expected ')' after for condition.");
             let body = Box::new(self.statement()?);
 
-            Statement::For {
-                condition,
-                body
-            }
+            Statement::For { condition, body }
         })
     }
 
@@ -167,7 +161,7 @@ impl<'p> Parser<'p> {
         let requires_semicolon = ![Type::If, Type::Take, Type::LeftBrace, Type::When].contains(&self.current.t_type);
         let statement = Statement::Expression(self.expression()?);
         if requires_semicolon {
-            self.consume(Type::Semicolon, "Expected semicolon after expression.");
+            self.consume(Type::Semicolon, "Expected semicolon after expression."); // TODO: allow omitting the ;
         }
         Some(statement)
     }
@@ -178,7 +172,7 @@ impl<'p> Parser<'p> {
             _ if self.match_token(Type::Take) => self.take_expression()?,
             _ if self.match_token(Type::LeftBrace) => Expression::Block(self.block()),
             _ if self.match_token(Type::When) => self.when_expression()?,
-            _ => self.assignment()?
+            _ => self.assignment()?,
         })
     }
 
@@ -196,7 +190,7 @@ impl<'p> Parser<'p> {
         Some(Expression::If {
             condition,
             then_branch,
-            else_branch
+            else_branch,
         })
     }
 
@@ -218,9 +212,7 @@ impl<'p> Parser<'p> {
         if self.match_token(Type::Else) {
             else_branch = Some(Box::new(self.expression()?));
         }
-        Some(Expression::Take {
-            value, else_branch
-        })
+        Some(Expression::Take { value, else_branch })
     }
 
     /// TODO: Consider unrolling when into if-elseif-else constructs.
@@ -251,7 +243,7 @@ impl<'p> Parser<'p> {
         Some(Expression::When {
             value,
             branches,
-            else_branch: Box::new(else_branch?)
+            else_branch: Box::new(else_branch?),
         })
     }
 
@@ -262,7 +254,11 @@ impl<'p> Parser<'p> {
             let value = Box::new(self.assignment()?);
             match expression {
                 Expression::Variable(name) => Some(Expression::Assignment { name, value }),
-                Expression::Get { object, name } => Some(Expression::Set { object: object, name: name, value }),
+                Expression::Get { object, name } => Some(Expression::Set {
+                    object: object,
+                    name: name,
+                    value,
+                }),
                 _ => {
                     self.error_at_current("Invalid assignment target.");
                     None
@@ -362,7 +358,9 @@ impl<'p> Parser<'p> {
                     if !self.check(Type::RightParen) {
                         loop {
                             arguments.push(self.expression()?);
-                            if !self.match_token(Type::Comma) { break; }
+                            if !self.match_token(Type::Comma) {
+                                break;
+                            }
                         }
                     }
 
@@ -412,10 +410,13 @@ impl<'p> Parser<'p> {
 
     fn integer(&mut self) -> Option<Expression<'p>> {
         let token = self.advance();
-        Some(Expression::Literal(Literal::Int(token.lexeme.parse().ok()?)))
+        Some(Expression::Literal(Literal::Int(
+            token.lexeme.parse().ok()?,
+        )))
     }
 
-    fn float(&mut self) -> Option<Expression<'p>> { // TODO: Support for single-prec float
+    fn float(&mut self) -> Option<Expression<'p>> {
+        // TODO: Support for single-prec float
         let token = self.advance();
         Some(Expression::Literal(Literal::Double(token.lexeme.parse().ok()?)))
     }

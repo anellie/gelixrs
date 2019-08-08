@@ -1,7 +1,7 @@
 mod helpers;
 mod parser;
 
-use super::lexer::{Lexer, token::Token};
+use super::lexer::{token::Token, Lexer};
 use std::iter::Peekable;
 
 /// A parser that turns a stream of [Token]s into an AST.

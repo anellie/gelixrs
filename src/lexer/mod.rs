@@ -23,7 +23,7 @@ impl<'t> Lexer<'t> {
         self.start = self.current;
 
         if self.is_at_end() {
-            return None
+            return None;
         }
 
         let ch = self.advance();
@@ -111,7 +111,9 @@ impl<'t> Lexer<'t> {
                     'l' => self.check_identifier_keyword(3, &[], Type::Val),
                     _ => Type::Identifier,
                 }
-                } else { Type::Identifier }
+                } else {
+                    Type::Identifier
+                }
             }
 
             'f' => match self.chars[self.start + 1] {

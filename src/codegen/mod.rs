@@ -2,18 +2,18 @@ use super::{
     ast::{
         expression::Expression,
         literal::Literal,
-        statement::{Statement, Function, Variable}
+        statement::{Function, Statement, Variable},
     },
     lexer::token::{Token, Type},
 };
 use inkwell::{
-    context::Context,
     builder::Builder,
+    context::Context,
     module::Module,
-    IntPredicate,
     passes::PassManager,
     types::BasicType,
-    values::{BasicValueEnum, FunctionValue, PointerValue}
+    values::{BasicValueEnum, FunctionValue, PointerValue},
+    IntPredicate,
 };
 use std::collections::HashMap;
 use std::convert::TryInto;
@@ -32,18 +32,16 @@ pub struct IRGenerator<'i> {
 
 impl<'i> IRGenerator<'i> {
     pub fn generate(&mut self) {
-        let main_fn = self.declare_function(
-            Function {
+        let main_fn = self.declare_function(Function {
                 name: Token {
                     t_type: Type::Identifier,
                     lexeme: "entry",
-                    line: 0
+                line: 0,
                 },
                 return_type: None,
                 parameters: Vec::with_capacity(0),
                 body: Box::new(Statement::Error(None)),
-            }
-        );
+        });
 
         let main_block = self.context.append_basic_block(&main_fn, "entry");
         self.builder.position_at_end(&main_block);
@@ -151,7 +149,7 @@ impl<'i> IRGenerator<'i> {
     fn variable(&mut self, name: Token) -> Result<BasicValueEnum, &'static str> {
         match self.variables.get(name.lexeme) {
             Some(var) => Ok(self.builder.build_load(*var, name.lexeme)),
-            None => Err("Could not find variable.")
+            None => Err("Could not find variable."),
         }
     }
 
@@ -166,7 +164,7 @@ impl<'i> IRGenerator<'i> {
 
         match entry.get_first_instruction() {
             Some(inst) => builder.position_before(&inst),
-            None => builder.position_at_end(&entry)
+            None => builder.position_at_end(&entry),
         }
 
         builder.build_alloca(ty, name)
@@ -203,7 +201,7 @@ impl<'i> IRGenerator<'i> {
             variables: HashMap::with_capacity(10),
             current_fn: None,
 
-            statements
+            statements,
         }
     }
 }

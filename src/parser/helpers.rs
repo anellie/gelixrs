@@ -4,7 +4,10 @@
 
 use super::super::{
     ast::statement::Statement,
-    lexer::{Lexer, token::{Token, Type}},
+    lexer::{
+        token::{Token, Type},
+        Lexer,
+    },
 };
 use super::Parser;
 use std::mem;
@@ -76,11 +79,13 @@ impl<'p> Parser<'p> {
 
     /// Is the next token the given token?
     pub fn check_next(&mut self, t_type: Type) -> bool {
-        self.tokens.peek().get_or_insert(&Token {
+        self.tokens
+            .peek()
+            .get_or_insert(&Token {
             t_type: Type::EndOfFile,
             lexeme: "\0",
             line: 0,
-        }).t_type == t_type
+            }).t_type == t_type
     }
 
     /// Is the parser at the end of the token stream?
