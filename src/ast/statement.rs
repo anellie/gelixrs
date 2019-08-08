@@ -55,5 +55,5 @@ pub struct Function<'f> {
 pub struct Variable<'v> {
     pub name: Token<'v>,
     pub is_val: bool,
-    pub initializer: Option<Expression<'v>>,
+    pub initializer: Expression<'v>,
 }

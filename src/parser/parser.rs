@@ -108,11 +108,8 @@ impl<'p> Parser<'p> {
     fn var_declaration(&mut self, is_val: bool) -> Option<Variable<'p>> {
         let name = self.consume(Type::Identifier, "Expected variable name.")?;
 
-        let mut initializer: Option<Expression<'p>> = None;
-        if self.match_token(Type::Equal) {
-            initializer = Some(self.expression()?);
-        }
-
+        self.consume(Type::Equal, "Expected equals after variable name.");
+        let initializer = self.expression()?;
         self.consume(Type::Semicolon, "Expected semicolon after variable declaration.");
 
         Some(Variable {
@@ -227,6 +224,7 @@ impl<'p> Parser<'p> {
     }
 
     /// TODO: Consider unrolling when into if-elseif-else constructs.
+    /// Update: Don't. LLVM provides a much more convinient way.
     fn when_expression(&mut self) -> Option<Expression<'p>> {
         self.consume(Type::LeftParen, "Expected '(' after 'when'.");
         let value = Box::new(self.expression()?);

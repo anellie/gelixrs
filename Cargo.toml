@@ -6,3 +6,4 @@ edition = "2018"
 
 [dependencies]
 plain_enum = "0.7.0"
+inkwell = { git = "https://github.com/TheDan64/inkwell", branch = "llvm7-0" }
