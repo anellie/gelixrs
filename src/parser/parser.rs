@@ -3,7 +3,7 @@
 
 use super::super::{
     ast::{
-        declaration::{Declaration, Function, Variable},
+        declaration::{Declaration, Function, FuncSignature, Variable},
         expression::Expression,
         literal::Literal,
         statement::Statement,
@@ -23,6 +23,7 @@ impl<'p> Parser<'p> {
         }
 
         Some(match () {
+            _ if self.match_token(Type::CFunc) => self.external_func_decl()?,
             _ if self.match_token(Type::Class) => self.class_declaration()?,
             _ if self.match_token(Type::Enum) => self.enum_declaration()?,
             _ if self.match_token(Type::Func) => Declaration::Function(self.function()?),
@@ -31,6 +32,36 @@ impl<'p> Parser<'p> {
                 None?
             },
         })
+    }
+
+    fn external_func_decl(&mut self) -> Option<Declaration<'p>> {
+        let name = self.consume(Type::Identifier, "Expected an external function name.")?; 
+        self.consume(Type::LeftParen, "Expected '(' after function name.");
+
+        let mut parameters: Vec<(Token<'p>, Token<'p>)> = Vec::new();
+        if !self.check(Type::RightParen) {
+            loop {
+                parameters.push((
+                    self.consume(Type::Identifier, "Expected parameter type.")?,
+                    self.consume(Type::Identifier, "Expected parameter name.")?,
+                ));
+                if !self.match_token(Type::Comma) {
+                    break;
+                }
+            }
+        }
+        self.consume(Type::RightParen, "Expected ')' after parameters.");
+
+        let mut return_type: Option<Token<'p>> = None;
+        if self.match_token(Type::Arrow) {
+            return_type = self.consume(Type::Identifier, "Expected return type after '->'.");
+        }
+
+        Some(Declaration::CFunc(FuncSignature {
+            name,
+            return_type,
+            parameters,
+        }))
     }
 
     fn class_declaration(&mut self) -> Option<Declaration<'p>> {
@@ -72,36 +103,18 @@ impl<'p> Parser<'p> {
     }
 
     fn function(&mut self) -> Option<Function<'p>> {
-        let name = self.consume(Type::Identifier, "Expected a function name.")?; 
-        self.consume(Type::LeftParen, "Expected '(' after function name.");
+        // Will generate a declaration that contains everything except a body
+        let func_decl = self.external_func_decl()?;
 
-        let mut parameters: Vec<(Token<'p>, Token<'p>)> = Vec::new();
-        if !self.check(Type::RightParen) {
-            loop {
-                parameters.push((
-                    self.consume(Type::Identifier, "Expected parameter type.")?,
-                    self.consume(Type::Identifier, "Expected parameter name.")?,
-                ));
-                if !self.match_token(Type::Comma) {
-                    break;
-                }
-            }
+        if let Declaration::CFunc(sig) = func_decl {
+            let body = self.statement()?;
+            Some(Function {
+                sig,
+                body: Box::new(body),
+            })
+        } else {
+            panic!("External function generator generated something else!!");
         }
-        self.consume(Type::RightParen, "Expected ')' after parameters.");
-
-        let mut return_type: Option<Token<'p>> = None;
-        if self.match_token(Type::Arrow) {
-            return_type = self.consume(Type::Identifier, "Expected return type after '->'.");
-        }
-
-        let body = self.statement()?;
-
-        Some(Function {
-            name,
-            return_type,
-            parameters,
-            body: Box::new(body),
-        })
     }
 
     fn variable(&mut self, is_val: bool) -> Option<Variable<'p>> {

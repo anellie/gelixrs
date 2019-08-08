@@ -2,7 +2,9 @@ func ok() {
     "good"
 }
 
-func woohoo() {
+cfunc print(i64 a) -> i1
+
+func main() {
     var x = 5
     if (5 > 3) { 
         var u = 2 * 4
@@ -12,5 +14,5 @@ func woohoo() {
         4
     }
 
-    ok()
+    print(5)
 }

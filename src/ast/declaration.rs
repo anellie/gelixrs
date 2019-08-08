@@ -6,6 +6,9 @@ use super::statement::Statement;
 /// A declaration is a language construct that can only appear in top-level and does not produce a value.
 #[derive(Debug)]
 pub enum Declaration<'s> {
+    /// A declaration of an external C function.
+    CFunc(FuncSignature<'s>),
+
     /// A class definition.
     Class {
         name: Token<'s>,
@@ -23,14 +26,20 @@ pub enum Declaration<'s> {
     Function(Function<'s>),
 }
 
-// The below structs are not in the enum directly to allow using them in the 'Class' variant.
+// The below structs are not in the enum directly to allow reuse.
+
+/// A function signature.
+#[derive(Debug)]
+pub struct FuncSignature<'f> {
+    pub name: Token<'f>,
+    pub return_type: Option<Token<'f>>,
+    pub parameters: Vec<(Token<'f>, Token<'f>)>,
+}
 
 /// A function definition.
 #[derive(Debug)]
 pub struct Function<'f> {
-    pub name: Token<'f>,
-    pub return_type: Option<Token<'f>>,
-    pub parameters: Vec<(Token<'f>, Token<'f>)>,
+    pub sig: FuncSignature<'f>,
     pub body: Box<Statement<'f>>,
 }
 

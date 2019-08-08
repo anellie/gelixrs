@@ -30,7 +30,7 @@ Type {
 
     Identifier, String, Int, Float, Char,
 
-    And, Class, Else, Enum, Error, Ext, False,
+    And, CFunc, Class, Else, Enum, Error, Ext, False,
     For, Func, If, In, Null, Or,
     Return, Super, Take, This,
     True, Var, Val, When, While,
