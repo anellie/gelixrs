@@ -61,10 +61,24 @@ impl<'p> Parser<'p> {
         }
     }
 
+    /// Same as consume, but consumes semicolons or newlines 
+    /// (This special function is needed since newlines are not a token)
+    pub fn consume_semi_or_nl(&mut self, message: &'static str) -> Option<Token<'p>> {
+        if self.check(Type::Semicolon) {
+            Some(self.advance())
+        } else {
+            if self.previous_line == self.current.line {
+                self.error_at_current(message); // No newline
+            } 
+            None
+        }
+    }
+
     /// Sets self.current to the next token and returns the last token.
     /// If at the end of tokens, self.current is set to an EndOfFile token.
     /// Advancing after the end will simply return EndOfFile tokens indefinitely.
     pub fn advance(&mut self) -> Token<'p> {
+        self.previous_line = self.current.line;
         if let Some(next) = self.tokens.next() {
             mem::replace(&mut self.current, next)
         } else {
@@ -81,11 +95,15 @@ impl<'p> Parser<'p> {
     pub fn check_next(&mut self, t_type: Type) -> bool {
         self.tokens
             .peek()
-            .get_or_insert(&Token {
-            t_type: Type::EndOfFile,
-            lexeme: "\0",
-            line: 0,
-            }).t_type == t_type
+            .get_or_insert(&EOF_TOKEN)
+            .t_type == t_type
+    }
+
+    /// Same as check, but checks for ; or newlines 
+    /// (This special function is needed since newlines are not a token)
+    pub fn check_semi_or_nl(&mut self) -> bool {
+        self.check(Type::Semicolon) 
+        || self.previous_line != self.current.line
     }
 
     /// Is the parser at the end of the token stream?
@@ -148,8 +166,9 @@ impl<'p> Parser<'p> {
             current: Token {
                 t_type: Type::Null,
                 lexeme: "\n",
-                line: 0,
+                line: 1,
             },
+            previous_line: 0,
 
             had_error: false,
             waiting_for_sync: false,

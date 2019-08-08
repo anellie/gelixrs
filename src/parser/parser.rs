@@ -105,9 +105,9 @@ impl<'p> Parser<'p> {
     fn var_declaration(&mut self, is_val: bool) -> Option<Variable<'p>> {
         let name = self.consume(Type::Identifier, "Expected variable name.")?;
 
-        self.consume(Type::Equal, "Expected equals after variable name.");
+        self.consume(Type::Equal, "Expected '=' after variable name.");
         let initializer = self.expression()?;
-        self.consume(Type::Semicolon, "Expected semicolon after variable declaration.");
+        self.consume_semi_or_nl("Expected newline or ';' after variable declaration.");
 
         Some(Variable {
             name,
@@ -127,19 +127,19 @@ impl<'p> Parser<'p> {
 
     fn error_statement(&mut self) -> Option<Statement<'p>> {
         let mut value = None;
-        if !self.check(Type::Semicolon) {
+        if !self.check_semi_or_nl() {
             value = Some(self.expression()?);
         }
-        self.consume(Type::Semicolon, "Expected semicolon after 'error'.");
+        self.consume_semi_or_nl("Expected newline or ';' after 'error'.");
         Some(Statement::Error(value))
     }
 
     fn return_statement(&mut self) -> Option<Statement<'p>> {
         let mut value = None;
-        if !self.check(Type::Semicolon) {
+        if !self.check_semi_or_nl() {
             value = Some(self.expression()?);
         }
-        self.consume(Type::Semicolon, "Expected semicolon after 'return'.");
+        self.consume_semi_or_nl("Expected newline or ';' after 'return'.");
         Some(Statement::Return(value))
     }
 
@@ -161,7 +161,7 @@ impl<'p> Parser<'p> {
         let requires_semicolon = ![Type::If, Type::Take, Type::LeftBrace, Type::When].contains(&self.current.t_type);
         let statement = Statement::Expression(self.expression()?);
         if requires_semicolon {
-            self.consume(Type::Semicolon, "Expected semicolon after expression."); // TODO: allow omitting the ;
+            self.consume_semi_or_nl("Expected newline or ';' after expression.");
         }
         Some(statement)
     }

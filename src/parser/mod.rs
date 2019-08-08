@@ -11,6 +11,8 @@ pub struct Parser<'p> {
 
     // The token currently being processed.
     current: Token<'p>,
+    // The line of the token before the current one.
+    previous_line: usize,
 
     // If an error occured while creating a statement. Will signal the compiler that it should not compile.
     had_error: bool,
