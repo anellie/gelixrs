@@ -157,6 +157,7 @@ impl<'i> IRGenerator<'i> {
             Expression::Assignment { name, value } => self.assignment(name, *value)?,
             Expression::Binary { left, operator, right } => self.binary(*left, operator, *right)?,
             Expression::Block(expressions) => self.block_expr(expressions)?,
+            Expression::Call { callee, token, arguments } => self.call_expr(*callee, token, arguments)?,
             Expression::IfElse { condition, then_branch, else_branch } => self.if_expr(*condition, *then_branch, *else_branch)?,
             Expression::Literal(literal) => self.literal(literal),
             Expression::Variable(name) => self.variable(name)?,
@@ -215,6 +216,22 @@ impl<'i> IRGenerator<'i> {
             Type::BangEqual => self.builder.build_int_compare(IntPredicate::NE, left, right, "tmpcmp"),
             _ => Err("Unsupported binary operand.")?
         }))
+    }
+
+    fn call_expr(&mut self, callee: Expression, token: Token, arguments: Vec<Expression>) -> Result<BasicValueEnum, &'static str> {
+        if let Expression::Variable(token) = callee {
+            let function = self.module.get_function(token.lexeme).ok_or("Unknown function.")?;
+            let mut compiled_args = Vec::with_capacity(arguments.len());
+
+            for arg in arguments {
+                compiled_args.push(self.expression(arg)?);
+            }
+
+            let argsv: Vec<BasicValueEnum> = compiled_args.iter().by_ref().map(|&val| val.into()).collect();
+            self.builder.build_call(function, argsv.as_slice(), "tmp").try_as_basic_value().left().ok_or("Invalid call.")
+        } else {
+            Err("Unsupported callee.")?
+        }
     }
 
     fn if_expr(&mut self, condition: Expression, then_b: Expression, else_b: Expression) -> Result<BasicValueEnum, &'static str> {

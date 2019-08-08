@@ -1,3 +1,7 @@
+func ok() {
+    "good"
+}
+
 func woohoo() {
     var x = 5
     if (5 > 3) { 
@@ -5,6 +9,8 @@ func woohoo() {
         u = 2 / u
         u
     } else {
-        
+        4
     }
+
+    ok()
 }
