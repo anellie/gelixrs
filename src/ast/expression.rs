@@ -3,6 +3,7 @@ use super::literal::Literal;
 use super::statement::Statement;
 
 /// An enum with all expression types in Gelix.
+/// An expression is a language construct that returns a value of any type and cannot appear top-level.
 #[derive(Debug)]
 pub enum Expression<'e> {
     /// Assigment a la x = 5
@@ -18,7 +19,8 @@ pub enum Expression<'e> {
         right: Box<Expression<'e>>,
     },
 
-    /// A block of code; last statement is value
+    /// A block of code; similar to the statement of the same name.
+    /// Difference is that this one has an expression as its last statement; which is its value.
     Block(Vec<Statement<'e>>),
 
     /// A method/function call.
@@ -37,11 +39,11 @@ pub enum Expression<'e> {
     /// A grouping of expressions. (5 + 5) / 5
     Grouping(Box<Expression<'e>>),
 
-    /// An if expression. Value is the value of the expression of the chosen branch.
-    If {
+    /// An if-else ternary-like expression. Value is the value of the expression of the chosen branch.
+    IfElse {
         condition: Box<Expression<'e>>,
         then_branch: Box<Expression<'e>>,
-        else_branch: Option<Box<Expression<'e>>>,
+        else_branch: Box<Expression<'e>>,
     },
 
     /// A simple [Literal].

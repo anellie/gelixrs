@@ -1,21 +1,12 @@
-use super::super::lexer::token::Token;
 use super::expression::Expression;
+use super::declaration::Variable;
 
 /// An enum with all statements that can be in an Gelix AST.
+/// A statement is a language construct that does not return a value, and cannot appear in top-level.
 #[derive(Debug)]
 pub enum Statement<'s> {
-    /// A class definition.
-    Class {
-        name: Token<'s>,
-        variables: Vec<Variable<'s>>,
-        methods: Vec<Function<'s>>,
-    },
-
-    /// An enum definition.
-    Enum {
-        name: Token<'s>,
-        variants: Vec<Token<'s>>,
-    },
+    /// A block of code.
+    Block(Vec<Statement<'s>>),
 
     /// 'error' keyword.
     Error(Option<Expression<'s>>),
@@ -29,31 +20,16 @@ pub enum Statement<'s> {
         body: Box<Statement<'s>>,
     },
 
-    /// A function definition.
-    Function(Function<'s>),
+    /// An if statement. Also see IfElse in [Expression], with is similar.
+    If {
+        condition: Box<Expression<'s>>,
+        then_branch: Box<Statement<'s>>,
+        else_branch: Option<Box<Statement<'s>>>,
+    },
 
     /// 'return' keyword.
     Return(Option<Expression<'s>>),
 
     /// A variable definition.
     Variable(Variable<'s>),
-}
-
-// The below structs are not in the enum directly to allow using them in the 'Class' variant.
-
-/// A function definition.
-#[derive(Debug)]
-pub struct Function<'f> {
-    pub name: Token<'f>,
-    pub return_type: Option<Token<'f>>,
-    pub parameters: Vec<(Token<'f>, Token<'f>)>,
-    pub body: Box<Expression<'f>>,
-}
-
-/// A variable definition.
-#[derive(Debug)]
-pub struct Variable<'v> {
-    pub name: Token<'v>,
-    pub is_val: bool,
-    pub initializer: Expression<'v>,
 }

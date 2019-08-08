@@ -3,9 +3,10 @@
 
 use super::super::{
     ast::{
+        declaration::{Declaration, Function, Variable},
         expression::Expression,
         literal::Literal,
-        statement::{Function, Statement, Variable},
+        statement::Statement,
     },
     lexer::token::{Token, Type},
 };
@@ -16,7 +17,7 @@ impl<'p> Parser<'p> {
     /// The entry point for generating a statement.
     /// The reason for returning Option is that the parser will error out and abort the current
     /// statement when illegal syntax is encountered.
-    pub fn declaration(&mut self) -> Option<Statement<'p>> {
+    pub fn declaration(&mut self) -> Option<Declaration<'p>> {
         if self.waiting_for_sync {
             self.syncronize();
         }
@@ -24,14 +25,15 @@ impl<'p> Parser<'p> {
         Some(match () {
             _ if self.match_token(Type::Class) => self.class_declaration()?,
             _ if self.match_token(Type::Enum) => self.enum_declaration()?,
-            _ if self.match_token(Type::Func) => Statement::Function(self.function()?),
-            _ if self.match_token(Type::Var) => Statement::Variable(self.var_declaration(false)?),
-            _ if self.match_token(Type::Val) => Statement::Variable(self.var_declaration(true)?),
-            _ => self.statement()?,
+            _ if self.match_token(Type::Func) => Declaration::Function(self.function()?),
+            _ => {
+                self.error_at_current("Encountered invalid top-level declaration.");
+                None?
+            },
         })
     }
 
-    fn class_declaration(&mut self) -> Option<Statement<'p>> {
+    fn class_declaration(&mut self) -> Option<Declaration<'p>> {
         let name = self.consume(Type::Identifier, "Expected a class name.")?;
         self.consume(Type::LeftBrace, "Expected '{' before class body.");
 
@@ -41,21 +43,21 @@ impl<'p> Parser<'p> {
         while !self.check(Type::RightBrace) && !self.is_at_end() {
             match () {
                 _ if self.match_token(Type::Func) => if let Some(f) = self.function() { methods.push(f) },
-                _ if self.match_token(Type::Var) => if let Some(v) = self.var_declaration(false) { variables.push(v) },
-                _ if self.match_token(Type::Val) => if let Some(v) = self.var_declaration(true) { variables.push(v) },
+                _ if self.match_token(Type::Var) => if let Some(v) = self.variable(false) { variables.push(v) },
+                _ if self.match_token(Type::Val) => if let Some(v) = self.variable(true) { variables.push(v) },
                 _ => (),
             }
         }
 
         self.consume(Type::RightBrace, "Expected '}' after class body.");
-        Some(Statement::Class {
+        Some(Declaration::Class {
             name,
             methods,
             variables,
         })
     }
 
-    fn enum_declaration(&mut self) -> Option<Statement<'p>> {
+    fn enum_declaration(&mut self) -> Option<Declaration<'p>> {
         let name = self.consume(Type::Identifier, "Expected an enum name.")?;
         self.consume(Type::LeftBrace, "Expected '{' before enum body.");
 
@@ -66,7 +68,7 @@ impl<'p> Parser<'p> {
         }
         self.consume(Type::RightBrace, "Expected '}' after enum body.");
 
-        Some(Statement::Enum { name, variants })
+        Some(Declaration::Enum { name, variants })
     }
 
     fn function(&mut self) -> Option<Function<'p>> {
@@ -92,7 +94,7 @@ impl<'p> Parser<'p> {
             return_type = self.consume(Type::Identifier, "Expected return type after '->'.");
         }
 
-        let body = self.expression()?;
+        let body = self.statement()?;
 
         Some(Function {
             name,
@@ -102,7 +104,7 @@ impl<'p> Parser<'p> {
         })
     }
 
-    fn var_declaration(&mut self, is_val: bool) -> Option<Variable<'p>> {
+    fn variable(&mut self, is_val: bool) -> Option<Variable<'p>> {
         let name = self.consume(Type::Identifier, "Expected variable name.")?;
 
         self.consume(Type::Equal, "Expected '=' after variable name.");
@@ -118,9 +120,13 @@ impl<'p> Parser<'p> {
 
     fn statement(&mut self) -> Option<Statement<'p>> {
         Some(match () {
+            _ if self.match_token(Type::LeftBrace) => self.block()?,
             _ if self.match_token(Type::Error) => self.error_statement()?,
             _ if self.match_token(Type::For) => self.for_statement()?,
+            _ if self.match_token(Type::If) => self.if_expr_or_stmt()?,
             _ if self.match_token(Type::Return) => self.return_statement()?,
+            _ if self.match_token(Type::Var) => Statement::Variable(self.variable(false)?),
+            _ if self.match_token(Type::Val) => Statement::Variable(self.variable(true)?),
             _ => self.expression_statement()?,
         })
     }
@@ -157,6 +163,69 @@ impl<'p> Parser<'p> {
         })
     }
 
+    fn if_expr_or_stmt(&mut self) -> Option<Statement<'p>> {
+        self.consume(Type::LeftParen, "Expected '(' after 'if'.");
+        let condition = Box::new(self.expression()?);
+        self.consume(Type::RightParen, "Expected ')' after if condition.");
+        let then_branch = Box::new(self.statement()?);
+
+        // TODO: Scratch my eyes out at the mostrosity that I have created here...
+        if self.match_token(Type::Else) {
+            let else_branch = Box::new(self.statement()?);
+
+            if let Statement::Expression(then_branch) = *then_branch {
+                if let Statement::Expression(else_branch) = *else_branch {
+                    Some(Statement::Expression(Expression::IfElse {
+                        condition,
+                        then_branch: Box::new(then_branch),
+                        else_branch: Box::new(else_branch)
+                    }))
+                } else {
+                    Some(Statement::If {
+                        condition,
+                        then_branch: Box::new(Statement::Expression(then_branch)),
+                        else_branch: Some(else_branch),
+                    })
+                }
+            } else {
+                Some(Statement::If {
+                    condition,
+                    then_branch,
+                    else_branch: Some(else_branch),
+                })
+            }
+        } else {
+            Some(Statement::If {
+                condition,
+                then_branch,
+                else_branch: None,
+            })
+        }
+
+    }
+
+    fn block(&mut self) -> Option<Statement<'p>> {
+        let mut statements: Vec<Statement> = Vec::new();
+        while !self.check(Type::RightBrace) && !self.is_at_end() {
+            if let Some(f) = self.statement() {
+                statements.push(f)
+            }
+        }
+
+        self.consume(Type::RightBrace, "Expected '}' after block.");
+        
+        // Handle edge case of empty block; would otherwise result in None being incorrectly returned
+        if statements.is_empty() {
+            return Some(Statement::Block(statements))
+        }
+
+        if let Statement::Expression(_) = statements.last()? {
+            Some(Statement::Expression(Expression::Block(statements)))
+        } else {
+            Some(Statement::Block(statements))
+        }
+    }
+
     fn expression_statement(&mut self) -> Option<Statement<'p>> {
         let requires_semicolon = ![Type::If, Type::Take, Type::LeftBrace, Type::When].contains(&self.current.t_type);
         let statement = Statement::Expression(self.expression()?);
@@ -166,44 +235,29 @@ impl<'p> Parser<'p> {
         Some(statement)
     }
 
+    // TODO: Some redundant code...
     fn expression(&mut self) -> Option<Expression<'p>> {
         Some(match () {
-            _ if self.match_token(Type::If) => self.if_expression()?,
             _ if self.match_token(Type::Take) => self.take_expression()?,
-            _ if self.match_token(Type::LeftBrace) => Expression::Block(self.block()),
             _ if self.match_token(Type::When) => self.when_expression()?,
+            _ if self.match_token(Type::LeftBrace) => {
+                if let Statement::Expression(expr) = self.block()? {
+                    expr
+                } else {
+                    self.error_at_current("Last statement of the block needs to be an expression for the block to be an expression.");
+                    None?
+                }
+            },
+            _ if self.match_token(Type::If) => {
+                if let Statement::Expression(expr) = self.if_expr_or_stmt()? {
+                    expr
+                } else {
+                    self.error_at_current("If requires expressions as arms to be used as an expression.");
+                    None?
+                }
+            },
             _ => self.assignment()?,
         })
-    }
-
-    fn if_expression(&mut self) -> Option<Expression<'p>> {
-        self.consume(Type::LeftParen, "Expected '(' after 'if'.");
-        let condition = Box::new(self.expression()?);
-        self.consume(Type::RightParen, "Expected ')' after if condition.");
-        let then_branch = Box::new(self.expression()?);
-
-        let mut else_branch = None;
-        if self.match_token(Type::Else) {
-            else_branch = Some(Box::new(self.expression()?));
-        }
-
-        Some(Expression::If {
-            condition,
-            then_branch,
-            else_branch,
-        })
-    }
-
-    fn block(&mut self) -> Vec<Statement<'p>> {
-        let mut statements: Vec<Statement> = Vec::new();
-        while !self.check(Type::RightBrace) && !self.is_at_end() {
-            if let Some(f) = self.declaration() {
-                statements.push(f)
-            }
-        }
-
-        self.consume(Type::RightBrace, "Expected '}' after block.");
-        statements
     }
 
     fn take_expression(&mut self) -> Option<Expression<'p>> {

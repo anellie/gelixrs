@@ -3,7 +3,7 @@
 //! to manipulate the stream of tokens.
 
 use super::super::{
-    ast::statement::Statement,
+    ast::declaration::Declaration,
     lexer::{
         token::{Token, Type},
         Lexer,
@@ -20,16 +20,16 @@ static EOF_TOKEN: Token = Token {
 
 impl<'p> Parser<'p> {
     /// Parses the tokens and returns a full AST.
-    pub fn parse(&mut self) -> Vec<Statement> {
-        let mut statements: Vec<Statement> = Vec::new();
+    pub fn parse(&mut self) -> Vec<Declaration> {
+        let mut declarations: Vec<Declaration> = Vec::new();
 
         while !self.is_at_end() {
             if let Some(f) = self.declaration() {
-                statements.push(f)
+                declarations.push(f)
             }
         }
 
-        statements
+        declarations
     }
 
     /// Checks if the current token is the given type. If yes, it consumes it.

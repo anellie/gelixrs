@@ -1,12 +1,10 @@
-var x = 1 + 2 - 4 - 6 + 5
-
-var y = x + 7
-
-x = 910
-
-
-var a = if (y > x) 345345 else 1
-
-func woohoo() 1 + 2
-
-x = 0-13
+func woohoo() {
+    var x = 5
+    if (5 > 3) { 
+        var u = 2 * 4
+        u = 2 / u
+        u
+    } else {
+        
+    }
+}

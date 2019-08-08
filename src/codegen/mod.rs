@@ -1,8 +1,9 @@
 use super::{
     ast::{
+        declaration::{Declaration, Function, Variable},
         expression::Expression,
         literal::Literal,
-        statement::{Function, Statement, Variable},
+        statement::Statement,
     },
     lexer::token::{Token, Type},
 };
@@ -31,33 +32,15 @@ pub struct IRGenerator<'i> {
     current_fn: Option<FunctionValue>,
 
     // All statements remaining to be compiled. Reverse order.
-    statements: Vec<Statement<'i>>,
+    declarations: Vec<Declaration<'i>>,
 }
 
 impl<'i> IRGenerator<'i> {
     /// Generates IR. Will process all statements given.
     pub fn generate(&mut self) {
-        let main_fn = self.declare_function(&Function {
-                name: Token {
-                    t_type: Type::Identifier,
-                    lexeme: "entry",
-                line: 0,
-                },
-                return_type: None,
-                parameters: Vec::with_capacity(0),
-                body: Box::new(Expression::This(Token { t_type: Type::Identifier, line: 0, lexeme: "NOPE" })),
-        });
-
-        let main_block = self.context.append_basic_block(&main_fn, "entry");
-        self.builder.position_at_end(&main_block);
-        self.current_fn = Some(main_fn);
-        
-        while !self.statements.is_empty() {
-            let statement = self.statements.pop().unwrap();
-            let result = self.statement(statement);
-
-            // Ensure the builder is not in some other function that was created during the statement
-            self.builder.position_at_end(&main_fn.get_last_basic_block().unwrap());
+        while !self.declarations.is_empty() {
+            let declaration = self.declarations.pop().unwrap();
+            let result = self.declaration(declaration);
 
             if let Err(msg) = result {
                 eprintln!("Error during code generation: {}", msg); // TODO: Maybe some more useful error messages at some point
@@ -65,22 +48,13 @@ impl<'i> IRGenerator<'i> {
             }
         }
 
-        self.builder.build_return(None);
-        
-        if main_fn.verify(true) {
-            // Currently, optimization will just clear the fn since it only consists of expressions with no side-effects.
-            // self.fpm.run_on(&main_fn);
-        }
-
         self.module.print_to_stderr();
     }
 
-    fn statement(&mut self, statement: Statement) -> Result<(), &'static str> {
-        match statement {
-            Statement::Expression(expr) => { self.expression(expr)?; },
-            Statement::Function(func) => { self.func_declaration(func)?; },
-            Statement::Variable(var) => { self.var_declaration(var)?; },
-            _ => return Err("Encountered unimplemented statement."),
+    fn declaration(&mut self, declaration: Declaration) -> Result<(), &'static str> {
+        match declaration {
+            Declaration::Function(func) => { self.func_declaration(func)?; },
+            _ => return Err("Encountered unimplemented declaration."),
         };
 
         Ok(())
@@ -102,11 +76,11 @@ impl<'i> IRGenerator<'i> {
             self.variables.insert(func.parameters[i].0.lexeme.to_string(), alloca);
         }
 
-        let body = self.expression(*func.body)?;
+        let body = self.statement(*func.body)?;
         self.builder.build_return(None);
 
         if function.verify(true) {
-            self.fpm.run_on(&function);
+            // self.fpm.run_on(&function); eats it
             Ok(())
         } else {
             unsafe { function.delete(); }
@@ -114,7 +88,61 @@ impl<'i> IRGenerator<'i> {
         }
     }
 
-    fn var_declaration(&mut self, var: Variable) -> Result<(), &'static str> {
+    fn statement(&mut self, statement: Statement) -> Result<(), &'static str> {
+        match statement {
+            Statement::Block(statements) => { self.block_statement(statements)?; },
+            Statement::Expression(expr) => { self.expression(expr)?; },
+            Statement::If { condition, then_branch, else_branch } => { self.if_statement(*condition, *then_branch, else_branch)?; }
+            Statement::Variable(var) => { self.var_statement(var)?; },
+            _ => return Err("Encountered unimplemented statement."),
+        };
+
+        Ok(())
+    }
+
+    fn block_statement(&mut self, mut statements: Vec<Statement>) -> Result<(), &'static str> {
+        statements.reverse();
+        loop {
+            if statements.is_empty() { break Ok(()) }
+            self.statement(statements.pop().ok_or("Empty block?")?)?;
+        }
+    }
+
+    fn if_statement(&mut self, condition: Expression, then_b: Statement, else_b: Option<Box<Statement>>) -> Result<(), &'static str> {
+        let parent = self.cur_fn();
+        let condition = self.expression(condition)?;
+
+        if let BasicValueEnum::IntValue(value) = condition {
+            let condition = self.builder.build_int_compare(IntPredicate::NE, value, self.context.bool_type().const_int(0, false), "ifcond");
+
+            let then_bb = self.context.append_basic_block(&parent, "then");
+            let else_bb = self.context.append_basic_block(&parent, "else");
+            let cont_bb = self.context.append_basic_block(&parent, "ifcont");
+
+            if else_b.is_none() {
+                self.builder.build_conditional_branch(condition, &then_bb, &cont_bb);
+            } else {
+                self.builder.build_conditional_branch(condition, &then_bb, &else_bb);
+            }
+
+            self.builder.position_at_end(&then_bb);
+            self.statement(then_b)?;
+            self.builder.build_unconditional_branch(&cont_bb);
+
+            if let Some(else_b) = else_b {
+                self.builder.position_at_end(&else_bb);
+                self.statement(*else_b)?;
+                self.builder.build_unconditional_branch(&cont_bb);
+            }
+
+            self.builder.position_at_end(&cont_bb);
+            Ok(())
+        } else {
+            Err("If condition needs to be a boolean or integer.")
+        }
+    }
+
+    fn var_statement(&mut self, var: Variable) -> Result<(), &'static str> {
         let initial_value = self.expression(var.initializer)?;
         let alloca = self.create_entry_block_alloca(initial_value.get_type(), var.name.lexeme);
 
@@ -128,7 +156,8 @@ impl<'i> IRGenerator<'i> {
         Ok(match expression {
             Expression::Assignment { name, value } => self.assignment(name, *value)?,
             Expression::Binary { left, operator, right } => self.binary(*left, operator, *right)?,
-            Expression::If { condition, then_branch, else_branch } => self.if_expr(*condition, *then_branch, else_branch)?,
+            Expression::Block(expressions) => self.block_expr(expressions)?,
+            Expression::IfElse { condition, then_branch, else_branch } => self.if_expr(*condition, *then_branch, *else_branch)?,
             Expression::Literal(literal) => self.literal(literal),
             Expression::Variable(name) => self.variable(name)?,
             _ => Err("Encountered unimplemented expression.")?,
@@ -141,6 +170,21 @@ impl<'i> IRGenerator<'i> {
 
         self.builder.build_store(*var, value);
         Ok(value)
+    }
+
+    fn block_expr(&mut self, mut statements: Vec<Statement>) -> Result<BasicValueEnum, &'static str> {
+        statements.reverse();
+        loop {
+            if statements.len() == 1 {
+                if let Statement::Expression(expr) = statements.pop().ok_or("Empty block?")? {
+                    break self.expression(expr)
+                } else {
+                    panic!("Block was incorrectly classified!!");
+                }
+            }
+
+            self.statement(statements.pop().ok_or("Empty block?")?)?;
+        }
     }
 
     // TODO: Add float support
@@ -173,8 +217,7 @@ impl<'i> IRGenerator<'i> {
         }))
     }
 
-    // TODO: Do if without else even work?
-    fn if_expr(&mut self, condition: Expression, then_b: Expression, else_b: Option<Box<Expression>>) -> Result<BasicValueEnum, &'static str> {
+    fn if_expr(&mut self, condition: Expression, then_b: Expression, else_b: Expression) -> Result<BasicValueEnum, &'static str> {
         let parent = self.cur_fn();
         let condition = self.expression(condition)?;
 
@@ -185,35 +228,26 @@ impl<'i> IRGenerator<'i> {
             let else_bb = self.context.append_basic_block(&parent, "else");
             let cont_bb = self.context.append_basic_block(&parent, "ifcont");
 
-            if else_b.is_none() {
-                self.builder.build_conditional_branch(condition, &then_bb, &cont_bb);
-            } else {
-                self.builder.build_conditional_branch(condition, &then_bb, &else_bb);
-            }
+            self.builder.build_conditional_branch(condition, &then_bb, &else_bb);
 
             self.builder.position_at_end(&then_bb);
             let then_val = self.expression(then_b)?;
             self.builder.build_unconditional_branch(&cont_bb);
-
             let then_bb = self.builder.get_insert_block().unwrap();
+
+            self.builder.position_at_end(&else_bb);
+            let else_val = self.expression(else_b)?;
+            self.builder.build_unconditional_branch(&cont_bb);
+            let else_bb = self.builder.get_insert_block().unwrap();
 
             self.builder.position_at_end(&cont_bb);
             let phi = self.builder.build_phi(self.context.i64_type(), "ifphi"); // todo
-
-            if let Some(else_b) = else_b {
-                self.builder.position_at_end(&else_bb);
-                let else_val = self.expression(*else_b)?;
-                self.builder.build_unconditional_branch(&cont_bb);
-                let else_bb = self.builder.get_insert_block().unwrap();
-
-                phi.add_incoming(&[
-                    (&then_val, &then_bb),
-                    (&else_val, &else_bb)
-                ]);
-            }
+            phi.add_incoming(&[
+                (&then_val, &then_bb),
+                (&else_val, &else_bb)
+            ]);
 
             self.builder.position_at_end(&cont_bb);
-
             Ok(phi.as_basic_value())
         } else {
             Err("If condition needs to be a boolean or integer.")
@@ -260,7 +294,7 @@ impl<'i> IRGenerator<'i> {
     }
 
     /// Creates a new generator. Put into action by generate().
-    pub fn new(mut statements: Vec<Statement>) -> IRGenerator {
+    pub fn new(mut declarations: Vec<Declaration>) -> IRGenerator {
         let context = Context::create();
         let module = context.create_module("main");
         let builder = context.create_builder();
@@ -275,8 +309,8 @@ impl<'i> IRGenerator<'i> {
         fpm.add_instruction_combining_pass();
         fpm.add_reassociate_pass();
 
-        // The generator pops the statements off the top.
-        statements.reverse();
+        // The generator pops the declarations off the top.
+        declarations.reverse();
 
         IRGenerator {
             context,
@@ -287,7 +321,7 @@ impl<'i> IRGenerator<'i> {
             variables: HashMap::with_capacity(10),
             current_fn: None,
 
-            statements,
+            declarations,
         }
     }
 }
