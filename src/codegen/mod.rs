@@ -1,3 +1,5 @@
+pub mod resolver;
+
 use super::{
     ast::{
         declaration::{Declaration, Function, FuncSignature, Variable},
@@ -327,37 +329,5 @@ impl<'i> IRGenerator<'i> {
 
     fn cur_fn(&self) -> FunctionValue {
         self.current_fn.unwrap()
-    }
-
-    /// Creates a new generator. Put into action by generate().
-    pub fn new(mut declarations: Vec<Declaration>) -> IRGenerator {
-        let context = Context::create();
-        let module = context.create_module("main");
-        let builder = context.create_builder();
-
-        let fpm = PassManager::create(&module);
-        fpm.add_instruction_combining_pass();
-        fpm.add_reassociate_pass();
-        fpm.add_gvn_pass();
-        fpm.add_cfg_simplification_pass();
-        fpm.add_basic_alias_analysis_pass();
-        fpm.add_promote_memory_to_register_pass();
-        fpm.add_instruction_combining_pass();
-        fpm.add_reassociate_pass();
-
-        // The generator pops the declarations off the top.
-        declarations.reverse();
-
-        IRGenerator {
-            context,
-            module,
-            builder,
-            fpm,
-            
-            variables: HashMap::with_capacity(10),
-            current_fn: None,
-
-            declarations,
-        }
     }
 }
