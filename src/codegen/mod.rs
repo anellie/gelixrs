@@ -106,6 +106,7 @@ impl<'i> IRGenerator<'i> {
         match statement {
             Statement::Block(statements) => self.block_statement(statements),
             Statement::If { condition, then_branch, else_branch } => self.if_statement(*condition, *then_branch, else_branch),
+            Statement::Return(expr) => self.return_statement(expr),
             Statement::Variable(var) => self.var_statement(var),
             Statement::Expression(expr) => { 
                 self.expression(expr)?; 
@@ -157,6 +158,20 @@ impl<'i> IRGenerator<'i> {
         }
     }
 
+    fn return_statement(&mut self, expression: Option<Expression>) -> Result<(), &'static str> {
+        if let Some(expression) = expression {
+            let expression = self.expression(expression)?;
+            self.builder.build_return(Some(&expression));
+        } else {
+            self.builder.build_return(None);
+        }
+
+        // Ensure no code is written to the block after the ret instruction.
+        self.builder.clear_insertion_position();
+
+        Ok(())
+    }
+
     fn var_statement(&mut self, var: Variable) -> Result<(), &'static str> {
         let initial_value = self.expression(var.initializer)?;
         let alloca = self.create_entry_block_alloca(initial_value.get_type(), var.name.lexeme);
@@ -173,6 +188,7 @@ impl<'i> IRGenerator<'i> {
             Expression::Binary { left, operator, right } => self.binary(*left, operator, *right)?,
             Expression::Block(expressions) => self.block_expr(expressions)?,
             Expression::Call { callee, token: _, arguments } => self.call_expr(*callee, arguments)?,
+            Expression::Grouping(expr) => self.expression(*expr)?,
             Expression::IfElse { condition, then_branch, else_branch } => self.if_expr(*condition, *then_branch, *else_branch)?,
             Expression::Literal(literal) => self.literal(literal),
             Expression::Variable(name) => self.variable(name)?,

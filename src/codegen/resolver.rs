@@ -1,6 +1,10 @@
 use super::IRGenerator;
 use super::super::{
-    ast::declaration::{Declaration, Function, FuncSignature, Variable},
+    ast::{
+        declaration::{Declaration, FuncSignature},
+        statement::Statement,
+        expression::Expression
+    },
     lexer::token::Token,
 };
 use inkwell::{
@@ -20,17 +24,25 @@ pub struct Resolver {
     module: Module,
 
     types: HashMap<String, StructType>,
+    environments: Vec<Environment>,
+
+    // Just for error reporting.
+    current_func_name: String
 }
 
 impl Resolver {
     /// Will do all passes after one another.
     pub fn resolve(&mut self, declarations: &Vec<Declaration>) -> Option<()> {
         for declaration in declarations {
-            Resolver::check_error(self.first_pass(&declaration))?;
+            Resolver::check_error(self.first_pass(&declaration), &self.current_func_name)?;
         }
 
         for declaration in declarations {
-            Resolver::check_error(self.second_pass(&declaration))?;
+            Resolver::check_error(self.second_pass(&declaration), &self.current_func_name)?;
+        }
+
+        for declaration in declarations {
+            Resolver::check_error(self.third_pass(&declaration), &self.current_func_name)?;
         }
 
         Some(())
@@ -60,9 +72,8 @@ impl Resolver {
     fn second_pass(&mut self, declaration: &Declaration) -> Result<(), String> {
         match declaration {
             Declaration::CFunc(func) => self.create_function(func),
-            Declaration::Class { name, variables, methods } => self.class(name, variables, methods),
-            Declaration::Enum { name, variants } => self._enum(name, variants),
-            Declaration::Function(func) => self.create_function(&func.sig)
+            Declaration::Function(func) => self.create_function(&func.sig),
+            _ => Ok(())
         }
     }
 
@@ -84,22 +95,117 @@ impl Resolver {
         };
         
         self.module.add_function(function.name.lexeme, fn_type, None);
+        self.environments.first_mut().unwrap().variables.insert(function.name.lexeme.to_string(), false);
         Ok(())
     }
 
-    fn class(
-        &mut self,         
-        _name: &Token,
-        _variables: &Vec<Variable>,
-        _methods: &Vec<Function>,
-    ) -> Result<(), String> {
+    /// During the third pass, all variables inside functions are checked.
+    /// This is to ensure the variable is defined and allowed in the current scope.
+    fn third_pass(&mut self, declaration: &Declaration) -> Result<(), String> {
+        match declaration {
+            Declaration::Function(func) => {
+                self.current_func_name = func.sig.name.lexeme.to_string();
+
+                self.begin_scope();
+                for param in &func.sig.parameters {
+                    self.define_variable(param.1.lexeme.to_string(), false)?;
+                }
+                self.resolve_statement(&*func.body)?;
+                self.end_scope();
+            },
+            _ => ()
+        };
+
         Ok(())
-    }    
-    
-    fn _enum(&mut self, _name: &Token, _variants: &Vec<Token>) -> Result<(), String> {
+    }
+
+    fn resolve_statement(&mut self, statement: &Statement) -> Result<(), String> {
+        match statement {
+            Statement::Block(statements) => {
+                self.begin_scope();
+                for statement in statements {
+                    self.resolve_statement(statement)?;
+                }
+                self.end_scope();
+            },
+
+            Statement::If { condition, then_branch, else_branch } => {
+                self.resolve_expression(condition)?;
+                self.resolve_statement(then_branch)?;
+
+                if let Some(else_branch) = else_branch {
+                    self.resolve_statement(else_branch)?;
+                }
+            },
+
+            Statement::Return(expr) => {
+                if let Some(expr) = expr {
+                    self.resolve_expression(expr)?
+                }
+            },
+
+            Statement::Variable(var) => {
+                self.resolve_expression(&var.initializer)?;
+                self.define_variable(var.name.lexeme.to_string(), !var.is_val)?;
+            },
+
+            Statement::Expression(expr) => self.resolve_expression(expr)?,
+
+            _ => Err("Encountered unimplemented statement.")?,
+        }
+
         Ok(())
-    }    
-    
+    }
+
+    fn resolve_expression(&mut self, expression: &Expression) -> Result<(), String> {
+        match expression {
+            Expression::Assignment { name, value } => {
+                self.resolve_expression(&value)?;
+                let is_mut = self.find_var(&name.lexeme.to_string())?;
+                if !is_mut {
+                    return Err(format!("Variable {} is not assignable (val)", name.lexeme))
+                }
+            },
+
+            Expression::Binary { left, operator: _, right } => {
+                self.resolve_expression(&left)?;
+                self.resolve_expression(&right)?;
+            },
+
+            Expression::Block(statements) => {
+                self.begin_scope();
+                for statement in statements {
+                    self.resolve_statement(statement)?;
+                }
+                self.end_scope();
+            },
+
+            Expression::Call { callee, token: _, arguments } => {
+                self.resolve_expression(&callee)?;
+                for arg in arguments {
+                    self.resolve_expression(&arg)?;
+                }
+            },
+
+            Expression::Grouping(expr) => self.resolve_expression(expr)?,
+
+            Expression::IfElse { condition, then_branch, else_branch } => {
+                self.resolve_expression(condition)?;
+                self.resolve_expression(then_branch)?;
+                self.resolve_expression(else_branch)?;
+            },
+
+            Expression::Literal(_) => (),
+
+            Expression::Variable(name) => {
+                self.find_var(&name.lexeme.to_string())?;
+            },
+
+            _ => Err("Encountered unimplemented expression.")?,
+        }
+
+        Ok(())
+    }
 
     fn resolve_type(&mut self, token: &Token) -> Result<BasicTypeEnum, String> {
         Ok(match token.lexeme {
@@ -112,9 +218,35 @@ impl Resolver {
         })
     }
 
-    fn check_error(result: Result<(), String>) -> Option<()> {
+    fn define_variable(&mut self, name: String, mutable: bool) -> Result<(), String> {
+        if self.environments.last().unwrap().variables.contains_key(&name) {
+            Err(format!("Variable '{}' already defined in the current scope.", name))
+        } else {
+            self.environments.last_mut().unwrap().variables.insert(name, mutable);
+            Ok(())
+        }
+    }
+
+    fn find_var(&mut self, name: &String) -> Result<bool, String> {
+        for env in &self.environments {
+            if env.variables.contains_key(name) {
+                return Ok(*env.variables.get(name).unwrap())
+            }
+        }
+        Err(format!("Variable {} is not defined.", name))
+    }
+
+    fn begin_scope(&mut self) {
+        self.environments.push(Environment::new());
+    }
+
+    fn end_scope(&mut self) {
+        self.environments.pop();
+    }
+
+    fn check_error(result: Result<(), String>, func: &String) -> Option<()> {
         result.or_else(|err| {
-            eprintln!("[Resolver] {}", err);
+            eprintln!("[Resolver] {} (occured in function: {})", err, func);
             Err(())
         }).ok()
     }
@@ -123,12 +255,17 @@ impl Resolver {
         let context = Context::create();
         let module = context.create_module("main");
         let builder = context.create_builder();
+        
+        let mut environments = Vec::with_capacity(10);
+        environments.push(Environment::new()); // global environment
 
         Resolver {
             context,
             module,
             builder,
             types: HashMap::with_capacity(10),
+            environments,
+            current_func_name: "".to_string()
         }
     }
 
@@ -157,6 +294,21 @@ impl Resolver {
             current_fn: None,
 
             declarations,
+        }
+    }
+}
+
+/// An environment holds all variables in the current scope.
+/// To keep track of all variables, a stack of them is used.
+struct Environment {
+    // Key = name; value = mutability
+    variables: HashMap<String, bool>
+}
+
+impl Environment {
+    pub fn new() -> Environment {
+        Environment {
+            variables: HashMap::with_capacity(5)
         }
     }
 }

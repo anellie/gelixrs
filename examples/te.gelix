@@ -1,0 +1,6 @@
+func main() {
+    if (false) {
+        var x = 5
+    }
+    var y = x
+}

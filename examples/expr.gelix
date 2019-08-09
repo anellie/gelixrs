@@ -6,7 +6,7 @@ cfunc print(i64 a) -> i64
 
 func main() -> f64 {
     var x = 5
-    if (5 > 3) { 
+    if (5 > 3) {
         var u = 2 * 4
         u = 2 / u
         u
@@ -18,8 +18,7 @@ func main() -> f64 {
     else 12.3
 }
 
-func test(i64 a, i64 b) -> i64 a + b
-
-class Dog {
-    
+func test(i64 a, i64 b) -> i64 {
+    if (a > b) return a
+    a + b
 }

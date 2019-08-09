@@ -3,7 +3,7 @@ func main() {
     var x = 5
     val y = 78
 
-    x = 8
+    x = (8 + 5) * 5
     y = 7
 
     x = "String"
