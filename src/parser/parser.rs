@@ -295,7 +295,7 @@ impl<'p> Parser<'p> {
 
         let mut branches: Vec<(Expression<'p>, Expression<'p>)> = Vec::new();
         let mut else_branch = None;
-        while !self.check(Type::RightBrace) {
+        while !self.match_token(Type::RightBrace) {
             if self.match_token(Type::Else) {
                 self.consume(Type::Arrow, "Expected '->' after when condition.");
                 else_branch = Some(self.expression()?);

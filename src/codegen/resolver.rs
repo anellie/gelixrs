@@ -103,8 +103,11 @@ impl Resolver {
 
     fn resolve_type(&mut self, token: &Token) -> Result<BasicTypeEnum, String> {
         Ok(match token.lexeme {
+            "f32" => self.context.f64_type().as_basic_type_enum(),
             "f64" => self.context.f64_type().as_basic_type_enum(),
+            "i32" => self.context.i32_type().as_basic_type_enum(),
             "i64" => self.context.i64_type().as_basic_type_enum(),
+            "bool" => self.context.bool_type().as_basic_type_enum(),
             _ => self.types.get(token.lexeme).ok_or(format!("Unknown type {}", token.lexeme))?.as_basic_type_enum(),
         })
     }
