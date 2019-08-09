@@ -26,6 +26,3 @@ class Dog {
 
 }
 
-enum Animal {
-    
-}

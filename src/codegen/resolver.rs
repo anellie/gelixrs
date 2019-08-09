@@ -24,6 +24,7 @@ pub struct Resolver {
     module: Module,
 
     types: HashMap<String, Box<dyn BasicType>>,
+    func_declared: Vec<String>,
     functions: HashMap<String, FunctionValue>
 }
 
@@ -46,7 +47,8 @@ impl Resolver {
         match declaration {
             Declaration::Class { name, variables: _, methods: _ } => self.declare_type(name),
             Declaration::Enum { name, variants: _ } => self.declare_type(name),
-            _ => Ok(())
+            Declaration::CFunc(func) => self.declare_function(func),
+            Declaration::Function(func) => self.declare_function(&func.sig)
         }
     }
 
@@ -56,6 +58,15 @@ impl Resolver {
         if result.is_some() {
             Err(format!("The type/class/enum {} was declared more than once!", name.lexeme))   
         } else {
+            Ok(())
+        } 
+    }
+
+    fn declare_function(&mut self, function: &FuncSignature) -> Result<(), String> {
+        if self.func_declared.contains(&function.name.lexeme.to_string()) {
+            Err(format!("The function {} was declared more than once!", function.name.lexeme))   
+        } else {
+            self.func_declared.push(function.name.lexeme.to_string());
             Ok(())
         } 
     }
@@ -91,11 +102,11 @@ impl Resolver {
         Ok(())
 
     }
+/*
+    fn resolve_type(&mut self) -> Result<BasicType, String> {
 
-    fn declare_function(&mut self, sig: FuncSignature) -> Result<(), String> {
-        Ok(())
     }
-
+*/
     fn check_error(result: Result<(), String>) -> Option<()> {
         result.or_else(|err| {
             eprintln!("[Resolver] {}", err);
@@ -113,6 +124,7 @@ impl Resolver {
             module,
             builder,
             types: HashMap::with_capacity(10),
+            func_declared: Vec::with_capacity(10),
             functions: HashMap::with_capacity(10)
         }
     }
