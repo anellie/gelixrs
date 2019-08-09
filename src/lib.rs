@@ -25,9 +25,9 @@ fn compile_and_run(code: String) {
     let mut parser = parser::Parser::new(lexer);
 
     if let Some(declarations) = parser.parse() {
-        let mut resolver = codegen::resolver::Resolver::new(declarations);
-        if let Some(_) = resolver.resolve() {
-            let mut generator = resolver.into_generator();
+        let mut resolver = codegen::resolver::Resolver::new();
+        if let Some(_) = resolver.resolve(&declarations) {
+            let mut generator = resolver.into_generator(declarations);
             generator.generate();
         } else {
             eprint!("Encountered errors during resolving. Exiting.");

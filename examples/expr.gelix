@@ -12,3 +12,20 @@ func main() {
         u
     }
 }
+
+class Animal {
+
+}
+
+
+enum Type {
+    Good, Okay, Bad
+}
+
+class Dog {
+
+}
+
+enum Animal {
+    
+}

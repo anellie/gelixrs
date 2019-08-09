@@ -13,23 +13,97 @@ use inkwell::{
     context::Context,
     module::Module,
     passes::PassManager,
+    types::{BasicType, BasicTypeEnum},
+    values::{BasicValueEnum, FunctionValue, PointerValue},
 };
 use std::collections::HashMap;
 
-pub struct Resolver<'r> {
+pub struct Resolver {
     context: Context,
     builder: Builder,
     module: Module,
 
-    declarations: Vec<Declaration<'r>>
+    types: HashMap<String, Box<dyn BasicType>>,
+    functions: HashMap<String, FunctionValue>
 }
 
-impl<'r> Resolver<'r> {
-    pub fn resolve(&mut self) -> Option<()> {
-        Some(()) // TODO
+impl Resolver {
+    pub fn resolve(&mut self, declarations: &Vec<Declaration>) -> Option<()> {
+        for declaration in declarations {
+            Resolver::check_error(self.first_pass(&declaration))?;
+        }
+
+        for declaration in declarations {
+            Resolver::check_error(self.second_pass(&declaration))?;
+        }
+
+        Some(())
     }
 
-    pub fn new(declarations: Vec<Declaration>) -> Resolver {
+    // During the first pass, the types map is filled with all types.
+    // These types are not yet filled in however.
+    fn first_pass(&mut self, declaration: &Declaration) -> Result<(), String> {
+        match declaration {
+            Declaration::Class { name, variables: _, methods: _ } => self.declare_type(name),
+            Declaration::Enum { name, variants: _ } => self.declare_type(name),
+            _ => Ok(())
+        }
+    }
+
+    fn declare_type(&mut self, name: &Token) -> Result<(), String> {
+        // The type will be correctly filled in in later passes
+        let result = self.types.insert(name.lexeme.to_string(), Box::new(self.context.bool_type()));
+        if result.is_some() {
+            Err(format!("The type/class/enum {} was declared more than once!", name.lexeme))   
+        } else {
+            Ok(())
+        } 
+    }
+
+    fn second_pass(&mut self, declaration: &Declaration) -> Result<(), String> {
+        match declaration {
+            Declaration::CFunc(func) => self.external_function(func),
+            Declaration::Class { name, variables, methods } => self.class(name, variables, methods),
+            Declaration::Enum { name, variants } => self._enum(name, variants),
+            Declaration::Function(func) => self.function(func)
+        }
+    }
+
+    fn external_function(&mut self, func: &FuncSignature) -> Result<(), String> {
+        Ok(())
+    }
+
+    fn class(
+        &mut self,         
+        name: &Token,
+        variables: &Vec<Variable>,
+        methods: &Vec<Function>,
+    ) -> Result<(), String> {
+        Ok(())
+    }    
+    
+    fn _enum(&mut self, name: &Token, variants: &Vec<Token>) -> Result<(), String> {
+        Ok(())
+
+    }    
+    
+    fn function(&mut self, func: &Function) -> Result<(), String> {
+        Ok(())
+
+    }
+
+    fn declare_function(&mut self, sig: FuncSignature) -> Result<(), String> {
+        Ok(())
+    }
+
+    fn check_error(result: Result<(), String>) -> Option<()> {
+        result.or_else(|err| {
+            eprintln!("[Resolver] {}", err);
+            Err(())
+        }).ok()
+    }
+
+    pub fn new() -> Resolver {
         let context = Context::create();
         let module = context.create_module("main");
         let builder = context.create_builder();
@@ -38,12 +112,13 @@ impl<'r> Resolver<'r> {
             context,
             module,
             builder,
-            declarations
+            types: HashMap::with_capacity(10),
+            functions: HashMap::with_capacity(10)
         }
     }
 
     /// Turns the resolver into a generator for IR. Call resolve() first.
-    pub fn into_generator(mut self) -> IRGenerator<'r> {
+    pub fn into_generator(self, mut declarations: Vec<Declaration>) -> IRGenerator {
         let fpm = PassManager::create(&self.module);
         fpm.add_instruction_combining_pass();
         fpm.add_reassociate_pass();
@@ -55,7 +130,7 @@ impl<'r> Resolver<'r> {
         fpm.add_reassociate_pass();
 
         // The generator pops the declarations off the top.
-        self.declarations.reverse();
+        declarations.reverse();
 
         IRGenerator {
             context: self.context,
@@ -66,7 +141,7 @@ impl<'r> Resolver<'r> {
             variables: HashMap::with_capacity(10),
             current_fn: None,
 
-            declarations: self.declarations,
+            declarations,
         }
     }
 }
