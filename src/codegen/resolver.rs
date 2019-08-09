@@ -12,6 +12,8 @@ use inkwell::{
 };
 use std::collections::HashMap;
 
+/// A resolver. Mainly responsible for resolving types.
+/// Variable resolution is done in [IRGenerator] directly.
 pub struct Resolver {
     context: Context,
     builder: Builder,

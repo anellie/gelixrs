@@ -93,7 +93,7 @@ impl<'i> IRGenerator<'i> {
         }
 
         if function.verify(true) {
-            self.fpm.run_on(&function);
+            // self.fpm.run_on(&function); todo
             Ok(())
         } else {
             unsafe { function.delete(); }
@@ -153,7 +153,7 @@ impl<'i> IRGenerator<'i> {
             self.builder.position_at_end(&cont_bb);
             Ok(())
         } else {
-            Err("If condition needs to be a boolean or integer.")
+            Err("If condition needs to be a boolean.")
         }
     }
 
@@ -274,7 +274,7 @@ impl<'i> IRGenerator<'i> {
             let else_bb = self.builder.get_insert_block().unwrap();
 
             self.builder.position_at_end(&cont_bb);
-            let phi = self.builder.build_phi(self.context.i64_type(), "ifphi"); // todo
+            let phi = self.builder.build_phi(then_val.get_type(), "ifphi");
             phi.add_incoming(&[
                 (&then_val, &then_bb),
                 (&else_val, &else_bb)
