@@ -1,6 +1,11 @@
 func main() {
+    var x = 3
     if (false) {
-        var x = 5
+        var x = x
     }
-    var y = x
+    if (true) {
+        var x = x
+        var y = 90
+    }
+    x
 }

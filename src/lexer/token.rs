@@ -7,6 +7,10 @@ pub struct Token<'t> {
     pub lexeme: &'t str,
     /// The line the token is on. For multiline tokens, this is the last line.
     pub line: usize,
+
+    // Used only for variables that were renamed due to scoping collisions.
+    // TODO: This is a terrible hack and a bad idea. 
+    pub relocated: Option<String>
 }
 
 // All types of tokens available. Most are keywords or special chars.

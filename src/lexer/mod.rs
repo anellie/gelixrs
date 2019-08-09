@@ -216,6 +216,7 @@ impl<'t> Lexer<'t> {
             t_type,
             lexeme: &self.source[self.start..self.current],
             line: self.line,
+            relocated: None
         }
     }
 
@@ -225,6 +226,7 @@ impl<'t> Lexer<'t> {
             t_type: Type::ScanError,
             lexeme: message,
             line: self.line,
+            relocated: None
         }
     }
 

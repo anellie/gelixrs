@@ -16,8 +16,7 @@ use inkwell::{
 };
 use std::collections::HashMap;
 
-/// A resolver. Mainly responsible for resolving types.
-/// Variable resolution is done in [IRGenerator] directly.
+/// A resolver. Resolves all variables and types.
 pub struct Resolver {
     context: Context,
     builder: Builder,
@@ -26,23 +25,26 @@ pub struct Resolver {
     types: HashMap<String, StructType>,
     environments: Vec<Environment>,
 
+    // Used to make unique variable names when a name collision occurs.
+    environment_counter: usize,
+
     // Just for error reporting.
     current_func_name: String
 }
 
 impl Resolver {
     /// Will do all passes after one another.
-    pub fn resolve(&mut self, declarations: &Vec<Declaration>) -> Option<()> {
-        for declaration in declarations {
-            Resolver::check_error(self.first_pass(&declaration), &self.current_func_name)?;
+    pub fn resolve(&mut self, declarations: &mut Vec<Declaration>) -> Option<()> {
+        for declaration in declarations.iter_mut() {
+            Resolver::check_error(self.first_pass(declaration), &self.current_func_name)?;
         }
 
-        for declaration in declarations {
-            Resolver::check_error(self.second_pass(&declaration), &self.current_func_name)?;
+        for declaration in declarations.iter_mut() {
+            Resolver::check_error(self.second_pass(declaration), &self.current_func_name)?;
         }
 
-        for declaration in declarations {
-            Resolver::check_error(self.third_pass(&declaration), &self.current_func_name)?;
+        for declaration in declarations.iter_mut() {
+            Resolver::check_error(self.third_pass(declaration), &self.current_func_name)?;
         }
 
         Some(())
@@ -101,16 +103,16 @@ impl Resolver {
 
     /// During the third pass, all variables inside functions are checked.
     /// This is to ensure the variable is defined and allowed in the current scope.
-    fn third_pass(&mut self, declaration: &Declaration) -> Result<(), String> {
+    fn third_pass(&mut self, declaration: &mut Declaration) -> Result<(), String> {
         match declaration {
             Declaration::Function(func) => {
                 self.current_func_name = func.sig.name.lexeme.to_string();
 
                 self.begin_scope();
-                for param in &func.sig.parameters {
-                    self.define_variable(param.1.lexeme.to_string(), false)?;
+                for param in func.sig.parameters.iter_mut() {
+                    self.define_variable(&mut param.1, false)?;
                 }
-                self.resolve_statement(&*func.body)?;
+                self.resolve_statement(&mut *func.body)?;
                 self.end_scope();
             },
             _ => ()
@@ -119,7 +121,7 @@ impl Resolver {
         Ok(())
     }
 
-    fn resolve_statement(&mut self, statement: &Statement) -> Result<(), String> {
+    fn resolve_statement(&mut self, statement: &mut Statement) -> Result<(), String> {
         match statement {
             Statement::Block(statements) => {
                 self.begin_scope();
@@ -145,8 +147,8 @@ impl Resolver {
             },
 
             Statement::Variable(var) => {
-                self.resolve_expression(&var.initializer)?;
-                self.define_variable(var.name.lexeme.to_string(), !var.is_val)?;
+                self.resolve_expression(&mut var.initializer)?;
+                self.define_variable(&mut var.name, !var.is_val)?;
             },
 
             Statement::Expression(expr) => self.resolve_expression(expr)?,
@@ -157,19 +159,19 @@ impl Resolver {
         Ok(())
     }
 
-    fn resolve_expression(&mut self, expression: &Expression) -> Result<(), String> {
+    fn resolve_expression(&mut self, expression: &mut Expression) -> Result<(), String> {
         match expression {
             Expression::Assignment { name, value } => {
-                self.resolve_expression(&value)?;
-                let is_mut = self.find_var(&name.lexeme.to_string())?;
+                self.resolve_expression(value)?;
+                let is_mut = self.find_var(name)?;
                 if !is_mut {
                     return Err(format!("Variable {} is not assignable (val)", name.lexeme))
                 }
             },
 
             Expression::Binary { left, operator: _, right } => {
-                self.resolve_expression(&left)?;
-                self.resolve_expression(&right)?;
+                self.resolve_expression(left)?;
+                self.resolve_expression(right)?;
             },
 
             Expression::Block(statements) => {
@@ -181,9 +183,9 @@ impl Resolver {
             },
 
             Expression::Call { callee, token: _, arguments } => {
-                self.resolve_expression(&callee)?;
+                self.resolve_expression(callee)?;
                 for arg in arguments {
-                    self.resolve_expression(&arg)?;
+                    self.resolve_expression(arg)?;
                 }
             },
 
@@ -198,7 +200,7 @@ impl Resolver {
             Expression::Literal(_) => (),
 
             Expression::Variable(name) => {
-                self.find_var(&name.lexeme.to_string())?;
+                self.find_var(name)?;
             },
 
             _ => Err("Encountered unimplemented expression.")?,
@@ -218,26 +220,41 @@ impl Resolver {
         })
     }
 
-    fn define_variable(&mut self, name: String, mutable: bool) -> Result<(), String> {
+    fn define_variable(&mut self, token: &mut Token, mutable: bool) -> Result<(), String> {
+        let name = token.lexeme.to_string();
+
         if self.environments.last().unwrap().variables.contains_key(&name) {
             Err(format!("Variable '{}' already defined in the current scope.", name))
         } else {
+            if self.find_var(token).is_ok() {
+                let new_name = format!("{}-{}", name, self.environment_counter);
+                self.environments.last_mut().unwrap().moved_vars.insert(name.clone(), new_name.clone());
+                token.relocated = Some(new_name);
+            }
+
             self.environments.last_mut().unwrap().variables.insert(name, mutable);
             Ok(())
         }
     }
 
-    fn find_var(&mut self, name: &String) -> Result<bool, String> {
-        for env in &self.environments {
-            if env.variables.contains_key(name) {
-                return Ok(*env.variables.get(name).unwrap())
+    fn find_var(&mut self, token: &mut Token) -> Result<bool, String> {
+        let name = token.lexeme.to_string();
+
+        for env in self.environments.iter().rev() {
+            if env.variables.contains_key(&name) {
+                if env.moved_vars.contains_key(&name) {
+                    token.relocated = Some(env.moved_vars.get(&name).unwrap().to_string());
+                }
+                return Ok(*env.variables.get(&name).unwrap())
             }
         }
+
         Err(format!("Variable {} is not defined.", name))
     }
-
+    
     fn begin_scope(&mut self) {
         self.environments.push(Environment::new());
+        self.environment_counter += 1;
     }
 
     fn end_scope(&mut self) {
@@ -265,6 +282,7 @@ impl Resolver {
             builder,
             types: HashMap::with_capacity(10),
             environments,
+            environment_counter: 0,
             current_func_name: "".to_string()
         }
     }
@@ -302,13 +320,17 @@ impl Resolver {
 /// To keep track of all variables, a stack of them is used.
 struct Environment {
     // Key = name; value = mutability
-    variables: HashMap<String, bool>
+    variables: HashMap<String, bool>,
+
+    // Variables that were moved due to a naming collision
+    moved_vars: HashMap<String, String>
 }
 
 impl Environment {
     pub fn new() -> Environment {
         Environment {
-            variables: HashMap::with_capacity(5)
+            variables: HashMap::with_capacity(5),
+            moved_vars: HashMap::with_capacity(5)
         }
     }
 }

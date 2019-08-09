@@ -173,11 +173,13 @@ impl<'i> IRGenerator<'i> {
     }
 
     fn var_statement(&mut self, var: Variable) -> Result<(), &'static str> {
+        let name = IRGenerator::name_from_token(var.name);
+
         let initial_value = self.expression(var.initializer)?;
-        let alloca = self.create_entry_block_alloca(initial_value.get_type(), var.name.lexeme);
+        let alloca = self.create_entry_block_alloca(initial_value.get_type(), &name);
 
         self.builder.build_store(alloca, initial_value);
-        self.variables.insert(var.name.lexeme.to_string(), alloca);
+        self.variables.insert(name, alloca);
 
         Ok(())
     }
@@ -197,8 +199,10 @@ impl<'i> IRGenerator<'i> {
     }
 
     fn assignment(&mut self, name: Token, value: Expression) -> Result<BasicValueEnum, &'static str> {
+        let name = IRGenerator::name_from_token(name);
+
         let value = self.expression(value)?;
-        let var = self.variables.get(name.lexeme).ok_or("Undefined variable.")?;
+        let var = self.variables.get(&name).ok_or("Undefined variable.")?;
 
         self.builder.build_store(*var, value);
         Ok(value)
@@ -316,8 +320,9 @@ impl<'i> IRGenerator<'i> {
     }
 
     fn variable(&mut self, name: Token) -> Result<BasicValueEnum, &'static str> {
-        match self.variables.get(name.lexeme) {
-            Some(var) => Ok(self.builder.build_load(*var, name.lexeme)),
+        let name = IRGenerator::name_from_token(name);
+        match self.variables.get(&name) {
+            Some(var) => Ok(self.builder.build_load(*var, &name)),
             None => Err("Could not find variable."),
         }
     }
@@ -336,5 +341,13 @@ impl<'i> IRGenerator<'i> {
 
     fn cur_fn(&self) -> FunctionValue {
         self.current_fn.unwrap()
+    }
+
+    fn name_from_token(token: Token) -> String {
+        if let Some(relocated) = token.relocated {
+            relocated
+        } else {
+            token.lexeme.to_string()
+        }
     }
 }

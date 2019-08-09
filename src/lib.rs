@@ -24,9 +24,9 @@ fn compile_and_run(code: String) {
     let lexer = lexer::Lexer::new(&code);
     let mut parser = parser::Parser::new(lexer);
 
-    if let Some(declarations) = parser.parse() {
+    if let Some(mut declarations) = parser.parse() {
         let mut resolver = codegen::resolver::Resolver::new();
-        if let Some(_) = resolver.resolve(&declarations) {
+        if let Some(_) = resolver.resolve(&mut declarations) {
             let mut generator = resolver.into_generator(declarations);
             generator.generate();
         } else {

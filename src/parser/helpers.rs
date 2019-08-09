@@ -16,6 +16,7 @@ static EOF_TOKEN: Token = Token {
     t_type: Type::EndOfFile,
     lexeme: "\0",
     line: 0,
+    relocated: None
 };
 
 impl<'p> Parser<'p> {
@@ -177,6 +178,7 @@ impl<'p> Parser<'p> {
                 t_type: Type::Null,
                 lexeme: "\n",
                 line: 1,
+                relocated: None
             },
             previous_line: 0,
 
