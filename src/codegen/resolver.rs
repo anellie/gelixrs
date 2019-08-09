@@ -1,20 +1,14 @@
 use super::IRGenerator;
 use super::super::{
-    ast::{
-        declaration::{Declaration, Function, FuncSignature, Variable},
-        expression::Expression,
-        literal::Literal,
-        statement::Statement,
-    },
-    lexer::token::{Token, Type},
+    ast::declaration::{Declaration, Function, FuncSignature, Variable},
+    lexer::token::Token,
 };
 use inkwell::{
     builder::Builder,
     context::Context,
     module::Module,
     passes::PassManager,
-    types::{BasicType, BasicTypeEnum},
-    values::{BasicValueEnum, FunctionValue, PointerValue},
+    types::{BasicType, BasicTypeEnum, StructType},
 };
 use std::collections::HashMap;
 
@@ -23,10 +17,11 @@ pub struct Resolver {
     builder: Builder,
     module: Module,
 
-    types: HashMap<String, Box<dyn BasicType>>,
+    types: HashMap<String, StructType>,
 }
 
 impl Resolver {
+    /// Will do all passes after one another.
     pub fn resolve(&mut self, declarations: &Vec<Declaration>) -> Option<()> {
         for declaration in declarations {
             Resolver::check_error(self.first_pass(&declaration))?;
@@ -39,8 +34,8 @@ impl Resolver {
         Some(())
     }
 
-    // During the first pass, the types map is filled with all types.
-    // These types are not yet filled in however.
+    /// During the first pass, the types map is filled with all types.
+    /// These types are opague, and filled later.
     fn first_pass(&mut self, declaration: &Declaration) -> Result<(), String> {
         match declaration {
             Declaration::Class { name, variables: _, methods: _ } => self.declare_type(name),
@@ -51,7 +46,7 @@ impl Resolver {
 
     fn declare_type(&mut self, name: &Token) -> Result<(), String> {
         // The type will be correctly filled in in later passes
-        let result = self.types.insert(name.lexeme.to_string(), Box::new(self.context.bool_type()));
+        let result = self.types.insert(name.lexeme.to_string(), self.context.opaque_struct_type(name.lexeme));
         if result.is_some() {
             Err(format!("The type/class/enum {} was declared more than once!", name.lexeme))   
         } else {
@@ -59,6 +54,7 @@ impl Resolver {
         } 
     }
 
+    /// During the second pass, all functions are declared.
     fn second_pass(&mut self, declaration: &Declaration) -> Result<(), String> {
         match declaration {
             Declaration::CFunc(func) => self.create_function(func),
@@ -91,16 +87,15 @@ impl Resolver {
 
     fn class(
         &mut self,         
-        name: &Token,
-        variables: &Vec<Variable>,
-        methods: &Vec<Function>,
+        _name: &Token,
+        _variables: &Vec<Variable>,
+        _methods: &Vec<Function>,
     ) -> Result<(), String> {
         Ok(())
     }    
     
-    fn _enum(&mut self, name: &Token, variants: &Vec<Token>) -> Result<(), String> {
+    fn _enum(&mut self, _name: &Token, _variants: &Vec<Token>) -> Result<(), String> {
         Ok(())
-
     }    
     
 

@@ -2,7 +2,7 @@ pub mod resolver;
 
 use super::{
     ast::{
-        declaration::{Declaration, Function, FuncSignature, Variable},
+        declaration::{Declaration, Function, Variable},
         expression::Expression,
         literal::Literal,
         statement::Statement,
@@ -14,14 +14,15 @@ use inkwell::{
     context::Context,
     module::Module,
     passes::PassManager,
-    types::{BasicType, BasicTypeEnum},
+    types::BasicType,
     values::{BasicValueEnum, FunctionValue, PointerValue},
     IntPredicate,
 };
 use std::collections::HashMap;
 use std::convert::TryInto;
 
-/// A generator that creates LLVM IR from a vector of Statements.
+/// A generator that creates LLVM IR.
+/// Created through a [Resolver].
 pub struct IRGenerator<'i> {
     /// LLVM-related. Refer to their docs for more info.
     context: Context,
@@ -53,22 +54,16 @@ impl<'i> IRGenerator<'i> {
         self.module.print_to_stderr();
     }
 
+    /// Compiles a single top-level declaration
     fn declaration(&mut self, declaration: Declaration) -> Result<(), &'static str> {
         match declaration {
-            Declaration::CFunc(signature) => self.external_function(signature)?,
-            Declaration::Function(func) => self.function(func)?,
-            _ => return Err("Encountered unimplemented declaration."),
-        };
-
-        Ok(())
+            Declaration::CFunc(_) => Ok(()), // Resolver already declared it; nothing to be done here
+            Declaration::Function(func) => self.function(func),
+            _ => Err("Encountered unimplemented declaration."),
+        }
     }
 
-    fn external_function(&mut self, sig: FuncSignature) -> Result<(), &'static str> {
-        // TODO: Is there even anything to be done here?
-        // Seems like the resolver already takes care of this.
-        Ok(())
-    }
-
+    /// Compiles a function to IR. (The function was already declared by the resolver.)
     fn function(&mut self, func: Function) -> Result<(), &'static str> {
         let function = self.module.get_function(func.sig.name.lexeme).ok_or("Internal error: Undefined function.")?;
 
@@ -85,12 +80,12 @@ impl<'i> IRGenerator<'i> {
             self.variables.insert(func.sig.parameters[i].1.lexeme.to_string(), alloca);
         }
 
-        if let Statement::Expression(expr) = *func.body {
-            let body = self.expression(expr)?;
-            if func.sig.return_type.is_some() {
+        if func.sig.return_type.is_some() {
+            if let Statement::Expression(expr) = *func.body {
+                let body = self.expression(expr)?;
                 self.builder.build_return(Some(&body));
             } else {
-                self.builder.build_return(None);
+                return Err("Function has a return type but returns void.");
             }
         } else {
             self.statement(*func.body)?;
@@ -106,16 +101,18 @@ impl<'i> IRGenerator<'i> {
         }
     }
 
+    /// Compile a statement. Statements are only found in functions.
     fn statement(&mut self, statement: Statement) -> Result<(), &'static str> {
         match statement {
-            Statement::Block(statements) => { self.block_statement(statements)?; },
-            Statement::Expression(expr) => { self.expression(expr)?; },
-            Statement::If { condition, then_branch, else_branch } => { self.if_statement(*condition, *then_branch, else_branch)?; }
-            Statement::Variable(var) => { self.var_statement(var)?; },
-            _ => return Err("Encountered unimplemented statement."),
-        };
-
-        Ok(())
+            Statement::Block(statements) => self.block_statement(statements),
+            Statement::If { condition, then_branch, else_branch } => self.if_statement(*condition, *then_branch, else_branch),
+            Statement::Variable(var) => self.var_statement(var),
+            Statement::Expression(expr) => { 
+                self.expression(expr)?; 
+                Ok(()) 
+            },
+            _ => Err("Encountered unimplemented statement."),
+        }
     }
 
     fn block_statement(&mut self, mut statements: Vec<Statement>) -> Result<(), &'static str> {
@@ -175,7 +172,7 @@ impl<'i> IRGenerator<'i> {
             Expression::Assignment { name, value } => self.assignment(name, *value)?,
             Expression::Binary { left, operator, right } => self.binary(*left, operator, *right)?,
             Expression::Block(expressions) => self.block_expr(expressions)?,
-            Expression::Call { callee, token, arguments } => self.call_expr(*callee, token, arguments)?,
+            Expression::Call { callee, token: _, arguments } => self.call_expr(*callee, arguments)?,
             Expression::IfElse { condition, then_branch, else_branch } => self.if_expr(*condition, *then_branch, *else_branch)?,
             Expression::Literal(literal) => self.literal(literal),
             Expression::Variable(name) => self.variable(name)?,
@@ -198,7 +195,7 @@ impl<'i> IRGenerator<'i> {
                 if let Statement::Expression(expr) = statements.pop().ok_or("Empty block?")? {
                     break self.expression(expr)
                 } else {
-                    panic!("Block was incorrectly classified!!");
+                    panic!("Internal error: Block was incorrectly classified!");
                 }
             }
 
@@ -207,6 +204,7 @@ impl<'i> IRGenerator<'i> {
     }
 
     // TODO: Add float support
+    // TODO: Make this less ugly
     fn binary(&mut self, left: Expression, operator: Token, right: Expression) -> Result<BasicValueEnum, &'static str> {
         let left = self.expression(left)?;
         let right = self.expression(right)?;
@@ -236,7 +234,7 @@ impl<'i> IRGenerator<'i> {
         }))
     }
 
-    fn call_expr(&mut self, callee: Expression, token: Token, arguments: Vec<Expression>) -> Result<BasicValueEnum, &'static str> {
+    fn call_expr(&mut self, callee: Expression, arguments: Vec<Expression>) -> Result<BasicValueEnum, &'static str> {
         if let Expression::Variable(token) = callee {
             let function = self.module.get_function(token.lexeme).ok_or("Unknown function.")?;
             let mut compiled_args = Vec::with_capacity(arguments.len());
@@ -289,6 +287,7 @@ impl<'i> IRGenerator<'i> {
         }
     }
 
+    // TODO: Array literals
     fn literal(&mut self, literal: Literal) -> BasicValueEnum {
         match literal {
             Literal::Bool(value) => BasicValueEnum::IntValue(self.context.bool_type().const_int(value as u64, false)),
