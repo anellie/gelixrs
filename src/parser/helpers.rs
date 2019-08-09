@@ -88,7 +88,7 @@ impl<'p> Parser<'p> {
             mem::replace(&mut self.current, next)
         } else {
             let mut eof_clone = EOF_TOKEN.clone();
-            eof_clone.line = self.current.line;
+            eof_clone.line = self.current.line + 1;
             mem::replace(&mut self.current, eof_clone)
         };
 

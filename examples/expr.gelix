@@ -2,27 +2,18 @@ func ok() {
     "good"
 }
 
-cfunc print(i64 a) -> i1
+cfunc print(i64 a) -> i64
 
-func main() {
+func main() -> f64 {
     var x = 5
     if (5 > 3) { 
         var u = 2 * 4
         u = 2 / u
         u
     }
+    x = test(5, 2)
+    print(x)
+    5.3
 }
 
-class Animal {
-
-}
-
-
-enum Type {
-    Good, Okay, Bad
-}
-
-class Dog {
-
-}
-
+func test(i64 a, i64 b) -> i64 a + b

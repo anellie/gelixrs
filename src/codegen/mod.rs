@@ -55,34 +55,22 @@ impl<'i> IRGenerator<'i> {
 
     fn declaration(&mut self, declaration: Declaration) -> Result<(), &'static str> {
         match declaration {
-            Declaration::CFunc(signature) => self.external_func_decl(signature)?,
-            Declaration::Function(func) => self.func_declaration(func)?,
+            Declaration::CFunc(signature) => self.external_function(signature)?,
+            Declaration::Function(func) => self.function(func)?,
             _ => return Err("Encountered unimplemented declaration."),
         };
 
         Ok(())
     }
 
-    fn external_func_decl(&mut self, sig: FuncSignature) -> Result<(), &'static str> {
-        let ret_type = self.context.i64_type(); // todo
-        let args_types = std::iter::repeat(ret_type)
-            .take(sig.parameters.len())
-            .map(|f| f.into())
-            .collect::<Vec<BasicTypeEnum>>();
-        let args_types = args_types.as_slice();
-
-        let fn_type = self.context.i64_type().fn_type(args_types, false); // todo
-        let fn_val = self.module.add_function(sig.name.lexeme, fn_type, None);
-
-        for (i, arg) in fn_val.get_param_iter().enumerate() {
-            // arg.set_name(args[i]); todo
-        }
-
+    fn external_function(&mut self, sig: FuncSignature) -> Result<(), &'static str> {
+        // TODO: Is there even anything to be done here?
+        // Seems like the resolver already takes care of this.
         Ok(())
     }
 
-    fn func_declaration(&mut self, func: Function) -> Result<(), &'static str> {
-        let function = self.declare_function(&func);
+    fn function(&mut self, func: Function) -> Result<(), &'static str> {
+        let function = self.module.get_function(func.sig.name.lexeme).ok_or("Internal error: Undefined function.")?;
 
         let entry = self.context.append_basic_block(&function, "entry");
         self.builder.position_at_end(&entry);
@@ -91,14 +79,23 @@ impl<'i> IRGenerator<'i> {
 
         self.variables.reserve(func.sig.parameters.len());
         for (i, arg) in function.get_param_iter().enumerate() {
-            let arg_name = func.sig.parameters[i].0.lexeme;
+            let arg_name = func.sig.parameters[i].1.lexeme;
             let alloca = self.create_entry_block_alloca(arg.get_type(), arg_name);
             self.builder.build_store(alloca, arg);
-            self.variables.insert(func.sig.parameters[i].0.lexeme.to_string(), alloca);
+            self.variables.insert(func.sig.parameters[i].1.lexeme.to_string(), alloca);
         }
 
-        let body = self.statement(*func.body)?;
-        self.builder.build_return(None);
+        if let Statement::Expression(expr) = *func.body {
+            let body = self.expression(expr)?;
+            if func.sig.return_type.is_some() {
+                self.builder.build_return(Some(&body));
+            } else {
+                self.builder.build_return(None);
+            }
+        } else {
+            self.statement(*func.body)?;
+            self.builder.build_return(None);
+        }
 
         if function.verify(true) {
             self.fpm.run_on(&function);
@@ -297,7 +294,7 @@ impl<'i> IRGenerator<'i> {
             Literal::Bool(value) => BasicValueEnum::IntValue(self.context.bool_type().const_int(value as u64, false)),
             Literal::Int(num) => BasicValueEnum::IntValue(self.context.i64_type().const_int(num.try_into().unwrap(), false)),
             Literal::Float(num) => BasicValueEnum::FloatValue(self.context.f32_type().const_float(num.into())),
-            Literal::Double(num) => BasicValueEnum::FloatValue(self.context.f32_type().const_float(num)),
+            Literal::Double(num) => BasicValueEnum::FloatValue(self.context.f64_type().const_float(num)),
             Literal::String(string) => BasicValueEnum::VectorValue(self.context.const_string(&string, false)),
             _ => panic!("What is that?")
         }
@@ -308,11 +305,6 @@ impl<'i> IRGenerator<'i> {
             Some(var) => Ok(self.builder.build_load(*var, name.lexeme)),
             None => Err("Could not find variable."),
         }
-    }
-
-    fn declare_function(&mut self, func: &Function) -> FunctionValue {
-        let fn_type = self.context.void_type().fn_type(&[], false); // todo
-        self.module.add_function(func.sig.name.lexeme, fn_type, None)
     }
 
     fn create_entry_block_alloca<T: BasicType>(&self, ty: T, name: &str) -> PointerValue {

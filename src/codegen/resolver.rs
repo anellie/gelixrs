@@ -24,8 +24,6 @@ pub struct Resolver {
     module: Module,
 
     types: HashMap<String, Box<dyn BasicType>>,
-    func_declared: Vec<String>,
-    functions: HashMap<String, FunctionValue>
 }
 
 impl Resolver {
@@ -47,8 +45,7 @@ impl Resolver {
         match declaration {
             Declaration::Class { name, variables: _, methods: _ } => self.declare_type(name),
             Declaration::Enum { name, variants: _ } => self.declare_type(name),
-            Declaration::CFunc(func) => self.declare_function(func),
-            Declaration::Function(func) => self.declare_function(&func.sig)
+            _ => Ok(())
         }
     }
 
@@ -62,25 +59,33 @@ impl Resolver {
         } 
     }
 
-    fn declare_function(&mut self, function: &FuncSignature) -> Result<(), String> {
-        if self.func_declared.contains(&function.name.lexeme.to_string()) {
-            Err(format!("The function {} was declared more than once!", function.name.lexeme))   
-        } else {
-            self.func_declared.push(function.name.lexeme.to_string());
-            Ok(())
-        } 
-    }
-
     fn second_pass(&mut self, declaration: &Declaration) -> Result<(), String> {
         match declaration {
-            Declaration::CFunc(func) => self.external_function(func),
+            Declaration::CFunc(func) => self.create_function(func),
             Declaration::Class { name, variables, methods } => self.class(name, variables, methods),
             Declaration::Enum { name, variants } => self._enum(name, variants),
-            Declaration::Function(func) => self.function(func)
+            Declaration::Function(func) => self.create_function(&func.sig)
         }
     }
 
-    fn external_function(&mut self, func: &FuncSignature) -> Result<(), String> {
+    fn create_function(&mut self, function: &FuncSignature) -> Result<(), String> {
+        if self.module.get_function(&function.name.lexeme.to_string()).is_some() {
+            return Err(format!("The function {} was declared more than once!", function.name.lexeme))   
+        } 
+
+        let mut parameters = Vec::new();
+        for param in &function.parameters {
+            parameters.push(self.resolve_type(&param.0)?);
+        }
+        let parameters = parameters.as_slice();
+
+        let fn_type = if let Some(ret_type) = &function.return_type {
+            self.resolve_type(&ret_type)?.fn_type(&parameters, false)
+        } else {
+            self.context.void_type().fn_type(&parameters, false)
+        };
+        
+        self.module.add_function(function.name.lexeme, fn_type, None);
         Ok(())
     }
 
@@ -98,15 +103,15 @@ impl Resolver {
 
     }    
     
-    fn function(&mut self, func: &Function) -> Result<(), String> {
-        Ok(())
 
+    fn resolve_type(&mut self, token: &Token) -> Result<BasicTypeEnum, String> {
+        Ok(match token.lexeme {
+            "f64" => self.context.f64_type().as_basic_type_enum(),
+            "i64" => self.context.i64_type().as_basic_type_enum(),
+            _ => self.types.get(token.lexeme).ok_or(format!("Unknown type {}", token.lexeme))?.as_basic_type_enum(),
+        })
     }
-/*
-    fn resolve_type(&mut self) -> Result<BasicType, String> {
 
-    }
-*/
     fn check_error(result: Result<(), String>) -> Option<()> {
         result.or_else(|err| {
             eprintln!("[Resolver] {}", err);
@@ -124,8 +129,6 @@ impl Resolver {
             module,
             builder,
             types: HashMap::with_capacity(10),
-            func_declared: Vec::with_capacity(10),
-            functions: HashMap::with_capacity(10)
         }
     }
 
