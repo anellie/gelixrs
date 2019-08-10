@@ -40,23 +40,18 @@ pub struct IRGenerator<'i> {
 
 impl<'i> IRGenerator<'i> {
     /// Generates IR. Will process all statements given.
-    pub fn generate(&mut self) {
+    pub fn generate(mut self) -> Option<Module> {
         while !self.declarations.is_empty() {
             let declaration = self.declarations.pop().unwrap();
             let result = self.declaration(declaration);
 
             if let Err(msg) = result {
                 eprintln!("[IRGen] {} (occured in function: {})", msg, self.cur_fn().get_name().to_str().unwrap());
-                return;
+                return None;
             }
         }
 
-        if let Err(msg) = self.module.print_to_file(std::path::Path::new("out.ll")) {
-            println!("Error produced by LLVM while compiling:\n{}", msg);
-        } else {
-            self.module.write_bitcode_to_path(std::path::Path::new("out.bc"));
-            println!("Compiled to bitcode successfully.");
-        }
+       Some(self.module)
     }
 
     /// Compiles a single top-level declaration

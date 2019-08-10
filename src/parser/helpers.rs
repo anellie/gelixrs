@@ -21,7 +21,7 @@ static EOF_TOKEN: Token = Token {
 
 impl<'p> Parser<'p> {
     /// Parses the tokens and returns a full AST.
-    pub fn parse(&mut self) -> Option<Vec<Declaration>> {
+    pub fn parse(mut self) -> Option<Vec<Declaration<'p>>> {
         let mut declarations: Vec<Declaration> = Vec::new();
 
         while !self.is_at_end() {

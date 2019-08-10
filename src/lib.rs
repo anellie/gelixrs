@@ -9,45 +9,18 @@ pub mod codegen;
 pub mod parser;
 pub mod lexer;
 
-use std::{fs, process};
+use inkwell::module::Module;
+use ast::declaration::Declaration;
 
-fn parse_and_print(code: String) {
-    let lexer = lexer::Lexer::new(&code);
-    let mut parser = parser::Parser::new(lexer);
-
-    for statement in parser.parse() {
-        println!("{:#?}", statement);
-    }
+pub fn parse_source<'s>(code: &'s String) -> Option<Vec<Declaration<'s>>> {
+    let lexer = lexer::Lexer::new(code);
+    let parser = parser::Parser::new(lexer);
+    parser.parse()
 }
 
-fn compile_and_run(code: String) {
-    let lexer = lexer::Lexer::new(&code);
-    let mut parser = parser::Parser::new(lexer);
-
-    if let Some(mut declarations) = parser.parse() {
-        let mut resolver = codegen::resolver::Resolver::new();
-        if let Some(_) = resolver.resolve(&mut declarations) {
-            let mut generator = resolver.into_generator(declarations);
-            generator.generate();
-        } else {
-            eprint!("Encountered errors during resolving. Exiting.");
-        }
-    } else {
-        eprint!("Encountered errors during parsing. Exiting.");
-    }
-}
-
-pub fn do_file(path: &str, print_and_exit: bool) {
-    let file = fs::read_to_string(path);
-    match file {
-        Ok(input) => if print_and_exit {
-            parse_and_print(input);
-        } else {
-            compile_and_run(input);
-        },
-        Err(_) => {
-            println!("Failed to read file.");
-            process::exit(74);
-        }
-    };
+pub fn compile_ir(mut declarations: Vec<Declaration>) -> Option<Module> {
+    let mut resolver = codegen::resolver::Resolver::new();
+    resolver.resolve(&mut declarations)?;
+    let generator = resolver.into_generator(declarations);
+    generator.generate()
 }
