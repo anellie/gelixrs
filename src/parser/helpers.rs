@@ -159,7 +159,7 @@ impl<'p> Parser<'p> {
 
         while !self.is_at_end() {
             match self.current.t_type {
-                Type::CFunc
+                Type::ExFn
                 | Type::Class
                 | Type::Func
                 | Type::Enum => return,

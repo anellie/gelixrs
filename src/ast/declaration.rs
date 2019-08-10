@@ -6,8 +6,8 @@ use super::statement::Statement;
 /// A declaration is a language construct that can only appear in top-level and does not produce a value.
 #[derive(Debug)]
 pub enum Declaration<'s> {
-    /// A declaration of an external C function.
-    CFunc(FuncSignature<'s>),
+    /// A declaration of an external function.
+    ExternFunction(FuncSignature<'s>),
 
     /// A class definition.
     Class {

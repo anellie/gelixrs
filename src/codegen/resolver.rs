@@ -73,7 +73,7 @@ impl Resolver {
     /// During the second pass, all functions are declared.
     fn second_pass(&mut self, declaration: &Declaration) -> Result<(), String> {
         match declaration {
-            Declaration::CFunc(func) => self.create_function(func),
+            Declaration::ExternFunction(func) => self.create_function(func),
             Declaration::Function(func) => self.create_function(&func.sig),
             _ => Ok(())
         }

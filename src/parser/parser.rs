@@ -26,7 +26,7 @@ impl<'p> Parser<'p> {
         }
 
         Some(match () {
-            _ if self.match_token(Type::CFunc) => self.external_func_decl()?,
+            _ if self.match_token(Type::ExFn) => self.external_func_decl()?,
             _ if self.match_token(Type::Class) => self.class_declaration()?,
             _ if self.match_token(Type::Enum) => self.enum_declaration()?,
             _ if self.match_token(Type::Func) => Declaration::Function(self.function()?),
@@ -60,7 +60,7 @@ impl<'p> Parser<'p> {
             return_type = self.consume(Type::Identifier, "Expected return type after '->'.");
         }
 
-        Some(Declaration::CFunc(FuncSignature {
+        Some(Declaration::ExternFunction(FuncSignature {
             name,
             return_type,
             parameters,
@@ -109,7 +109,7 @@ impl<'p> Parser<'p> {
         // Will generate a declaration that contains everything except a body
         let func_decl = self.external_func_decl()?;
 
-        if let Declaration::CFunc(sig) = func_decl {
+        if let Declaration::ExternFunction(sig) = func_decl {
             let body = self.statement()?;
             Some(Function {
                 sig,

@@ -88,12 +88,7 @@ impl<'t> Lexer<'t> {
             'r' => self.check_identifier_keyword(1, &['e', 't', 'u', 'r', 'n'], Type::Return),
             's' => self.check_identifier_keyword(1, &['u', 'p', 'e', 'r'], Type::Super),
             'w' => self.check_identifier_keyword(1, &['h', 'e', 'n'], Type::When),
-
-            'c' => match self.chars[self.start + 1] {
-                'l' => self.check_identifier_keyword(2, &['a', 's', 's'], Type::Class),
-                'f' => self.check_identifier_keyword(2, &['u', 'n', 'c'], Type::CFunc),
-                _ => Type::Identifier,
-            }
+            'c' => self.check_identifier_keyword(1, &['l', 'a', 's', 's'], Type::Class),
 
             'i' => match self.chars[self.start + 1] {
                 'f' => self.check_identifier_keyword(2, &[], Type::If),
@@ -105,7 +100,13 @@ impl<'t> Lexer<'t> {
                 'l' => self.check_identifier_keyword(2, &['s', 'e'], Type::Else),
                 'n' => self.check_identifier_keyword(2, &['u', 'm'], Type::Enum),
                 'r' => self.check_identifier_keyword(2, &['r', 'o', 'r'], Type::Error),
-                'x' => self.check_identifier_keyword(2, &['t'], Type::Ext),
+                'x' => {
+                    match self.chars[self.start + 2] {
+                        'f' => self.check_identifier_keyword(3, &['n'], Type::ExFn),
+                        't' => self.check_identifier_keyword(3, &[], Type::Ext),
+                        _ => Type::Identifier,
+                    }
+                }
                 _ => Type::Identifier,
             },
 

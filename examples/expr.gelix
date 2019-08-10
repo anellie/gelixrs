@@ -2,7 +2,7 @@ func ok() {
     "good"
 }
 
-cfunc print(i64 a) -> i64
+exfn print(i64 a) -> i64
 
 func main() -> f64 {
     var x = 5

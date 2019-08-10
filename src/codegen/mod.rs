@@ -57,7 +57,7 @@ impl<'i> IRGenerator<'i> {
     /// Compiles a single top-level declaration
     fn declaration(&mut self, declaration: Declaration) -> Result<(), &'static str> {
         match declaration {
-            Declaration::CFunc(_) => Ok(()), // Resolver already declared it; nothing to be done here
+            Declaration::ExternFunction(_) => Ok(()), // Resolver already declared it; nothing to be done here
             Declaration::Function(func) => self.function(func),
             _ => Err("Encountered unimplemented declaration."),
         }
