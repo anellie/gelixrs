@@ -1,11 +1,12 @@
+exfn print(String a) -> i64
+
+exfn printnum(i64 a) -> i64
+
 func main() {
-    var x = 3
-    if (false) {
-        var x = x
-    }
-    if (true) {
-        var x = x
-        var y = 90
-    }
-    x
+    print(test())
+    printnum(5)
+}
+
+func test() -> String {
+    "ok"
 }

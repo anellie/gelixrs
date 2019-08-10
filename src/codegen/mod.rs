@@ -47,11 +47,16 @@ impl<'i> IRGenerator<'i> {
 
             if let Err(msg) = result {
                 eprintln!("Error during code generation: {}", msg); // TODO: Maybe some more useful error messages at some point
-                break;
+                return;
             }
         }
 
-        self.module.print_to_stderr();
+        if let Err(msg) = self.module.print_to_file(std::path::Path::new("out.ll")) {
+            println!("Error produced by LLVM while compiling:\n{}", msg);
+        } else {
+            self.module.write_bitcode_to_path(std::path::Path::new("out.bc"));
+            println!("Compiled to bitcode successfully.");
+        }
     }
 
     /// Compiles a single top-level declaration
@@ -93,7 +98,7 @@ impl<'i> IRGenerator<'i> {
         }
 
         if function.verify(true) {
-            // self.fpm.run_on(&function); todo
+            self.fpm.run_on(&function);
             Ok(())
         } else {
             unsafe { function.delete(); }
@@ -303,7 +308,7 @@ impl<'i> IRGenerator<'i> {
             self.builder.position_at_end(&cont_bb);
             Ok(phi.as_basic_value())
         } else {
-            Err("If condition needs to be a boolean or integer.")
+            Err("If condition needs to be a boolean.")
         }
     }
 
@@ -315,9 +320,8 @@ impl<'i> IRGenerator<'i> {
             Literal::Float(num) => BasicValueEnum::FloatValue(self.context.f32_type().const_float(num.into())),
             Literal::Double(num) => BasicValueEnum::FloatValue(self.context.f64_type().const_float(num)),
             Literal::String(string) => {
-                let global = self.module.add_global(self.context.i8_type(), None, "literal");
-                global.set_initializer(&self.context.const_string(&string, false));
-                BasicValueEnum::PointerValue(global.as_pointer_value())
+                let const_str = self.builder.build_global_string_ptr(&string, "literal-str");
+                BasicValueEnum::PointerValue(const_str.as_pointer_value())
             },
             _ => panic!("What is that?")
         }

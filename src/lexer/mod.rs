@@ -195,8 +195,11 @@ impl<'t> Lexer<'t> {
             token.line = start_line;
             token
         } else {
+            // Ensure the quotes are not included in the literal
+            self.start += 1;
+            let token = self.make_token(Type::String);
             self.advance();
-            self.make_token(Type::String)
+            token
         }
     }
 
