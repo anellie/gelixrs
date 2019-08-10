@@ -8,6 +8,7 @@ use super::super::{
     lexer::token::Token,
 };
 use inkwell::{
+    AddressSpace,
     builder::Builder,
     context::Context,
     module::Module,
@@ -216,6 +217,7 @@ impl Resolver {
             "i32" => self.context.i32_type().as_basic_type_enum(),
             "i64" => self.context.i64_type().as_basic_type_enum(),
             "bool" => self.context.bool_type().as_basic_type_enum(),
+            "String" => self.context.i8_type().ptr_type(AddressSpace::Generic).as_basic_type_enum(),
             _ => self.types.get(token.lexeme).ok_or(format!("Unknown type {}", token.lexeme))?.as_basic_type_enum(),
         })
     }

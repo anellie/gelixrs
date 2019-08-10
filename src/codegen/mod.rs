@@ -314,7 +314,11 @@ impl<'i> IRGenerator<'i> {
             Literal::Int(num) => BasicValueEnum::IntValue(self.context.i64_type().const_int(num.try_into().unwrap(), false)),
             Literal::Float(num) => BasicValueEnum::FloatValue(self.context.f32_type().const_float(num.into())),
             Literal::Double(num) => BasicValueEnum::FloatValue(self.context.f64_type().const_float(num)),
-            Literal::String(string) => BasicValueEnum::VectorValue(self.context.const_string(&string, false)),
+            Literal::String(string) => {
+                let global = self.module.add_global(self.context.i8_type(), None, "literal");
+                global.set_initializer(&self.context.const_string(&string, false));
+                BasicValueEnum::PointerValue(global.as_pointer_value())
+            },
             _ => panic!("What is that?")
         }
     }
