@@ -46,7 +46,7 @@ impl<'i> IRGenerator<'i> {
             let result = self.declaration(declaration);
 
             if let Err(msg) = result {
-                eprintln!("Error during code generation: {}", msg); // TODO: Maybe some more useful error messages at some point
+                eprintln!("[IRGen] {} (occured in function: {})", msg, self.cur_fn().get_name().to_str().unwrap());
                 return;
             }
         }
@@ -60,16 +60,16 @@ impl<'i> IRGenerator<'i> {
     }
 
     /// Compiles a single top-level declaration
-    fn declaration(&mut self, declaration: Declaration) -> Result<(), &'static str> {
+    fn declaration(&mut self, declaration: Declaration) -> Result<(), String> {
         match declaration {
             Declaration::ExternFunction(_) => Ok(()), // Resolver already declared it; nothing to be done here
             Declaration::Function(func) => self.function(func),
-            _ => Err("Encountered unimplemented declaration."),
+            _ => Err(format!("Encountered unimplemented declaration '{:?}'.", declaration)),
         }
     }
 
     /// Compiles a function to IR. (The function was already declared by the resolver.)
-    fn function(&mut self, func: Function) -> Result<(), &'static str> {
+    fn function(&mut self, func: Function) -> Result<(), String> {
         let function = self.module.get_function(func.sig.name.lexeme).ok_or("Internal error: Undefined function.")?;
 
         let entry = self.context.append_basic_block(&function, "entry");
@@ -90,7 +90,7 @@ impl<'i> IRGenerator<'i> {
                 let body = self.expression(expr)?;
                 self.builder.build_return(Some(&body));
             } else {
-                return Err("Function has a return type but returns void.");
+                return Err(format!("Function '{}' has a return type but returns void.", func.sig.name.lexeme));
             }
         } else {
             self.statement(*func.body)?;
@@ -102,12 +102,12 @@ impl<'i> IRGenerator<'i> {
             Ok(())
         } else {
             unsafe { function.delete(); }
-            Err("Invalid generated function.")
+            Err(format!("Invalid generated function '{}'. See LLVM error output for details.", func.sig.name.lexeme))
         }
     }
 
     /// Compile a statement. Statements are only found in functions.
-    fn statement(&mut self, statement: Statement) -> Result<(), &'static str> {
+    fn statement(&mut self, statement: Statement) -> Result<(), String> {
         match statement {
             Statement::Block(statements) => self.block_statement(statements),
             Statement::If { condition, then_branch, else_branch } => self.if_statement(*condition, *then_branch, else_branch),
@@ -117,11 +117,11 @@ impl<'i> IRGenerator<'i> {
                 self.expression(expr)?; 
                 Ok(()) 
             },
-            _ => Err("Encountered unimplemented statement."),
+            _ => Err(format!("Encountered unimplemented statement '{:?}'.", statement)),
         }
     }
 
-    fn block_statement(&mut self, mut statements: Vec<Statement>) -> Result<(), &'static str> {
+    fn block_statement(&mut self, mut statements: Vec<Statement>) -> Result<(), String> {
         statements.reverse();
         loop {
             if statements.is_empty() { break Ok(()) }
@@ -129,7 +129,7 @@ impl<'i> IRGenerator<'i> {
         }
     }
 
-    fn if_statement(&mut self, condition: Expression, then_b: Statement, else_b: Option<Box<Statement>>) -> Result<(), &'static str> {
+    fn if_statement(&mut self, condition: Expression, then_b: Statement, else_b: Option<Box<Statement>>) -> Result<(), String> {
         let parent = self.cur_fn();
         let condition = self.expression(condition)?;
 
@@ -159,11 +159,11 @@ impl<'i> IRGenerator<'i> {
             self.builder.position_at_end(&cont_bb);
             Ok(())
         } else {
-            Err("If condition needs to be a boolean.")
+            Err("If condition needs to be a boolean.".to_string())
         }
     }
 
-    fn return_statement(&mut self, expression: Option<Expression>) -> Result<(), &'static str> {
+    fn return_statement(&mut self, expression: Option<Expression>) -> Result<(), String> {
         if let Some(expression) = expression {
             let expression = self.expression(expression)?;
             self.builder.build_return(Some(&expression));
@@ -177,7 +177,7 @@ impl<'i> IRGenerator<'i> {
         Ok(())
     }
 
-    fn var_statement(&mut self, var: Variable) -> Result<(), &'static str> {
+    fn var_statement(&mut self, var: Variable) -> Result<(), String> {
         let name = IRGenerator::name_from_token(var.name);
 
         let initial_value = self.expression(var.initializer)?;
@@ -189,7 +189,7 @@ impl<'i> IRGenerator<'i> {
         Ok(())
     }
 
-    fn expression(&mut self, expression: Expression) -> Result<BasicValueEnum, &'static str> {
+    fn expression(&mut self, expression: Expression) -> Result<BasicValueEnum, String> {
         Ok(match expression {
             Expression::Assignment { name, value } => self.assignment(name, *value)?,
             Expression::Binary { left, operator, right } => self.binary(*left, operator, *right)?,
@@ -203,17 +203,17 @@ impl<'i> IRGenerator<'i> {
         })
     }
 
-    fn assignment(&mut self, name: Token, value: Expression) -> Result<BasicValueEnum, &'static str> {
-        let name = IRGenerator::name_from_token(name);
+    fn assignment(&mut self, token: Token, value: Expression) -> Result<BasicValueEnum, String> {
+        let name = IRGenerator::name_from_token(token);
 
         let value = self.expression(value)?;
-        let var = self.variables.get(&name).ok_or("Undefined variable.")?;
+        let var = self.variables.get(&name).ok_or(format!("Undefined variable '{}'.", name))?;
 
         self.builder.build_store(*var, value);
         Ok(value)
     }
 
-    fn block_expr(&mut self, mut statements: Vec<Statement>) -> Result<BasicValueEnum, &'static str> {
+    fn block_expr(&mut self, mut statements: Vec<Statement>) -> Result<BasicValueEnum, String> {
         statements.reverse();
         loop {
             if statements.len() == 1 {
@@ -230,7 +230,7 @@ impl<'i> IRGenerator<'i> {
 
     // TODO: Add float support
     // TODO: Make this less ugly
-    fn binary(&mut self, left: Expression, operator: Token, right: Expression) -> Result<BasicValueEnum, &'static str> {
+    fn binary(&mut self, left: Expression, operator: Token, right: Expression) -> Result<BasicValueEnum, String> {
         let left = self.expression(left)?;
         let right = self.expression(right)?;
 
@@ -255,13 +255,14 @@ impl<'i> IRGenerator<'i> {
 
             Type::EqualEqual => self.builder.build_int_compare(IntPredicate::EQ, left, right, "tmpcmp"),
             Type::BangEqual => self.builder.build_int_compare(IntPredicate::NE, left, right, "tmpcmp"),
+
             _ => Err("Unsupported binary operand.")?
         }))
     }
 
-    fn call_expr(&mut self, callee: Expression, arguments: Vec<Expression>) -> Result<BasicValueEnum, &'static str> {
+    fn call_expr(&mut self, callee: Expression, arguments: Vec<Expression>) -> Result<BasicValueEnum, String> {
         if let Expression::Variable(token) = callee {
-            let function = self.module.get_function(token.lexeme).ok_or("Unknown function.")?;
+            let function = self.module.get_function(token.lexeme).ok_or(format!("Unknown function '{}'.", token.lexeme))?;
             let mut compiled_args = Vec::with_capacity(arguments.len());
 
             for arg in arguments {
@@ -269,13 +270,13 @@ impl<'i> IRGenerator<'i> {
             }
 
             let argsv: Vec<BasicValueEnum> = compiled_args.iter().by_ref().map(|&val| val.into()).collect();
-            self.builder.build_call(function, argsv.as_slice(), "tmp").try_as_basic_value().left().ok_or("Invalid call.")
+            self.builder.build_call(function, argsv.as_slice(), "tmp").try_as_basic_value().left().ok_or(format!("Invalid call '{}'.", token.lexeme))
         } else {
-            Err("Unsupported callee.")?
+            Err("Unsupported callee.".to_string())?
         }
     }
 
-    fn if_expr(&mut self, condition: Expression, then_b: Expression, else_b: Expression) -> Result<BasicValueEnum, &'static str> {
+    fn if_expr(&mut self, condition: Expression, then_b: Expression, else_b: Expression) -> Result<BasicValueEnum, String> {
         let parent = self.cur_fn();
         let condition = self.expression(condition)?;
 
@@ -308,7 +309,7 @@ impl<'i> IRGenerator<'i> {
             self.builder.position_at_end(&cont_bb);
             Ok(phi.as_basic_value())
         } else {
-            Err("If condition needs to be a boolean.")
+            Err("If condition needs to be a boolean.".to_string())
         }
     }
 
@@ -327,11 +328,11 @@ impl<'i> IRGenerator<'i> {
         }
     }
 
-    fn variable(&mut self, name: Token) -> Result<BasicValueEnum, &'static str> {
+    fn variable(&mut self, name: Token) -> Result<BasicValueEnum, String> {
         let name = IRGenerator::name_from_token(name);
         match self.variables.get(&name) {
             Some(var) => Ok(self.builder.build_load(*var, &name)),
-            None => Err("Could not find variable."),
+            None => Err(format!("Could not find variable '{}'.", name)),
         }
     }
 
