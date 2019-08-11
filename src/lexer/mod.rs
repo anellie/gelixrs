@@ -14,6 +14,10 @@ pub struct Lexer<'t> {
     current: usize,
     /// The line of the current position
     line: usize,
+
+    // The offsets of the source compared to chars, based on unicode characters wider than 1 byte
+    start_offset: usize,
+    current_offset: usize,
 }
 
 impl<'t> Lexer<'t> {
@@ -21,6 +25,7 @@ impl<'t> Lexer<'t> {
     fn next_token(&mut self) -> Option<Token<'t>> {
         self.skip_whitespace();
         self.start = self.current;
+        self.start_offset = self.current_offset;
 
         if self.is_at_end() {
             return None;
@@ -28,7 +33,7 @@ impl<'t> Lexer<'t> {
 
         let ch = self.advance();
 
-        if ch.is_ascii_alphabetic() || ch == '_' {
+        if ch.is_alphabetic() || ch == '_' {
             return Some(self.identifier());
         }
         if ch.is_ascii_digit() {
@@ -73,7 +78,7 @@ impl<'t> Lexer<'t> {
 
     /// Creates an identifier or keyword token.
     fn identifier(&mut self) -> Token<'t> {
-        while self.peek().is_ascii_alphanumeric() || self.check('_') {
+        while self.peek().is_alphanumeric() || self.check('_') {
             self.advance();
         }
         self.make_token(self.identifier_type())
@@ -155,7 +160,7 @@ impl<'t> Lexer<'t> {
             .chars
             .get(self.start + start + pattern.len())
             .get_or_insert(&'\0')
-            .is_ascii_alphabetic()
+            .is_alphabetic()
         {
             Type::Identifier
         } else {
@@ -218,7 +223,7 @@ impl<'t> Lexer<'t> {
     fn make_token(&mut self, t_type: Type) -> Token<'t> {
         Token {
             t_type,
-            lexeme: &self.source[self.start..self.current],
+            lexeme: &self.source[(self.start + self.start_offset)..(self.current + self.current_offset)],
             line: self.line,
             relocated: None
         }
@@ -306,6 +311,7 @@ impl<'t> Lexer<'t> {
 
     /// Advances the char pointer by 1 and returns the consumed char.
     fn advance(&mut self) -> char {
+        self.current_offset += self.char_at(self.current).len_utf8() - 1;
         self.current += 1;
         self.char_at(self.current - 1)
     }
@@ -330,6 +336,8 @@ impl<'t> Lexer<'t> {
         let chars: Vec<char> = source.chars().collect();
         Lexer {
             source,
+            start_offset: 0,
+            current_offset: 0,
             chars,
             start: 0,
             current: 0,

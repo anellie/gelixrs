@@ -12,9 +12,9 @@ func main() -> f64 {
         u
     }
     x = test(5, 2)
-    print("Hello there!")
+    print("Hello there! Now with 100% more Ünicóde!")
     
-    if (x > 5) 5.3 
+    if (x > 5) 5.3
     else 12.3
 }
 
