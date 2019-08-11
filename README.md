@@ -1,24 +1,29 @@
 # gelixrs
 
 A compiler for gelix, a simple programming language. Written in Rust.
+
 It uses LLVM to output native binaries.
-For more information on gelix, check out the docs directory.
+
+For more information on gelix, check out the docs directory for examples.
 
 ### Progress
 
-Early alpha; no code can be fully compiled yet.
+The code is an alpha state. The compiler can output native code with LLVM.
+
+However, no classes are implemented. Only functions currently exist, but external functions (FFI)
+are possible.
 
 ### Build/Run
 
 ``` bash
-# Run as REPL
-cargo run
+# Build as release
+cargo build --release
 
-# Execute $file
-cargo run $file
+# Compile $file
+gelixrs $file --output exec.out
 ```
 
 ### Code style
 
 Follow the style used by rustfmt.
-Max line length is 120.                                                                                               
+Max line length is 120.
