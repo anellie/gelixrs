@@ -223,9 +223,7 @@ impl<'p> Parser<'p> {
     fn block(&mut self) -> Option<Statement<'p>> {
         let mut statements: Vec<Statement> = Vec::new();
         while !self.check(Type::RightBrace) && !self.is_at_end() {
-            if let Some(f) = self.statement() {
-                statements.push(f)
-            }
+            statements.push(self.statement()?);
         }
 
         self.consume(Type::RightBrace, "Expected '}' after block.");

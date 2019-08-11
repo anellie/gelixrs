@@ -31,7 +31,7 @@ struct Opt {
 }
 
 
-fn main() -> Result<(), ()> {
+fn main() -> Result<(), &'static str> {
     let args = Opt::from_args();
 
     let source = match fs::read_to_string(args.file) {
@@ -42,7 +42,7 @@ fn main() -> Result<(), ()> {
         }
     };
 
-    let code = gelixrs::parse_source(&source).ok_or(())?;
+    let code = gelixrs::parse_source(&source).ok_or("Parser encountered errors. Exiting.")?;
 
     if args.parse_only {
         for declaration in code {
@@ -51,7 +51,7 @@ fn main() -> Result<(), ()> {
         return Ok(());
     }
 
-    let module = gelixrs::compile_ir(code).ok_or(())?;
+    let module = gelixrs::compile_ir(code).ok_or("IR generator encountered errors. Exiting.")?;
 
     if args.ir {
         module.print_to_stderr();
@@ -89,12 +89,10 @@ fn main() -> Result<(), ()> {
 
     if let Ok(output) = clang_output {
         if !output.status.success() {
-            eprintln!("Compiling to native binary failed. Clang stderr output:\n{}", String::from_utf8(output.stderr).or(Err(()))?);
-            return Err(())
+            return Err("Compiling to native binary failed. Please try compiling with clang manually using --ir.")
         }
     } else {
-        eprintln!("Envoking clang for compiling failed. Please ensure clang is installed correctly.");
-        return Err(())
+        return Err("Envoking clang for compiling failed. Please ensure clang is installed correctly.")
     }
 
     println!("Compilation successful! Compiled to file '{}'.", args.output.to_str().unwrap());

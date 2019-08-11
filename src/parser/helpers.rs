@@ -157,6 +157,9 @@ impl<'p> Parser<'p> {
     pub fn syncronize(&mut self) {
         self.waiting_for_sync = false;
 
+        // Prevents not properly syncing when a declaration was inside another one
+        self.advance();
+
         while !self.is_at_end() {
             match self.current.t_type {
                 Type::ExFn
