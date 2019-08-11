@@ -4,10 +4,17 @@
 #[macro_use]
 extern crate plain_enum;
 
+#[macro_use]
+#[cfg(test)]
+extern crate lazy_static;
+
 pub mod ast;
 pub mod codegen;
 pub mod parser;
 pub mod lexer;
+
+#[cfg(test)]
+pub mod tests;
 
 use inkwell::module::Module;
 use ast::declaration::Declaration;
