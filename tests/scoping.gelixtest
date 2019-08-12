@@ -1,0 +1,15 @@
+/*
+inner
+outer
+*/
+
+func main() {
+  var a = "outer"
+
+  {
+    var a = "inner"
+    print(a)
+  }
+
+  print(a)
+}

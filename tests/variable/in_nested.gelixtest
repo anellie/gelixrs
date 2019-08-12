@@ -1,0 +1,11 @@
+/*
+ok
+*/
+
+func main() {
+    var a = "ok"
+
+    if (true) {
+        print(a)
+    }
+}

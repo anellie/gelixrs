@@ -1,0 +1,4 @@
+// ERR
+
+func main(i64 a, i64 a) {
+}

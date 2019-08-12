@@ -22,7 +22,10 @@ extern fn test_print(string: *const i8) {
     let string = unsafe { CStr::from_ptr(string) };
     RESULT.lock().unwrap().push_str(&format!("{}\n", string.to_str().unwrap()));
 }
-
+#[no_mangle]
+extern fn test_printnum(num: i64) {
+    RESULT.lock().unwrap().push_str(&format!("{}\n", num));
+}
 
 #[test]
 fn run_all() -> Result<(), ()> {
@@ -41,12 +44,13 @@ fn for_file(file: PathBuf) -> Result<(), ()> {
         println!("Running test: {}", file.to_str().unwrap());
         let source = read_to_string(file).expect("Couldn't get file.");
         let expected = get_expected_result(&source);
-        let source = format!("exfn print(String a) -> i64\nfunc main() {{ {} }}", source);
+        let source = format!("exfn print(String a) -> i64\nexfn printnum(i64 a) -> i64\n{}", source);
         let result = exec_jit(source);
 
         if result != expected {
-            panic!(format!("Test failed! {:?}\n{:?}", result, expected));
+            println!("\n\n\nTest failed!\nResult: {:?}\nExpected: {:?}", result, expected);
         }
+        println!("\n", );
     }
 
     Ok(())
@@ -58,6 +62,7 @@ fn exec_jit(source: String) -> Result<String, ()> {
 
     let engine = module.create_jit_execution_engine(OptimizationLevel::None).ok().ok_or(())?;
     engine.add_global_mapping(&module.get_function("print").ok_or(())?, test_print as usize);
+    engine.add_global_mapping(&module.get_function("printnum").ok_or(())?, test_printnum as usize);
 
     unsafe {
         let main_fn: JitFunction<MainFn> = engine.get_function("main").ok().ok_or(())?;

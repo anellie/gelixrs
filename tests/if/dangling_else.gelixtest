@@ -1,0 +1,15 @@
+/*
+ok
+*/
+
+func main() {
+    if (true) 
+        if (false) 
+            print("bad")
+        else print("ok")
+
+    if (false) 
+        if (true) 
+            print("bad")
+        else print("bad")
+}

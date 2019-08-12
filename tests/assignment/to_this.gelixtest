@@ -1,0 +1,11 @@
+// ERR
+
+class Test {
+    func init() {
+        this = "oh no"
+    }
+}
+
+func main() {
+    Test()
+}

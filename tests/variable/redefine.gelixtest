@@ -1,0 +1,10 @@
+/*
+2
+*/
+
+func main() {
+    val a = 1
+    val a = a + 1
+
+    printnum(a)
+}

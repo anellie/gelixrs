@@ -1,0 +1,17 @@
+/* 
+123
+3425235236
+0
+-4
+*/
+
+func main() {
+    printnum(123)
+    printnum(3425235236) 
+    printnum(0)
+    printnum(-4) 
+
+    // TODO: Float printing
+    // printnum(123.456)
+    // printnum(-0.001)
+}

@@ -1,0 +1,7 @@
+// ERR
+
+func main() {
+    "str" + false
+    "str" > 234
+    235 < 234.4234
+}

@@ -1,0 +1,6 @@
+// ERR
+
+func main() {
+    if (true) "ok"
+    else class Test {}
+}

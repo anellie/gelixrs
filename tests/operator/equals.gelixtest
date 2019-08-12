@@ -1,0 +1,21 @@
+// ERR
+// TODO: classes
+/*
+true
+false
+false
+*/
+
+class F {
+    func equal(F other) -> bool true
+}
+
+class G {
+    func equal(G other) -> bool false
+}
+
+func main() {
+    print(F() == F())
+    print(G() == G())
+    print(F() == G())
+}

@@ -1,0 +1,10 @@
+// ERR
+
+func main() {
+    {
+        var a = 1
+        printnum(a)
+    }
+
+    printnum(a)
+}

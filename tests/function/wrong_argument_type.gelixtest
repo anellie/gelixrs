@@ -1,0 +1,9 @@
+// ERR
+
+fun test(String a) {
+    print(a);
+}
+
+func main() {
+    test(42)
+}

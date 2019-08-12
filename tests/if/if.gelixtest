@@ -1,0 +1,15 @@
+/*
+ok
+ok
+ok
+*/
+
+func main() {
+    if (true) print("ok")
+    if (false) print("bad")
+
+    var a = false
+    if (a = true) print("ok")
+
+    print(if(true) "ok"; else "bad";)
+}

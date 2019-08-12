@@ -1,0 +1,36 @@
+/*
+before
+after
+arg
+arg
+c
+c
+c
+var
+var
+*/
+
+func main() {
+    var a = "before"
+    print(a)
+
+    a = "after"
+    print(a)
+
+    print(a = "arg")
+    print(a)
+
+    var b = "b"
+    var c = "c"
+
+    a = b = c
+    print(a)
+    print(b)
+    print(c)
+
+    a = "before"
+    c = a = "var"
+
+    print(a)
+    print(c)
+}

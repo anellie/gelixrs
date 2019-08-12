@@ -1,0 +1,9 @@
+// ERR
+
+func test() {
+    return;
+}
+
+func main() {
+    print(test())
+}

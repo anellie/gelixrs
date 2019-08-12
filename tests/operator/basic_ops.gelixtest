@@ -1,0 +1,21 @@
+/*
+62
+string
+40
+84
+21
+-4
+*/
+
+func main() {
+    printnum(23 + 39)
+    print("str" + "ing")
+
+    printnum(42 - 2)
+    printnum(42 * 2)
+    printnum(42 / 2)
+
+    printnum(-(4))
+
+    // TODO: float printing
+}

@@ -1,0 +1,18 @@
+/*
+ok
+ok
+*/
+
+func isEven(i64 n) -> String {
+    if (n == 0) return "ok"
+    isOdd(n - 1)
+}
+
+func isOdd(i64 n) -> String {
+    isEven(n - 1)
+}
+
+func main() {
+    print(isEven(4))
+    print(isOdd(3))
+}

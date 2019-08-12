@@ -1,0 +1,6 @@
+// ERR
+
+func main() {
+    var a = "a"
+    (a) = "value"
+}

@@ -1,0 +1,14 @@
+/*
+ok
+*/
+
+class Test {
+    func method() -> String {
+        return "ok"
+        print("bad")
+    }
+}
+
+func main() {
+    print(Test().method())
+}

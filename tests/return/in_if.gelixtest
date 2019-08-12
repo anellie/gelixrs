@@ -1,0 +1,12 @@
+/*
+ok
+*/
+
+func test() -> String {
+    if (true) return "ok"
+    "bad"
+}
+
+func main() {
+    print(test())
+}

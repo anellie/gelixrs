@@ -1,0 +1,6 @@
+// ERR
+
+func main() {
+    print("" | "")
+}
+

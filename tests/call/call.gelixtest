@@ -1,0 +1,16 @@
+/*
+ok
+1
+*/
+
+class Testing {
+    func test() -> i64 1
+}
+
+
+func main() {
+    print(ok())
+    printnum(Testing().test())
+}
+
+func ok() -> String "ok"
