@@ -1,12 +1,20 @@
 exfn print(String a)
+
 exfn printnum(i64 a)
 
 func main() {
-    print(test())
-    printnum(5)
-    var a = 3
+    print("Hello World!")
+
+    if (5 > 3) {
+        print("hi!")
+        printnum(1 + 4)
+    } else {
+        print("mathe is broke")
+    }
+
+    print(if (number()) "i like numbers" else "i hate numbers")
 }
 
-func test() -> String {
-    "ok"
+func number() -> bool {
+    return true
 }

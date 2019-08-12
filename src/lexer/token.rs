@@ -35,7 +35,7 @@ Type {
     Identifier, String, Int, Float, Char,
 
     And, ExFn, Class, Else, Enum, Error, Ext, False,
-    For, Func, If, In, Null, Or,
+    For, Func, If, In, None, Or,
     Return, Super, Take, This,
     True, Var, Val, When, While,
 

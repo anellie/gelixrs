@@ -88,7 +88,7 @@ impl<'t> Lexer<'t> {
     fn identifier_type(&self) -> Type {
         match self.chars[self.start] {
             'a' => self.check_identifier_keyword(1, &['n', 'd'], Type::And),
-            'n' => self.check_identifier_keyword(1, &['u', 'l', 'l'], Type::Null),
+            'n' => self.check_identifier_keyword(1, &['o', 'n', 'e'], Type::None),
             'o' => self.check_identifier_keyword(1, &['r'], Type::Or),
             'r' => self.check_identifier_keyword(1, &['e', 't', 'u', 'r', 'n'], Type::Return),
             's' => self.check_identifier_keyword(1, &['u', 'p', 'e', 'r'], Type::Super),

@@ -28,7 +28,7 @@ pub struct IRGenerator<'i> {
     context: Context,
     builder: Builder,
     module: Module,
-    fpm: PassManager<FunctionValue>,
+    fpm: PassManager<Module>,
 
     // All variables in the current scope and the currently compiled function.
     variables: HashMap<String, PointerValue>,
@@ -36,6 +36,9 @@ pub struct IRGenerator<'i> {
 
     // All statements remaining to be compiled. Reverse order.
     declarations: Vec<Declaration<'i>>,
+
+    // A constant that is used for expressions that don't produce a value but are required to.
+    none_const: BasicValueEnum
 }
 
 impl<'i> IRGenerator<'i> {
@@ -51,7 +54,8 @@ impl<'i> IRGenerator<'i> {
             }
         }
 
-       Some(self.module)
+        self.fpm.run_on(&self.module);
+        Some(self.module)
     }
 
     /// Compiles a single top-level declaration
@@ -93,7 +97,6 @@ impl<'i> IRGenerator<'i> {
         }
 
         if function.verify(true) {
-            self.fpm.run_on(&function);
             Ok(())
         } else {
             unsafe { function.delete(); }
@@ -104,62 +107,13 @@ impl<'i> IRGenerator<'i> {
     /// Compile a statement. Statements are only found in functions.
     fn statement(&mut self, statement: Statement) -> Result<(), String> {
         match statement {
-            Statement::Block(statements) => self.block_statement(statements),
-            Statement::If { condition, then_branch, else_branch } => self.if_statement(*condition, *then_branch, else_branch),
             Statement::Return(expr) => self.return_statement(expr),
             Statement::Variable(var) => self.var_statement(var),
             Statement::Expression(expr) => {
-                // TODO: Ehhhh
-                if let Expression::Call { callee, token: _, arguments } = expr {
-                    self.call_expr(*callee, arguments)?;
-                } else {
-                    self.expression(expr)?; 
-                }
+                self.expression(expr)?;
                 Ok(())
             },
             _ => Err(format!("Encountered unimplemented statement '{:?}'.", statement)),
-        }
-    }
-
-    fn block_statement(&mut self, mut statements: Vec<Statement>) -> Result<(), String> {
-        statements.reverse();
-        loop {
-            if statements.is_empty() { break Ok(()) }
-            self.statement(statements.pop().ok_or("Empty block?")?)?;
-        }
-    }
-
-    fn if_statement(&mut self, condition: Expression, then_b: Statement, else_b: Option<Box<Statement>>) -> Result<(), String> {
-        let parent = self.cur_fn();
-        let condition = self.expression(condition)?;
-
-        if let BasicValueEnum::IntValue(value) = condition {
-            let condition = self.builder.build_int_compare(IntPredicate::NE, value, self.context.bool_type().const_int(0, false), "ifcond");
-
-            let then_bb = self.context.append_basic_block(&parent, "then");
-            let else_bb = self.context.append_basic_block(&parent, "else");
-            let cont_bb = self.context.append_basic_block(&parent, "ifcont");
-
-            if else_b.is_none() {
-                self.builder.build_conditional_branch(condition, &then_bb, &cont_bb);
-            } else {
-                self.builder.build_conditional_branch(condition, &then_bb, &else_bb);
-            }
-
-            self.builder.position_at_end(&then_bb);
-            self.statement(then_b)?;
-            self.builder.build_unconditional_branch(&cont_bb);
-
-            self.builder.position_at_end(&else_bb);
-            if let Some(else_b) = else_b {
-                self.statement(*else_b)?;
-            }
-            self.builder.build_unconditional_branch(&cont_bb);
-
-            self.builder.position_at_end(&cont_bb);
-            Ok(())
-        } else {
-            Err("If condition needs to be a boolean.".to_string())
         }
     }
 
@@ -195,11 +149,10 @@ impl<'i> IRGenerator<'i> {
             Expression::Binary { left, operator, right } => self.binary(*left, operator, *right)?,
             Expression::Block(expressions) => self.block_expr(expressions)?,
             Expression::Grouping(expr) => self.expression(*expr)?,
-            Expression::IfElse { condition, then_branch, else_branch } => self.if_expr(*condition, *then_branch, *else_branch)?,
+            Expression::If { condition, then_branch, else_branch } => self.if_expression(*condition, *then_branch, else_branch)?,
             Expression::Literal(literal) => self.literal(literal),
             Expression::Variable(name) => self.variable(name)?,
-            Expression::Call { callee, token: _, arguments } => 
-                self.call_expr(*callee, arguments)?.ok_or("Call without return type cannot be used as expression.")?,
+            Expression::Call { callee, token: _, arguments } => self.call_expr(*callee, arguments)?,
             _ => Err("Encountered unimplemented expression.")?,
         })
     }
@@ -214,19 +167,21 @@ impl<'i> IRGenerator<'i> {
         Ok(value)
     }
 
-    // TODO: Block with void-returning call gets incorrectly classified as expression
     fn block_expr(&mut self, mut statements: Vec<Statement>) -> Result<BasicValueEnum, String> {
         statements.reverse();
         loop {
-            if statements.len() == 1 {
-                if let Statement::Expression(expr) = statements.pop().ok_or("Empty block?")? {
-                    break self.expression(expr)
+            let statement = statements.pop().ok_or("Empty block?")?;
+
+            if statements.is_empty() {
+                break if let Statement::Expression(expr) = statement {
+                    self.expression(expr)
                 } else {
-                    panic!("Internal error: Block was incorrectly classified!");
+                    self.statement(statement)?;
+                    Ok(self.literal(Literal::None))
                 }
             }
 
-            self.statement(statements.pop().ok_or("Empty block?")?)?;
+            self.statement(statement)?;
         }
     }
 
@@ -262,7 +217,7 @@ impl<'i> IRGenerator<'i> {
         }))
     }
 
-    fn call_expr(&mut self, callee: Expression, arguments: Vec<Expression>) -> Result<Option<BasicValueEnum>, String> {
+    fn call_expr(&mut self, callee: Expression, arguments: Vec<Expression>) -> Result<BasicValueEnum, String> {
         if let Expression::Variable(token) = callee {
             let function = self.module.get_function(token.lexeme).ok_or(format!("Unknown function '{}'.", token.lexeme))?;
             let mut compiled_args = Vec::with_capacity(arguments.len());
@@ -272,13 +227,19 @@ impl<'i> IRGenerator<'i> {
             }
 
             let argsv: Vec<BasicValueEnum> = compiled_args.iter().by_ref().map(|&val| val.into()).collect();
-            Ok(self.builder.build_call(function, argsv.as_slice(), "tmp").try_as_basic_value().left())
+
+            let ret_type = self.builder.build_call(function, argsv.as_slice(), "tmp").try_as_basic_value();
+            if ret_type.is_left() {
+                Ok(ret_type.left().unwrap())
+            } else {
+                Ok(self.none_const)
+            }
         } else {
             Err("Unsupported callee.".to_string())?
         }
     }
 
-    fn if_expr(&mut self, condition: Expression, then_b: Expression, else_b: Expression) -> Result<BasicValueEnum, String> {
+    fn if_expression(&mut self, condition: Expression, then_b: Expression, else_b: Option<Box<Expression>>) -> Result<BasicValueEnum, String> {
         let parent = self.cur_fn();
         let condition = self.expression(condition)?;
 
@@ -289,27 +250,36 @@ impl<'i> IRGenerator<'i> {
             let else_bb = self.context.append_basic_block(&parent, "else");
             let cont_bb = self.context.append_basic_block(&parent, "ifcont");
 
-            self.builder.build_conditional_branch(condition, &then_bb, &else_bb);
+            if else_b.is_none() {
+                self.builder.build_conditional_branch(condition, &then_bb, &cont_bb);
+            } else {
+                self.builder.build_conditional_branch(condition, &then_bb, &else_bb);
+            }
 
             self.builder.position_at_end(&then_bb);
             let then_val = self.expression(then_b)?;
             self.builder.build_unconditional_branch(&cont_bb);
-            let then_bb = self.builder.get_insert_block().unwrap();
 
             self.builder.position_at_end(&else_bb);
-            let else_val = self.expression(else_b)?;
+            let ret_val = if let Some(else_b) = else_b {
+                let else_val = self.expression(*else_b)?;
+
+                self.builder.position_at_end(&cont_bb);
+                let phi = self.builder.build_phi(then_val.get_type(), "ifphi");
+                phi.add_incoming(&[
+                    (&then_val, &then_bb),
+                    (&else_val, &else_bb)
+                ]);
+                Ok(phi.as_basic_value())
+            } else {
+                Ok(self.literal(Literal::None))
+            };
+
+            self.builder.position_at_end(&else_bb);
             self.builder.build_unconditional_branch(&cont_bb);
-            let else_bb = self.builder.get_insert_block().unwrap();
-
             self.builder.position_at_end(&cont_bb);
-            let phi = self.builder.build_phi(then_val.get_type(), "ifphi");
-            phi.add_incoming(&[
-                (&then_val, &then_bb),
-                (&else_val, &else_bb)
-            ]);
 
-            self.builder.position_at_end(&cont_bb);
-            Ok(phi.as_basic_value())
+            ret_val
         } else {
             Err("If condition needs to be a boolean.".to_string())
         }
@@ -318,6 +288,7 @@ impl<'i> IRGenerator<'i> {
     // TODO: Array literals
     fn literal(&mut self, literal: Literal) -> BasicValueEnum {
         match literal {
+            Literal::None => self.none_const,
             Literal::Bool(value) => BasicValueEnum::IntValue(self.context.bool_type().const_int(value as u64, false)),
             Literal::Int(num) => BasicValueEnum::IntValue(self.context.i64_type().const_int(num.try_into().unwrap(), false)),
             Literal::Float(num) => BasicValueEnum::FloatValue(self.context.f32_type().const_float(num.into())),

@@ -5,9 +5,6 @@ use super::declaration::Variable;
 /// A statement is a language construct that does not return a value, and cannot appear in top-level.
 #[derive(Debug)]
 pub enum Statement<'s> {
-    /// A block of code.
-    Block(Vec<Statement<'s>>),
-
     /// 'error' keyword.
     Error(Option<Expression<'s>>),
 
@@ -18,13 +15,6 @@ pub enum Statement<'s> {
     For {
         condition: Expression<'s>,
         body: Box<Statement<'s>>,
-    },
-
-    /// An if statement. Also see IfElse in [Expression], with is similar.
-    If {
-        condition: Box<Expression<'s>>,
-        then_branch: Box<Statement<'s>>,
-        else_branch: Option<Box<Statement<'s>>>,
     },
 
     /// 'return' keyword.

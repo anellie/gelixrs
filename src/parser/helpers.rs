@@ -178,7 +178,7 @@ impl<'p> Parser<'p> {
             tokens: tokens.peekable(),
 
             current: Token {
-                t_type: Type::Null,
+                t_type: Type::None,
                 lexeme: "\n",
                 line: 1,
                 relocated: None

@@ -14,6 +14,7 @@ use inkwell::{
     module::Module,
     passes::PassManager,
     types::{BasicType, BasicTypeEnum, StructType},
+    values::BasicValueEnum
 };
 use std::collections::HashMap;
 
@@ -96,7 +97,7 @@ impl Resolver {
         } else {
             self.context.void_type().fn_type(&parameters, false)
         };
-        
+
         self.module.add_function(function.name.lexeme, fn_type, None);
         self.environments.first_mut().unwrap().variables.insert(function.name.lexeme.to_string(), false);
         Ok(())
@@ -124,23 +125,6 @@ impl Resolver {
 
     fn resolve_statement(&mut self, statement: &mut Statement) -> Result<(), String> {
         match statement {
-            Statement::Block(statements) => {
-                self.begin_scope();
-                for statement in statements {
-                    self.resolve_statement(statement)?;
-                }
-                self.end_scope();
-            },
-
-            Statement::If { condition, then_branch, else_branch } => {
-                self.resolve_expression(condition)?;
-                self.resolve_statement(then_branch)?;
-
-                if let Some(else_branch) = else_branch {
-                    self.resolve_statement(else_branch)?;
-                }
-            },
-
             Statement::Return(expr) => {
                 if let Some(expr) = expr {
                     self.resolve_expression(expr)?
@@ -192,10 +176,12 @@ impl Resolver {
 
             Expression::Grouping(expr) => self.resolve_expression(expr)?,
 
-            Expression::IfElse { condition, then_branch, else_branch } => {
+            Expression::If { condition, then_branch, else_branch } => {
                 self.resolve_expression(condition)?;
                 self.resolve_expression(then_branch)?;
-                self.resolve_expression(else_branch)?;
+                if let Some(else_branch) = else_branch {
+                    self.resolve_expression(else_branch)?;
+                }
             },
 
             Expression::Literal(_) => (),
@@ -279,11 +265,14 @@ impl Resolver {
         let mut environments = Vec::with_capacity(10);
         environments.push(Environment::new()); // global environment
 
+        let mut types = HashMap::with_capacity(10);
+        types.insert("None".to_string(), context.struct_type(&[BasicTypeEnum::IntType(context.bool_type())], true));
+
         Resolver {
             context,
             module,
             builder,
-            types: HashMap::with_capacity(10),
+            types,
             environments,
             environment_counter: 0,
             current_func_name: "".to_string()
@@ -292,7 +281,7 @@ impl Resolver {
 
     /// Turns the resolver into a generator for IR. Call resolve() first.
     pub fn into_generator(self, mut declarations: Vec<Declaration>) -> IRGenerator {
-        let fpm = PassManager::create(&self.module);
+        let fpm = PassManager::create(());
         fpm.add_instruction_combining_pass();
         fpm.add_reassociate_pass();
         // fpm.add_gvn_pass(); This pass causes unpredictable SIGSEGV... WTH?
@@ -305,6 +294,9 @@ impl Resolver {
         // The generator pops the declarations off the top.
         declarations.reverse();
 
+        let none_const = self.types.get("None").unwrap().const_named_struct(&[BasicValueEnum::IntValue(self.context.bool_type().const_int(0, false))]);
+        let none_const = BasicValueEnum::StructValue(none_const);
+
         IRGenerator {
             context: self.context,
             module: self.module,
@@ -315,6 +307,8 @@ impl Resolver {
             current_fn: None,
 
             declarations,
+
+            none_const
         }
     }
 }

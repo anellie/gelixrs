@@ -39,11 +39,13 @@ pub enum Expression<'e> {
     /// A grouping of expressions. (5 + 5) / 5
     Grouping(Box<Expression<'e>>),
 
-    /// An if-else ternary-like expression. Value is the value of the expression of the chosen branch.
-    IfElse {
+    /// An if expression. Value is the value of the expression of the chosen branch.
+    /// If no else branch is present or either branch does not return an expression,
+    /// None is returned.
+    If {
         condition: Box<Expression<'e>>,
         then_branch: Box<Expression<'e>>,
-        else_branch: Box<Expression<'e>>,
+        else_branch: Option<Box<Expression<'e>>>,
     },
 
     /// A simple [Literal].
