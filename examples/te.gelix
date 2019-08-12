@@ -1,10 +1,10 @@
-exfn print(String a) -> i64
-
-exfn printnum(i64 a) -> i64
+exfn print(String a)
+exfn printnum(i64 a)
 
 func main() {
     print(test())
     printnum(5)
+    var a = 3
 }
 
 func test() -> String {

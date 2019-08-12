@@ -108,9 +108,14 @@ impl<'i> IRGenerator<'i> {
             Statement::If { condition, then_branch, else_branch } => self.if_statement(*condition, *then_branch, else_branch),
             Statement::Return(expr) => self.return_statement(expr),
             Statement::Variable(var) => self.var_statement(var),
-            Statement::Expression(expr) => { 
-                self.expression(expr)?; 
-                Ok(()) 
+            Statement::Expression(expr) => {
+                // TODO: Ehhhh
+                if let Expression::Call { callee, token: _, arguments } = expr {
+                    self.call_expr(*callee, arguments)?;
+                } else {
+                    self.expression(expr)?; 
+                }
+                Ok(())
             },
             _ => Err(format!("Encountered unimplemented statement '{:?}'.", statement)),
         }
@@ -189,11 +194,12 @@ impl<'i> IRGenerator<'i> {
             Expression::Assignment { name, value } => self.assignment(name, *value)?,
             Expression::Binary { left, operator, right } => self.binary(*left, operator, *right)?,
             Expression::Block(expressions) => self.block_expr(expressions)?,
-            Expression::Call { callee, token: _, arguments } => self.call_expr(*callee, arguments)?,
             Expression::Grouping(expr) => self.expression(*expr)?,
             Expression::IfElse { condition, then_branch, else_branch } => self.if_expr(*condition, *then_branch, *else_branch)?,
             Expression::Literal(literal) => self.literal(literal),
             Expression::Variable(name) => self.variable(name)?,
+            Expression::Call { callee, token: _, arguments } => 
+                self.call_expr(*callee, arguments)?.ok_or("Call without return type cannot be used as expression.")?,
             _ => Err("Encountered unimplemented expression.")?,
         })
     }
@@ -208,6 +214,7 @@ impl<'i> IRGenerator<'i> {
         Ok(value)
     }
 
+    // TODO: Block with void-returning call gets incorrectly classified as expression
     fn block_expr(&mut self, mut statements: Vec<Statement>) -> Result<BasicValueEnum, String> {
         statements.reverse();
         loop {
@@ -255,7 +262,7 @@ impl<'i> IRGenerator<'i> {
         }))
     }
 
-    fn call_expr(&mut self, callee: Expression, arguments: Vec<Expression>) -> Result<BasicValueEnum, String> {
+    fn call_expr(&mut self, callee: Expression, arguments: Vec<Expression>) -> Result<Option<BasicValueEnum>, String> {
         if let Expression::Variable(token) = callee {
             let function = self.module.get_function(token.lexeme).ok_or(format!("Unknown function '{}'.", token.lexeme))?;
             let mut compiled_args = Vec::with_capacity(arguments.len());
@@ -265,7 +272,7 @@ impl<'i> IRGenerator<'i> {
             }
 
             let argsv: Vec<BasicValueEnum> = compiled_args.iter().by_ref().map(|&val| val.into()).collect();
-            self.builder.build_call(function, argsv.as_slice(), "tmp").try_as_basic_value().left().ok_or(format!("Invalid call '{}'.", token.lexeme))
+            Ok(self.builder.build_call(function, argsv.as_slice(), "tmp").try_as_basic_value().left())
         } else {
             Err("Unsupported callee.".to_string())?
         }

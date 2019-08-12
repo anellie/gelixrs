@@ -44,7 +44,7 @@ fn for_file(file: PathBuf) -> Result<(), ()> {
         println!("Running test: {}", file.to_str().unwrap());
         let source = read_to_string(file).expect("Couldn't get file.");
         let expected = get_expected_result(&source);
-        let source = format!("exfn print(String a) -> i64\nexfn printnum(i64 a) -> i64\n{}", source);
+        let source = format!("exfn print(String a)\nexfn printnum(i64 a)\n{}", source);
         let result = exec_jit(source);
 
         if result != expected {
