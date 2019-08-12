@@ -125,12 +125,6 @@ impl Resolver {
 
     fn resolve_statement(&mut self, statement: &mut Statement) -> Result<(), String> {
         match statement {
-            Statement::Return(expr) => {
-                if let Some(expr) = expr {
-                    self.resolve_expression(expr)?
-                }
-            },
-
             Statement::Variable(var) => {
                 self.resolve_expression(&mut var.initializer)?;
                 self.define_variable(&mut var.name, !var.is_val, true)?;
@@ -181,6 +175,12 @@ impl Resolver {
                 self.resolve_expression(then_branch)?;
                 if let Some(else_branch) = else_branch {
                     self.resolve_expression(else_branch)?;
+                }
+            },
+
+            Expression::Return(expr) => {
+                if let Some(expr) = expr {
+                    self.resolve_expression(expr)?
                 }
             },
 

@@ -19,8 +19,8 @@ pub enum Expression<'e> {
         right: Box<Expression<'e>>,
     },
 
-    /// A block of code; similar to the statement of the same name.
-    /// Difference is that this one has an expression as its last statement; which is its value.
+    /// A block of code.
+    /// Last statement is return value, if it is not an Expression, None is returned.
     Block(Vec<Statement<'e>>),
 
     /// A method/function call.
@@ -57,6 +57,9 @@ pub enum Expression<'e> {
         operator: Token<'e>,
         right: Box<Expression<'e>>,
     },
+    
+    /// 'return' keyword.
+    Return(Option<Box<Expression<'e>>>),
 
     /// A setter (x.y = 5)
     Set {

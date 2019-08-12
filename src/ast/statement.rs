@@ -17,9 +17,6 @@ pub enum Statement<'s> {
         body: Box<Statement<'s>>,
     },
 
-    /// 'return' keyword.
-    Return(Option<Expression<'s>>),
-
     /// A variable definition.
     Variable(Variable<'s>),
 }

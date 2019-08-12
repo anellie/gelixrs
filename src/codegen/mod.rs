@@ -107,7 +107,6 @@ impl<'i> IRGenerator<'i> {
     /// Compile a statement. Statements are only found in functions.
     fn statement(&mut self, statement: Statement) -> Result<(), String> {
         match statement {
-            Statement::Return(expr) => self.return_statement(expr),
             Statement::Variable(var) => self.var_statement(var),
             Statement::Expression(expr) => {
                 self.expression(expr)?;
@@ -115,20 +114,6 @@ impl<'i> IRGenerator<'i> {
             },
             _ => Err(format!("Encountered unimplemented statement '{:?}'.", statement)),
         }
-    }
-
-    fn return_statement(&mut self, expression: Option<Expression>) -> Result<(), String> {
-        if let Some(expression) = expression {
-            let expression = self.expression(expression)?;
-            self.builder.build_return(Some(&expression));
-        } else {
-            self.builder.build_return(None);
-        }
-
-        // Ensure no code is written to the block after the ret instruction.
-        self.builder.clear_insertion_position();
-
-        Ok(())
     }
 
     fn var_statement(&mut self, var: Variable) -> Result<(), String> {
@@ -148,11 +133,12 @@ impl<'i> IRGenerator<'i> {
             Expression::Assignment { name, value } => self.assignment(name, *value)?,
             Expression::Binary { left, operator, right } => self.binary(*left, operator, *right)?,
             Expression::Block(expressions) => self.block_expr(expressions)?,
+            Expression::Call { callee, token: _, arguments } => self.call_expr(*callee, arguments)?,
             Expression::Grouping(expr) => self.expression(*expr)?,
             Expression::If { condition, then_branch, else_branch } => self.if_expression(*condition, *then_branch, else_branch)?,
             Expression::Literal(literal) => self.literal(literal),
+            Expression::Return(expr) => self.return_expression(expr)?,
             Expression::Variable(name) => self.variable(name)?,
-            Expression::Call { callee, token: _, arguments } => self.call_expr(*callee, arguments)?,
             _ => Err("Encountered unimplemented expression.")?,
         })
     }
@@ -283,6 +269,21 @@ impl<'i> IRGenerator<'i> {
         } else {
             Err("If condition needs to be a boolean.".to_string())
         }
+    }
+
+    fn return_expression(&mut self, expression: Option<Box<Expression>>) -> Result<BasicValueEnum, String> {
+        if let Some(expression) = expression {
+            let expression = self.expression(*expression)?;
+            self.builder.build_return(Some(&expression));
+        } else {
+            self.builder.build_return(None);
+        }
+
+        // Ensure no code is written to the block after the ret instruction.
+        self.builder.clear_insertion_position();
+
+        // Even though it is an expression, code after it gets discarded anyway
+        Ok(self.none_const)
     }
 
     // TODO: Array literals

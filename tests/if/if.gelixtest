@@ -11,5 +11,5 @@ func main() {
     var a = false
     if (a = true) print("ok")
 
-    print(if(true) "ok"; else "bad";)
+    print(if(true) "ok" else "bad")
 }

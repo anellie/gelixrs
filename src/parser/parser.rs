@@ -139,7 +139,6 @@ impl<'p> Parser<'p> {
         Some(match () {
             _ if self.match_token(Type::Error) => self.error_statement()?,
             _ if self.match_token(Type::For) => self.for_statement()?,
-            _ if self.match_token(Type::Return) => self.return_statement()?,
             _ if self.match_token(Type::Var) => Statement::Variable(self.variable(false)?),
             _ if self.match_token(Type::Val) => Statement::Variable(self.variable(true)?),
             _ => self.expression_statement()?,
@@ -153,15 +152,6 @@ impl<'p> Parser<'p> {
         }
         self.consume_semi_or_nl("Expected newline or ';' after 'error'.");
         Some(Statement::Error(value))
-    }
-
-    fn return_statement(&mut self) -> Option<Statement<'p>> {
-        let mut value = None;
-        if !self.check_semi_or_nl() {
-            value = Some(self.expression()?);
-        }
-        self.consume_semi_or_nl("Expected newline or ';' after 'return'.");
-        Some(Statement::Return(value))
     }
 
     fn for_statement(&mut self) -> Option<Statement<'p>> {
@@ -193,6 +183,7 @@ impl<'p> Parser<'p> {
             _ if self.match_token(Type::When) => self.when_expression()?,
             _ if self.match_token(Type::LeftBrace) => self.block()?,
             _ if self.match_token(Type::If) => self.if_expression()?,
+            _ if self.match_token(Type::Return) => self.return_expression()?,
             _ => self.assignment()?,
         })
     }
@@ -232,6 +223,15 @@ impl<'p> Parser<'p> {
             then_branch,
             else_branch,
         })
+    }
+
+    fn return_expression(&mut self) -> Option<Expression<'p>> {
+        let mut value = None;
+        if !self.check_semi_or_nl() {
+            value = Some(Box::new(self.expression()?));
+        }
+        self.consume_semi_or_nl("Expected newline or ';' after 'return'.");
+        Some(Expression::Return(value))
     }
 
     /// TODO: Consider unrolling when into if-elseif-else constructs.
