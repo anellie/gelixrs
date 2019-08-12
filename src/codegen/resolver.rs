@@ -108,10 +108,10 @@ impl Resolver {
         match declaration {
             Declaration::Function(func) => {
                 self.current_func_name = func.sig.name.lexeme.to_string();
-
+               
                 self.begin_scope();
                 for param in func.sig.parameters.iter_mut() {
-                    self.define_variable(&mut param.1, false)?;
+                    self.define_variable(&mut param.1, false, false)?;
                 }
                 self.resolve_statement(&mut *func.body)?;
                 self.end_scope();
@@ -149,7 +149,7 @@ impl Resolver {
 
             Statement::Variable(var) => {
                 self.resolve_expression(&mut var.initializer)?;
-                self.define_variable(&mut var.name, !var.is_val)?;
+                self.define_variable(&mut var.name, !var.is_val, true)?;
             },
 
             Statement::Expression(expr) => self.resolve_expression(expr)?,
@@ -222,19 +222,20 @@ impl Resolver {
         })
     }
 
-    fn define_variable(&mut self, token: &mut Token, mutable: bool) -> Result<(), String> {
+    fn define_variable(&mut self, token: &mut Token, mutable: bool, allow_redefine: bool) -> Result<(), String> {
         let name = token.lexeme.to_string();
 
-        if self.environments.last().unwrap().variables.contains_key(&name) {
-            Err(format!("Variable '{}' already defined in the current scope.", name))
-        } else {
-            if self.find_var(token).is_ok() {
-                let new_name = format!("{}-{}", name, self.environment_counter);
-                self.environments.last_mut().unwrap().moved_vars.insert(name.clone(), new_name.clone());
-                token.relocated = Some(new_name);
-            }
+        if self.find_var(token).is_ok() {
+            let new_name = format!("{}-{}", name, self.environment_counter);
+            self.environments.last_mut().unwrap().moved_vars.insert(name.clone(), new_name.clone());
+            token.relocated = Some(new_name);
+        }
 
-            self.environments.last_mut().unwrap().variables.insert(name, mutable);
+        let was_defined = self.environments.last_mut().unwrap().variables.insert(name, mutable).is_some();
+        
+        if was_defined && !allow_redefine {
+            Err(format!("Variable {} cannot be redefined in the same scope.", token.lexeme))
+        } else {
             Ok(())
         }
     }
