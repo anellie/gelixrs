@@ -63,9 +63,13 @@ impl<'t> Lexer<'t> {
         })
     }
 
-    /// Matches the next char to check for double-char tokens. Will emit token based on match. 
+    /// Matches the next char to check for double-char tokens. Will emit token based on match.
     fn check_double_token(&mut self, next: char, matched: Type, not_matched: Type) -> Token<'t> {
-        let token = if self.match_next(next) { matched } else { not_matched };
+        let token = if self.match_next(next) {
+            matched
+        } else {
+            not_matched
+        };
         self.make_token(token)
     }
 
@@ -78,7 +82,7 @@ impl<'t> Lexer<'t> {
     }
 
     /// Returns the correct token type for the current token. Can be a keyword or identifier.
-    /// TODO: This is really ugly and hard to read. 
+    /// TODO: This is really ugly and hard to read.
     /// Just using a map or similar should be much easier to read with little performance impact.
     fn identifier_type(&self) -> Type {
         match self.chars[self.start] {
@@ -100,23 +104,21 @@ impl<'t> Lexer<'t> {
                 'l' => self.check_identifier_keyword(2, &['s', 'e'], Type::Else),
                 'n' => self.check_identifier_keyword(2, &['u', 'm'], Type::Enum),
                 'r' => self.check_identifier_keyword(2, &['r', 'o', 'r'], Type::Error),
-                'x' => {
-                    match self.chars[self.start + 2] {
-                        'f' => self.check_identifier_keyword(3, &['n'], Type::ExFn),
-                        't' => self.check_identifier_keyword(3, &[], Type::Ext),
-                        _ => Type::Identifier,
-                    }
-                }
+                'x' => match self.chars[self.start + 2] {
+                    'f' => self.check_identifier_keyword(3, &['n'], Type::ExFn),
+                    't' => self.check_identifier_keyword(3, &[], Type::Ext),
+                    _ => Type::Identifier,
+                },
                 _ => Type::Identifier,
             },
 
             'v' => {
                 if self.chars[self.start + 1] == 'a' {
-                match self.chars[self.start + 2] {
-                    'r' => self.check_identifier_keyword(3, &[], Type::Var),
-                    'l' => self.check_identifier_keyword(3, &[], Type::Val),
-                    _ => Type::Identifier,
-                }
+                    match self.chars[self.start + 2] {
+                        'r' => self.check_identifier_keyword(3, &[], Type::Var),
+                        'l' => self.check_identifier_keyword(3, &[], Type::Val),
+                        _ => Type::Identifier,
+                    }
                 } else {
                     Type::Identifier
                 }
@@ -151,7 +153,10 @@ impl<'t> Lexer<'t> {
 
         // If the next char is alphabetic, it is an identifier that starts with a keyword ('superb')
         // If it is not (other token, whitespace, etc.) it is the keyword type
-        if self.char_at(self.start + start + pattern.len()).is_alphabetic() {
+        if self
+            .char_at(self.start + start + pattern.len())
+            .is_alphabetic()
+        {
             Type::Identifier
         } else {
             t_type
@@ -213,9 +218,10 @@ impl<'t> Lexer<'t> {
     fn make_token(&mut self, t_type: Type) -> Token<'t> {
         Token {
             t_type,
-            lexeme: &self.source[(self.start + self.start_offset)..(self.current + self.current_offset)],
+            lexeme: &self.source
+                [(self.start + self.start_offset)..(self.current + self.current_offset)],
             line: self.line,
-            relocated: None
+            relocated: None,
         }
     }
 
@@ -225,7 +231,7 @@ impl<'t> Lexer<'t> {
             t_type: Type::ScanError,
             lexeme: message,
             line: self.line,
-            relocated: None
+            relocated: None,
         }
     }
 

@@ -17,7 +17,7 @@ static EOF_TOKEN: Token = Token {
     t_type: Type::EndOfFile,
     lexeme: "\0",
     line: 0,
-    relocated: None
+    relocated: None,
 };
 
 impl<'p> Parser<'p> {
@@ -34,7 +34,7 @@ impl<'p> Parser<'p> {
         }
 
         if self.had_error {
-            None 
+            None
         } else {
             Some(declarations)
         }
@@ -108,17 +108,13 @@ impl<'p> Parser<'p> {
 
     /// Is the next token the given token?
     pub fn check_next(&mut self, t_type: Type) -> bool {
-        self.tokens
-            .peek()
-            .get_or_insert(&EOF_TOKEN)
-            .t_type == t_type
+        self.tokens.peek().get_or_insert(&EOF_TOKEN).t_type == t_type
     }
 
-    /// Same as check, but checks for ; or newlines 
+    /// Same as check, but checks for ; or newlines
     /// (This special function is needed since newlines are not a token)
     pub fn check_semi_or_nl(&mut self) -> bool {
-        self.check(Type::Semicolon) 
-        || self.previous_line != self.current.line
+        self.check(Type::Semicolon) || self.previous_line != self.current.line
     }
 
     /// Is the parser at the end of the token stream?
@@ -130,14 +126,20 @@ impl<'p> Parser<'p> {
     /// Will set appropriate state.
     /// Returns None; allows returning from calling function with ?
     pub fn error_at_current(&mut self, message: &str) -> Option<()> {
-        eprintln!("[Line {}][Token '{}' / {:?}] {}", self.current.line, self.current.lexeme, self.current.t_type, message);
+        eprintln!(
+            "[Line {}][Token '{}' / {:?}] {}",
+            self.current.line, self.current.lexeme, self.current.t_type, message
+        );
         self.had_error = true;
         None
     }
 
     /// Reports an error produced by the lexer.
     fn lexer_error(&mut self) {
-        eprintln!("[Line {}] Lexer error: {}", self.current.line, self.current.lexeme);
+        eprintln!(
+            "[Line {}] Lexer error: {}",
+            self.current.line, self.current.lexeme
+        );
         self.had_error = true;
     }
 
@@ -150,10 +152,7 @@ impl<'p> Parser<'p> {
 
         while !self.is_at_end() {
             match self.current.t_type {
-                Type::ExFn
-                | Type::Class
-                | Type::Func
-                | Type::Enum => return,
+                Type::ExFn | Type::Class | Type::Func | Type::Enum => return,
                 _ => (),
             }
             self.advance();
@@ -169,7 +168,7 @@ impl<'p> Parser<'p> {
                 t_type: Type::None,
                 lexeme: "\n",
                 line: 1,
-                relocated: None
+                relocated: None,
             },
             previous_line: 0,
 

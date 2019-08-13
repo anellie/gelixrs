@@ -39,7 +39,7 @@ pub struct FuncSignature<'f> {
 #[derive(Debug)]
 pub struct FunctionArg<'a> {
     pub _type: Token<'a>,
-    pub name: Token<'a>
+    pub name: Token<'a>,
 }
 
 /// A function definition.

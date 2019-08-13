@@ -3,7 +3,7 @@
 
 use super::super::{
     ast::{
-        declaration::{Declaration, Function, FunctionArg, FuncSignature, Variable},
+        declaration::{Declaration, FuncSignature, Function, FunctionArg, Variable},
         expression::Expression,
         literal::Literal,
         statement::Statement,
@@ -11,7 +11,6 @@ use super::super::{
     lexer::token::{Token, Type},
 };
 use super::Parser;
-
 
 #[macro_use]
 mod bin_macro {
@@ -36,7 +35,6 @@ mod bin_macro {
     }
 }
 
-
 // TODO: Implement the rest of the parser.
 impl<'p> Parser<'p> {
     /// The entry point for generating a statement.
@@ -52,8 +50,8 @@ impl<'p> Parser<'p> {
             _ => {
                 self.error_at_current("Encountered invalid top-level declaration.");
                 None
-            },
         }
+    }
     }
 
     fn ex_func_declaration(&mut self) -> Option<Declaration<'p>> {
@@ -99,7 +97,7 @@ impl<'p> Parser<'p> {
                 _ if self.match_token(Type::Func) => methods.push(self.function()?),
                 _ if self.match_token(Type::Var) => variables.push(self.variable(false)?),
                 _ if self.match_token(Type::Val) => variables.push(self.variable(true)?),
-                _ => self.error_at_current("Encountered invalid declaration inside class.")?
+                _ => self.error_at_current("Encountered invalid declaration inside class.")?,
             }
         }
 
@@ -118,7 +116,9 @@ impl<'p> Parser<'p> {
         let mut variants: Vec<Token> = Vec::new();
         while !self.check(Type::RightBrace) {
             variants.push(self.consume(Type::Identifier, "Expected enum variant.")?);
-            if !self.match_token(Type::Comma) { break; }
+            if !self.match_token(Type::Comma) {
+                break;
+        }
         }
         self.consume(Type::RightBrace, "Expected '}' after enum body.");
 
@@ -180,11 +180,13 @@ impl<'p> Parser<'p> {
             let body = self.expression()?;
 
             Statement::For { condition, body }
-        })
+            },
+        )
     }
 
     fn expression_statement(&mut self) -> Option<Statement<'p>> {
-        let requires_semicolon = ![Type::If, Type::LeftBrace, Type::When].contains(&self.current.t_type);
+        let requires_semicolon =
+            ![Type::If, Type::LeftBrace, Type::When].contains(&self.current.t_type);
         let statement = Statement::Expression(self.expression()?);
         if requires_semicolon {
             self.consume_semi_or_nl("Expected newline or ';' after expression.");
@@ -310,15 +312,14 @@ impl<'p> Parser<'p> {
     binary_op!(multiplication, unary, [Type::Star, Type::Slash]);
 
     fn unary(&mut self) -> Option<Expression<'p>> {
-        Some(if let Some(operator) = self.match_tokens(&[Type::Bang, Type::Minus]) {
+        Some(
+            if let Some(operator) = self.match_tokens(&[Type::Bang, Type::Minus]) {
             let right = Box::new(self.unary()?);
-            Expression::Unary {
-                operator,
-                right
-            }
+                Expression::Unary { operator, right }
         } else {
             self.call()?
-        })
+            },
+        )
     }
 
     fn call(&mut self) -> Option<Expression<'p>> {
@@ -336,20 +337,21 @@ impl<'p> Parser<'p> {
                         }
                     }
 
-                    let paren = self.consume(Type::RightParen, "Expected ')' after call arguments.")?;
+                    let paren =
+                        self.consume(Type::RightParen, "Expected ')' after call arguments.")?;
                     expression = Expression::Call {
                         callee: Box::new(expression),
                         token: paren,
-                        arguments
+                        arguments,
                     }
-                },  
+                    }
 
                 _ if self.match_token(Type::Dot) => {
                     expression = Expression::Get {
                         object: Box::new(expression),
                         name: self.consume(Type::Identifier, "Expected property name after '.'.")?,
                     }
-                },
+                    }
 
                 _ => break,
             }
@@ -393,7 +395,7 @@ impl<'p> Parser<'p> {
     fn float(&mut self) -> Option<Expression<'p>> {
         let token = self.advance();
         Some(Expression::Literal(Literal::Double(
-            token.lexeme.parse().ok()?
+            token.lexeme.parse().ok()?,
         )))
     }
 
