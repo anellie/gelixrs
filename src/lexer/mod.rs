@@ -27,18 +27,7 @@ impl<'t> Lexer<'t> {
         self.start = self.current;
         self.start_offset = self.current_offset;
 
-        if self.is_at_end() {
-            return None;
-        }
-
-        let ch = self.advance();
-
-        if ch.is_alphabetic() || ch == '_' {
-            return Some(self.identifier());
-        }
-        if ch.is_ascii_digit() {
-            return Some(self.number());
-        }
+        let ch = self.advance()?;
 
         Some(match ch {
             // Single-char
@@ -66,6 +55,10 @@ impl<'t> Lexer<'t> {
             '"' => self.string(),
             '\'' => self.ch(),
 
+            // Other
+            _ if (ch.is_alphabetic() || ch == '_') => self.identifier(),
+            _ if ch.is_ascii_digit() => self.number(),
+
             _ => self.error_token("Unexpected symbol."),
         })
     }
@@ -85,6 +78,8 @@ impl<'t> Lexer<'t> {
     }
 
     /// Returns the correct token type for the current token. Can be a keyword or identifier.
+    /// TODO: This is really ugly and hard to read. 
+    /// Just using a map or similar should be much easier to read with little performance impact.
     fn identifier_type(&self) -> Type {
         match self.chars[self.start] {
             'a' => self.check_identifier_keyword(1, &['n', 'd'], Type::And),
@@ -149,19 +144,14 @@ impl<'t> Lexer<'t> {
     fn check_identifier_keyword(&self, start: usize, pattern: &[char], t_type: Type) -> Type {
         // Loop all chars in the pattern; if one does not match it is NOT the keyword
         for ch in 0..pattern.len() {
-            if self.chars[self.start + start + ch] != pattern[ch] {
+            if self.char_at(self.start + start + ch) != pattern[ch] {
                 return Type::Identifier;
             }
         }
 
         // If the next char is alphabetic, it is an identifier that starts with a keyword ('superb')
         // If it is not (other token, whitespace, etc.) it is the keyword type
-        if self
-            .chars
-            .get(self.start + start + pattern.len())
-            .get_or_insert(&'\0')
-            .is_alphabetic()
-        {
+        if self.char_at(self.start + start + pattern.len()).is_alphabetic() {
             Type::Identifier
         } else {
             t_type
@@ -309,11 +299,15 @@ impl<'t> Lexer<'t> {
         self.peek() == expected && self.peek_twice() == expected_second
     }
 
-    /// Advances the char pointer by 1 and returns the consumed char.
-    fn advance(&mut self) -> char {
-        self.current_offset += self.char_at(self.current).len_utf8() - 1;
-        self.current += 1;
-        self.char_at(self.current - 1)
+    /// Advances the char pointer by 1 and returns the consumed char, or None at EOF.
+    fn advance(&mut self) -> Option<char> {
+        if self.is_at_end() {
+            None
+        } else {
+            self.current_offset += self.char_at(self.current).len_utf8() - 1;
+            self.current += 1;
+            Some(self.char_at(self.current - 1))
+        }
     }
 
     /// Returns the current char without consuming it.

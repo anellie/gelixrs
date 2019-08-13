@@ -1,6 +1,5 @@
 use super::super::lexer::token::Token;
 use super::expression::Expression;
-use super::statement::Statement;
 
 /// An enum with all declarations that can be in an Gelix AST.
 /// A declaration is a language construct that can only appear in top-level and does not produce a value.
@@ -33,14 +32,21 @@ pub enum Declaration<'s> {
 pub struct FuncSignature<'f> {
     pub name: Token<'f>,
     pub return_type: Option<Token<'f>>,
-    pub parameters: Vec<(Token<'f>, Token<'f>)>,
+    pub parameters: Vec<FunctionArg<'f>>,
+}
+
+/// A function argument.
+#[derive(Debug)]
+pub struct FunctionArg<'a> {
+    pub _type: Token<'a>,
+    pub name: Token<'a>
 }
 
 /// A function definition.
 #[derive(Debug)]
 pub struct Function<'f> {
     pub sig: FuncSignature<'f>,
-    pub body: Box<Statement<'f>>,
+    pub body: Expression<'f>,
 }
 
 /// A variable definition.

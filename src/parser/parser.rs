@@ -3,7 +3,7 @@
 
 use super::super::{
     ast::{
-        declaration::{Declaration, Function, FuncSignature, Variable},
+        declaration::{Declaration, Function, FunctionArg, FuncSignature, Variable},
         expression::Expression,
         literal::Literal,
         statement::Statement,
@@ -12,42 +12,61 @@ use super::super::{
 };
 use super::Parser;
 
+
+#[macro_use]
+mod bin_macro {
+    /// This macro is used to generate binary operator parsing functions.
+    /// The parser is a recursive descent parser.
+    /// name is the name of the binary operation, next is the descending function name.
+    /// matching is an array literal of the tokens that should match.
+    #[macro_export]
+    macro_rules! binary_op {
+        ($name:ident, $next:ident, $matching:expr) => {
+            fn $name(&mut self) -> Option<Expression<'p>> {
+                let mut left = self.$next()?;
+                while let Some(operator) = self.match_tokens(&$matching) {
+                    let right = self.$next()?;
+                    left = Expression::Binary {
+                        left: Box::new(left), operator, right: Box::new(right)
+                    }
+                }
+                Some(left)
+            }
+        };
+    }
+}
+
+
 // TODO: Implement the rest of the parser.
 impl<'p> Parser<'p> {
     /// The entry point for generating a statement.
     /// The reason for returning Option is that the parser will error out and abort the current
     /// statement when illegal syntax is encountered.
+    /// Note that syncronization is not done on error, and needs to done by the caller.
     pub fn declaration(&mut self) -> Option<Declaration<'p>> {
-        if self.waiting_for_sync {
-            self.syncronize();
-        }
-        if self.is_at_end() {
-            return None
-        }
-
-        Some(match () {
-            _ if self.match_token(Type::ExFn) => self.external_func_decl()?,
-            _ if self.match_token(Type::Class) => self.class_declaration()?,
-            _ if self.match_token(Type::Enum) => self.enum_declaration()?,
-            _ if self.match_token(Type::Func) => Declaration::Function(self.function()?),
+        match () {
+            _ if self.match_token(Type::Class) => self.class_declaration(),
+            _ if self.match_token(Type::Enum) => self.enum_declaration(),
+            _ if self.match_token(Type::ExFn) => self.ex_func_declaration(),
+            _ if self.match_token(Type::Func) => Some(Declaration::Function(self.function()?)),
             _ => {
                 self.error_at_current("Encountered invalid top-level declaration.");
-                None?
+                None
             },
-        })
+        }
     }
 
-    fn external_func_decl(&mut self) -> Option<Declaration<'p>> {
+    fn ex_func_declaration(&mut self) -> Option<Declaration<'p>> {
         let name = self.consume(Type::Identifier, "Expected an external function name.")?; 
         self.consume(Type::LeftParen, "Expected '(' after function name.");
 
-        let mut parameters: Vec<(Token<'p>, Token<'p>)> = Vec::new();
+        let mut parameters: Vec<FunctionArg> = Vec::new();
         if !self.check(Type::RightParen) {
             loop {
-                parameters.push((
-                    self.consume(Type::Identifier, "Expected parameter type.")?,
-                    self.consume(Type::Identifier, "Expected parameter name.")?,
-                ));
+                parameters.push(FunctionArg {
+                    _type: self.consume(Type::Identifier, "Expected parameter type.")?,
+                    name: self.consume(Type::Identifier, "Expected parameter name.")?,
+                });
                 if !self.match_token(Type::Comma) {
                     break;
                 }
@@ -77,10 +96,10 @@ impl<'p> Parser<'p> {
 
         while !self.check(Type::RightBrace) && !self.is_at_end() {
             match () {
-                _ if self.match_token(Type::Func) => if let Some(f) = self.function() { methods.push(f) },
-                _ if self.match_token(Type::Var) => if let Some(v) = self.variable(false) { variables.push(v) },
-                _ if self.match_token(Type::Val) => if let Some(v) = self.variable(true) { variables.push(v) },
-                _ => (),
+                _ if self.match_token(Type::Func) => methods.push(self.function()?),
+                _ if self.match_token(Type::Var) => variables.push(self.variable(false)?),
+                _ if self.match_token(Type::Val) => variables.push(self.variable(true)?),
+                _ => self.error_at_current("Encountered invalid declaration inside class.")?
             }
         }
 
@@ -108,14 +127,11 @@ impl<'p> Parser<'p> {
 
     fn function(&mut self) -> Option<Function<'p>> {
         // Will generate a declaration that contains everything except a body
-        let func_decl = self.external_func_decl()?;
+        let func_decl = self.ex_func_declaration()?;
 
         if let Declaration::ExternFunction(sig) = func_decl {
-            let body = self.statement()?;
-            Some(Function {
-                sig,
-                body: Box::new(body),
-            })
+            let body = self.expression()?;
+            Some(Function { sig, body })
         } else {
             panic!("External function generator generated something else!!");
         }
@@ -123,7 +139,6 @@ impl<'p> Parser<'p> {
 
     fn variable(&mut self, is_val: bool) -> Option<Variable<'p>> {
         let name = self.consume(Type::Identifier, "Expected variable name.")?;
-
         self.consume(Type::Equal, "Expected '=' after variable name.");
         let initializer = self.expression()?;
         self.consume_semi_or_nl("Expected newline or ';' after variable declaration.");
@@ -136,13 +151,13 @@ impl<'p> Parser<'p> {
     }
 
     fn statement(&mut self) -> Option<Statement<'p>> {
-        Some(match () {
-            _ if self.match_token(Type::Error) => self.error_statement()?,
-            _ if self.match_token(Type::For) => self.for_statement()?,
-            _ if self.match_token(Type::Var) => Statement::Variable(self.variable(false)?),
-            _ if self.match_token(Type::Val) => Statement::Variable(self.variable(true)?),
-            _ => self.expression_statement()?,
-        })
+        match () {
+            _ if self.match_token(Type::Error) => self.error_statement(),
+            _ if self.match_token(Type::For) => self.for_statement(),
+            _ if self.match_token(Type::Var) => Some(Statement::Variable(self.variable(false)?)),
+            _ if self.match_token(Type::Val) => Some(Statement::Variable(self.variable(true)?)),
+            _ => self.expression_statement(),
+        }
     }
 
     fn error_statement(&mut self) -> Option<Statement<'p>> {
@@ -162,14 +177,14 @@ impl<'p> Parser<'p> {
         /*} else*/ { // for (condition)
             let condition = self.expression()?;
             self.consume(Type::RightParen, "Expected ')' after for condition.");
-            let body = Box::new(self.statement()?);
+            let body = self.expression()?;
 
             Statement::For { condition, body }
         })
     }
 
     fn expression_statement(&mut self) -> Option<Statement<'p>> {
-        let requires_semicolon = ![Type::If, Type::Take, Type::LeftBrace, Type::When].contains(&self.current.t_type);
+        let requires_semicolon = ![Type::If, Type::LeftBrace, Type::When].contains(&self.current.t_type);
         let statement = Statement::Expression(self.expression()?);
         if requires_semicolon {
             self.consume_semi_or_nl("Expected newline or ';' after expression.");
@@ -178,14 +193,14 @@ impl<'p> Parser<'p> {
     }
 
     fn expression(&mut self) -> Option<Expression<'p>> {
-        Some(match () {
-            _ if self.match_token(Type::Take) => self.take_expression()?,
-            _ if self.match_token(Type::When) => self.when_expression()?,
-            _ if self.match_token(Type::LeftBrace) => self.block()?,
-            _ if self.match_token(Type::If) => self.if_expression()?,
-            _ if self.match_token(Type::Return) => self.return_expression()?,
-            _ => self.assignment()?,
-        })
+        match () {
+            _ if self.match_token(Type::LeftBrace) => self.block(),
+            _ if self.match_token(Type::If) => self.if_expression(),
+            _ if self.match_token(Type::Return) => self.return_expression(),
+            _ if self.match_token(Type::Take) => self.take_expression(),
+            _ if self.match_token(Type::When) => self.when_expression(),
+            _ => self.assignment(),
+        }
     }
 
     fn block(&mut self) -> Option<Expression<'p>> {
@@ -234,8 +249,6 @@ impl<'p> Parser<'p> {
         Some(Expression::Return(value))
     }
 
-    /// TODO: Consider unrolling when into if-elseif-else constructs.
-    /// Update: Don't. LLVM provides a much more convinient way.
     fn when_expression(&mut self) -> Option<Expression<'p>> {
         self.consume(Type::LeftParen, "Expected '(' after 'when'.");
         let value = Box::new(self.expression()?);
@@ -288,73 +301,13 @@ impl<'p> Parser<'p> {
         }
     }
 
-    // TODO: The 6 functions below are mostly identical; refactor it to be less ew
-
-    fn logic_or(&mut self) -> Option<Expression<'p>> {
-        let mut left = self.logic_and()?;
-        while let Some(operator) = self.match_tokens(&[Type::Or]) {
-            let right = self.logic_and()?;
-            left = Expression::Logical {
-                left: Box::new(left), operator, right: Box::new(right)
-            }
-        }
-        Some(left)
-    }
-
-    fn logic_and(&mut self) -> Option<Expression<'p>> {
-        let mut left = self.equality()?;
-        while let Some(operator) = self.match_tokens(&[Type::And]) {
-            let right = self.equality()?;
-            left = Expression::Logical {
-                left: Box::new(left), operator, right: Box::new(right)
-            }
-        }
-        Some(left)
-    }
-
-    fn equality(&mut self) -> Option<Expression<'p>> {
-        let mut left = self.comparison()?;
-        while let Some(operator) = self.match_tokens(&[Type::BangEqual, Type::EqualEqual]) {
-            let right = self.comparison()?;
-            left = Expression::Binary {
-                left: Box::new(left), operator, right: Box::new(right)
-            }
-        }
-        Some(left)
-    }
-
-    fn comparison(&mut self) -> Option<Expression<'p>> {
-        let mut left = self.addition()?;
-        while let Some(operator) = self.match_tokens(&[Type::Greater, Type::Less, Type::GreaterEqual, Type::LessEqual]) {
-            let right = self.addition()?;
-            left = Expression::Binary {
-                left: Box::new(left), operator, right: Box::new(right)
-            }
-        }
-        Some(left)
-    }
-        
-    fn addition(&mut self) -> Option<Expression<'p>> {
-        let mut left = self.multiplication()?;
-        while let Some(operator) = self.match_tokens(&[Type::Minus, Type::Plus]) {
-            let right = self.multiplication()?;
-            left = Expression::Binary {
-                left: Box::new(left), operator, right: Box::new(right)
-            }
-        }
-        Some(left)
-    }
-        
-    fn multiplication(&mut self) -> Option<Expression<'p>> {
-        let mut left = self.unary()?;
-        while let Some(operator) = self.match_tokens(&[Type::Slash, Type::Star]) {
-            let right = self.unary()?;
-            left = Expression::Binary {
-                left: Box::new(left), operator, right: Box::new(right)
-            }
-        }
-        Some(left)
-    }
+    /// See the macro at the top of the file for info on how this works.
+    binary_op!(logic_or, logic_and, [Type::Or]);
+    binary_op!(logic_and, equality, [Type::And]);
+    binary_op!(equality, comparison, [Type::BangEqual, Type::EqualEqual]);
+    binary_op!(comparison, addition, [Type::Less, Type::LessEqual, Type::Greater, Type::GreaterEqual]);
+    binary_op!(addition, multiplication, [Type::Plus, Type::Minus]);
+    binary_op!(multiplication, unary, [Type::Star, Type::Slash]);
 
     fn unary(&mut self) -> Option<Expression<'p>> {
         Some(if let Some(operator) = self.match_tokens(&[Type::Bang, Type::Minus]) {
@@ -390,12 +343,14 @@ impl<'p> Parser<'p> {
                         arguments
                     }
                 },  
+
                 _ if self.match_token(Type::Dot) => {
                     expression = Expression::Get {
                         object: Box::new(expression),
                         name: self.consume(Type::Identifier, "Expected property name after '.'.")?,
                     }
                 },
+
                 _ => break,
             }
         }
@@ -434,10 +389,12 @@ impl<'p> Parser<'p> {
         )))
     }
 
+    // TODO: Support for single-prec float
     fn float(&mut self) -> Option<Expression<'p>> {
-        // TODO: Support for single-prec float
         let token = self.advance();
-        Some(Expression::Literal(Literal::Double(token.lexeme.parse().ok()?)))
+        Some(Expression::Literal(Literal::Double(
+            token.lexeme.parse().ok()?
+        )))
     }
 
     fn string(&mut self) -> Expression<'p> {

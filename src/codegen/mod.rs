@@ -28,7 +28,7 @@ pub struct IRGenerator<'i> {
     context: Context,
     builder: Builder,
     module: Module,
-    fpm: PassManager<Module>,
+    mpm: PassManager<Module>,
 
     // All variables in the current scope and the currently compiled function.
     variables: HashMap<String, PointerValue>,
@@ -54,7 +54,7 @@ impl<'i> IRGenerator<'i> {
             }
         }
 
-        self.fpm.run_on(&self.module);
+        self.mpm.run_on(&self.module);
         Some(self.module)
     }
 
@@ -70,29 +70,23 @@ impl<'i> IRGenerator<'i> {
     /// Compiles a function to IR. (The function was already declared by the resolver.)
     fn function(&mut self, func: Function) -> Result<(), String> {
         let function = self.module.get_function(func.sig.name.lexeme).ok_or("Internal error: Undefined function.")?;
+        self.current_fn = Some(function);
 
         let entry = self.context.append_basic_block(&function, "entry");
         self.builder.position_at_end(&entry);
 
-        self.current_fn = Some(function);
-
         self.variables.reserve(func.sig.parameters.len());
         for (i, arg) in function.get_param_iter().enumerate() {
-            let arg_name = func.sig.parameters[i].1.lexeme;
+            let arg_name = func.sig.parameters[i].name.lexeme;
             let alloca = self.create_entry_block_alloca(arg.get_type(), arg_name);
             self.builder.build_store(alloca, arg);
-            self.variables.insert(func.sig.parameters[i].1.lexeme.to_string(), alloca);
+            self.variables.insert(func.sig.parameters[i].name.lexeme.to_string(), alloca);
         }
 
+        let body = self.expression(func.body)?;
         if func.sig.return_type.is_some() {
-            if let Statement::Expression(expr) = *func.body {
-                let body = self.expression(expr)?;
-                self.builder.build_return(Some(&body));
-            } else {
-                return Err(format!("Function '{}' has a return type but returns void.", func.sig.name.lexeme));
-            }
+            self.builder.build_return(Some(&body));
         } else {
-            self.statement(*func.body)?;
             self.builder.build_return(None);
         }
 
@@ -104,7 +98,7 @@ impl<'i> IRGenerator<'i> {
         }
     }
 
-    /// Compile a statement. Statements are only found in functions.
+    /// Compile a statement. Statements are only found in blocks.
     fn statement(&mut self, statement: Statement) -> Result<(), String> {
         match statement {
             Statement::Variable(var) => self.var_statement(var),
@@ -206,15 +200,13 @@ impl<'i> IRGenerator<'i> {
     fn call_expr(&mut self, callee: Expression, arguments: Vec<Expression>) -> Result<BasicValueEnum, String> {
         if let Expression::Variable(token) = callee {
             let function = self.module.get_function(token.lexeme).ok_or(format!("Unknown function '{}'.", token.lexeme))?;
-            let mut compiled_args = Vec::with_capacity(arguments.len());
 
+            let mut args = Vec::with_capacity(arguments.len());
             for arg in arguments {
-                compiled_args.push(self.expression(arg)?);
+                args.push(self.expression(arg)?);
             }
 
-            let argsv: Vec<BasicValueEnum> = compiled_args.iter().by_ref().map(|&val| val.into()).collect();
-
-            let ret_type = self.builder.build_call(function, argsv.as_slice(), "tmp").try_as_basic_value();
+            let ret_type = self.builder.build_call(function, args.as_slice(), "tmp").try_as_basic_value();
             if ret_type.is_left() {
                 Ok(ret_type.left().unwrap())
             } else {

@@ -12,6 +12,7 @@ use super::super::{
 use super::Parser;
 use std::mem;
 
+/// A token used when the token stream has ended.
 static EOF_TOKEN: Token = Token {
     t_type: Type::EndOfFile,
     lexeme: "\0",
@@ -27,6 +28,8 @@ impl<'p> Parser<'p> {
         while !self.is_at_end() {
             if let Some(f) = self.declaration() {
                 declarations.push(f)
+            } else {
+                self.syncronize();
             }
         }
 
@@ -66,16 +69,14 @@ impl<'p> Parser<'p> {
         }
     }
 
-    /// Same as consume, but consumes semicolons or newlines 
+    /// Same as consume, but consumes semicolons or newlines.
+    /// Also does not return a token, since newlines are not tokens.
     /// (This special function is needed since newlines are not a token)
-    pub fn consume_semi_or_nl(&mut self, message: &'static str) -> Option<Token<'p>> {
+    pub fn consume_semi_or_nl(&mut self, message: &'static str) {
         if self.check(Type::Semicolon) {
-            Some(self.advance())
-        } else {
-            if self.previous_line == self.current.line {
-                self.error_at_current(message); // No newline
-            } 
-            None
+            self.advance();
+        } else if self.previous_line == self.current.line {
+            self.error_at_current(message); // No newline
         }
     }
 
@@ -102,7 +103,7 @@ impl<'p> Parser<'p> {
 
     /// Is the current token the given token?
     pub fn check(&mut self, t_type: Type) -> bool {
-        !self.is_at_end() && self.current.t_type == t_type
+        self.current.t_type == t_type
     }
 
     /// Is the next token the given token?
@@ -129,34 +130,21 @@ impl<'p> Parser<'p> {
     /// Will set appropriate state.
     /// Returns None; allows returning from calling function with ?
     pub fn error_at_current(&mut self, message: &str) -> Option<()> {
-        if self.waiting_for_sync {
-            return None;
-        }
-
         eprintln!("[Line {}][Token '{}' / {:?}] {}", self.current.line, self.current.lexeme, self.current.t_type, message);
         self.had_error = true;
-        self.waiting_for_sync = true;
-
         None
     }
 
     /// Reports an error produced by the lexer.
     fn lexer_error(&mut self) {
-        if self.waiting_for_sync {
-            return;
-        }
-
         eprintln!("[Line {}] Lexer error: {}", self.current.line, self.current.lexeme);
         self.had_error = true;
-        self.waiting_for_sync = true;
     }
 
     /// Will attempt to sync after an error to allow compilation to continue.
     /// This allows displaying more than 1 error at a time.
     /// To resync, the parser looks for tokens that could indicate the start of a new declaration.
     pub fn syncronize(&mut self) {
-        self.waiting_for_sync = false;
-
         // Prevents not properly syncing when a declaration was inside another one
         self.advance();
 
@@ -186,7 +174,6 @@ impl<'p> Parser<'p> {
             previous_line: 0,
 
             had_error: false,
-            waiting_for_sync: false,
         };
 
         // Set state correctly.

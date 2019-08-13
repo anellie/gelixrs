@@ -51,13 +51,6 @@ pub enum Expression<'e> {
     /// A simple [Literal].
     Literal(Literal),
 
-    /// Logical binary expression (5 > 3)
-    Logical {
-        left: Box<Expression<'e>>,
-        operator: Token<'e>,
-        right: Box<Expression<'e>>,
-    },
-    
     /// 'return' keyword.
     Return(Option<Box<Expression<'e>>>),
 

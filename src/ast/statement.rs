@@ -14,7 +14,7 @@ pub enum Statement<'s> {
     /// A for loop. Only conditional loops are in the AST; iteration loops are unrolled.
     For {
         condition: Expression<'s>,
-        body: Box<Statement<'s>>,
+        body: Expression<'s>,
     },
 
     /// A variable definition.

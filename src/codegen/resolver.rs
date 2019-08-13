@@ -28,6 +28,7 @@ pub struct Resolver {
     environments: Vec<Environment>,
 
     // Used to make unique variable names when a name collision occurs.
+    // Increments every time a new scope is created.
     environment_counter: usize,
 
     // Just for error reporting.
@@ -88,7 +89,7 @@ impl Resolver {
 
         let mut parameters = Vec::new();
         for param in &function.parameters {
-            parameters.push(self.resolve_type(&param.0)?);
+            parameters.push(self.resolve_type(&param._type)?);
         }
         let parameters = parameters.as_slice();
 
@@ -112,9 +113,9 @@ impl Resolver {
                
                 self.begin_scope();
                 for param in func.sig.parameters.iter_mut() {
-                    self.define_variable(&mut param.1, false, false)?;
+                    self.define_variable(&mut param.name, false, false)?;
                 }
-                self.resolve_statement(&mut *func.body)?;
+                self.resolve_expression(&mut func.body)?;
                 self.end_scope();
             },
             _ => ()
@@ -198,11 +199,11 @@ impl Resolver {
 
     fn resolve_type(&mut self, token: &Token) -> Result<BasicTypeEnum, String> {
         Ok(match token.lexeme {
+            "bool" => self.context.bool_type().as_basic_type_enum(),
             "f32" => self.context.f64_type().as_basic_type_enum(),
             "f64" => self.context.f64_type().as_basic_type_enum(),
             "i32" => self.context.i32_type().as_basic_type_enum(),
             "i64" => self.context.i64_type().as_basic_type_enum(),
-            "bool" => self.context.bool_type().as_basic_type_enum(),
             "String" => self.context.i8_type().ptr_type(AddressSpace::Generic).as_basic_type_enum(),
             _ => self.types.get(token.lexeme).ok_or(format!("Unknown type {}", token.lexeme))?.as_basic_type_enum(),
         })
@@ -281,15 +282,15 @@ impl Resolver {
 
     /// Turns the resolver into a generator for IR. Call resolve() first.
     pub fn into_generator(self, mut declarations: Vec<Declaration>) -> IRGenerator {
-        let fpm = PassManager::create(());
-        fpm.add_instruction_combining_pass();
-        fpm.add_reassociate_pass();
-        // fpm.add_gvn_pass(); This pass causes unpredictable SIGSEGV... WTH?
-        fpm.add_cfg_simplification_pass();
-        fpm.add_basic_alias_analysis_pass();
-        fpm.add_promote_memory_to_register_pass();
-        fpm.add_instruction_combining_pass();
-        fpm.add_reassociate_pass();
+        let mpm = PassManager::create(());
+        mpm.add_instruction_combining_pass();
+        mpm.add_reassociate_pass();
+        // mpm.add_gvn_pass(); This pass causes unpredictable SIGSEGV... WTH?
+        mpm.add_cfg_simplification_pass();
+        mpm.add_basic_alias_analysis_pass();
+        mpm.add_promote_memory_to_register_pass();
+        mpm.add_instruction_combining_pass();
+        mpm.add_reassociate_pass();
 
         // The generator pops the declarations off the top.
         declarations.reverse();
@@ -301,7 +302,7 @@ impl Resolver {
             context: self.context,
             module: self.module,
             builder: self.builder,
-            fpm,
+            mpm,
             
             variables: HashMap::with_capacity(10),
             current_fn: None,
@@ -316,10 +317,10 @@ impl Resolver {
 /// An environment holds all variables in the current scope.
 /// To keep track of all variables, a stack of them is used.
 struct Environment {
-    // Key = name; value = mutability
+    /// Key = name; value = mutability
     variables: HashMap<String, bool>,
 
-    // Variables that were moved due to a naming collision
+    /// Variables that were moved due to a naming collision
     moved_vars: HashMap<String, String>
 }
 

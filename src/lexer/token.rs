@@ -3,18 +3,17 @@
 pub struct Token<'t> {
     /// The type of the token.
     pub t_type: Type,
-    /// The lexeme of the token. Includes escape chars (ex. String lexeme is <i>"I'm a string!"</i>)
+    /// The lexeme of the token. Does not escape chars (ex. String lexeme is <i>I'm a string!</i>)
     pub lexeme: &'t str,
-    /// The line the token is on. For multiline tokens, this is the last line.
+    /// The line the token is on.
     pub line: usize,
 
-    // Used only for variables that were renamed due to scoping collisions.
-    // TODO: This is a terrible hack and a bad idea. 
+    /// Used only for variables that were renamed due to scoping collisions.
+    /// TODO: This is a terrible hack and a bad idea. 
     pub relocated: Option<String>
 }
 
 // All types of tokens available. Most are keywords or special chars.
-
 // The ScanError token is a special token signifying a syntax error.
 // Its lexeme is an error message to be displayed to the user.
 plain_enum_mod! {this,
