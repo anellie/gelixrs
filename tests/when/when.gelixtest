@@ -1,0 +1,11 @@
+/*
+ok
+*/
+
+func main() {
+    when (4) {
+        4 -> print("ok")
+        24 -> print("bad")
+        else -> print("bad")
+    }
+}

@@ -14,7 +14,7 @@ use inkwell::{
     context::Context,
     module::Module,
     passes::PassManager,
-    types::BasicType,
+    types::{BasicType, StructType},
     values::{BasicValueEnum, FunctionValue, PointerValue},
     IntPredicate,
 };
@@ -37,6 +37,8 @@ pub struct IRGenerator<'i> {
     // All statements remaining to be compiled. Reverse order.
     declarations: Vec<Declaration<'i>>,
 
+    // All types (structs/classes) that were produced by the [Resolver].
+    types: HashMap<String, StructType>,
     // A constant that is used for expressions that don't produce a value but are required to.
     none_const: BasicValueEnum,
 }
@@ -65,6 +67,7 @@ impl<'i> IRGenerator<'i> {
     /// Compiles a single top-level declaration
     fn declaration(&mut self, declaration: Declaration) -> Result<(), String> {
         match declaration {
+            Declaration::Class { name, variables, methods } => self.class(name, variables, methods),
             Declaration::ExternFunction(_) => Ok(()), // Resolver already declared it; nothing to be done here
             Declaration::Function(func) => self.function(func),
             _ => Err(format!(
@@ -72,6 +75,12 @@ impl<'i> IRGenerator<'i> {
                 declaration
             )),
         }
+    }
+
+    fn class(&mut self, name: Token, variables: Vec<Variable>, methods: Vec<Function>) -> Result<(), String> {
+        // TODO: Define methods
+        // Variables/struct are already dealt with by the resolver.
+        Ok(())
     }
 
     /// Compiles a function to IR. (The function was already declared by the resolver.)

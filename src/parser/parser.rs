@@ -285,7 +285,7 @@ impl<'p> Parser<'p> {
         let expression = self.logic_or()?;
 
         if self.match_token(Type::Equal) {
-            let value = Box::new(self.assignment()?);
+            let value = Box::new(self.expression()?);
             match expression {
                 Expression::Variable(name) => Some(Expression::Assignment { name, value }),
                 Expression::Get { object, name } => Some(Expression::Set {

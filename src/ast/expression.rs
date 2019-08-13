@@ -1,6 +1,12 @@
-use super::super::lexer::token::Token;
+use super::super::lexer::token::{Token, Type};
 use super::literal::Literal;
 use super::statement::Statement;
+
+// All binary operand types that return a bool instead of the types of their values.
+pub static LOGICAL_BINARY: [Type; 6] = [
+    Type::Greater, Type::Less, Type::GreaterEqual, Type::LessEqual,
+    Type::EqualEqual, Type::BangEqual
+];
 
 /// An enum with all expression types in Gelix.
 /// An expression is a language construct that returns a value of any type and cannot appear top-level.

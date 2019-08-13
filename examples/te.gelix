@@ -11,10 +11,10 @@ func main() {
     } else {
         print("mathe is broke")
     }
-
-    print(if (number()) "i like numbers" else "i hate numbers")
 }
 
-func number() -> bool {
-    return true
+class FirstClass {
+
+    val woo = "yes"
+    var hoo = true
 }

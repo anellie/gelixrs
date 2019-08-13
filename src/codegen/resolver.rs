@@ -1,7 +1,8 @@
 use super::super::{
     ast::{
         declaration::{Declaration, FuncSignature},
-        expression::Expression,
+        expression::{LOGICAL_BINARY, Expression},
+        literal::Literal,
         statement::Statement,
     },
     lexer::token::Token,
@@ -50,6 +51,10 @@ impl Resolver {
             Resolver::check_error(self.third_pass(declaration), &self.current_func_name)?;
         }
 
+        for declaration in declarations.iter_mut() {
+            Resolver::check_error(self.fourth_pass(declaration), &self.current_func_name)?;
+        }
+
         Some(())
     }
 
@@ -57,30 +62,27 @@ impl Resolver {
     /// These types are opague, and filled later.
     fn first_pass(&mut self, declaration: &Declaration) -> Result<(), String> {
         match declaration {
-            Declaration::Class {
-                name,
-                variables: _,
-                methods: _,
-            } => self.declare_type(name),
+            Declaration::Class { name, variables: _, methods: _, } => self.declare_type(name),
             Declaration::Enum { name, variants: _ } => self.declare_type(name),
             _ => Ok(()),
         }
     }
 
     fn declare_type(&mut self, name: &Token) -> Result<(), String> {
-        // The type will be correctly filled in in later passes
-        let result = self.types.insert(
+        let struc = self.context.opaque_struct_type(name.lexeme);
+        let exists = self.types.insert(
             name.lexeme.to_string(),
-            self.context.opaque_struct_type(name.lexeme),
+            struc
         );
-        if result.is_some() {
+
+        if exists.is_none() {
+            Ok(())
+        } else {
             Err(format!(
                 "The type/class/enum {} was declared more than once!",
                 name.lexeme
             ))
-        } else {
-            Ok(())
-        } 
+        }
     }
 
     /// During the second pass, all functions are declared.
@@ -110,8 +112,10 @@ impl Resolver {
         }
         let parameters = parameters.as_slice();
 
+        let mut call_type = self.get_type("None")?;
         let fn_type = if let Some(ret_type) = &function.return_type {
-            self.resolve_type(&ret_type)?.fn_type(&parameters, false)
+            call_type = self.resolve_type(&ret_type)?;
+            call_type.fn_type(&parameters, false)
         } else {
             self.context.void_type().fn_type(&parameters, false)
         };
@@ -121,20 +125,41 @@ impl Resolver {
             .first_mut()
             .unwrap()
             .variables
-            .insert(function.name.lexeme.to_string(), false);
+            .insert(function.name.lexeme.to_string(), VarDef::new(false, call_type));
         Ok(())
     }
 
-    /// During the third pass, all variables inside functions are checked.
-    /// This is to ensure the variable is defined and allowed in the current scope.
+    /// During the third pass, all class structs are filled.
+    /// TODO: Structs that have structs as a field won't init properly due to wrong order
     fn third_pass(&mut self, declaration: &mut Declaration) -> Result<(), String> {
+        if let Declaration::Class { name, variables, methods: _ } = declaration {
+            let mut fields = Vec::with_capacity(variables.len());
+            for field in variables {
+                fields.push(self.resolve_expression(&mut field.initializer)?);
+            }
+
+            let struc = self.types.get(name.lexeme).unwrap();
+            struc.set_body(fields.as_slice(), false);
+        }
+
+        Ok(())
+    }
+
+    /// During the fourth pass, all variables inside functions are checked. TODO: also check class vars/methods
+    /// This is to ensure the variable is defined and allowed in the current scope.
+    fn fourth_pass(&mut self, declaration: &mut Declaration) -> Result<(), String> {
         match declaration {
             Declaration::Function(func) => {
                 self.current_func_name = func.sig.name.lexeme.to_string();
                
                 self.begin_scope();
                 for param in func.sig.parameters.iter_mut() {
-                    self.define_variable(&mut param.name, false, false)?;
+                    let param_type = self.resolve_type(&param._type)?;
+                    self.define_variable(
+                        &mut param.name, 
+                        false, false, 
+                        param_type
+                    )?;
                 }
                 self.resolve_expression(&mut func.body)?;
                 self.end_scope();
@@ -148,11 +173,13 @@ impl Resolver {
     fn resolve_statement(&mut self, statement: &mut Statement) -> Result<(), String> {
         match statement {
             Statement::Variable(var) => {
-                self.resolve_expression(&mut var.initializer)?;
-                self.define_variable(&mut var.name, !var.is_val, true)?;
+                let _type = self.resolve_expression(&mut var.initializer)?;
+                self.define_variable(&mut var.name, !var.is_val, true, _type)?;
             }
 
-            Statement::Expression(expr) => self.resolve_expression(expr)?,
+            Statement::Expression(expr) => { 
+                self.resolve_expression(expr)?; 
+            }
 
             _ => Err("Encountered unimplemented statement.")?,
         }
@@ -160,68 +187,108 @@ impl Resolver {
         Ok(())
     }
 
-    fn resolve_expression(&mut self, expression: &mut Expression) -> Result<(), String> {
+    fn resolve_expression(&mut self, expression: &mut Expression) -> Result<BasicTypeEnum, String> {
         match expression {
             Expression::Assignment { name, value } => {
-                self.resolve_expression(value)?;
-                let is_mut = self.find_var(name)?;
-                if !is_mut {
-                    return Err(format!("Variable {} is not assignable (val)", name.lexeme));
+                let var = self.find_var(name)?;
+                if var.mutable {
+                    let expr_type = self.resolve_expression(value)?;
+                    if expr_type == var._type {
+                        Ok(expr_type)
+                    } else {
+                        Err(format!("Variable {} is a different type.", name.lexeme))
+                    }
+                } else {
+                    Err(format!("Variable {} is not assignable (val)", name.lexeme))
                 }
             }
 
-            Expression::Binary { left, operator: _, right } => {
-                self.resolve_expression(left)?;
-                self.resolve_expression(right)?;
+            Expression::Binary { left, operator, right } => {
+                let left = self.resolve_expression(left)?;
+                let right = self.resolve_expression(right)?;
+
+                if left == right {
+                    if LOGICAL_BINARY.contains(&operator.t_type) {
+                        Ok(self.get_type("bool")?)
+                    } else {
+                        Ok(left)
+                    }
+                } else {
+                    Err(format!("Binary operands have incompatible types! {:?} and {:?}", left, right))
+                }
             }
 
             Expression::Block(statements) => {
                 self.begin_scope();
-                for statement in statements {
+                for statement in statements.iter_mut() {
                     self.resolve_statement(statement)?;
                 }
+
+                let mut ret_type = self.get_type("None")?;
+                let last = statements.last_mut();
+                if let Some(last) = last {
+                    if let Statement::Expression(expr) = last {
+                        ret_type = self.resolve_expression(expr)?;
+                    }
+                }
+
                 self.end_scope();
+
+                Ok(ret_type)
             }
 
+            // TODO: Check type of function arguments
             Expression::Call { callee, token: _, arguments } => {
-                self.resolve_expression(callee)?;
                 for arg in arguments {
                     self.resolve_expression(arg)?;
                 }
+
+                self.resolve_expression(callee)
             }
 
-            Expression::Grouping(expr) => self.resolve_expression(expr)?,
+            Expression::Grouping(expr) => self.resolve_expression(expr),
 
             Expression::If { condition, then_branch, else_branch } => {
-                self.resolve_expression(condition)?;
-                self.resolve_expression(then_branch)?;
-                if let Some(else_branch) = else_branch {
-                    self.resolve_expression(else_branch)?;
+                let condition_type = self.resolve_expression(condition)?;
+                if condition_type != self.get_type("bool")? {
+                    Err("If condition must be a boolean.")?
                 }
+
+                let then_type = self.resolve_expression(then_branch)?;
+                if let Some(else_branch) = else_branch {
+                    let else_type = self.resolve_expression(else_branch)?;
+                    if then_type == else_type {
+                        return Ok(then_type)
+                    }
+                }
+
+                self.get_type("None")
             }
 
+            // TODO: Check that return expr is correct type
             Expression::Return(expr) => {
                 if let Some(expr) = expr {
-                    self.resolve_expression(expr)?
+                    self.resolve_expression(expr)?;
                 }
+                self.get_type("None")
             }
 
-            Expression::Literal(_) => (),
+            Expression::Literal(literal) => Ok(self.type_from_literal(literal)),
 
-            Expression::Variable(name) => {
-                self.find_var(name)?;
-            }
+            Expression::Variable(name) => Ok(self.find_var(name)?._type),
 
             _ => Err("Encountered unimplemented expression.")?,
         }
-
-        Ok(())
     }
 
     fn resolve_type(&mut self, token: &Token) -> Result<BasicTypeEnum, String> {
-        Ok(match token.lexeme {
+        self.get_type(token.lexeme)
+    }
+
+    fn get_type(&mut self, name: &str) -> Result<BasicTypeEnum, String> {
+        Ok(match name {
             "bool" => self.context.bool_type().as_basic_type_enum(),
-            "f32" => self.context.f64_type().as_basic_type_enum(),
+            "f32" => self.context.f32_type().as_basic_type_enum(),
             "f64" => self.context.f64_type().as_basic_type_enum(),
             "i32" => self.context.i32_type().as_basic_type_enum(),
             "i64" => self.context.i64_type().as_basic_type_enum(),
@@ -232,10 +299,25 @@ impl Resolver {
                 .as_basic_type_enum(),
             _ => self
                 .types
-                .get(token.lexeme)
-                .ok_or(format!("Unknown type {}", token.lexeme))?
+                .get(name)
+                .ok_or(format!("Unknown type {}", name))?
                 .as_basic_type_enum(),
         })
+    }
+
+    fn type_from_literal(&mut self, literal: &Literal) -> BasicTypeEnum {
+        match literal {
+            Literal::Bool(_) => self.context.bool_type().as_basic_type_enum(),
+            Literal::Float(_) => self.context.f32_type().as_basic_type_enum(),
+            Literal::Double(_) => self.context.f64_type().as_basic_type_enum(),
+            Literal::Int(_) => self.context.i64_type().as_basic_type_enum(),
+            Literal::String(_) => self
+                .context
+                .i8_type()
+                .ptr_type(AddressSpace::Generic)
+                .as_basic_type_enum(),
+            _ => panic!("Unimplemented literal!")
+        }
     }
 
     fn define_variable(
@@ -243,6 +325,7 @@ impl Resolver {
         token: &mut Token,
         mutable: bool,
         allow_redefine: bool,
+        _type: BasicTypeEnum
     ) -> Result<(), String> {
         let name = token.lexeme.to_string();
 
@@ -261,7 +344,7 @@ impl Resolver {
             .last_mut()
             .unwrap()
             .variables
-            .insert(name, mutable)
+            .insert(name, VarDef::new(mutable, _type))
             .is_some();
         
         if was_defined && !allow_redefine {
@@ -274,7 +357,7 @@ impl Resolver {
         }
     }
 
-    fn find_var(&mut self, token: &mut Token) -> Result<bool, String> {
+    fn find_var(&mut self, token: &mut Token) -> Result<VarDef, String> {
         let name = token.lexeme.to_string();
 
         for env in self.environments.iter().rev() {
@@ -282,7 +365,8 @@ impl Resolver {
                 if env.moved_vars.contains_key(&name) {
                     token.relocated = Some(env.moved_vars.get(&name).unwrap().to_string());
                 }
-                return Ok(*env.variables.get(&name).unwrap());
+                // TODO: Cloning is not ideal, but I think BasicTypeEnum is just a pointer anyways
+                return Ok(env.variables.get(&name).unwrap().clone());
             }
         }
 
@@ -365,6 +449,7 @@ impl Resolver {
 
             declarations,
 
+            types: self.types,
             none_const,
         }
     }
@@ -373,8 +458,8 @@ impl Resolver {
 /// An environment holds all variables in the current scope.
 /// To keep track of all variables, a stack of them is used.
 struct Environment {
-    /// Key = name; value = mutability
-    variables: HashMap<String, bool>,
+    /// Key = name; all variables in this environment/scope
+    variables: HashMap<String, VarDef>,
 
     /// Variables that were moved due to a naming collision
     moved_vars: HashMap<String, String>,
@@ -385,6 +470,21 @@ impl Environment {
         Environment {
             variables: HashMap::with_capacity(5),
             moved_vars: HashMap::with_capacity(5),
+        }
+    }
+}
+
+#[derive(Clone)]
+struct VarDef {
+    pub mutable: bool,
+    pub _type: BasicTypeEnum 
+}
+
+impl VarDef {
+    pub fn new(mutable: bool, _type: BasicTypeEnum) -> VarDef {
+        VarDef {
+            mutable,
+            _type
         }
     }
 }
