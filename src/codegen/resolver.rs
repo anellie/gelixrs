@@ -7,7 +7,7 @@ use super::super::{
     },
     lexer::token::Token,
 };
-use super::IRGenerator;
+use super::{ClassDef, IRGenerator};
 use inkwell::{
     builder::Builder,
     context::Context,
@@ -25,14 +25,16 @@ pub struct Resolver {
     builder: Builder,
     module: Module,
 
-    types: HashMap<String, StructType>,
+    /// All classes.
+    types: HashMap<String, ClassDef>,
+    // All environments/scopes currently.
     environments: Vec<Environment>,
 
-    // Used to make unique variable names when a name collision occurs.
-    // Increments every time a new scope is created.
+    /// Used to make unique variable names when a name collision occurs.
+    /// Increments every time a new scope is created.
     environment_counter: usize,
 
-    // Just for error reporting.
+    /// Just for error reporting.
     current_func_name: String,
 }
 
@@ -72,10 +74,15 @@ impl Resolver {
         let struc = self.context.opaque_struct_type(name.lexeme);
         let exists = self.types.insert(
             name.lexeme.to_string(),
-            struc
+            ClassDef::new(struc)
         );
 
         if exists.is_none() {
+            self.environments
+                .first_mut()
+                .unwrap()
+                .variables
+                .insert(name.lexeme.to_string(), VarDef::new(false, BasicTypeEnum::StructType(struc)));
             Ok(())
         } else {
             Err(format!(
@@ -89,7 +96,23 @@ impl Resolver {
     fn second_pass(&mut self, declaration: &Declaration) -> Result<(), String> {
         match declaration {
             Declaration::ExternFunction(func) => self.create_function(func),
-            Declaration::Function(func) => self.create_function(&func.sig),
+            Declaration::Function(func) => {
+                self.create_function(&func.sig)?;
+                let function = self
+                    .module
+                    .get_function(func.sig.name.lexeme)
+                    .ok_or("Internal error: Undefined function.")?;
+
+                // Work around a bug where the builder will cause a segfault when
+                // creating a global string while not having a position set.
+                // This can be an issue when creating default class field values.
+                // https://github.com/TheDan64/inkwell/issues/32
+                let entry = self.context.append_basic_block(&function, "entry");
+                self.builder.position_at_end(&entry);
+
+                Ok(())
+            }
+
             _ => Ok(()),
         }
     }
@@ -121,6 +144,7 @@ impl Resolver {
         };
 
         self.module.add_function(function.name.lexeme, fn_type, None);
+        // TODO: Using the function as a variable gets incorrectly resolved to the return type
         self.environments
             .first_mut()
             .unwrap()
@@ -134,18 +158,22 @@ impl Resolver {
     fn third_pass(&mut self, declaration: &mut Declaration) -> Result<(), String> {
         if let Declaration::Class { name, variables, methods: _ } = declaration {
             let mut fields = Vec::with_capacity(variables.len());
-            for field in variables {
+            let mut fields_map = HashMap::new();
+
+            for (i, field) in variables.iter_mut().enumerate() {
                 fields.push(self.resolve_expression(&mut field.initializer)?);
+                fields_map.insert(field.name.lexeme.to_string(), i as u32);
             }
 
-            let struc = self.types.get(name.lexeme).unwrap();
-            struc.set_body(fields.as_slice(), false);
+            let mut class_def = self.types.get_mut(name.lexeme).unwrap();
+            class_def._type.set_body(fields.as_slice(), false);
+            class_def.var_map = fields_map;
         }
 
         Ok(())
     }
 
-    /// During the fourth pass, all variables inside functions are checked. TODO: also check class vars/methods
+    /// During the fourth pass, all variables inside functions are checked.
     /// This is to ensure the variable is defined and allowed in the current scope.
     fn fourth_pass(&mut self, declaration: &mut Declaration) -> Result<(), String> {
         match declaration {
@@ -246,6 +274,18 @@ impl Resolver {
                 self.resolve_expression(callee)
             }
 
+            Expression::Get { object, name } => {
+                let object = self.resolve_expression(object)?;
+
+                if let BasicTypeEnum::StructType(struc) = object {
+                    let class_def = self.find_class(struc);
+                    let index = class_def.var_map.get(name.lexeme).ok_or(format!("Unknown class field '{}'.", name.lexeme))?;
+                    class_def._type.get_field_type_at_index(*index).ok_or("Internal error trying to get class field.".to_string())
+                } else {
+                    Err("Get syntax (x.y) is only supported on class instances.".to_string())
+                }
+            }
+
             Expression::Grouping(expr) => self.resolve_expression(expr),
 
             Expression::If { condition, then_branch, else_branch } => {
@@ -301,6 +341,7 @@ impl Resolver {
                 .types
                 .get(name)
                 .ok_or(format!("Unknown type {}", name))?
+                ._type
                 .as_basic_type_enum(),
         })
     }
@@ -372,6 +413,10 @@ impl Resolver {
 
         Err(format!("Variable {} is not defined.", name))
     }
+
+    fn find_class(&mut self, struc: StructType) -> &ClassDef {
+        self.types.iter().find(|&_type| _type.1._type == struc).unwrap().1
+    }
     
     fn begin_scope(&mut self) {
         self.environments.push(Environment::new());
@@ -400,7 +445,7 @@ impl Resolver {
         let mut types = HashMap::with_capacity(10);
         types.insert(
             "None".to_string(),
-            context.struct_type(&[BasicTypeEnum::IntType(context.bool_type())], true),
+            ClassDef::new(context.struct_type(&[BasicTypeEnum::IntType(context.bool_type())], true)),
         );
 
         Resolver {
@@ -433,6 +478,7 @@ impl Resolver {
             self.types
                 .get("None")
                 .unwrap()
+                ._type
                 .const_named_struct(&[BasicValueEnum::IntValue(
                     self.context.bool_type().const_int(0, false),
                 )]);

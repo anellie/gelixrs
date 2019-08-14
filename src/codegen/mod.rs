@@ -14,12 +14,15 @@ use inkwell::{
     context::Context,
     module::Module,
     passes::PassManager,
-    types::{BasicType, StructType},
+    types::{AnyTypeEnum, BasicType, StructType},
     values::{BasicValueEnum, FunctionValue, PointerValue},
     IntPredicate,
 };
-use std::collections::HashMap;
-use std::convert::TryInto;
+use std::{
+    cmp::Ordering,
+    collections::HashMap,
+    convert::TryInto
+};
 
 /// A generator that creates LLVM IR.
 /// Created through a [Resolver].
@@ -37,8 +40,8 @@ pub struct IRGenerator<'i> {
     // All statements remaining to be compiled. Reverse order.
     declarations: Vec<Declaration<'i>>,
 
-    // All types (structs/classes) that were produced by the [Resolver].
-    types: HashMap<String, StructType>,
+    // All types (classes) that were produced by the [Resolver].
+    types: HashMap<String, ClassDef>,
     // A constant that is used for expressions that don't produce a value but are required to.
     none_const: BasicValueEnum,
 }
@@ -46,6 +49,12 @@ pub struct IRGenerator<'i> {
 impl<'i> IRGenerator<'i> {
     /// Generates IR. Will process all statements given.
     pub fn generate(mut self) -> Option<Module> {
+        // Ensure all classes get generated first by putting them at the top of the stack
+        // Otherwise, functions could try to use them while they are uninitialized
+        self.declarations.sort_by(|a, _b| 
+            if let Declaration::Class { name: _, variables: _, methods: _ } = a { Ordering::Greater } else { Ordering::Less }
+        );
+
         while !self.declarations.is_empty() {
             let declaration = self.declarations.pop().unwrap();
             let result = self.declaration(declaration);
@@ -77,9 +86,16 @@ impl<'i> IRGenerator<'i> {
         }
     }
 
-    fn class(&mut self, name: Token, variables: Vec<Variable>, methods: Vec<Function>) -> Result<(), String> {
-        // TODO: Define methods
-        // Variables/struct are already dealt with by the resolver.
+    // TODO: Define methods
+    fn class(&mut self, name: Token, variables: Vec<Variable>, _methods: Vec<Function>) -> Result<(), String> {
+        let mut default_values = Vec::with_capacity(variables.len());
+        for var in variables {
+            default_values.push(self.expression(var.initializer)?);
+        }
+
+        let mut class_def = self.types.get_mut(name.lexeme).unwrap();
+        class_def.default_values = Some(default_values);
+
         Ok(())
     }
 
@@ -91,7 +107,8 @@ impl<'i> IRGenerator<'i> {
             .ok_or("Internal error: Undefined function.")?;
         self.current_fn = Some(function);
 
-        let entry = self.context.append_basic_block(&function, "entry");
+        // See second_pass() in the resolver for why the function already has a block.
+        let entry = function.get_first_basic_block().unwrap();
         self.builder.position_at_end(&entry);
 
         self.variables.reserve(func.sig.parameters.len());
@@ -148,18 +165,19 @@ impl<'i> IRGenerator<'i> {
     }
 
     fn expression(&mut self, expression: Expression) -> Result<BasicValueEnum, String> {
-        Ok(match expression {
-            Expression::Assignment { name, value } => self.assignment(name, *value)?,
-            Expression::Binary { left, operator, right } => self.binary(*left, operator, *right)?,
-            Expression::Block(expressions) => self.block_expr(expressions)?,
-            Expression::Call { callee, token: _, arguments } => self.call_expr(*callee, arguments)?,
-            Expression::Grouping(expr) => self.expression(*expr)?,
-            Expression::If { condition, then_branch, else_branch } => self.if_expression(*condition, *then_branch, else_branch)?,
-            Expression::Literal(literal) => self.literal(literal),
-            Expression::Return(expr) => self.return_expression(expr)?,
-            Expression::Variable(name) => self.variable(name)?,
-            _ => Err("Encountered unimplemented expression.")?,
-        })
+        match expression {
+            Expression::Assignment { name, value } => self.assignment(name, *value),
+            Expression::Binary { left, operator, right } => self.binary(*left, operator, *right),
+            Expression::Block(expressions) => self.block_expr(expressions),
+            Expression::Call { callee, token: _, arguments } => self.call_expr(*callee, arguments),
+            Expression::Get { object, name } => self.get_expression(*object, name),
+            Expression::Grouping(expr) => self.expression(*expr),
+            Expression::If { condition, then_branch, else_branch } => self.if_expression(*condition, *then_branch, else_branch),
+            Expression::Literal(literal) => Ok(self.literal(literal)),
+            Expression::Return(expr) => self.return_expression(expr),
+            Expression::Variable(name) => self.variable(name),
+            _ => Err("Encountered unimplemented expression.".to_string()),
+        }
     }
 
     fn assignment(&mut self, token: Token, value: Expression) -> Result<BasicValueEnum, String> {
@@ -236,25 +254,64 @@ impl<'i> IRGenerator<'i> {
         arguments: Vec<Expression>,
     ) -> Result<BasicValueEnum, String> {
         if let Expression::Variable(token) = callee {
-            let function = self.module
-                .get_function(token.lexeme)
-                .ok_or(format!("Unknown function '{}'.", token.lexeme))?;
-
-            let mut args = Vec::with_capacity(arguments.len());
-            for arg in arguments {
-                args.push(self.expression(arg)?);
+            let function = self.module.get_function(token.lexeme);
+            if let Some(function) = function {
+                return self.func_call(function, arguments)
             }
 
-            let ret_type = self.builder
-                .build_call(function, args.as_slice(), "tmp")
-                .try_as_basic_value();
-            if ret_type.is_left() {
-                Ok(ret_type.left().unwrap())
-            } else {
-                Ok(self.none_const)
+            let class = self.types.get(token.lexeme);
+            if let Some(class_def) = class {
+                return self.class_call(class_def, arguments)
             }
+
+            Err(format!("Could not find matching func or class '{}' to call.", token.lexeme))
         } else {
             Err("Unsupported callee.".to_string())?
+        }
+    }
+
+    fn func_call(
+        &mut self,
+        function: FunctionValue,
+        arguments: Vec<Expression>,
+    ) -> Result<BasicValueEnum, String> {
+        let mut args = Vec::with_capacity(arguments.len());
+        for arg in arguments {
+            args.push(self.expression(arg)?);
+        }
+
+        let ret_type = self.builder
+            .build_call(function, args.as_slice(), "tmp")
+            .try_as_basic_value();
+        if ret_type.is_left() {
+            Ok(ret_type.left().unwrap())
+        } else {
+            Ok(self.none_const)
+        }
+    }
+
+    // TODO: call init()
+    fn class_call(
+        &self,
+        class: &ClassDef,
+        arguments: Vec<Expression>,
+    ) -> Result<BasicValueEnum, String> {
+        Ok(BasicValueEnum::StructValue(class._type.const_named_struct(class.default_values.as_ref().unwrap().as_slice())))
+    }
+
+    fn get_expression(&mut self, object: Expression, name: Token) -> Result<BasicValueEnum, String> {
+        if let Expression::Variable(obj_name) = object {
+            let struc = self.variables.get(obj_name.lexeme).unwrap();
+            let struc_def = self.find_class(*struc);
+            let ptr_index = struc_def.var_map.get(name.lexeme).unwrap();
+
+            let ptr = unsafe {
+                self.builder.build_struct_gep(*struc, *ptr_index, "classgep")
+            };
+
+            Ok(self.builder.build_load(ptr, "classload"))
+        } else {
+            Err("Invaild get expression.".to_string())
         }
     }
 
@@ -356,6 +413,15 @@ impl<'i> IRGenerator<'i> {
         }
     }
 
+    fn find_class(&self, struc: PointerValue) -> &ClassDef {
+        let struc_ptr_type = struc.get_type().get_element_type();
+        if let AnyTypeEnum::StructType(struc_type) = struc_ptr_type {    
+            self.types.iter().find(|&_type| _type.1._type == struc_type).unwrap().1
+        } else {
+            panic!("Invaild class instance pointer!!")
+        }
+    }
+
     fn create_entry_block_alloca<T: BasicType>(&self, ty: T, name: &str) -> PointerValue {
         let builder = self.context.create_builder();
         let entry = self.cur_fn().get_first_basic_block().unwrap();
@@ -377,6 +443,22 @@ impl<'i> IRGenerator<'i> {
             relocated
         } else {
             token.lexeme.to_string()
+        }
+    }
+}
+
+struct ClassDef {
+    pub default_values: Option<Vec<BasicValueEnum>>,
+    pub _type: StructType,
+    pub var_map: HashMap<String, u32>
+}
+
+impl ClassDef {
+    pub fn new(_type: StructType) -> ClassDef {
+        ClassDef {
+            default_values: None,
+            _type,
+            var_map: HashMap::new()
         }
     }
 }
