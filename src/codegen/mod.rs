@@ -2,7 +2,7 @@ pub mod resolver;
 
 use super::{
     ast::{
-        declaration::{DeclarationList, Class, Function, Variable},
+        declaration::{Class, DeclarationList, Function, Variable},
         expression::Expression,
         literal::Literal,
         statement::Statement,
@@ -18,10 +18,7 @@ use inkwell::{
     values::{BasicValueEnum, FunctionValue, PointerValue},
     IntPredicate,
 };
-use std::{
-    collections::HashMap,
-    convert::TryInto
-};
+use std::{collections::HashMap, convert::TryInto};
 
 /// A generator that creates LLVM IR.
 /// Created through a [Resolver].
@@ -92,7 +89,8 @@ impl IRGenerator {
             let arg_name = &func.sig.parameters[i].name.lexeme;
             let alloca = self.create_entry_block_alloca(arg.get_type(), arg_name);
             self.builder.build_store(alloca, arg);
-            self.variables.insert(func.sig.parameters[i].name.lexeme.to_string(), alloca);
+            self.variables
+                .insert(func.sig.parameters[i].name.lexeme.to_string(), alloca);
         }
 
         let body = self.expression(func.body)?;
@@ -125,7 +123,7 @@ impl IRGenerator {
                 "Encountered unimplemented statement '{:?}'.",
                 statement
             )),
-    }
+        }
     }
 
     fn var_statement(&mut self, var: Variable) -> Result<(), String> {
@@ -169,7 +167,7 @@ impl IRGenerator {
 
     fn block_expr(&mut self, mut statements: Vec<Statement>) -> Result<BasicValueEnum, String> {
         if statements.is_empty() {
-            return Ok(self.literal(Literal::None))
+            return Ok(self.literal(Literal::None));
         }
 
         statements.reverse();
@@ -234,15 +232,18 @@ impl IRGenerator {
         if let Expression::Variable(token) = callee {
             let function = self.module.get_function(&token.lexeme);
             if let Some(function) = function {
-                return self.func_call(function, arguments)
+                return self.func_call(function, arguments);
             }
 
             let class = self.types.get(&token.lexeme);
             if let Some(class_def) = class {
-                return self.class_call(class_def, arguments)
+                return self.class_call(class_def, arguments);
             }
 
-            Err(format!("Could not find matching func or class '{}' to call.", token.lexeme))
+            Err(format!(
+                "Could not find matching func or class '{}' to call.",
+                token.lexeme
+            ))
         } else {
             Err("Unsupported callee.".to_string())?
         }
@@ -258,7 +259,8 @@ impl IRGenerator {
             args.push(self.expression(arg)?);
         }
 
-        let ret_type = self.builder
+        let ret_type = self
+            .builder
             .build_call(function, args.as_slice(), "tmp")
             .try_as_basic_value();
         if ret_type.is_left() {
@@ -275,19 +277,29 @@ impl IRGenerator {
         _arguments: Vec<Expression>,
     ) -> Result<BasicValueEnum, String> {
         if let Some(defaults) = &class.default_values {
-            Ok(BasicValueEnum::StructValue(class._type.const_named_struct(defaults.as_slice())))
+            Ok(class._type.const_named_struct(defaults.as_slice()).into())
         } else {
             //self.class(class.ast_node); TODO:
-            Ok(BasicValueEnum::StructValue(class._type.const_named_struct(class.default_values.as_ref().unwrap().as_slice())))
+            Ok(class._type.const_named_struct(
+                class.default_values.as_ref().unwrap().as_slice(),
+            ).into())
         }
     }
 
-    fn get_expression(&mut self, object: Expression, name: Token) -> Result<BasicValueEnum, String> {
+    fn get_expression(
+        &mut self,
+        object: Expression,
+        name: Token,
+    ) -> Result<BasicValueEnum, String> {
         let ptr = self.pointer_from_get(object, name)?;
         Ok(self.builder.build_load(ptr, "classload"))
     }
 
-    fn pointer_from_get(&mut self, object: Expression, name: Token) -> Result<PointerValue, String> {
+    fn pointer_from_get(
+        &mut self,
+        object: Expression,
+        name: Token,
+    ) -> Result<PointerValue, String> {
         match object {
             Expression::Variable(obj_name) => {
                 let struc = self.variables.get(&obj_name.lexeme).unwrap();
@@ -299,7 +311,7 @@ impl IRGenerator {
                 self.get_from_struct(&object, name)
             }
 
-            _ => Err("Invalid get expression.".to_string())
+            _ => Err("Invalid get expression.".to_string()),
         }
     }
 
@@ -308,7 +320,9 @@ impl IRGenerator {
         let ptr_index = struc_def.var_map.get(&name.lexeme).unwrap();
 
         unsafe {
-            Ok(self.builder.build_struct_gep(*struc, *ptr_index, "classgep"))
+            Ok(self
+                .builder
+                .build_struct_gep(*struc, *ptr_index, "classgep"))
         }
     }
 
@@ -334,9 +348,11 @@ impl IRGenerator {
             let cont_bb = self.context.append_basic_block(&parent, "ifcont");
 
             if else_b.is_none() {
-                self.builder.build_conditional_branch(condition, &then_bb, &cont_bb);
+                self.builder
+                    .build_conditional_branch(condition, &then_bb, &cont_bb);
             } else {
-                self.builder.build_conditional_branch(condition, &then_bb, &else_bb);
+                self.builder
+                    .build_conditional_branch(condition, &then_bb, &else_bb);
             }
 
             self.builder.position_at_end(&then_bb);
@@ -411,8 +427,12 @@ impl IRGenerator {
 
     fn find_class(&self, struc: PointerValue) -> &ClassDef {
         let struc_ptr_type = struc.get_type().get_element_type();
-        if let AnyTypeEnum::StructType(struc_type) = struc_ptr_type {    
-            self.types.iter().find(|&_type| _type.1._type == struc_type).unwrap().1
+        if let AnyTypeEnum::StructType(struc_type) = struc_ptr_type {
+            self.types
+                .iter()
+                .find(|&_type| _type.1._type == struc_type)
+                .unwrap()
+                .1
         } else {
             panic!("Invalid class instance pointer!!")
         }
@@ -446,7 +466,7 @@ impl ClassDef {
         ClassDef {
             default_values: None,
             _type,
-            var_map: HashMap::new()
+            var_map: HashMap::new(),
         }
     }
 }

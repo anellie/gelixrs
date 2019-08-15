@@ -3,7 +3,9 @@
 
 use super::super::{
     ast::{
-        declaration::{DeclarationList, Enum, Class, FuncSignature, Function, FunctionArg, Variable},
+        declaration::{
+            Class, DeclarationList, Enum, FuncSignature, Function, FunctionArg, Variable,
+        },
         expression::Expression,
         literal::Literal,
         statement::Statement,
@@ -72,7 +74,7 @@ impl<'p> Parser<'p> {
     }
 
     fn ex_func_declaration(&mut self) -> Option<FuncSignature> {
-        let name = self.consume(Type::Identifier, "Expected an external function name.")?; 
+        let name = self.consume(Type::Identifier, "Expected an external function name.")?;
         self.consume(Type::LeftParen, "Expected '(' after function name.");
 
         let mut parameters: Vec<FunctionArg> = Vec::new();
@@ -135,7 +137,7 @@ impl<'p> Parser<'p> {
             variants.push(self.consume(Type::Identifier, "Expected enum variant.")?);
             if !self.match_token(Type::Comma) {
                 break;
-        }
+            }
         }
         self.consume(Type::RightBrace, "Expected '}' after enum body.");
 
@@ -184,7 +186,7 @@ impl<'p> Parser<'p> {
 
     fn for_statement(&mut self) -> Option<Statement> {
         self.consume(Type::LeftParen, "Expected '(' after 'for'.");
-        
+
         Some(//if self.check_next(Type::In) { // for (x in y)
             // TODO: Implement "for each in" loops
         /*} else*/ { // for (condition)
@@ -327,10 +329,10 @@ impl<'p> Parser<'p> {
     fn unary(&mut self) -> Option<Expression> {
         Some(
             if let Some(operator) = self.match_tokens(&[Type::Bang, Type::Minus]) {
-            let right = Box::new(self.unary()?);
+                let right = Box::new(self.unary()?);
                 Expression::Unary { operator, right }
-        } else {
-            self.call()?
+            } else {
+                self.call()?
             },
         )
     }
@@ -357,14 +359,15 @@ impl<'p> Parser<'p> {
                         token: paren,
                         arguments,
                     }
-                    }
+                }
 
                 _ if self.match_token(Type::Dot) => {
                     expression = Expression::Get {
                         object: Box::new(expression),
-                        name: self.consume(Type::Identifier, "Expected property name after '.'.")?,
+                        name: self
+                            .consume(Type::Identifier, "Expected property name after '.'.")?,
                     }
-                    }
+                }
 
                 _ => break,
             }

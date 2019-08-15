@@ -1,7 +1,7 @@
 use super::super::{
     ast::{
         declaration::{DeclarationList, FuncSignature},
-        expression::{LOGICAL_BINARY, Expression},
+        expression::{Expression, LOGICAL_BINARY},
         literal::Literal,
         statement::Statement,
     },
@@ -38,7 +38,7 @@ pub struct Resolver {
     /// The current function. Mainly used to resolve return expressions during the 4th pass.
     current_func: Option<FunctionType>,
     /// The name of the current function. Mainly used for error reporting.
-    current_func_name: String
+    current_func_name: String,
 }
 
 impl Resolver {
@@ -67,10 +67,9 @@ impl Resolver {
 
     fn declare_type(&mut self, name: &Token) -> Result<(), String> {
         let struc = self.context.opaque_struct_type(&name.lexeme);
-        let exists = self.types.insert(
-            name.lexeme.to_string(),
-            ClassDef::new(struc)
-        );
+        let exists = self
+            .types
+            .insert(name.lexeme.to_string(), ClassDef::new(struc));
 
         if exists.is_none() {
             self.environments
@@ -95,10 +94,7 @@ impl Resolver {
 
         for func in &list.functions {
             self.create_function(&func.sig)?;
-            let function = self
-                .module
-                .get_function(&func.sig.name.lexeme)
-                .unwrap();
+            let function = self.module.get_function(&func.sig.name.lexeme).unwrap();
 
             // Work around a bug where the builder will cause a segfault when
             // creating a global string while not having a position set.
@@ -121,7 +117,7 @@ impl Resolver {
                 "The function {} was declared more than once!",
                 function.name.lexeme
             ));
-        } 
+        }
 
         let mut parameters = Vec::new();
         for param in &function.parameters {
@@ -136,15 +132,12 @@ impl Resolver {
             self.context.void_type().fn_type(&parameters, false)
         };
 
-        self.module.add_function(&function.name.lexeme, fn_type, None);
-        self.environments
-            .first_mut()
-            .unwrap()
-            .variables
-            .insert(
-                function.name.lexeme.to_string(),
-                VarDef::new(false, fn_type.ptr_type(AddressSpace::Const).into())
-            );
+        self.module
+            .add_function(&function.name.lexeme, fn_type, None);
+        self.environments.first_mut().unwrap().variables.insert(
+            function.name.lexeme.to_string(),
+            VarDef::new(false, fn_type.ptr_type(AddressSpace::Const).into()),
+        );
         Ok(())
     }
 
@@ -173,17 +166,17 @@ impl Resolver {
     fn fourth_pass(&mut self, list: &mut DeclarationList) -> Result<(), String> {
         for func in list.functions.iter_mut() {
             self.current_func_name = func.sig.name.lexeme.to_string();
-            self.current_func =
-                Some(self.module.get_function(&self.current_func_name).unwrap().get_type());
+            self.current_func = Some(
+                self.module
+                    .get_function(&self.current_func_name)
+                    .unwrap()
+                    .get_type(),
+            );
 
             self.begin_scope();
             for param in func.sig.parameters.iter_mut() {
                 let param_type = self.resolve_type(&param._type)?;
-                self.define_variable(
-                    &mut param.name,
-                    false, false,
-                    param_type
-                )?;
+                self.define_variable(&mut param.name, false, false, param_type)?;
             }
             self.resolve_expression(&mut func.body)?;
             self.end_scope();
@@ -199,8 +192,8 @@ impl Resolver {
                 self.define_variable(&mut var.name, !var.is_val, true, _type)?;
             }
 
-            Statement::Expression(expr) => { 
-                self.resolve_expression(expr)?; 
+            Statement::Expression(expr) => {
+                self.resolve_expression(expr)?;
             }
 
             _ => Err("Encountered unimplemented statement.")?,
@@ -236,7 +229,10 @@ impl Resolver {
                         Ok(left)
                     }
                 } else {
-                    Err(format!("Binary operands have incompatible types! {:?} and {:?}", left, right))
+                    Err(format!(
+                        "Binary operands have incompatible types! {:?} and {:?}",
+                        left, right
+                    ))
                 }
             }
 
@@ -266,19 +262,21 @@ impl Resolver {
                         let func = ptr.get_element_type();
                         if let AnyTypeEnum::FunctionType(func) = func {
                             self.check_func_args(func, arguments)?;
-                            Ok(func.get_return_type()
-                                .get_or_insert(self.types.get("None").unwrap()._type.into()).clone())
+                            Ok(func
+                                .get_return_type()
+                                .get_or_insert(self.types.get("None").unwrap()._type.into())
+                                .clone())
                         } else {
                             Err("Only functions or classes are allowed to be called.".to_string())
                         }
-                    },
+                    }
 
                     BasicTypeEnum::StructType(struc) => {
                         // TODO: Typecheck init
                         Ok(struc.into())
                     }
 
-                    _ => Err("Only functions or classes are allowed to be called.".to_string())
+                    _ => Err("Only functions or classes are allowed to be called.".to_string()),
                 }
             }
 
@@ -287,8 +285,14 @@ impl Resolver {
 
                 if let BasicTypeEnum::StructType(struc) = object {
                     let class_def = self.find_class(struc);
-                    let index = class_def.var_map.get(&name.lexeme).ok_or(format!("Unknown class field '{}'.", name.lexeme))?;
-                    class_def._type.get_field_type_at_index(*index).ok_or("Internal error trying to get class field.".to_string())
+                    let index = class_def
+                        .var_map
+                        .get(&name.lexeme)
+                        .ok_or(format!("Unknown class field '{}'.", name.lexeme))?;
+                    class_def
+                        ._type
+                        .get_field_type_at_index(*index)
+                        .ok_or("Internal error trying to get class field.".to_string())
                 } else {
                     Err("Get syntax (x.y) is only supported on class instances.".to_string())
                 }
@@ -306,7 +310,7 @@ impl Resolver {
                 if let Some(else_branch) = else_branch {
                     let else_type = self.resolve_expression(else_branch)?;
                     if then_type == else_type {
-                        return Ok(then_type)
+                        return Ok(then_type);
                     }
                 }
 
@@ -372,7 +376,7 @@ impl Resolver {
                 .i8_type()
                 .ptr_type(AddressSpace::Generic)
                 .as_basic_type_enum(),
-            _ => panic!("Unimplemented literal!")
+            _ => panic!("Unimplemented literal!"),
         }
     }
 
@@ -381,7 +385,7 @@ impl Resolver {
         token: &mut Token,
         mutable: bool,
         allow_redefine: bool,
-        _type: BasicTypeEnum
+        _type: BasicTypeEnum,
     ) -> Result<(), String> {
         let def = VarDef::new(mutable, _type);
 
@@ -393,10 +397,7 @@ impl Resolver {
                 .moved_vars
                 .insert(old_name.clone(), token.lexeme.clone());
 
-            let was_defined_in_cur_env = cur_env
-                .variables
-                .insert(old_name, def.clone())
-                .is_some();
+            let was_defined_in_cur_env = cur_env.variables.insert(old_name, def.clone()).is_some();
 
             if was_defined_in_cur_env && !allow_redefine {
                 Err(format!("Cannot redefine variable {}.", token.lexeme))?
@@ -404,9 +405,7 @@ impl Resolver {
         }
 
         let cur_env = self.environments.last_mut().unwrap();
-        cur_env
-            .variables
-            .insert(token.lexeme.to_string(), def);
+        cur_env.variables.insert(token.lexeme.to_string(), def);
 
         Ok(())
     }
@@ -425,13 +424,17 @@ impl Resolver {
     }
 
     fn find_class(&mut self, struc: StructType) -> &ClassDef {
-        self.types.iter().find(|&_type| _type.1._type == struc).unwrap().1
+        self.types
+            .iter()
+            .find(|&_type| _type.1._type == struc)
+            .unwrap()
+            .1
     }
 
     fn check_func_args(
         &mut self,
         func: FunctionType,
-        arguments: &mut Vec<Expression>
+        arguments: &mut Vec<Expression>,
     ) -> Result<(), String> {
         let expected = func.get_param_types();
 
@@ -448,7 +451,7 @@ impl Resolver {
 
         Ok(())
     }
-    
+
     fn begin_scope(&mut self) {
         self.environments.push(Environment::new());
         self.environment_counter += 1;
@@ -473,14 +476,16 @@ impl Resolver {
         let context = Context::create();
         let module = context.create_module("main");
         let builder = context.create_builder();
-        
+
         let mut environments = Vec::with_capacity(10);
         environments.push(Environment::new()); // global environment
 
         let mut types = HashMap::with_capacity(10);
         types.insert(
             "None".to_string(),
-            ClassDef::new(context.struct_type(&[BasicTypeEnum::IntType(context.bool_type())], true)),
+            ClassDef::new(
+                context.struct_type(&[BasicTypeEnum::IntType(context.bool_type())], true),
+            ),
         );
 
         Resolver {
@@ -522,7 +527,7 @@ impl Resolver {
             module: self.module,
             builder: self.builder,
             mpm,
-            
+
             variables: HashMap::with_capacity(10),
             current_fn: None,
 
@@ -557,14 +562,11 @@ impl Environment {
 #[derive(Clone, Debug)]
 struct VarDef {
     pub mutable: bool,
-    pub _type: BasicTypeEnum 
+    pub _type: BasicTypeEnum,
 }
 
 impl VarDef {
     pub fn new(mutable: bool, _type: BasicTypeEnum) -> VarDef {
-        VarDef {
-            mutable,
-            _type
-        }
+        VarDef { mutable, _type }
     }
 }

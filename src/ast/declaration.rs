@@ -9,7 +9,7 @@ pub struct DeclarationList {
     pub classes: Vec<Class>,
     pub enums: Vec<Enum>,
     pub ext_functions: Vec<FuncSignature>,
-    pub functions: Vec<Function>
+    pub functions: Vec<Function>,
 }
 
 impl DeclarationList {

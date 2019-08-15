@@ -2,17 +2,15 @@
 //! These functions do not generate AST themselves, and are only used by other functions
 //! to manipulate the stream of tokens.
 
-use super::super::{
-    lexer::{
-        token::{Token, Type},
-        Lexer,
-    },
+use super::super::lexer::{
+    token::{Token, Type},
+    Lexer,
 };
 use super::Parser;
 use std::mem;
 
 impl<'p> Parser<'p> {
-        /// Checks if the current token is the given type. If yes, it consumes it.
+    /// Checks if the current token is the given type. If yes, it consumes it.
     pub fn match_token(&mut self, t_type: Type) -> bool {
         let matches = self.check(t_type);
         if matches {
@@ -62,10 +60,7 @@ impl<'p> Parser<'p> {
             mem::replace(&mut self.current, next)
         } else {
             let line = self.current.line + 1;
-            mem::replace(
-                &mut self.current, 
-                Parser::eof_token(line)
-            )
+            mem::replace(&mut self.current, Parser::eof_token(line))
         };
 
         if self.check(Type::ScanError) {

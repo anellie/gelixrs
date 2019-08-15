@@ -219,7 +219,8 @@ impl<'l> Lexer<'l> {
         Token {
             t_type,
             lexeme: self.source
-                [(self.start + self.start_offset)..(self.current + self.current_offset)].to_string(),
+                [(self.start + self.start_offset)..(self.current + self.current_offset)]
+                .to_string(),
             line: self.line,
         }
     }

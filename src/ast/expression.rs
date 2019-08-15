@@ -4,8 +4,12 @@ use super::statement::Statement;
 
 // All binary operand types that return a bool instead of the types of their values.
 pub static LOGICAL_BINARY: [Type; 6] = [
-    Type::Greater, Type::Less, Type::GreaterEqual, Type::LessEqual,
-    Type::EqualEqual, Type::BangEqual
+    Type::Greater,
+    Type::Less,
+    Type::GreaterEqual,
+    Type::LessEqual,
+    Type::EqualEqual,
+    Type::BangEqual,
 ];
 
 /// An enum with all expression types in Gelix.
@@ -13,10 +17,7 @@ pub static LOGICAL_BINARY: [Type; 6] = [
 #[derive(Debug)]
 pub enum Expression {
     /// Assignment a la x = 5
-    Assignment {
-        name: Token,
-        value: Box<Expression>,
-    },
+    Assignment { name: Token, value: Box<Expression> },
 
     /// Binary operations like 5 + 5
     Binary {
