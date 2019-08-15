@@ -13,7 +13,7 @@ use inkwell::{
     context::Context,
     module::Module,
     passes::PassManager,
-    types::{BasicType, BasicTypeEnum, StructType},
+    types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType, StructType},
     values::BasicValueEnum,
     AddressSpace,
 };
@@ -35,8 +35,10 @@ pub struct Resolver {
     /// Increments every time a new scope is created.
     environment_counter: usize,
 
-    /// Just for error reporting.
-    current_func_name: String,
+    /// The current function. Mainly used to resolve return expressions during the 4th pass.
+    current_func: Option<FunctionType>,
+    /// The name of the current function. Mainly used for error reporting.
+    current_func_name: String
 }
 
 impl Resolver {
@@ -136,21 +138,22 @@ impl Resolver {
         }
         let parameters = parameters.as_slice();
 
-        let mut call_type = self.get_type("None")?;
         let fn_type = if let Some(ret_type) = &function.return_type {
-            call_type = self.resolve_type(&ret_type)?;
+            let call_type = self.resolve_type(&ret_type)?;
             call_type.fn_type(&parameters, false)
         } else {
             self.context.void_type().fn_type(&parameters, false)
         };
 
         self.module.add_function(&function.name.lexeme, fn_type, None);
-        // TODO: Using the function as a variable gets incorrectly resolved to the return type
         self.environments
             .first_mut()
             .unwrap()
             .variables
-            .insert(function.name.lexeme.to_string(), VarDef::new(false, call_type));
+            .insert(
+                function.name.lexeme.to_string(),
+                VarDef::new(false, fn_type.ptr_type(AddressSpace::Const).into())
+            );
         Ok(())
     }
 
@@ -266,13 +269,21 @@ impl Resolver {
                 Ok(ret_type)
             }
 
-            // TODO: Check type of function arguments
             Expression::Call { callee, token: _, arguments } => {
-                for arg in arguments {
-                    self.resolve_expression(arg)?;
+                // TODO: Kinda messy?
+                let callee = self.resolve_expression(callee)?;
+                if let BasicTypeEnum::PointerType(ptr) = callee {
+                    let func = ptr.get_element_type();
+                    if let AnyTypeEnum::FunctionType(func) = func {
+                        self.check_func_args(func, arguments)?;
+                        Ok(func.get_return_type()
+                            .get_or_insert(self.types.get("None").unwrap()._type.into()).clone())
+                    } else {
+                        Err("Only functions are allowed to be called.".to_string())
+                    }
+                } else {
+                    Err("Only functions are allowed to be called.".to_string())
                 }
-
-                self.resolve_expression(callee)
             }
 
             Expression::Get { object, name } => {
@@ -306,10 +317,17 @@ impl Resolver {
                 self.get_type("None")
             }
 
-            // TODO: Check that return expr is correct type
             Expression::Return(expr) => {
                 if let Some(expr) = expr {
-                    self.resolve_expression(expr)?;
+                    let expr_type = self.resolve_expression(expr)?;
+                    let func_type = self.cur_fn().get_return_type();
+                    if let Some(func_type) = func_type {
+                        if expr_type != func_type {
+                            Err("Return expression is not the functions return type.")?
+                        }
+                    } else {
+                        Err("Cannot return a value from a function that returns None.")?
+                    }
                 }
                 self.get_type("None")
             }
@@ -406,6 +424,27 @@ impl Resolver {
     fn find_class(&mut self, struc: StructType) -> &ClassDef {
         self.types.iter().find(|&_type| _type.1._type == struc).unwrap().1
     }
+
+    fn check_func_args(
+        &mut self,
+        func: FunctionType,
+        arguments: &mut Vec<Expression>
+    ) -> Result<(), String> {
+        let expected = func.get_param_types();
+
+        if expected.len() != arguments.len() {
+            Err("Incorrect amount of function arguments.")?;
+        }
+
+        for (i, arg) in arguments.iter_mut().enumerate() {
+            let arg_type = self.resolve_expression(arg)?;
+            if arg_type != expected[i] {
+                Err("Call argument is the wrong type.")?;
+            }
+        }
+
+        Ok(())
+    }
     
     fn begin_scope(&mut self) {
         self.environments.push(Environment::new());
@@ -414,6 +453,10 @@ impl Resolver {
 
     fn end_scope(&mut self) {
         self.environments.pop();
+    }
+
+    fn cur_fn(&self) -> FunctionType {
+        self.current_func.unwrap()
     }
 
     fn check_error(result: Result<(), String>, func: &String) -> Option<()> {
@@ -444,6 +487,7 @@ impl Resolver {
             types,
             environments,
             environment_counter: 0,
+            current_func: None,
             current_func_name: "".to_string(),
         }
     }
