@@ -307,18 +307,32 @@ impl IRGenerator {
     }
 
     fn get_expression(&mut self, object: Expression, name: Token) -> Result<BasicValueEnum, String> {
-        if let Expression::Variable(obj_name) = object {
-            let struc = self.variables.get(&obj_name.lexeme).unwrap();
-            let struc_def = self.find_class(*struc);
-            let ptr_index = struc_def.var_map.get(&name.lexeme).unwrap();
+        let ptr = self.pointer_from_get(object, name)?;
+        Ok(self.builder.build_load(ptr, "classload"))
+    }
 
-            let ptr = unsafe {
-                self.builder.build_struct_gep(*struc, *ptr_index, "classgep")
-            };
+    fn pointer_from_get(&mut self, object: Expression, name: Token) -> Result<PointerValue, String> {
+        match object {
+            Expression::Variable(obj_name) => {
+                let struc = self.variables.get(&obj_name.lexeme).unwrap();
+                self.get_from_struct(struc, name)
+            }
 
-            Ok(self.builder.build_load(ptr, "classload"))
-        } else {
-            Err("Invalid get expression.".to_string())
+            Expression::Get { object, name: inner_name} => {
+                let object = self.pointer_from_get(*object, inner_name)?;
+                self.get_from_struct(&object, name)
+            }
+
+            _ => Err("Invalid get expression.".to_string())
+        }
+    }
+
+    fn get_from_struct(&self, struc: &PointerValue, name: Token) -> Result<PointerValue, String> {
+        let struc_def = self.find_class(*struc);
+        let ptr_index = struc_def.var_map.get(&name.lexeme).unwrap();
+
+        unsafe {
+            Ok(self.builder.build_struct_gep(*struc, *ptr_index, "classgep"))
         }
     }
 

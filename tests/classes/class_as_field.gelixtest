@@ -2,15 +2,17 @@
 ok
 */
 
+exfn print(String a)
+
 func main() {
     val test = Test()
     print(test.inner.str)
 }
 
-class Test {
-    val inner = Inner()
-}
-
 class Inner {
     val str = "ok"
+}
+
+class Test {
+    val inner = Inner()
 }
