@@ -2,7 +2,7 @@ pub mod resolver;
 
 use super::{
     ast::{
-        declaration::{Declaration, Class, Function, Variable},
+        declaration::{DeclarationList, Class, Function, Variable},
         expression::Expression,
         literal::Literal,
         statement::Statement,
@@ -19,7 +19,6 @@ use inkwell::{
     IntPredicate,
 };
 use std::{
-    cmp::Ordering,
     collections::HashMap,
     convert::TryInto
 };
@@ -37,8 +36,8 @@ pub struct IRGenerator {
     variables: HashMap<String, PointerValue>,
     current_fn: Option<FunctionValue>,
 
-    // All statements remaining to be compiled. Reverse order.
-    declarations: Vec<Declaration>,
+    // All declarations remaining to be compiled.
+    decl_list: DeclarationList,
 
     // All types (classes) that were produced by the [Resolver].
     types: HashMap<String, ClassDef>,
@@ -49,41 +48,18 @@ pub struct IRGenerator {
 impl IRGenerator {
     /// Generates IR. Will process all statements given.
     pub fn generate(mut self) -> Option<Module> {
-        // Ensure all classes get generated first by putting them at the top of the stack
-        // Otherwise, functions could try to use them while they are uninitialized
-        self.declarations.sort_by(|a, _b| 
-            if let Declaration::Class(_) = a { Ordering::Greater } else { Ordering::Less }
-        );
+        while !self.decl_list.classes.is_empty() {
+            let class = self.decl_list.classes.pop().unwrap();
+            self.class(class).ok()?;
+        }
 
-        while !self.declarations.is_empty() {
-            let declaration = self.declarations.pop().unwrap();
-            let result = self.declaration(declaration);
-
-            if let Err(msg) = result {
-                eprintln!(
-                    "[IRGen] {} (occurred in function: {})",
-                    msg,
-                    self.cur_fn().get_name().to_str().unwrap()
-                );
-                return None;
-            }
+        while !self.decl_list.functions.is_empty() {
+            let func = self.decl_list.functions.pop().unwrap();
+            self.function(func).ok()?;
         }
 
         self.mpm.run_on(&self.module);
         Some(self.module)
-    }
-
-    /// Compiles a single top-level declaration
-    fn declaration(&mut self, declaration: Declaration) -> Result<(), String> {
-        match declaration {
-            Declaration::Class(class) => self.class(class),
-            Declaration::ExternFunction(_) => Ok(()), // Resolver already declared it; nothing to be done here
-            Declaration::Function(func) => self.function(func),
-            _ => Err(format!(
-                "Encountered unimplemented declaration '{:?}'.",
-                declaration
-            )),
-        }
     }
 
     // TODO: Define methods

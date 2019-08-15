@@ -17,15 +17,15 @@ pub mod lexer;
 pub mod tests;
 
 use inkwell::module::Module;
-use ast::declaration::Declaration;
+use ast::declaration::DeclarationList;
 
-pub fn parse_source(code: &String) -> Option<Vec<Declaration>> {
+pub fn parse_source(code: &String) -> Option<DeclarationList> {
     let lexer = lexer::Lexer::new(code);
     let parser = parser::Parser::new(lexer);
     parser.parse()
 }
 
-pub fn compile_ir(mut declarations: Vec<Declaration>) -> Option<Module> {
+pub fn compile_ir(mut declarations: DeclarationList) -> Option<Module> {
     let mut resolver = codegen::resolver::Resolver::new();
     resolver.resolve(&mut declarations)?;
     let generator = resolver.into_generator(declarations);

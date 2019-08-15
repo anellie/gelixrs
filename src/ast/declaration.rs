@@ -1,27 +1,27 @@
 use super::super::lexer::token::Token;
 use super::expression::Expression;
 
-/// An enum with all declarations that can be in an Gelix AST.
+/// A struct produced by the parser. It contains all types of declarations
+/// that can be emitted during compilation.
 /// A declaration is a language construct that can only appear in top-level and does not produce a value.
 #[derive(Debug)]
-pub enum Declaration {
-    /// A declaration of an external function.
-    ExternFunction(FuncSignature),
-
-    /// A class definition.
-    Class(Class),
-
-    /// An enum definition.
-    Enum {
-        name: Token,
-        variants: Vec<Token>,
-    },
-
-    /// A function definition.
-    Function(Function),
+pub struct DeclarationList {
+    pub classes: Vec<Class>,
+    pub enums: Vec<Enum>,
+    pub ext_functions: Vec<FuncSignature>,
+    pub functions: Vec<Function>
 }
 
-// The below structs are not in the enum directly to allow reuse.
+impl DeclarationList {
+    pub fn new() -> DeclarationList {
+        DeclarationList {
+            classes: Vec::new(),
+            enums: Vec::new(),
+            ext_functions: Vec::new(),
+            functions: Vec::new(),
+        }
+    }
+}
 
 /// A class definition.
 #[derive(Debug)]
@@ -31,7 +31,15 @@ pub struct Class {
     pub methods: Vec<Function>,
 }
 
+/// An enum definition.
+#[derive(Debug)]
+pub struct Enum {
+    pub name: Token,
+    pub variants: Vec<Token>,
+}
+
 /// A function signature.
+/// Also doubles as the node for an external function, as a signature is all it consists of.
 #[derive(Debug)]
 pub struct FuncSignature {
     pub name: Token,

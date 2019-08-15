@@ -45,9 +45,7 @@ fn main() -> Result<(), &'static str> {
     let code = gelixrs::parse_source(&source).ok_or("Parser encountered errors. Exiting.")?;
 
     if args.parse_only {
-        for declaration in code {
-            println!("{:#?}", declaration);
-        }
+        println!("{:#?}", code);
         return Ok(());
     }
 

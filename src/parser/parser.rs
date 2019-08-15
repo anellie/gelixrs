@@ -3,7 +3,7 @@
 
 use super::super::{
     ast::{
-        declaration::{Declaration, Class, FuncSignature, Function, FunctionArg, Variable},
+        declaration::{DeclarationList, Enum, Class, FuncSignature, Function, FunctionArg, Variable},
         expression::Expression,
         literal::Literal,
         statement::Statement,
@@ -37,24 +37,41 @@ mod bin_macro {
 
 // TODO: Implement the rest of the parser.
 impl<'p> Parser<'p> {
-    /// The entry point for generating a statement.
-    /// The reason for returning Option is that the parser will error out and abort the current
-    /// statement when illegal syntax is encountered.
-    /// Note that synchronization is not done on error, and needs to done by the caller.
-    pub fn declaration(&mut self) -> Option<Declaration> {
-        match () {
-            _ if self.match_token(Type::Class) => self.class_declaration(),
-            _ if self.match_token(Type::Enum) => self.enum_declaration(),
-            _ if self.match_token(Type::ExFn) => self.ex_func_declaration(),
-            _ if self.match_token(Type::Func) => Some(Declaration::Function(self.function()?)),
-            _ => {
-                self.error_at_current("Encountered invalid top-level declaration.");
-                None
+    /// Parses the tokens and returns a full AST.
+    pub fn parse(mut self) -> Option<DeclarationList> {
+        let mut list = DeclarationList::new();
+
+        while !self.is_at_end() {
+            // Only true on error
+            if self.declaration(&mut list).is_none() {
+                self.synchronize();
+            }
+        }
+
+        if self.had_error {
+            None
+        } else {
+            Some(list)
         }
     }
+
+    /// The entry point for generating a declaration.
+    /// The reason for returning Option is that the parser will error out and abort the current
+    /// declaration when illegal syntax is encountered.
+    /// Note that synchronization is not done on error, and is done by the caller.
+    pub fn declaration(&mut self, list: &mut DeclarationList) -> Option<()> {
+        match () {
+            _ if self.match_token(Type::Class) => list.classes.push(self.class_declaration()?),
+            _ if self.match_token(Type::Enum) => list.enums.push(self.enum_declaration()?),
+            _ if self.match_token(Type::ExFn) => list.ext_functions.push(self.ex_func_declaration()?),
+            _ if self.match_token(Type::Func) => list.functions.push(self.function()?),
+            _ => self.error_at_current("Encountered invalid top-level declaration.")?,
+        }
+
+        Some(())
     }
 
-    fn ex_func_declaration(&mut self) -> Option<Declaration> {
+    fn ex_func_declaration(&mut self) -> Option<FuncSignature> {
         let name = self.consume(Type::Identifier, "Expected an external function name.")?; 
         self.consume(Type::LeftParen, "Expected '(' after function name.");
 
@@ -78,14 +95,14 @@ impl<'p> Parser<'p> {
             None
         };
 
-        Some(Declaration::ExternFunction(FuncSignature {
+        Some(FuncSignature {
             name,
             return_type,
             parameters,
-        }))
+        })
     }
 
-    fn class_declaration(&mut self) -> Option<Declaration> {
+    fn class_declaration(&mut self) -> Option<Class> {
         let name = self.consume(Type::Identifier, "Expected a class name.")?;
         self.consume(Type::LeftBrace, "Expected '{' before class body.");
 
@@ -102,14 +119,14 @@ impl<'p> Parser<'p> {
         }
 
         self.consume(Type::RightBrace, "Expected '}' after class body.");
-        Some(Declaration::Class(Class {
+        Some(Class {
             name,
             methods,
             variables,
-        }))
+        })
     }
 
-    fn enum_declaration(&mut self) -> Option<Declaration> {
+    fn enum_declaration(&mut self) -> Option<Enum> {
         let name = self.consume(Type::Identifier, "Expected an enum name.")?;
         self.consume(Type::LeftBrace, "Expected '{' before enum body.");
 
@@ -122,19 +139,15 @@ impl<'p> Parser<'p> {
         }
         self.consume(Type::RightBrace, "Expected '}' after enum body.");
 
-        Some(Declaration::Enum { name, variants })
+        Some(Enum { name, variants })
     }
 
     fn function(&mut self) -> Option<Function> {
         // Will generate a declaration that contains everything except a body
-        let func_decl = self.ex_func_declaration()?;
+        let sig = self.ex_func_declaration()?;
 
-        if let Declaration::ExternFunction(sig) = func_decl {
-            let body = self.expression()?;
-            Some(Function { sig, body })
-        } else {
-            panic!("External function generator generated something else!!");
-        }
+        let body = self.expression()?;
+        Some(Function { sig, body })
     }
 
     fn variable(&mut self, is_val: bool) -> Option<Variable> {

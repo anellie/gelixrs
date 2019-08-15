@@ -1,6 +1,6 @@
 use super::super::{
     ast::{
-        declaration::{Declaration, FuncSignature},
+        declaration::{DeclarationList, FuncSignature},
         expression::{LOGICAL_BINARY, Expression},
         literal::Literal,
         statement::Statement,
@@ -43,34 +43,26 @@ pub struct Resolver {
 
 impl Resolver {
     /// Will do all passes after one another.
-    pub fn resolve(&mut self, declarations: &mut Vec<Declaration>) -> Option<()> {
-        for declaration in declarations.iter_mut() {
-            Resolver::check_error(self.first_pass(declaration), &self.current_func_name)?;
-        }
-
-        for declaration in declarations.iter_mut() {
-            Resolver::check_error(self.second_pass(declaration), &self.current_func_name)?;
-        }
-
-        for declaration in declarations.iter_mut() {
-            Resolver::check_error(self.third_pass(declaration), &self.current_func_name)?;
-        }
-
-        for declaration in declarations.iter_mut() {
-            Resolver::check_error(self.fourth_pass(declaration), &self.current_func_name)?;
-        }
-
+    pub fn resolve(&mut self, list: &mut DeclarationList) -> Option<()> {
+        Resolver::check_error(self.first_pass(list), &self.current_func_name)?;
+        Resolver::check_error(self.second_pass(list), &self.current_func_name)?;
+        Resolver::check_error(self.third_pass(list), &self.current_func_name)?;
+        Resolver::check_error(self.fourth_pass(list), &self.current_func_name)?;
         Some(())
     }
 
     /// During the first pass, the types map is filled with all types.
     /// These types are opaque, and filled later.
-    fn first_pass(&mut self, declaration: &Declaration) -> Result<(), String> {
-        match declaration {
-            Declaration::Class(class) => self.declare_type(&class.name),
-            Declaration::Enum { name, variants: _ } => self.declare_type(name),
-            _ => Ok(()),
+    fn first_pass(&mut self, list: &DeclarationList) -> Result<(), String> {
+        for class in &list.classes {
+            self.declare_type(&class.name)?;
         }
+
+        for _enum in &list.enums {
+            self.declare_type(&_enum.name)?;
+        }
+
+        Ok(())
     }
 
     fn declare_type(&mut self, name: &Token) -> Result<(), String> {
@@ -96,28 +88,27 @@ impl Resolver {
     }
 
     /// During the second pass, all functions are declared.
-    fn second_pass(&mut self, declaration: &Declaration) -> Result<(), String> {
-        match declaration {
-            Declaration::ExternFunction(func) => self.create_function(func),
-            Declaration::Function(func) => {
-                self.create_function(&func.sig)?;
-                let function = self
-                    .module
-                    .get_function(&func.sig.name.lexeme)
-                    .ok_or("Internal error: Undefined function.")?;
-
-                // Work around a bug where the builder will cause a segfault when
-                // creating a global string while not having a position set.
-                // This can be an issue when creating default class field values.
-                // https://github.com/TheDan64/inkwell/issues/32
-                let entry = self.context.append_basic_block(&function, "entry");
-                self.builder.position_at_end(&entry);
-
-                Ok(())
-            }
-
-            _ => Ok(()),
+    fn second_pass(&mut self, list: &DeclarationList) -> Result<(), String> {
+        for ext_fn in &list.ext_functions {
+            self.create_function(&ext_fn)?;
         }
+
+        for func in &list.functions {
+            self.create_function(&func.sig)?;
+            let function = self
+                .module
+                .get_function(&func.sig.name.lexeme)
+                .unwrap();
+
+            // Work around a bug where the builder will cause a segfault when
+            // creating a global string while not having a position set.
+            // This can be an issue when creating default class field values.
+            // https://github.com/TheDan64/inkwell/issues/32
+            let entry = self.context.append_basic_block(&function, "entry");
+            self.builder.position_at_end(&entry);
+        }
+
+        Ok(())
     }
 
     fn create_function(&mut self, function: &FuncSignature) -> Result<(), String> {
@@ -159,8 +150,8 @@ impl Resolver {
 
     /// During the third pass, all class structs are filled.
     /// TODO: Structs that have structs as a field won't init properly due to wrong order
-    fn third_pass(&mut self, declaration: &mut Declaration) -> Result<(), String> {
-        if let Declaration::Class(class) = declaration {
+    fn third_pass(&mut self, list: &mut DeclarationList) -> Result<(), String> {
+        for class in list.classes.iter_mut() {
             let mut fields = Vec::with_capacity(class.variables.len());
             let mut fields_map = HashMap::new();
 
@@ -179,27 +170,24 @@ impl Resolver {
 
     /// During the fourth pass, all variables inside functions are checked.
     /// This is to ensure the variable is defined and allowed in the current scope.
-    fn fourth_pass(&mut self, declaration: &mut Declaration) -> Result<(), String> {
-        match declaration {
-            Declaration::Function(func) => {
-                self.current_func_name = func.sig.name.lexeme.to_string();
-                self.current_func =
-                    Some(self.module.get_function(&self.current_func_name).unwrap().get_type());
+    fn fourth_pass(&mut self, list: &mut DeclarationList) -> Result<(), String> {
+        for func in list.functions.iter_mut() {
+            self.current_func_name = func.sig.name.lexeme.to_string();
+            self.current_func =
+                Some(self.module.get_function(&self.current_func_name).unwrap().get_type());
 
-                self.begin_scope();
-                for param in func.sig.parameters.iter_mut() {
-                    let param_type = self.resolve_type(&param._type)?;
-                    self.define_variable(
-                        &mut param.name, 
-                        false, false,
-                        param_type
-                    )?;
-                }
-                self.resolve_expression(&mut func.body)?;
-                self.end_scope();
+            self.begin_scope();
+            for param in func.sig.parameters.iter_mut() {
+                let param_type = self.resolve_type(&param._type)?;
+                self.define_variable(
+                    &mut param.name,
+                    false, false,
+                    param_type
+                )?;
             }
-            _ => (),
-        };
+            self.resolve_expression(&mut func.body)?;
+            self.end_scope();
+        }
 
         Ok(())
     }
@@ -508,7 +496,7 @@ impl Resolver {
     }
 
     /// Turns the resolver into a generator for IR. Call resolve() first.
-    pub fn into_generator(self, mut declarations: Vec<Declaration>) -> IRGenerator {
+    pub fn into_generator(self, decl_list: DeclarationList) -> IRGenerator {
         let mpm = PassManager::create(());
         mpm.add_instruction_combining_pass();
         mpm.add_reassociate_pass();
@@ -518,9 +506,6 @@ impl Resolver {
         mpm.add_promote_memory_to_register_pass();
         mpm.add_instruction_combining_pass();
         mpm.add_reassociate_pass();
-
-        // The generator pops the declarations off the top.
-        declarations.reverse();
 
         let none_const =
             self.types
@@ -541,7 +526,7 @@ impl Resolver {
             variables: HashMap::with_capacity(10),
             current_fn: None,
 
-            declarations,
+            decl_list,
 
             types: self.types,
             none_const,

@@ -3,7 +3,6 @@
 //! to manipulate the stream of tokens.
 
 use super::super::{
-    ast::declaration::Declaration,
     lexer::{
         token::{Token, Type},
         Lexer,
@@ -13,26 +12,7 @@ use super::Parser;
 use std::mem;
 
 impl<'p> Parser<'p> {
-    /// Parses the tokens and returns a full AST.
-    pub fn parse(mut self) -> Option<Vec<Declaration>> {
-        let mut declarations: Vec<Declaration> = Vec::new();
-
-        while !self.is_at_end() {
-            if let Some(f) = self.declaration() {
-                declarations.push(f)
-            } else {
-                self.synchronize();
-            }
-        }
-
-        if self.had_error {
-            None
-        } else {
-            Some(declarations)
-        }
-    }
-
-    /// Checks if the current token is the given type. If yes, it consumes it.
+        /// Checks if the current token is the given type. If yes, it consumes it.
     pub fn match_token(&mut self, t_type: Type) -> bool {
         let matches = self.check(t_type);
         if matches {

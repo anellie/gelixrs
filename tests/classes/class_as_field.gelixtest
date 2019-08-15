@@ -9,10 +9,10 @@ func main() {
     print(test.inner.str)
 }
 
-class Inner {
-    val str = "ok"
-}
-
 class Test {
     val inner = Inner()
+}
+
+class Inner {
+    val str = "ok"
 }
