@@ -2,8 +2,6 @@
 ok
 */
 
-exfn print(String i)
-
 func main() {
     val test = Test()
     print(test.inner.str)

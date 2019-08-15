@@ -85,7 +85,7 @@ impl Resolver {
                 .first_mut()
                 .unwrap()
                 .variables
-                .insert(name.lexeme.to_string(), VarDef::new(false, BasicTypeEnum::StructType(struc)));
+                .insert(name.lexeme.to_string(), VarDef::new(false, struc.into()));
             Ok(())
         } else {
             Err(format!(
@@ -183,13 +183,15 @@ impl Resolver {
         match declaration {
             Declaration::Function(func) => {
                 self.current_func_name = func.sig.name.lexeme.to_string();
-               
+                self.current_func =
+                    Some(self.module.get_function(&self.current_func_name).unwrap().get_type());
+
                 self.begin_scope();
                 for param in func.sig.parameters.iter_mut() {
                     let param_type = self.resolve_type(&param._type)?;
                     self.define_variable(
                         &mut param.name, 
-                        false, 
+                        false, false,
                         param_type
                     )?;
                 }
@@ -206,7 +208,7 @@ impl Resolver {
         match statement {
             Statement::Variable(var) => {
                 let _type = self.resolve_expression(&mut var.initializer)?;
-                self.define_variable(&mut var.name, !var.is_val, _type)?;
+                self.define_variable(&mut var.name, !var.is_val, true, _type)?;
             }
 
             Statement::Expression(expr) => { 
@@ -270,19 +272,25 @@ impl Resolver {
             }
 
             Expression::Call { callee, token: _, arguments } => {
-                // TODO: Kinda messy?
                 let callee = self.resolve_expression(callee)?;
-                if let BasicTypeEnum::PointerType(ptr) = callee {
-                    let func = ptr.get_element_type();
-                    if let AnyTypeEnum::FunctionType(func) = func {
-                        self.check_func_args(func, arguments)?;
-                        Ok(func.get_return_type()
-                            .get_or_insert(self.types.get("None").unwrap()._type.into()).clone())
-                    } else {
-                        Err("Only functions are allowed to be called.".to_string())
+                match callee {
+                    BasicTypeEnum::PointerType(ptr) => {
+                        let func = ptr.get_element_type();
+                        if let AnyTypeEnum::FunctionType(func) = func {
+                            self.check_func_args(func, arguments)?;
+                            Ok(func.get_return_type()
+                                .get_or_insert(self.types.get("None").unwrap()._type.into()).clone())
+                        } else {
+                            Err("Only functions or classes are allowed to be called.".to_string())
+                        }
+                    },
+
+                    BasicTypeEnum::StructType(struc) => {
+                        // TODO: Typecheck init
+                        Ok(struc.into())
                     }
-                } else {
-                    Err("Only functions are allowed to be called.".to_string())
+
+                    _ => Err("Only functions or classes are allowed to be called.".to_string())
                 }
             }
 
@@ -384,6 +392,7 @@ impl Resolver {
         &mut self,
         token: &mut Token,
         mutable: bool,
+        allow_redefine: bool,
         _type: BasicTypeEnum
     ) -> Result<(), String> {
         let def = VarDef::new(mutable, _type);
@@ -395,9 +404,15 @@ impl Resolver {
             cur_env
                 .moved_vars
                 .insert(old_name.clone(), token.lexeme.clone());
-            cur_env
+
+            let was_defined_in_cur_env = cur_env
                 .variables
-                .insert(old_name, def.clone());
+                .insert(old_name, def.clone())
+                .is_some();
+
+            if was_defined_in_cur_env && !allow_redefine {
+                Err(format!("Cannot redefine variable {}.", token.lexeme))?
+            }
         }
 
         let cur_env = self.environments.last_mut().unwrap();

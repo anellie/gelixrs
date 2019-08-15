@@ -192,9 +192,13 @@ impl IRGenerator {
     }
 
     fn block_expr(&mut self, mut statements: Vec<Statement>) -> Result<BasicValueEnum, String> {
+        if statements.is_empty() {
+            return Ok(self.literal(Literal::None))
+        }
+
         statements.reverse();
         loop {
-            let statement = statements.pop().ok_or("Empty block?")?;
+            let statement = statements.pop().unwrap();
 
             if statements.is_empty() {
                 break if let Statement::Expression(expr) = statement {
@@ -203,7 +207,7 @@ impl IRGenerator {
                     self.statement(statement)?;
                     Ok(self.literal(Literal::None))
                 };
-                }
+            }
 
             self.statement(statement)?;
         }
