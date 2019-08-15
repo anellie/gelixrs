@@ -3,7 +3,7 @@
 
 use super::super::{
     ast::{
-        declaration::{Declaration, FuncSignature, Function, FunctionArg, Variable},
+        declaration::{Declaration, Class, FuncSignature, Function, FunctionArg, Variable},
         expression::Expression,
         literal::Literal,
         statement::Statement,
@@ -21,7 +21,7 @@ mod bin_macro {
     #[macro_export]
     macro_rules! binary_op {
         ($name:ident, $next:ident, $matching:expr) => {
-            fn $name(&mut self) -> Option<Expression<'p>> {
+            fn $name(&mut self) -> Option<Expression> {
                 let mut left = self.$next()?;
                 while let Some(operator) = self.match_tokens(&$matching) {
                     let right = self.$next()?;
@@ -40,8 +40,8 @@ impl<'p> Parser<'p> {
     /// The entry point for generating a statement.
     /// The reason for returning Option is that the parser will error out and abort the current
     /// statement when illegal syntax is encountered.
-    /// Note that syncronization is not done on error, and needs to done by the caller.
-    pub fn declaration(&mut self) -> Option<Declaration<'p>> {
+    /// Note that synchronization is not done on error, and needs to done by the caller.
+    pub fn declaration(&mut self) -> Option<Declaration> {
         match () {
             _ if self.match_token(Type::Class) => self.class_declaration(),
             _ if self.match_token(Type::Enum) => self.enum_declaration(),
@@ -54,7 +54,7 @@ impl<'p> Parser<'p> {
     }
     }
 
-    fn ex_func_declaration(&mut self) -> Option<Declaration<'p>> {
+    fn ex_func_declaration(&mut self) -> Option<Declaration> {
         let name = self.consume(Type::Identifier, "Expected an external function name.")?; 
         self.consume(Type::LeftParen, "Expected '(' after function name.");
 
@@ -85,7 +85,7 @@ impl<'p> Parser<'p> {
         }))
     }
 
-    fn class_declaration(&mut self) -> Option<Declaration<'p>> {
+    fn class_declaration(&mut self) -> Option<Declaration> {
         let name = self.consume(Type::Identifier, "Expected a class name.")?;
         self.consume(Type::LeftBrace, "Expected '{' before class body.");
 
@@ -102,14 +102,14 @@ impl<'p> Parser<'p> {
         }
 
         self.consume(Type::RightBrace, "Expected '}' after class body.");
-        Some(Declaration::Class {
+        Some(Declaration::Class(Class {
             name,
             methods,
             variables,
-        })
+        }))
     }
 
-    fn enum_declaration(&mut self) -> Option<Declaration<'p>> {
+    fn enum_declaration(&mut self) -> Option<Declaration> {
         let name = self.consume(Type::Identifier, "Expected an enum name.")?;
         self.consume(Type::LeftBrace, "Expected '{' before enum body.");
 
@@ -125,7 +125,7 @@ impl<'p> Parser<'p> {
         Some(Declaration::Enum { name, variants })
     }
 
-    fn function(&mut self) -> Option<Function<'p>> {
+    fn function(&mut self) -> Option<Function> {
         // Will generate a declaration that contains everything except a body
         let func_decl = self.ex_func_declaration()?;
 
@@ -137,7 +137,7 @@ impl<'p> Parser<'p> {
         }
     }
 
-    fn variable(&mut self, is_val: bool) -> Option<Variable<'p>> {
+    fn variable(&mut self, is_val: bool) -> Option<Variable> {
         let name = self.consume(Type::Identifier, "Expected variable name.")?;
         self.consume(Type::Equal, "Expected '=' after variable name.");
         let initializer = self.expression()?;
@@ -150,7 +150,7 @@ impl<'p> Parser<'p> {
         })
     }
 
-    fn statement(&mut self) -> Option<Statement<'p>> {
+    fn statement(&mut self) -> Option<Statement> {
         match () {
             _ if self.match_token(Type::Error) => self.error_statement(),
             _ if self.match_token(Type::For) => self.for_statement(),
@@ -160,7 +160,7 @@ impl<'p> Parser<'p> {
         }
     }
 
-    fn error_statement(&mut self) -> Option<Statement<'p>> {
+    fn error_statement(&mut self) -> Option<Statement> {
         let mut value = None;
         if !self.check_semi_or_nl() {
             value = Some(self.expression()?);
@@ -169,7 +169,7 @@ impl<'p> Parser<'p> {
         Some(Statement::Error(value))
     }
 
-    fn for_statement(&mut self) -> Option<Statement<'p>> {
+    fn for_statement(&mut self) -> Option<Statement> {
         self.consume(Type::LeftParen, "Expected '(' after 'for'.");
         
         Some(//if self.check_next(Type::In) { // for (x in y)
@@ -184,7 +184,7 @@ impl<'p> Parser<'p> {
         )
     }
 
-    fn expression_statement(&mut self) -> Option<Statement<'p>> {
+    fn expression_statement(&mut self) -> Option<Statement> {
         let requires_semicolon =
             ![Type::If, Type::LeftBrace, Type::When].contains(&self.current.t_type);
         let statement = Statement::Expression(self.expression()?);
@@ -194,7 +194,7 @@ impl<'p> Parser<'p> {
         Some(statement)
     }
 
-    fn expression(&mut self) -> Option<Expression<'p>> {
+    fn expression(&mut self) -> Option<Expression> {
         match () {
             _ if self.match_token(Type::LeftBrace) => self.block(),
             _ if self.match_token(Type::If) => self.if_expression(),
@@ -205,7 +205,7 @@ impl<'p> Parser<'p> {
         }
     }
 
-    fn block(&mut self) -> Option<Expression<'p>> {
+    fn block(&mut self) -> Option<Expression> {
         let mut statements: Vec<Statement> = Vec::new();
         while !self.check(Type::RightBrace) && !self.is_at_end() {
             statements.push(self.statement()?);
@@ -215,7 +215,7 @@ impl<'p> Parser<'p> {
         Some(Expression::Block(statements))
     }
 
-    fn take_expression(&mut self) -> Option<Expression<'p>> {
+    fn take_expression(&mut self) -> Option<Expression> {
         let value = Box::new(self.expression()?);
         let mut else_branch = None;
         if self.match_token(Type::Else) {
@@ -224,7 +224,7 @@ impl<'p> Parser<'p> {
         Some(Expression::Take { value, else_branch })
     }
 
-    fn if_expression(&mut self) -> Option<Expression<'p>> {
+    fn if_expression(&mut self) -> Option<Expression> {
         self.consume(Type::LeftParen, "Expected '(' after 'if'.");
         let condition = Box::new(self.expression()?);
         self.consume(Type::RightParen, "Expected ')' after if condition.");
@@ -242,7 +242,7 @@ impl<'p> Parser<'p> {
         })
     }
 
-    fn return_expression(&mut self) -> Option<Expression<'p>> {
+    fn return_expression(&mut self) -> Option<Expression> {
         let mut value = None;
         if !self.check_semi_or_nl() {
             value = Some(Box::new(self.expression()?));
@@ -251,13 +251,13 @@ impl<'p> Parser<'p> {
         Some(Expression::Return(value))
     }
 
-    fn when_expression(&mut self) -> Option<Expression<'p>> {
+    fn when_expression(&mut self) -> Option<Expression> {
         self.consume(Type::LeftParen, "Expected '(' after 'when'.");
         let value = Box::new(self.expression()?);
         self.consume(Type::RightParen, "Expected ')' after when value.");
         self.consume(Type::LeftBrace, "Expected '{' after when value.");
 
-        let mut branches: Vec<(Expression<'p>, Expression<'p>)> = Vec::new();
+        let mut branches: Vec<(Expression, Expression)> = Vec::new();
         let mut else_branch = None;
         while !self.match_token(Type::RightBrace) {
             if self.match_token(Type::Else) {
@@ -281,7 +281,7 @@ impl<'p> Parser<'p> {
         })
     }
 
-    fn assignment(&mut self) -> Option<Expression<'p>> {
+    fn assignment(&mut self) -> Option<Expression> {
         let expression = self.logic_or()?;
 
         if self.match_token(Type::Equal) {
@@ -289,8 +289,8 @@ impl<'p> Parser<'p> {
             match expression {
                 Expression::Variable(name) => Some(Expression::Assignment { name, value }),
                 Expression::Get { object, name } => Some(Expression::Set {
-                    object: object,
-                    name: name,
+                    object,
+                    name,
                     value,
                 }),
                 _ => {
@@ -311,7 +311,7 @@ impl<'p> Parser<'p> {
     binary_op!(addition, multiplication, [Type::Plus, Type::Minus]);
     binary_op!(multiplication, unary, [Type::Star, Type::Slash]);
 
-    fn unary(&mut self) -> Option<Expression<'p>> {
+    fn unary(&mut self) -> Option<Expression> {
         Some(
             if let Some(operator) = self.match_tokens(&[Type::Bang, Type::Minus]) {
             let right = Box::new(self.unary()?);
@@ -322,7 +322,7 @@ impl<'p> Parser<'p> {
         )
     }
 
-    fn call(&mut self) -> Option<Expression<'p>> {
+    fn call(&mut self) -> Option<Expression> {
         let mut expression = self.primary()?;
         loop {
             match () {
@@ -360,7 +360,7 @@ impl<'p> Parser<'p> {
     }
 
     // TODO: Support for array literals
-    fn primary(&mut self) -> Option<Expression<'p>> {
+    fn primary(&mut self) -> Option<Expression> {
         Some(match () {
             _ if self.match_token(Type::None) => Expression::Literal(Literal::None),
             _ if self.match_token(Type::False) => Expression::Literal(Literal::Bool(false)),
@@ -378,13 +378,13 @@ impl<'p> Parser<'p> {
         })
     }
 
-    fn grouping(&mut self) -> Option<Expression<'p>> {
+    fn grouping(&mut self) -> Option<Expression> {
         let expression = self.expression()?;
         self.consume(Type::RightParen, "Expected ')' after expression.");
         Some(Expression::Grouping(Box::new(expression)))
     }
 
-    fn integer(&mut self) -> Option<Expression<'p>> {
+    fn integer(&mut self) -> Option<Expression> {
         let token = self.advance();
         Some(Expression::Literal(Literal::Int(
             token.lexeme.parse().ok()?,
@@ -392,15 +392,15 @@ impl<'p> Parser<'p> {
     }
 
     // TODO: Support for single-prec float
-    fn float(&mut self) -> Option<Expression<'p>> {
+    fn float(&mut self) -> Option<Expression> {
         let token = self.advance();
         Some(Expression::Literal(Literal::Double(
             token.lexeme.parse().ok()?,
         )))
     }
 
-    fn string(&mut self) -> Expression<'p> {
+    fn string(&mut self) -> Expression {
         let token = self.advance();
-        Expression::Literal(Literal::String(token.lexeme.to_string()))
+        Expression::Literal(Literal::String(token.lexeme))
     }
 }

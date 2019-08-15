@@ -12,24 +12,16 @@ use super::super::{
 use super::Parser;
 use std::mem;
 
-/// A token used when the token stream has ended.
-static EOF_TOKEN: Token = Token {
-    t_type: Type::EndOfFile,
-    lexeme: "\0",
-    line: 0,
-    relocated: None,
-};
-
 impl<'p> Parser<'p> {
     /// Parses the tokens and returns a full AST.
-    pub fn parse(mut self) -> Option<Vec<Declaration<'p>>> {
+    pub fn parse(mut self) -> Option<Vec<Declaration>> {
         let mut declarations: Vec<Declaration> = Vec::new();
 
         while !self.is_at_end() {
             if let Some(f) = self.declaration() {
                 declarations.push(f)
             } else {
-                self.syncronize();
+                self.synchronize();
             }
         }
 
@@ -50,7 +42,7 @@ impl<'p> Parser<'p> {
     }
 
     /// Same as [match_token], but checks for multiple types. Returns the token consumed.
-    pub fn match_tokens(&mut self, types: &[Type]) -> Option<Token<'p>> {
+    pub fn match_tokens(&mut self, types: &[Type]) -> Option<Token> {
         if types.iter().any(|&t| self.check(t)) {
             Some(self.advance())
         } else {
@@ -60,7 +52,7 @@ impl<'p> Parser<'p> {
 
     /// Consumes the current token if it is the type given.
     /// Will return None if the token was not the one that was expected.
-    pub fn consume(&mut self, t_type: Type, message: &'static str) -> Option<Token<'p>> {
+    pub fn consume(&mut self, t_type: Type, message: &'static str) -> Option<Token> {
         if self.check(t_type) {
             Some(self.advance())
         } else {
@@ -83,15 +75,17 @@ impl<'p> Parser<'p> {
     /// Sets self.current to the next token and returns the last token.
     /// If at the end of tokens, self.current is set to an EndOfFile token.
     /// Advancing after the end will simply return EndOfFile tokens indefinitely.
-    pub fn advance(&mut self) -> Token<'p> {
+    pub fn advance(&mut self) -> Token {
         self.previous_line = self.current.line;
 
         let old_token = if let Some(next) = self.tokens.next() {
             mem::replace(&mut self.current, next)
         } else {
-            let mut eof_clone = EOF_TOKEN.clone();
-            eof_clone.line = self.current.line + 1;
-            mem::replace(&mut self.current, eof_clone)
+            let line = self.current.line + 1;
+            mem::replace(
+                &mut self.current, 
+                Parser::eof_token(line)
+            )
         };
 
         if self.check(Type::ScanError) {
@@ -108,7 +102,7 @@ impl<'p> Parser<'p> {
 
     /// Is the next token the given token?
     pub fn check_next(&mut self, t_type: Type) -> bool {
-        self.tokens.peek().get_or_insert(&EOF_TOKEN).t_type == t_type
+        self.tokens.peek().get_or_insert(&self.current).t_type == t_type
     }
 
     /// Same as check, but checks for ; or newlines
@@ -118,7 +112,7 @@ impl<'p> Parser<'p> {
     }
 
     /// Is the parser at the end of the token stream?
-    pub fn is_at_end(&mut self) -> bool {
+    pub fn is_at_end(&self) -> bool {
         self.current.t_type == Type::EndOfFile
     }
 
@@ -145,8 +139,8 @@ impl<'p> Parser<'p> {
 
     /// Will attempt to sync after an error to allow compilation to continue.
     /// This allows displaying more than 1 error at a time.
-    /// To resync, the parser looks for tokens that could indicate the start of a new declaration.
-    pub fn syncronize(&mut self) {
+    /// To re-sync, the parser looks for tokens that could indicate the start of a new declaration.
+    pub fn synchronize(&mut self) {
         // Prevents not properly syncing when a declaration was inside another one
         self.advance();
 
@@ -159,6 +153,14 @@ impl<'p> Parser<'p> {
         }
     }
 
+    fn eof_token(line: usize) -> Token {
+        Token {
+            t_type: Type::EndOfFile,
+            lexeme: "\0".to_string(),
+            line,
+        }
+    }
+
     /// Creates a new parser for parsing the given tokens.
     pub fn new(tokens: Lexer<'p>) -> Parser<'p> {
         let mut parser = Parser {
@@ -166,9 +168,8 @@ impl<'p> Parser<'p> {
 
             current: Token {
                 t_type: Type::None,
-                lexeme: "\n",
+                lexeme: "\n".to_string(),
                 line: 1,
-                relocated: None,
             },
             previous_line: 0,
 

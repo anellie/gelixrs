@@ -3,9 +3,6 @@ ok
 1
 */
 
-exfn print(String a)
-exfn printnum(i64 a)
-
 func main() {
     val test = Test()
     print(test.nice)

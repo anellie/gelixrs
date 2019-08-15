@@ -2,7 +2,7 @@ pub mod resolver;
 
 use super::{
     ast::{
-        declaration::{Declaration, Function, Variable},
+        declaration::{Declaration, Class, Function, Variable},
         expression::Expression,
         literal::Literal,
         statement::Statement,
@@ -26,7 +26,7 @@ use std::{
 
 /// A generator that creates LLVM IR.
 /// Created through a [Resolver].
-pub struct IRGenerator<'i> {
+pub struct IRGenerator {
     /// LLVM-related. Refer to their docs for more info.
     context: Context,
     builder: Builder,
@@ -38,7 +38,7 @@ pub struct IRGenerator<'i> {
     current_fn: Option<FunctionValue>,
 
     // All statements remaining to be compiled. Reverse order.
-    declarations: Vec<Declaration<'i>>,
+    declarations: Vec<Declaration>,
 
     // All types (classes) that were produced by the [Resolver].
     types: HashMap<String, ClassDef>,
@@ -46,13 +46,13 @@ pub struct IRGenerator<'i> {
     none_const: BasicValueEnum,
 }
 
-impl<'i> IRGenerator<'i> {
+impl IRGenerator {
     /// Generates IR. Will process all statements given.
     pub fn generate(mut self) -> Option<Module> {
         // Ensure all classes get generated first by putting them at the top of the stack
         // Otherwise, functions could try to use them while they are uninitialized
         self.declarations.sort_by(|a, _b| 
-            if let Declaration::Class { name: _, variables: _, methods: _ } = a { Ordering::Greater } else { Ordering::Less }
+            if let Declaration::Class(_) = a { Ordering::Greater } else { Ordering::Less }
         );
 
         while !self.declarations.is_empty() {
@@ -61,7 +61,7 @@ impl<'i> IRGenerator<'i> {
 
             if let Err(msg) = result {
                 eprintln!(
-                    "[IRGen] {} (occured in function: {})", 
+                    "[IRGen] {} (occurred in function: {})",
                     msg,
                     self.cur_fn().get_name().to_str().unwrap()
                 );
@@ -76,7 +76,7 @@ impl<'i> IRGenerator<'i> {
     /// Compiles a single top-level declaration
     fn declaration(&mut self, declaration: Declaration) -> Result<(), String> {
         match declaration {
-            Declaration::Class { name, variables, methods } => self.class(name, variables, methods),
+            Declaration::Class(class) => self.class(class),
             Declaration::ExternFunction(_) => Ok(()), // Resolver already declared it; nothing to be done here
             Declaration::Function(func) => self.function(func),
             _ => Err(format!(
@@ -87,13 +87,13 @@ impl<'i> IRGenerator<'i> {
     }
 
     // TODO: Define methods
-    fn class(&mut self, name: Token, variables: Vec<Variable>, _methods: Vec<Function>) -> Result<(), String> {
-        let mut default_values = Vec::with_capacity(variables.len());
-        for var in variables {
+    fn class(&mut self, class: Class) -> Result<(), String> {
+        let mut default_values = Vec::with_capacity(class.variables.len());
+        for var in class.variables {
             default_values.push(self.expression(var.initializer)?);
         }
 
-        let mut class_def = self.types.get_mut(name.lexeme).unwrap();
+        let mut class_def = self.types.get_mut(&class.name.lexeme).unwrap();
         class_def.default_values = Some(default_values);
 
         Ok(())
@@ -103,7 +103,7 @@ impl<'i> IRGenerator<'i> {
     fn function(&mut self, func: Function) -> Result<(), String> {
         let function = self
             .module
-            .get_function(func.sig.name.lexeme)
+            .get_function(&func.sig.name.lexeme)
             .ok_or("Internal error: Undefined function.")?;
         self.current_fn = Some(function);
 
@@ -113,7 +113,7 @@ impl<'i> IRGenerator<'i> {
 
         self.variables.reserve(func.sig.parameters.len());
         for (i, arg) in function.get_param_iter().enumerate() {
-            let arg_name = func.sig.parameters[i].name.lexeme;
+            let arg_name = &func.sig.parameters[i].name.lexeme;
             let alloca = self.create_entry_block_alloca(arg.get_type(), arg_name);
             self.builder.build_store(alloca, arg);
             self.variables.insert(func.sig.parameters[i].name.lexeme.to_string(), alloca);
@@ -153,13 +153,11 @@ impl<'i> IRGenerator<'i> {
     }
 
     fn var_statement(&mut self, var: Variable) -> Result<(), String> {
-        let name = IRGenerator::name_from_token(var.name);
-
         let initial_value = self.expression(var.initializer)?;
-        let alloca = self.create_entry_block_alloca(initial_value.get_type(), &name);
+        let alloca = self.create_entry_block_alloca(initial_value.get_type(), &var.name.lexeme);
 
         self.builder.build_store(alloca, initial_value);
-        self.variables.insert(name, alloca);
+        self.variables.insert(var.name.lexeme, alloca);
 
         Ok(())
     }
@@ -181,7 +179,7 @@ impl<'i> IRGenerator<'i> {
     }
 
     fn assignment(&mut self, token: Token, value: Expression) -> Result<BasicValueEnum, String> {
-        let name = IRGenerator::name_from_token(token);
+        let name = token.lexeme;
 
         let value = self.expression(value)?;
         let var = self
@@ -254,12 +252,12 @@ impl<'i> IRGenerator<'i> {
         arguments: Vec<Expression>,
     ) -> Result<BasicValueEnum, String> {
         if let Expression::Variable(token) = callee {
-            let function = self.module.get_function(token.lexeme);
+            let function = self.module.get_function(&token.lexeme);
             if let Some(function) = function {
                 return self.func_call(function, arguments)
             }
 
-            let class = self.types.get(token.lexeme);
+            let class = self.types.get(&token.lexeme);
             if let Some(class_def) = class {
                 return self.class_call(class_def, arguments)
             }
@@ -294,16 +292,21 @@ impl<'i> IRGenerator<'i> {
     fn class_call(
         &self,
         class: &ClassDef,
-        arguments: Vec<Expression>,
+        _arguments: Vec<Expression>,
     ) -> Result<BasicValueEnum, String> {
-        Ok(BasicValueEnum::StructValue(class._type.const_named_struct(class.default_values.as_ref().unwrap().as_slice())))
+        if let Some(defaults) = &class.default_values {
+            Ok(BasicValueEnum::StructValue(class._type.const_named_struct(defaults.as_slice())))
+        } else {
+            //self.class(class.ast_node); TODO:
+            Ok(BasicValueEnum::StructValue(class._type.const_named_struct(class.default_values.as_ref().unwrap().as_slice())))
+        }
     }
 
     fn get_expression(&mut self, object: Expression, name: Token) -> Result<BasicValueEnum, String> {
         if let Expression::Variable(obj_name) = object {
-            let struc = self.variables.get(obj_name.lexeme).unwrap();
+            let struc = self.variables.get(&obj_name.lexeme).unwrap();
             let struc_def = self.find_class(*struc);
-            let ptr_index = struc_def.var_map.get(name.lexeme).unwrap();
+            let ptr_index = struc_def.var_map.get(&name.lexeme).unwrap();
 
             let ptr = unsafe {
                 self.builder.build_struct_gep(*struc, *ptr_index, "classgep")
@@ -311,7 +314,7 @@ impl<'i> IRGenerator<'i> {
 
             Ok(self.builder.build_load(ptr, "classload"))
         } else {
-            Err("Invaild get expression.".to_string())
+            Err("Invalid get expression.".to_string())
         }
     }
 
@@ -406,10 +409,9 @@ impl<'i> IRGenerator<'i> {
     }
 
     fn variable(&mut self, name: Token) -> Result<BasicValueEnum, String> {
-        let name = IRGenerator::name_from_token(name);
-        match self.variables.get(&name) {
-            Some(var) => Ok(self.builder.build_load(*var, &name)),
-            None => Err(format!("Could not find variable '{}'.", name)),
+        match self.variables.get(&name.lexeme) {
+            Some(var) => Ok(self.builder.build_load(*var, &name.lexeme)),
+            None => Err(format!("Could not find variable '{}'.", name.lexeme)),
         }
     }
 
@@ -418,7 +420,7 @@ impl<'i> IRGenerator<'i> {
         if let AnyTypeEnum::StructType(struc_type) = struc_ptr_type {    
             self.types.iter().find(|&_type| _type.1._type == struc_type).unwrap().1
         } else {
-            panic!("Invaild class instance pointer!!")
+            panic!("Invalid class instance pointer!!")
         }
     }
 
@@ -437,20 +439,12 @@ impl<'i> IRGenerator<'i> {
     fn cur_fn(&self) -> FunctionValue {
         self.current_fn.unwrap()
     }
-
-    fn name_from_token(token: Token) -> String {
-        if let Some(relocated) = token.relocated {
-            relocated
-        } else {
-            token.lexeme.to_string()
-        }
-    }
 }
 
 struct ClassDef {
     pub default_values: Option<Vec<BasicValueEnum>>,
     pub _type: StructType,
-    pub var_map: HashMap<String, u32>
+    pub var_map: HashMap<String, u32>,
 }
 
 impl ClassDef {

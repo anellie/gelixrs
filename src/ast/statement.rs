@@ -4,19 +4,19 @@ use super::expression::Expression;
 /// An enum with all statements that can be in an Gelix AST.
 /// A statement is a language construct that does not return a value, and cannot appear in top-level.
 #[derive(Debug)]
-pub enum Statement<'s> {
+pub enum Statement {
     /// 'error' keyword.
-    Error(Option<Expression<'s>>),
+    Error(Option<Expression>),
 
     /// An [Expression].
-    Expression(Expression<'s>),
+    Expression(Expression),
 
     /// A for loop. Only conditional loops are in the AST; iteration loops are unrolled.
     For {
-        condition: Expression<'s>,
-        body: Expression<'s>,
+        condition: Expression,
+        body: Expression,
     },
 
     /// A variable definition.
-    Variable(Variable<'s>),
+    Variable(Variable),
 }

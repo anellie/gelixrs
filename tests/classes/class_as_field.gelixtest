@@ -1,0 +1,18 @@
+/*
+ok
+*/
+
+exfn print(String i)
+
+func main() {
+    val test = Test()
+    print(test.inner.str)
+}
+
+class Test {
+    val inner = Inner()
+}
+
+class Inner {
+    val str = "ok"
+}

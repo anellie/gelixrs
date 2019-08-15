@@ -1,16 +1,12 @@
 /// A token in the gelix language. These are produced by a [Lexer].
 #[derive(Debug, Clone)]
-pub struct Token<'t> {
+pub struct Token {
     /// The type of the token.
     pub t_type: Type,
-    /// The lexeme of the token. Does not escape chars (ex. String lexeme is <i>I'm a string!</i>)
-    pub lexeme: &'t str,
+    /// The lexeme of the token. Does not include escape chars (ex. String lexeme is <i>I'm a string!</i>)
+    pub lexeme: String,
     /// The line the token is on.
     pub line: usize,
-
-    /// Used only for variables that were renamed due to scoping collisions.
-    /// TODO: This is a terrible hack and a bad idea.
-    pub relocated: Option<String>,
 }
 
 // All types of tokens available. Most are keywords or special chars.

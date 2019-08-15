@@ -3,9 +3,9 @@ pub mod token;
 use token::{Token, Type};
 
 /// A lexer is an iterator that turns gelix source code into [Token]s.
-pub struct Lexer<'t> {
+pub struct Lexer<'l> {
     /// The source it is turning into tokens
-    source: &'t str,
+    source: &'l str,
     /// The chars of the source
     chars: Vec<char>,
     /// The start position of the token currently being scanned
@@ -20,9 +20,9 @@ pub struct Lexer<'t> {
     current_offset: usize,
 }
 
-impl<'t> Lexer<'t> {
+impl<'l> Lexer<'l> {
     /// Returns the next token, or None if at EOF.
-    fn next_token(&mut self) -> Option<Token<'t>> {
+    fn next_token(&mut self) -> Option<Token> {
         self.skip_whitespace();
         self.start = self.current;
         self.start_offset = self.current_offset;
@@ -64,7 +64,7 @@ impl<'t> Lexer<'t> {
     }
 
     /// Matches the next char to check for double-char tokens. Will emit token based on match.
-    fn check_double_token(&mut self, next: char, matched: Type, not_matched: Type) -> Token<'t> {
+    fn check_double_token(&mut self, next: char, matched: Type, not_matched: Type) -> Token {
         let token = if self.match_next(next) {
             matched
         } else {
@@ -74,7 +74,7 @@ impl<'t> Lexer<'t> {
     }
 
     /// Creates an identifier or keyword token.
-    fn identifier(&mut self) -> Token<'t> {
+    fn identifier(&mut self) -> Token {
         while self.peek().is_alphanumeric() || self.check('_') {
             self.advance();
         }
@@ -164,7 +164,7 @@ impl<'t> Lexer<'t> {
     }
 
     /// Creates a Int or Float token
-    fn number(&mut self) -> Token<'t> {
+    fn number(&mut self) -> Token {
         while self.peek().is_ascii_digit() {
             self.advance();
         }
@@ -181,7 +181,7 @@ impl<'t> Lexer<'t> {
     }
 
     /// Creates a string token
-    fn string(&mut self) -> Token<'t> {
+    fn string(&mut self) -> Token {
         let start_line = self.line;
         while !self.check('"') && !self.is_at_end() {
             if self.check('\n') {
@@ -204,7 +204,7 @@ impl<'t> Lexer<'t> {
     }
 
     /// Creates a char token
-    fn ch(&mut self) -> Token<'t> {
+    fn ch(&mut self) -> Token {
         self.advance();
         if self.match_next('\'') {
             self.make_token(Type::Char)
@@ -215,23 +215,21 @@ impl<'t> Lexer<'t> {
     }
 
     /// Creates a token based on the current position of self.start and self.current
-    fn make_token(&mut self, t_type: Type) -> Token<'t> {
+    fn make_token(&mut self, t_type: Type) -> Token {
         Token {
             t_type,
-            lexeme: &self.source
-                [(self.start + self.start_offset)..(self.current + self.current_offset)],
+            lexeme: self.source
+                [(self.start + self.start_offset)..(self.current + self.current_offset)].to_string(),
             line: self.line,
-            relocated: None,
         }
     }
 
     /// Creates a ScanError token with the given message at the current location
-    fn error_token(&mut self, message: &'t str) -> Token<'t> {
+    fn error_token(&mut self, message: &'l str) -> Token {
         Token {
             t_type: Type::ScanError,
-            lexeme: message,
+            lexeme: message.to_string(),
             line: self.line,
-            relocated: None,
         }
     }
 
@@ -332,7 +330,7 @@ impl<'t> Lexer<'t> {
     }
 
     /// Create a new lexer for scanning the given source.
-    pub fn new(source: &'t str) -> Lexer {
+    pub fn new(source: &'l str) -> Lexer {
         let chars: Vec<char> = source.chars().collect();
         Lexer {
             source,
@@ -346,8 +344,8 @@ impl<'t> Lexer<'t> {
     }
 }
 
-impl<'t> Iterator for Lexer<'t> {
-    type Item = Token<'t>;
+impl<'l> Iterator for Lexer<'l> {
+    type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.next_token()

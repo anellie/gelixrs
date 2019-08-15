@@ -10,10 +10,11 @@ pub struct Parser<'p> {
     tokens: Peekable<Lexer<'p>>,
 
     /// The token currently being processed.
-    current: Token<'p>,
+    current: Token,
     /// The line of the token before the current one.
     previous_line: usize,
 
-    /// If an error occured while creating a statement. Will signal the compiler that it should not compile.
+    /// If an error occurred while creating a statement. 
+    /// Will signal the compiler that it should not compile.
     had_error: bool,
 }

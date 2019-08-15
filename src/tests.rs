@@ -3,13 +3,13 @@ use std::{
     ffi::CStr,
     fs::read_to_string, 
     path::PathBuf,
-    sync::Mutex
+    sync::Mutex,
+    os::raw::c_char
 };
 use inkwell::{
     OptimizationLevel,
     execution_engine::JitFunction
 };
-
 
 type MainFn = unsafe extern "C" fn();
 
@@ -18,7 +18,7 @@ lazy_static! {
 }
 
 #[no_mangle]
-extern fn test_print(string: *const i8) {
+extern fn test_print(string: *const c_char) {
     let string = unsafe { CStr::from_ptr(string) };
     RESULT.lock().unwrap().push_str(&format!("{}\n", string.to_str().unwrap()));
 }

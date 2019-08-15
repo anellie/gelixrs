@@ -19,7 +19,7 @@ pub mod tests;
 use inkwell::module::Module;
 use ast::declaration::Declaration;
 
-pub fn parse_source<'s>(code: &'s String) -> Option<Vec<Declaration<'s>>> {
+pub fn parse_source(code: &String) -> Option<Vec<Declaration>> {
     let lexer = lexer::Lexer::new(code);
     let parser = parser::Parser::new(lexer);
     parser.parse()

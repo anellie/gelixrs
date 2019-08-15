@@ -1,3 +1,4 @@
 /target
 /stdlib/target
 **/*.rs.bk
+.idea

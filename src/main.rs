@@ -92,7 +92,7 @@ fn main() -> Result<(), &'static str> {
             return Err("Compiling to native binary failed. Please try compiling with clang manually using --ir.")
         }
     } else {
-        return Err("Envoking clang for compiling failed. Please ensure clang is installed correctly.")
+        return Err("Evoking clang for compiling failed. Please ensure clang is installed correctly.")
     }
 
     println!("Compilation successful! Compiled to file '{}'.", args.output.to_str().unwrap());

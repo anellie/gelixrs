@@ -4,55 +4,59 @@ use super::expression::Expression;
 /// An enum with all declarations that can be in an Gelix AST.
 /// A declaration is a language construct that can only appear in top-level and does not produce a value.
 #[derive(Debug)]
-pub enum Declaration<'s> {
+pub enum Declaration {
     /// A declaration of an external function.
-    ExternFunction(FuncSignature<'s>),
+    ExternFunction(FuncSignature),
 
     /// A class definition.
-    Class {
-        name: Token<'s>,
-        variables: Vec<Variable<'s>>,
-        methods: Vec<Function<'s>>,
-    },
+    Class(Class),
 
     /// An enum definition.
     Enum {
-        name: Token<'s>,
-        variants: Vec<Token<'s>>,
+        name: Token,
+        variants: Vec<Token>,
     },
 
     /// A function definition.
-    Function(Function<'s>),
+    Function(Function),
 }
 
 // The below structs are not in the enum directly to allow reuse.
 
+/// A class definition.
+#[derive(Debug)]
+pub struct Class {
+    pub name: Token,
+    pub variables: Vec<Variable>,
+    pub methods: Vec<Function>,
+}
+
 /// A function signature.
 #[derive(Debug)]
-pub struct FuncSignature<'f> {
-    pub name: Token<'f>,
-    pub return_type: Option<Token<'f>>,
-    pub parameters: Vec<FunctionArg<'f>>,
+pub struct FuncSignature {
+    pub name: Token,
+    pub return_type: Option<Token>,
+    pub parameters: Vec<FunctionArg>,
 }
 
 /// A function argument.
 #[derive(Debug)]
-pub struct FunctionArg<'a> {
-    pub _type: Token<'a>,
-    pub name: Token<'a>,
+pub struct FunctionArg {
+    pub _type: Token,
+    pub name: Token,
 }
 
 /// A function definition.
 #[derive(Debug)]
-pub struct Function<'f> {
-    pub sig: FuncSignature<'f>,
-    pub body: Expression<'f>,
+pub struct Function {
+    pub sig: FuncSignature,
+    pub body: Expression,
 }
 
 /// A variable definition.
 #[derive(Debug)]
-pub struct Variable<'v> {
-    pub name: Token<'v>,
+pub struct Variable {
+    pub name: Token,
     pub is_val: bool,
-    pub initializer: Expression<'v>,
+    pub initializer: Expression,
 }

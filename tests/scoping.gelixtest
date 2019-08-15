@@ -1,15 +1,22 @@
 /*
+innerst
 inner
 outer
 */
 
 func main() {
-  var a = "outer"
+    var a = "outer"
 
-  {
-    var a = "inner"
+    {
+        var a = "inner"
+
+        {
+            var a = "innerst"
+            print(a)
+        }
+
+        print(a)
+    }
+
     print(a)
-  }
-
-  print(a)
 }

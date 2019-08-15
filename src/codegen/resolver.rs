@@ -18,6 +18,7 @@ use inkwell::{
     AddressSpace,
 };
 use std::collections::HashMap;
+use std::mem;
 
 /// A resolver. Resolves all variables and types.
 pub struct Resolver {
@@ -61,17 +62,17 @@ impl Resolver {
     }
 
     /// During the first pass, the types map is filled with all types.
-    /// These types are opague, and filled later.
+    /// These types are opaque, and filled later.
     fn first_pass(&mut self, declaration: &Declaration) -> Result<(), String> {
         match declaration {
-            Declaration::Class { name, variables: _, methods: _, } => self.declare_type(name),
+            Declaration::Class(class) => self.declare_type(&class.name),
             Declaration::Enum { name, variants: _ } => self.declare_type(name),
             _ => Ok(()),
         }
     }
 
     fn declare_type(&mut self, name: &Token) -> Result<(), String> {
-        let struc = self.context.opaque_struct_type(name.lexeme);
+        let struc = self.context.opaque_struct_type(&name.lexeme);
         let exists = self.types.insert(
             name.lexeme.to_string(),
             ClassDef::new(struc)
@@ -100,7 +101,7 @@ impl Resolver {
                 self.create_function(&func.sig)?;
                 let function = self
                     .module
-                    .get_function(func.sig.name.lexeme)
+                    .get_function(&func.sig.name.lexeme)
                     .ok_or("Internal error: Undefined function.")?;
 
                 // Work around a bug where the builder will cause a segfault when
@@ -143,7 +144,7 @@ impl Resolver {
             self.context.void_type().fn_type(&parameters, false)
         };
 
-        self.module.add_function(function.name.lexeme, fn_type, None);
+        self.module.add_function(&function.name.lexeme, fn_type, None);
         // TODO: Using the function as a variable gets incorrectly resolved to the return type
         self.environments
             .first_mut()
@@ -156,16 +157,16 @@ impl Resolver {
     /// During the third pass, all class structs are filled.
     /// TODO: Structs that have structs as a field won't init properly due to wrong order
     fn third_pass(&mut self, declaration: &mut Declaration) -> Result<(), String> {
-        if let Declaration::Class { name, variables, methods: _ } = declaration {
-            let mut fields = Vec::with_capacity(variables.len());
+        if let Declaration::Class(class) = declaration {
+            let mut fields = Vec::with_capacity(class.variables.len());
             let mut fields_map = HashMap::new();
 
-            for (i, field) in variables.iter_mut().enumerate() {
+            for (i, field) in class.variables.iter_mut().enumerate() {
                 fields.push(self.resolve_expression(&mut field.initializer)?);
                 fields_map.insert(field.name.lexeme.to_string(), i as u32);
             }
 
-            let mut class_def = self.types.get_mut(name.lexeme).unwrap();
+            let mut class_def = self.types.get_mut(&class.name.lexeme).unwrap();
             class_def._type.set_body(fields.as_slice(), false);
             class_def.var_map = fields_map;
         }
@@ -185,7 +186,7 @@ impl Resolver {
                     let param_type = self.resolve_type(&param._type)?;
                     self.define_variable(
                         &mut param.name, 
-                        false, false, 
+                        false, 
                         param_type
                     )?;
                 }
@@ -202,7 +203,7 @@ impl Resolver {
         match statement {
             Statement::Variable(var) => {
                 let _type = self.resolve_expression(&mut var.initializer)?;
-                self.define_variable(&mut var.name, !var.is_val, true, _type)?;
+                self.define_variable(&mut var.name, !var.is_val, _type)?;
             }
 
             Statement::Expression(expr) => { 
@@ -279,7 +280,7 @@ impl Resolver {
 
                 if let BasicTypeEnum::StructType(struc) = object {
                     let class_def = self.find_class(struc);
-                    let index = class_def.var_map.get(name.lexeme).ok_or(format!("Unknown class field '{}'.", name.lexeme))?;
+                    let index = class_def.var_map.get(&name.lexeme).ok_or(format!("Unknown class field '{}'.", name.lexeme))?;
                     class_def._type.get_field_type_at_index(*index).ok_or("Internal error trying to get class field.".to_string())
                 } else {
                     Err("Get syntax (x.y) is only supported on class instances.".to_string())
@@ -322,7 +323,7 @@ impl Resolver {
     }
 
     fn resolve_type(&mut self, token: &Token) -> Result<BasicTypeEnum, String> {
-        self.get_type(token.lexeme)
+        self.get_type(&token.lexeme)
     }
 
     fn get_type(&mut self, name: &str) -> Result<BasicTypeEnum, String> {
@@ -365,53 +366,41 @@ impl Resolver {
         &mut self,
         token: &mut Token,
         mutable: bool,
-        allow_redefine: bool,
         _type: BasicTypeEnum
     ) -> Result<(), String> {
-        let name = token.lexeme.to_string();
+        let def = VarDef::new(mutable, _type);
 
         if self.find_var(token).is_ok() {
-            let new_name = format!("{}-{}", name, self.environment_counter);
-            self.environments
-                .last_mut()
-                .unwrap()
+            let cur_env = self.environments.last_mut().unwrap();
+            let new_name = format!("{}-{}", token.lexeme, self.environment_counter);
+            let old_name = mem::replace(&mut token.lexeme, new_name);
+            cur_env
                 .moved_vars
-                .insert(name.clone(), new_name.clone());
-            token.relocated = Some(new_name);
+                .insert(old_name.clone(), token.lexeme.clone());
+            cur_env
+                .variables
+                .insert(old_name, def.clone());
         }
 
-        let was_defined = self
-            .environments
-            .last_mut()
-            .unwrap()
+        let cur_env = self.environments.last_mut().unwrap();
+        cur_env
             .variables
-            .insert(name, VarDef::new(mutable, _type))
-            .is_some();
-        
-        if was_defined && !allow_redefine {
-            Err(format!(
-                "Variable {} cannot be redefined in the same scope.",
-                token.lexeme
-            ))
-        } else {
-            Ok(())
-        }
+            .insert(token.lexeme.to_string(), def);
+
+        Ok(())
     }
 
     fn find_var(&mut self, token: &mut Token) -> Result<VarDef, String> {
-        let name = token.lexeme.to_string();
-
         for env in self.environments.iter().rev() {
-            if env.variables.contains_key(&name) {
-                if env.moved_vars.contains_key(&name) {
-                    token.relocated = Some(env.moved_vars.get(&name).unwrap().to_string());
+            if let Some(var) = env.variables.get(&token.lexeme) {
+                if env.moved_vars.contains_key(&token.lexeme) {
+                    token.lexeme = env.moved_vars.get(&token.lexeme).unwrap().to_string();
                 }
-                // TODO: Cloning is not ideal, but I think BasicTypeEnum is just a pointer anyways
-                return Ok(env.variables.get(&name).unwrap().clone());
+                return Ok(var.clone());
             }
         }
 
-        Err(format!("Variable {} is not defined.", name))
+        Err(format!("Variable {} is not defined.", token.lexeme))
     }
 
     fn find_class(&mut self, struc: StructType) -> &ClassDef {
@@ -429,7 +418,7 @@ impl Resolver {
 
     fn check_error(result: Result<(), String>, func: &String) -> Option<()> {
         result.or_else(|err| {
-            eprintln!("[Resolver] {} (occured in function: {})", err, func);
+            eprintln!("[Resolver] {} (occurred in function: {})", err, func);
             Err(())
         }).ok()
     }
@@ -503,6 +492,7 @@ impl Resolver {
 
 /// An environment holds all variables in the current scope.
 /// To keep track of all variables, a stack of them is used.
+#[derive(Debug)]
 struct Environment {
     /// Key = name; all variables in this environment/scope
     variables: HashMap<String, VarDef>,
@@ -520,7 +510,7 @@ impl Environment {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct VarDef {
     pub mutable: bool,
     pub _type: BasicTypeEnum 
