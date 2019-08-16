@@ -1,6 +1,6 @@
 use super::super::{
     ast::{
-        declaration::{DeclarationList, FuncSignature},
+        declaration::{DeclarationList, Class, FuncSignature},
         expression::{Expression, LOGICAL_BINARY},
         literal::Literal,
         statement::Statement,
@@ -19,6 +19,8 @@ use inkwell::{
 };
 use std::collections::HashMap;
 use std::mem;
+use crate::ast::declaration::Function;
+use crate::lexer::token::Type;
 
 /// A resolver. Resolves all variables and types.
 pub struct Resolver {
@@ -44,11 +46,17 @@ pub struct Resolver {
 impl Resolver {
     /// Will do all passes after one another.
     pub fn resolve(&mut self, list: &mut DeclarationList) -> Option<()> {
-        Resolver::check_error(self.first_pass(list), &self.current_func_name)?;
-        Resolver::check_error(self.second_pass(list), &self.current_func_name)?;
-        Resolver::check_error(self.third_pass(list), &self.current_func_name)?;
-        Resolver::check_error(self.fourth_pass(list), &self.current_func_name)?;
-        Some(())
+        self.run(list).or_else(|err| {
+            eprintln!("[Resolver] {} (occurred in function: {})", err, &self.current_func_name);
+            Err(())
+        }).ok()
+    }
+
+    fn run(&mut self, list: &mut DeclarationList) -> Result<(), String> {
+        self.first_pass(list)?;
+        self.second_pass(list)?;
+        self.third_pass(list)?;
+        self.fourth_pass(list)
     }
 
     /// During the first pass, the types map is filled with all types.
@@ -87,22 +95,26 @@ impl Resolver {
     }
 
     /// During the second pass, all functions are declared.
-    fn second_pass(&mut self, list: &DeclarationList) -> Result<(), String> {
+    fn second_pass(&mut self, list: &mut DeclarationList) -> Result<(), String> {
         for ext_fn in &list.ext_functions {
             self.create_function(&ext_fn)?;
         }
 
         for func in &list.functions {
             self.create_function(&func.sig)?;
-            let function = self.module.get_function(&func.sig.name.lexeme).unwrap();
+        }
 
-            // Work around a bug where the builder will cause a segfault when
-            // creating a global string while not having a position set.
-            // This can be an issue when creating default class field values.
-            // https://github.com/TheDan64/inkwell/issues/32
-            // TODO: Will this still be needed when class init will be called?
-            let entry = self.context.append_basic_block(&function, "entry");
-            self.builder.position_at_end(&entry);
+        for class in list.classes.iter_mut() {
+            self.create_initializer(class)?;
+
+            for func in class.methods.iter_mut() {
+                let old_name = func.sig.name.lexeme.clone();
+                func.sig.name.lexeme = format!("{}-{}", class.name.lexeme, func.sig.name.lexeme);
+
+                self.create_function(&func.sig)?;
+                let class_def = self.types.get_mut(&class.name.lexeme).unwrap();
+                class_def.methods.insert(old_name, self.module.get_function(&func.sig.name.lexeme).unwrap());
+            }
         }
 
         Ok(())
@@ -139,6 +151,20 @@ impl Resolver {
             function.name.lexeme.to_string(),
             VarDef::new(false, fn_type.ptr_type(AddressSpace::Const).into()),
         );
+        Ok(())
+    }
+
+    fn create_initializer(&mut self, class: &mut Class) -> Result<(), String> {
+        let init_fn = Function {
+            sig: FuncSignature {
+                name: Token::generic_identifier("init".to_string()),
+                return_type: Some(class.name.clone()),
+                parameters: Vec::new()
+            },
+            body: Expression::Block(Vec::new())
+        };
+
+        class.methods.push(init_fn);
         Ok(())
     }
 
@@ -282,15 +308,7 @@ impl Resolver {
                 let object = self.resolve_expression(object)?;
 
                 if let BasicTypeEnum::StructType(struc) = object {
-                    let class_def = self.find_class(struc);
-                    let index = class_def
-                        .var_map
-                        .get(&name.lexeme)
-                        .ok_or(format!("Unknown class field '{}'.", name.lexeme))?;
-                    class_def
-                        ._type
-                        .get_field_type_at_index(*index)
-                        .ok_or("Internal error trying to get class field.".to_string())
+                    self.resolve_class_get(struc, name)
                 } else {
                     Err("Get syntax (x.y) is only supported on class instances.".to_string())
                 }
@@ -336,6 +354,25 @@ impl Resolver {
 
             _ => Err("Encountered unimplemented expression.")?,
         }
+    }
+
+    fn resolve_class_get(&mut self, struc: StructType, name: &mut Token) -> Result<BasicTypeEnum, String> {
+        let class_def = self.find_class(struc);
+
+        let var_index = class_def.var_map.get(&name.lexeme);
+        if let Some(index) = var_index {
+            return class_def
+                ._type
+                .get_field_type_at_index(*index)
+                .ok_or("Internal error trying to get class field.".to_string());
+        }
+
+        let method = class_def.methods.get(&name.lexeme);
+        if let Some(method) = method {
+            return Ok(method.as_global_value().as_pointer_value().get_type().into());
+        }
+
+        Err(format!("Unknown class field '{}'.", name.lexeme))
     }
 
     fn resolve_type(&mut self, token: &Token) -> Result<BasicTypeEnum, String> {
@@ -462,13 +499,6 @@ impl Resolver {
 
     fn cur_fn(&self) -> FunctionType {
         self.current_func.unwrap()
-    }
-
-    fn check_error(result: Result<(), String>, func: &String) -> Option<()> {
-        result.or_else(|err| {
-            eprintln!("[Resolver] {} (occurred in function: {})", err, func);
-            Err(())
-        }).ok()
     }
 
     pub fn new() -> Resolver {

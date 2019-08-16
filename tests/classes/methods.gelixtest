@@ -1,0 +1,20 @@
+/*
+I'm a method!
+*/
+
+exfn printnum(i64 a)
+
+func main() {
+    var test = Test()
+    printnum(test.whoAmI())
+}
+
+
+class Test {
+
+    var hmm = 5
+
+    func whoAmI() -> i64 {
+        return 3
+    }
+}

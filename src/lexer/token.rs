@@ -17,6 +17,14 @@ impl Token {
             line,
         }
     }
+
+    pub fn generic_identifier(lexeme: String) -> Token {
+        Token {
+            t_type: Type::Identifier,
+            lexeme,
+            line: 0
+        }
+    }
 }
 
 /// All types of tokens available. Most are keywords or special chars.

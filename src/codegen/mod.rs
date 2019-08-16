@@ -59,7 +59,6 @@ impl IRGenerator {
         Some(self.module)
     }
 
-    // TODO: Define methods
     fn class(&mut self, class: Class) -> Result<(), String> {
         let mut default_values = Vec::with_capacity(class.variables.len());
         for var in class.variables {
@@ -68,6 +67,10 @@ impl IRGenerator {
 
         let mut class_def = self.types.get_mut(&class.name.lexeme).unwrap();
         class_def.default_values = Some(default_values);
+
+        for method in class.methods {
+            self.function(method)?;
+        }
 
         Ok(())
     }
@@ -80,8 +83,7 @@ impl IRGenerator {
             .ok_or("Internal error: Undefined function.")?;
         self.current_fn = Some(function);
 
-        // See second_pass() in the resolver for why the function already has a block.
-        let entry = function.get_first_basic_block().unwrap();
+        let entry = self.context.append_basic_block(&function, "entry");
         self.builder.position_at_end(&entry);
 
         self.variables.reserve(func.sig.parameters.len());
@@ -225,23 +227,42 @@ impl IRGenerator {
         callee: Expression,
         arguments: Vec<Expression>,
     ) -> Result<BasicValueEnum, String> {
-        if let Expression::Variable(token) = callee {
-            let function = self.module.get_function(&token.lexeme);
-            if let Some(function) = function {
-                return self.func_call(function, arguments);
+        match callee {
+            Expression::Variable(token) => {
+                let function = self.module.get_function(&token.lexeme);
+                if let Some(function) = function {
+                    return self.func_call(function, arguments);
+                }
+
+                let class = self.types.get(&token.lexeme);
+                if let Some(class_def) = class {
+                    return self.class_call(class_def, arguments);
+                }
+
+                Err(format!(
+                    "Could not find matching func or class '{}' to call.",
+                    token.lexeme
+                ))
             }
 
-            let class = self.types.get(&token.lexeme);
-            if let Some(class_def) = class {
-                return self.class_call(class_def, arguments);
+            // TODO: This is terrible
+            Expression::Get { object, name } => {
+                let obj = self.expression(*object)?;
+
+                if let BasicValueEnum::StructValue(struc) = obj {
+                    let struc_type = struc.get_type();
+                    let class_def = self.types
+                        .iter()
+                        .find(|&_type| _type.1._type == struc_type)
+                        .unwrap()
+                        .1;
+                    return self.func_call(class_def.methods.get(&name.lexeme).unwrap().clone(), arguments);
+                }
+
+                Err("".to_string())
             }
 
-            Err(format!(
-                "Could not find matching func or class '{}' to call.",
-                token.lexeme
-            ))
-        } else {
-            Err("Unsupported callee.".to_string())?
+            _ => Err("Unsupported callee.".to_string())?
         }
     }
 
@@ -455,6 +476,7 @@ struct ClassDef {
     pub default_values: Option<Vec<BasicValueEnum>>,
     pub _type: StructType,
     pub var_map: HashMap<String, u32>,
+    pub methods: HashMap<String, FunctionValue>
 }
 
 impl ClassDef {
@@ -463,6 +485,7 @@ impl ClassDef {
             default_values: None,
             _type,
             var_map: HashMap::new(),
+            methods: HashMap::new()
         }
     }
 }
