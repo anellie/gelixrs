@@ -2,9 +2,6 @@
 #![feature(associated_type_bounds)]
 
 #[macro_use]
-extern crate plain_enum;
-
-#[macro_use]
 #[cfg(test)]
 extern crate lazy_static;
 

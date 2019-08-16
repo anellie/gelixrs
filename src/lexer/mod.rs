@@ -3,9 +3,7 @@ pub mod token;
 use token::{Token, Type};
 
 /// A lexer is an iterator that turns gelix source code into [Token]s.
-pub struct Lexer<'l> {
-    /// The source it is turning into tokens
-    source: &'l str,
+pub struct Lexer {
     /// The chars of the source
     chars: Vec<char>,
     /// The start position of the token currently being scanned
@@ -14,18 +12,13 @@ pub struct Lexer<'l> {
     current: usize,
     /// The line of the current position
     line: usize,
-
-    // The offsets of the source compared to chars, based on unicode characters wider than 1 byte
-    start_offset: usize,
-    current_offset: usize,
 }
 
-impl<'l> Lexer<'l> {
+impl Lexer {
     /// Returns the next token, or None if at EOF.
     fn next_token(&mut self) -> Option<Token> {
         self.skip_whitespace();
         self.start = self.current;
-        self.start_offset = self.current_offset;
 
         let ch = self.advance()?;
 
@@ -85,7 +78,7 @@ impl<'l> Lexer<'l> {
     /// TODO: This is really ugly and hard to read.
     /// Just using a map or similar should be much easier to read with little performance impact.
     fn identifier_type(&self) -> Type {
-        match self.chars[self.start] {
+        match self.char_at(self.start) {
             'a' => self.check_identifier_keyword(1, &['n', 'd'], Type::And),
             'n' => self.check_identifier_keyword(1, &['o', 'n', 'e'], Type::None),
             'o' => self.check_identifier_keyword(1, &['r'], Type::Or),
@@ -94,17 +87,17 @@ impl<'l> Lexer<'l> {
             'w' => self.check_identifier_keyword(1, &['h', 'e', 'n'], Type::When),
             'c' => self.check_identifier_keyword(1, &['l', 'a', 's', 's'], Type::Class),
 
-            'i' => match self.chars[self.start + 1] {
+            'i' => match self.char_at(self.start + 1) {
                 'f' => self.check_identifier_keyword(2, &[], Type::If),
                 'n' => self.check_identifier_keyword(2, &[], Type::In),
                 _ => Type::Identifier,
             },
 
-            'e' => match self.chars[self.start + 1] {
+            'e' => match self.char_at(self.start + 1) {
                 'l' => self.check_identifier_keyword(2, &['s', 'e'], Type::Else),
                 'n' => self.check_identifier_keyword(2, &['u', 'm'], Type::Enum),
                 'r' => self.check_identifier_keyword(2, &['r', 'o', 'r'], Type::Error),
-                'x' => match self.chars[self.start + 2] {
+                'x' => match self.char_at(self.start + 2) {
                     'f' => self.check_identifier_keyword(3, &['n'], Type::ExFn),
                     't' => self.check_identifier_keyword(3, &[], Type::Ext),
                     _ => Type::Identifier,
@@ -113,8 +106,8 @@ impl<'l> Lexer<'l> {
             },
 
             'v' => {
-                if self.chars[self.start + 1] == 'a' {
-                    match self.chars[self.start + 2] {
+                if self.char_at(self.start + 1) == 'a' {
+                    match self.char_at(self.start + 2) {
                         'r' => self.check_identifier_keyword(3, &[], Type::Var),
                         'l' => self.check_identifier_keyword(3, &[], Type::Val),
                         _ => Type::Identifier,
@@ -124,14 +117,14 @@ impl<'l> Lexer<'l> {
                 }
             }
 
-            'f' => match self.chars[self.start + 1] {
+            'f' => match self.char_at(self.start + 1) {
                 'a' => self.check_identifier_keyword(2, &['l', 's', 'e'], Type::False),
                 'o' => self.check_identifier_keyword(2, &['r'], Type::For),
                 'u' => self.check_identifier_keyword(2, &['n', 'c'], Type::Func),
                 _ => Type::Identifier,
             },
 
-            't' => match self.chars[self.start + 1] {
+            't' => match self.char_at(self.start + 1) {
                 'a' => self.check_identifier_keyword(2, &['k', 'e'], Type::Take),
                 'h' => self.check_identifier_keyword(2, &['i', 's'], Type::This),
                 'r' => self.check_identifier_keyword(2, &['u', 'e'], Type::True),
@@ -218,15 +211,13 @@ impl<'l> Lexer<'l> {
     fn make_token(&mut self, t_type: Type) -> Token {
         Token {
             t_type,
-            lexeme: self.source
-                [(self.start + self.start_offset)..(self.current + self.current_offset)]
-                .to_string(),
+            lexeme: self.chars[(self.start)..(self.current)].into_iter().collect(),
             line: self.line,
         }
     }
 
     /// Creates a ScanError token with the given message at the current location
-    fn error_token(&mut self, message: &'l str) -> Token {
+    fn error_token(&mut self, message: &'static str) -> Token {
         Token {
             t_type: Type::ScanError,
             lexeme: message.to_string(),
@@ -309,7 +300,6 @@ impl<'l> Lexer<'l> {
         if self.is_at_end() {
             None
         } else {
-            self.current_offset += self.char_at(self.current).len_utf8() - 1;
             self.current += 1;
             Some(self.char_at(self.current - 1))
         }
@@ -331,12 +321,9 @@ impl<'l> Lexer<'l> {
     }
 
     /// Create a new lexer for scanning the given source.
-    pub fn new(source: &'l str) -> Lexer {
+    pub fn new(source: &str) -> Lexer {
         let chars: Vec<char> = source.chars().collect();
         Lexer {
-            source,
-            start_offset: 0,
-            current_offset: 0,
             chars,
             start: 0,
             current: 0,
@@ -345,7 +332,7 @@ impl<'l> Lexer<'l> {
     }
 }
 
-impl<'l> Iterator for Lexer<'l> {
+impl Iterator for Lexer {
     type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {

@@ -14,6 +14,7 @@ pub static LOGICAL_BINARY: [Type; 6] = [
 
 /// An enum with all expression types in Gelix.
 /// An expression is a language construct that returns a value of any type and cannot appear top-level.
+/// Currently, all statements except variable definitions are expressions.
 #[derive(Debug)]
 pub enum Expression {
     /// Assignment a la x = 5
@@ -37,6 +38,13 @@ pub enum Expression {
         arguments: Vec<Expression>,
     },
 
+    /// A for loop. Only conditional loops are in the AST; iteration loops are unrolled.
+    /// The value produced is the value of the body on the last iteration.
+    For {
+        condition: Box<Expression>,
+        body: Box<Expression>,
+    },
+
     /// A getter (x.y)
     Get {
         object: Box<Expression>,
@@ -58,7 +66,7 @@ pub enum Expression {
     /// A simple [Literal].
     Literal(Literal),
 
-    /// 'return' keyword.
+    /// 'return' keyword. Always produces None as a value.
     Return(Option<Box<Expression>>),
 
     /// A setter (x.y = 5)
@@ -83,7 +91,7 @@ pub enum Expression {
         right: Box<Expression>,
     },
 
-    /// Simply a variable.
+    /// Simply a variable use.
     Variable(Token),
 
     /// A when expression.

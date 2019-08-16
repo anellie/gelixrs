@@ -118,11 +118,7 @@ impl IRGenerator {
             Statement::Expression(expr) => {
                 self.expression(expr)?;
                 Ok(())
-        }
-            _ => Err(format!(
-                "Encountered unimplemented statement '{:?}'.",
-                statement
-            )),
+            }
         }
     }
 

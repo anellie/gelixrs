@@ -38,8 +38,9 @@ mod bin_macro {
 }
 
 // TODO: Implement the rest of the parser.
-impl<'p> Parser<'p> {
+impl Parser {
     /// Parses the tokens and returns a full AST.
+    /// Returns Some on success, None if any part of the source is invalid syntax.
     pub fn parse(mut self) -> Option<DeclarationList> {
         let mut list = DeclarationList::new();
 
@@ -62,11 +63,11 @@ impl<'p> Parser<'p> {
     /// declaration when illegal syntax is encountered.
     /// Note that synchronization is not done on error, and is done by the caller.
     pub fn declaration(&mut self, list: &mut DeclarationList) -> Option<()> {
-        match () {
-            _ if self.match_token(Type::Class) => list.classes.push(self.class_declaration()?),
-            _ if self.match_token(Type::Enum) => list.enums.push(self.enum_declaration()?),
-            _ if self.match_token(Type::ExFn) => list.ext_functions.push(self.ex_func_declaration()?),
-            _ if self.match_token(Type::Func) => list.functions.push(self.function()?),
+        match self.advance().t_type {
+            Type::Class => list.classes.push(self.class_declaration()?),
+            Type::Enum => list.enums.push(self.enum_declaration()?),
+            Type::ExFn => list.ext_functions.push(self.ex_func_declaration()?),
+            Type::Func => list.functions.push(self.function()?),
             _ => self.error_at_current("Encountered invalid top-level declaration.")?,
         }
 
@@ -112,10 +113,10 @@ impl<'p> Parser<'p> {
         let mut variables: Vec<Variable> = Vec::new();
 
         while !self.check(Type::RightBrace) && !self.is_at_end() {
-            match () {
-                _ if self.match_token(Type::Func) => methods.push(self.function()?),
-                _ if self.match_token(Type::Var) => variables.push(self.variable(false)?),
-                _ if self.match_token(Type::Val) => variables.push(self.variable(true)?),
+            match self.advance().t_type {
+                Type::Func => methods.push(self.function()?),
+                Type::Var => variables.push(self.variable(false)?),
+                Type::Val => variables.push(self.variable(true)?),
                 _ => self.error_at_current("Encountered invalid declaration inside class.")?,
             }
         }
@@ -167,36 +168,10 @@ impl<'p> Parser<'p> {
 
     fn statement(&mut self) -> Option<Statement> {
         match () {
-            _ if self.match_token(Type::Error) => self.error_statement(),
-            _ if self.match_token(Type::For) => self.for_statement(),
             _ if self.match_token(Type::Var) => Some(Statement::Variable(self.variable(false)?)),
             _ if self.match_token(Type::Val) => Some(Statement::Variable(self.variable(true)?)),
             _ => self.expression_statement(),
         }
-    }
-
-    fn error_statement(&mut self) -> Option<Statement> {
-        let mut value = None;
-        if !self.check_semi_or_nl() {
-            value = Some(self.expression()?);
-        }
-        self.consume_semi_or_nl("Expected newline or ';' after 'error'.");
-        Some(Statement::Error(value))
-    }
-
-    fn for_statement(&mut self) -> Option<Statement> {
-        self.consume(Type::LeftParen, "Expected '(' after 'for'.");
-
-        Some(//if self.check_next(Type::In) { // for (x in y)
-            // TODO: Implement "for each in" loops
-        /*} else*/ { // for (condition)
-            let condition = self.expression()?;
-            self.consume(Type::RightParen, "Expected ')' after for condition.");
-            let body = self.expression()?;
-
-            Statement::For { condition, body }
-            },
-        )
     }
 
     fn expression_statement(&mut self) -> Option<Statement> {
@@ -215,6 +190,7 @@ impl<'p> Parser<'p> {
             _ if self.match_token(Type::If) => self.if_expression(),
             _ if self.match_token(Type::Return) => self.return_expression(),
             _ if self.match_token(Type::Take) => self.take_expression(),
+            _ if self.match_token(Type::For) => self.for_expression(),
             _ if self.match_token(Type::When) => self.when_expression(),
             _ => self.assignment(),
         }
@@ -255,6 +231,16 @@ impl<'p> Parser<'p> {
             then_branch,
             else_branch,
         })
+    }
+
+    fn for_expression(&mut self) -> Option<Expression> {
+        self.consume(Type::LeftParen, "Expected '(' after 'for'.");
+
+         let condition = Box::new(self.expression()?);
+         self.consume(Type::RightParen, "Expected ')' after for condition.");
+         let body = Box::new(self.expression()?);
+
+         Some(Expression::For { condition, body })
     }
 
     fn return_expression(&mut self) -> Option<Expression> {

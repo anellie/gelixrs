@@ -9,11 +9,21 @@ pub struct Token {
     pub line: usize,
 }
 
-// All types of tokens available. Most are keywords or special chars.
-// The ScanError token is a special token signifying a syntax error.
-// Its lexeme is an error message to be displayed to the user.
-plain_enum_mod! {this,
-Type {
+impl Token {
+    pub fn eof_token(line: usize) -> Token {
+        Token {
+            t_type: Type::EndOfFile,
+            lexeme: "\0".to_string(),
+            line,
+        }
+    }
+}
+
+/// All types of tokens available. Most are keywords or special chars.
+/// The ScanError token is a special token signifying a syntax error.
+/// Its lexeme is an error message to be displayed to the user.
+#[derive(PartialEq, Debug, Clone, Copy)]
+pub enum Type {
     LeftParen, RightParen,
     LeftBracket, RightBracket,
     LeftBrace, RightBrace,
@@ -35,4 +45,4 @@ Type {
     True, Var, Val, When, While,
 
     ScanError, EndOfFile,
-}}
+}

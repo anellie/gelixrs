@@ -28,7 +28,7 @@ pub struct Resolver {
 
     /// All classes.
     types: HashMap<String, ClassDef>,
-    // All environments/scopes currently.
+    // All environments/scopes at the moment. Used like a stack.
     environments: Vec<Environment>,
 
     /// Used to make unique variable names when a name collision occurs.
@@ -100,6 +100,7 @@ impl Resolver {
             // creating a global string while not having a position set.
             // This can be an issue when creating default class field values.
             // https://github.com/TheDan64/inkwell/issues/32
+            // TODO: Will this still be needed when class init will be called?
             let entry = self.context.append_basic_block(&function, "entry");
             self.builder.position_at_end(&entry);
         }
@@ -189,17 +190,14 @@ impl Resolver {
         match statement {
             Statement::Variable(var) => {
                 let _type = self.resolve_expression(&mut var.initializer)?;
-                self.define_variable(&mut var.name, !var.is_val, true, _type)?;
+                self.define_variable(&mut var.name, !var.is_val, true, _type)
             }
 
             Statement::Expression(expr) => {
                 self.resolve_expression(expr)?;
+                Ok(())
             }
-
-            _ => Err("Encountered unimplemented statement.")?,
         }
-
-        Ok(())
     }
 
     fn resolve_expression(&mut self, expression: &mut Expression) -> Result<BasicTypeEnum, String> {
@@ -367,6 +365,7 @@ impl Resolver {
 
     fn type_from_literal(&mut self, literal: &Literal) -> BasicTypeEnum {
         match literal {
+            Literal::None => self.types.get("None").unwrap()._type.into(),
             Literal::Bool(_) => self.context.bool_type().as_basic_type_enum(),
             Literal::Float(_) => self.context.f32_type().as_basic_type_enum(),
             Literal::Double(_) => self.context.f64_type().as_basic_type_enum(),
@@ -520,7 +519,6 @@ impl Resolver {
                 .const_named_struct(&[BasicValueEnum::IntValue(
                     self.context.bool_type().const_int(0, false),
                 )]);
-        let none_const = BasicValueEnum::StructValue(none_const);
 
         IRGenerator {
             context: self.context,
@@ -534,7 +532,7 @@ impl Resolver {
             decl_list,
 
             types: self.types,
-            none_const,
+            none_const: none_const.into(),
         }
     }
 }
@@ -559,9 +557,12 @@ impl Environment {
     }
 }
 
+/// A variable definition inside of a scope.
 #[derive(Clone, Debug)]
 struct VarDef {
+    /// If the variable can be reassigned.
     pub mutable: bool,
+    /// The underlying LLVM type.
     pub _type: BasicTypeEnum,
 }
 
