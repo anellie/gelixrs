@@ -1,0 +1,11 @@
+// ERR
+
+func main() {
+
+}
+
+class Test {
+    func wrong() -> String {
+        3452345
+    }
+}

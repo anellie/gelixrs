@@ -1,6 +1,6 @@
 use super::super::{
     ast::{
-        declaration::{DeclarationList, FuncSignature, FunctionArg},
+        declaration::{DeclarationList, Function, FuncSignature, FunctionArg},
         expression::{Expression, LOGICAL_BINARY},
         literal::Literal,
         statement::Statement,
@@ -99,12 +99,6 @@ impl Resolver {
 
         // Ensure it doesn't exist yet
         if !exists {
-            // TODO: What is this?? causes 'tests/classes/class_as_var' to fail/panic
-            self.environments
-                .first_mut()
-                .unwrap()
-                .variables
-                .insert(name.lexeme.to_string(), VarDef::new(false, struc.into()));
             Ok(())
         } else {
             Err(format!(
@@ -220,26 +214,46 @@ impl Resolver {
 
     /// During the fourth pass, all variables inside functions are checked.
     /// This is to ensure the variable is defined and allowed in the current scope.
-    /// TODO: Methods & return types
     fn fourth_pass(&mut self, list: &mut DeclarationList) -> Result<(), String> {
         for func in list.functions.iter_mut() {
-            self.current_func_name = func.sig.name.lexeme.to_string();
-            self.current_func = Some(
-                self.module
-                    .get_function(&self.current_func_name)
-                    .unwrap()
-                    .get_type(),
-            );
-
-            self.begin_scope();
-            for param in func.sig.parameters.iter_mut() {
-                let param_type = self.resolve_type(&param._type)?;
-                self.define_variable(&mut param.name, false, false, param_type)?;
-            }
-            self.resolve_expression(&mut func.body)?;
-            self.end_scope();
+            self.resolve_function(func)?;
         }
 
+        for class in list.classes.iter_mut() {
+            for method in class.methods.iter_mut() {
+                self.resolve_function(method)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn resolve_function(&mut self, func: &mut Function) -> Result<(), String> {
+        self.current_func_name = func.sig.name.lexeme.to_string();
+        self.current_func = Some(
+            self.module
+                .get_function(&self.current_func_name)
+                .unwrap()
+                .get_type(),
+        );
+
+        self.begin_scope();
+        for param in func.sig.parameters.iter_mut() {
+            let param_type = self.resolve_type(&param._type)?;
+            self.define_variable(&mut param.name, false, false, param_type)?;
+        }
+
+        let body_type = self.resolve_expression(&mut func.body)?;
+        let ret_type = if let Some(type_tok) = &func.sig.return_type {
+            self.resolve_type(type_tok)?
+        } else {
+            self.none_const
+        };
+        if body_type != ret_type {
+            Err("Function return type does not match body type.".to_string())?;
+        }
+
+        self.end_scope();
         Ok(())
     }
 
@@ -311,35 +325,35 @@ impl Resolver {
             }
 
             Expression::Call { callee, arguments } => {
+                let callee = &mut **callee; // Don't you love boxes?
                 let mut is_method = false;
-                if let Expression::Get { object: _, name: _ } = **callee {
-                    is_method = true;
-                }
-
-                let callee = self.resolve_expression(callee)?;
                 match callee {
-                    // Function call
-                    BasicTypeEnum::PointerType(ptr) => {
-                        let func = ptr.get_element_type();
-                        if let AnyTypeEnum::FunctionType(func) = func {
-                            self.check_func_args(func, arguments, is_method)?;
-                            Ok(func
-                                .get_return_type()
-                                .get_or_insert(self.none_const)
-                                .clone())
-                        } else {
-                            Err("Only functions or classes are allowed to be called.".to_string())
+                    Expression::Get { object: _, name: _ } => {
+                        is_method = true;
+                    },
+
+                    Expression::Variable(name) => {
+                        if let Some(class_def) = self.types.get(&name.lexeme) {
+                            return Ok(class_def._type.into())
                         }
                     }
 
-                    // Class call
-                    BasicTypeEnum::StructType(struc) => {
-                        // TODO: Typecheck init
-                        Ok(struc.into())
-                    }
-
-                    _ => Err("Only functions or classes are allowed to be called.".to_string()),
+                    _ => (),
                 }
+
+                let callee = self.resolve_expression(callee)?;
+                if let BasicTypeEnum::PointerType(ptr) = callee {
+                    let func = ptr.get_element_type();
+                    if let AnyTypeEnum::FunctionType(func) = func {
+                        self.check_func_args(func, arguments, is_method)?;
+                        return Ok(func
+                            .get_return_type()
+                            .get_or_insert(self.none_const)
+                            .clone())
+                    }
+                }
+
+                Err("Only functions or classes are allowed to be called.".to_string())
             }
 
             Expression::Get { object, name } => {
@@ -497,7 +511,7 @@ impl Resolver {
         for env in self.environments.iter().rev() {
             if let Some(var) = env.variables.get(&token.lexeme) {
                 if env.moved_vars.contains_key(&token.lexeme) {
-                    token.lexeme = env.moved_vars.get(&token.lexeme).unwrap().to_string();
+                    token.lexeme = env.moved_vars[&token.lexeme].to_string();
                 }
                 return Ok(var.clone());
             }

@@ -1,8 +1,7 @@
 // ERR
 
 func main() {
-    // TODO: SIGSEGV
-    // printnum(Test.ok)
+    printnum(Test.ok)
 }
 
 class Test {

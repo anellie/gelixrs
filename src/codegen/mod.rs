@@ -182,27 +182,15 @@ impl IRGenerator {
         value
     }
 
-    // TODO: This is really ugly
-    fn block_expr(&mut self, mut statements: Vec<Statement>) -> BasicValueEnum {
-        if statements.is_empty() {
-            return self.literal(Literal::None);
-        }
-
-        statements.reverse();
-        loop {
-            let statement = statements.pop().unwrap();
-
-            if statements.is_empty() {
-                break if let Statement::Expression(expr) = statement {
-                    self.expression(expr)
-                } else {
-                    self.statement(statement);
-                    self.literal(Literal::None)
-                };
+    fn block_expr(&mut self, statements: Vec<Statement>) -> BasicValueEnum {
+        statements.into_iter().rev().fold(self.none_const, |_, stmt| {
+            if let Statement::Expression(expr) = stmt {
+                self.expression(expr)
+            } else {
+                self.statement(stmt);
+                self.none_const
             }
-
-            self.statement(statement);
-        }
+        })
     }
 
     // TODO: Add float support
@@ -279,7 +267,7 @@ impl IRGenerator {
                         .unwrap()
                         .1;
 
-                    let function = class_def.methods.get(&name.lexeme).unwrap().clone();
+                    let function = class_def.methods[&name.lexeme].clone();
                     self.func_call(function, arguments, Some(struc.into()))
                 } else {
                     panic!("call_expr: Get expression without struct")
@@ -327,8 +315,8 @@ impl IRGenerator {
     ) -> PointerValue {
         match object {
             Expression::Variable(obj_name) => {
-                let struc = self.variables.get(&obj_name.lexeme).unwrap();
-                self.get_from_struct(struc, name)
+                let struc = self.variables[&obj_name.lexeme];
+                self.get_from_struct(&struc, name)
             }
 
             Expression::Get { object, name: inner_name } => {
@@ -342,10 +330,10 @@ impl IRGenerator {
 
     fn get_from_struct(&self, struc: &PointerValue, name: Token) -> PointerValue {
         let struc_def = self.find_class(*struc);
-        let ptr_index = struc_def.var_map.get(&name.lexeme).unwrap();
+        let ptr_index = struc_def.var_map[&name.lexeme];
 
         unsafe {
-            self.builder.build_struct_gep(*struc, *ptr_index, "classgep")
+            self.builder.build_struct_gep(*struc, ptr_index, "classgep")
         }
     }
 
