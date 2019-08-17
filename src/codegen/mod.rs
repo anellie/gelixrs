@@ -162,6 +162,7 @@ impl IRGenerator {
                 self.binary(*left, operator, *right),
             Expression::Block(expressions) => self.block_expr(expressions),
             Expression::Call { callee, arguments } => self.call_expr(*callee, arguments),
+            Expression::For { condition, body } => self.for_expression(*condition, *body),
             Expression::Get { object, name } => self.get_expression(*object, name),
             Expression::Grouping(expr) => self.expression(*expr),
             Expression::If { condition, then_branch, else_branch } =>
@@ -183,7 +184,7 @@ impl IRGenerator {
     }
 
     fn block_expr(&mut self, statements: Vec<Statement>) -> BasicValueEnum {
-        statements.into_iter().rev().fold(self.none_const, |_, stmt| {
+        statements.into_iter().fold(self.none_const, |_, stmt| {
             if let Statement::Expression(expr) = stmt {
                 self.expression(expr)
             } else {
@@ -337,6 +338,34 @@ impl IRGenerator {
         }
     }
 
+    fn for_expression(&mut self, condition: Expression, body: Expression) -> BasicValueEnum {
+        let cond_block = self.context.append_basic_block(&self.cur_fn(), "forcond");
+        let loop_block = self.context.append_basic_block(&self.cur_fn(), "forloop");
+        let cont_block = self.context.append_basic_block(&self.cur_fn(), "forcont");
+
+        self.builder.build_unconditional_branch(&cond_block);
+        self.builder.position_at_end(&cond_block);
+        let condition = self.expression(condition);
+        let condition = if let BasicValueEnum::IntValue(value) = condition {
+             self.builder.build_int_compare(
+                IntPredicate::NE,
+                value,
+                self.context.bool_type().const_int(0, false),
+                "forcond",
+             )
+        } else { panic!("For condition") };
+        self.builder.build_conditional_branch(condition, &loop_block, &cont_block);
+
+        self.builder.position_at_end(&loop_block);
+        let body = self.expression(body);
+        let body_alloca = self.create_entry_block_alloca(body.get_type(), "forbody");
+        self.builder.build_store(body_alloca, body);
+        self.builder.build_unconditional_branch(&cond_block);
+
+        self.builder.position_at_end(&cont_block);
+        self.builder.build_load(body_alloca, "forbody")
+    }
+
     fn if_expression(
         &mut self,
         condition: Expression,
@@ -346,53 +375,49 @@ impl IRGenerator {
         let parent = self.cur_fn();
         let condition = self.expression(condition);
 
-        if let BasicValueEnum::IntValue(value) = condition {
-            let condition = self.builder.build_int_compare(
+        let condition = if let BasicValueEnum::IntValue(value) = condition {
+            self.builder.build_int_compare(
                 IntPredicate::NE,
                 value,
                 self.context.bool_type().const_int(0, false),
                 "ifcond",
-            );
+            )
+        } else { panic!("If condition wasn't a boolean") };
 
-            let then_bb = self.context.append_basic_block(&parent, "then");
-            let else_bb = self.context.append_basic_block(&parent, "else");
-            let cont_bb = self.context.append_basic_block(&parent, "ifcont");
+        let then_bb = self.context.append_basic_block(&parent, "then");
+        let else_bb = self.context.append_basic_block(&parent, "else");
+        let cont_bb = self.context.append_basic_block(&parent, "ifcont");
 
-            if else_b.is_none() {
-                self.builder
-                    .build_conditional_branch(condition, &then_bb, &cont_bb);
-            } else {
-                self.builder
-                    .build_conditional_branch(condition, &then_bb, &else_bb);
-            }
-
-            self.builder.position_at_end(&then_bb);
-            let then_val = self.expression(then_b);
-            self.builder.build_unconditional_branch(&cont_bb);
-
-            self.builder.position_at_end(&else_bb);
-            let ret_val = if let Some(else_b) = else_b {
-                let else_val = self.expression(*else_b);
-
-                self.builder.position_at_end(&cont_bb);
-                let phi = self.builder.build_phi(then_val.get_type(), "ifphi");
-                phi.add_incoming(&[
-                    (&then_val, &then_bb),
-                    (&else_val, &else_bb)
-                ]);
-                phi.as_basic_value()
-            } else {
-                self.literal(Literal::None)
-            };
-
-            self.builder.position_at_end(&else_bb);
-            self.builder.build_unconditional_branch(&cont_bb);
-            self.builder.position_at_end(&cont_bb);
-
-            ret_val
+        if else_b.is_none() {
+            self.builder.build_conditional_branch(condition, &then_bb, &cont_bb);
         } else {
-            panic!("If condition wasn't a boolean")
+            self.builder.build_conditional_branch(condition, &then_bb, &else_bb);
         }
+
+        self.builder.position_at_end(&then_bb);
+        let then_val = self.expression(then_b);
+        self.builder.build_unconditional_branch(&cont_bb);
+
+        self.builder.position_at_end(&else_bb);
+        let ret_val = if let Some(else_b) = else_b {
+            let else_val = self.expression(*else_b);
+
+            self.builder.position_at_end(&cont_bb);
+            let phi = self.builder.build_phi(then_val.get_type(), "ifphi");
+            phi.add_incoming(&[
+                (&then_val, &then_bb),
+                (&else_val, &else_bb)
+            ]);
+            phi.as_basic_value()
+        } else {
+            self.literal(Literal::None)
+        };
+
+        self.builder.position_at_end(&else_bb);
+        self.builder.build_unconditional_branch(&cont_bb);
+        self.builder.position_at_end(&cont_bb);
+
+        ret_val
     }
 
     fn return_expression(

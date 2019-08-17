@@ -1,0 +1,13 @@
+/*
+86
+*/
+
+exfn printnum(i64 a)
+
+func main() {
+    var i = 83
+    val result = for (i != 86) {
+        i = i + 1
+    }
+    printnum(result)
+}

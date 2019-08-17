@@ -247,7 +247,7 @@ impl Resolver {
         let ret_type = if let Some(type_tok) = &func.sig.return_type {
             self.resolve_type(type_tok)?
         } else {
-            self.none_const
+            body_type // Body type does not matter when ret type is None
         };
         if body_type != ret_type {
             Err("Function return type does not match body type.".to_string())?;
@@ -354,6 +354,15 @@ impl Resolver {
                 }
 
                 Err("Only functions or classes are allowed to be called.".to_string())
+            }
+
+            Expression::For { condition, body } => {
+                let condition_type = self.resolve_expression(condition)?;
+                if condition_type != self.get_type("bool")? {
+                    Err("For condition must be a boolean.")?
+                }
+
+                self.resolve_expression(body)
             }
 
             Expression::Get { object, name } => {

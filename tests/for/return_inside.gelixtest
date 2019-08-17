@@ -1,0 +1,15 @@
+/*
+4
+*/
+
+func main() {
+    printnum(test())
+}
+
+func test() -> i64 {
+    var i = 0
+    for (i < 10) {
+        if (i == 4) return i
+        i = i + 1
+    }
+}
