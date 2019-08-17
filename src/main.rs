@@ -62,38 +62,44 @@ fn main() -> Result<(), &'static str> {
         fs::create_dir(&tmp_dir).expect("Failed to create temporary directory!");
     }
 
-    let mut module_file = tmp_dir;
+    let mut module_file = tmp_dir.clone();
     module_file.push("out.bc");
     module.write_bitcode_to_path(&module_file);
+
+    let mut asm_file = tmp_dir;
+    asm_file.push("out.o");
 
     let mut stdlib_dir = env::current_dir().expect("Failed to get current directory!");
     stdlib_dir.push("stdlib");
     stdlib_dir.push("target");
+    stdlib_dir.push("x86_64-unknown-linux-musl");
     stdlib_dir.push("release");
 
     // TODO: Invoking clang as a command feels soo wrong, but I don't think there's a stable Rust API for it...
-    let clang_output = 
+    process::Command::new("clang")
+        .arg("-c")
+        .arg("-o")
+        .arg(&asm_file)
+        .arg(module_file)
+        .status()
+        .expect("Evoking clang failed.");
+
+    let status =
         process::Command::new("clang")
+            .arg("-static")
             .arg("-o")
             .arg(&args.output)
-            .arg(module_file)
-            .arg("-no-pie")
+            .arg(asm_file)
             .arg("-L")
             .arg(stdlib_dir)
-            .args(&["-l", "stdlib"])
-            .stdout(process::Stdio::null())
-            .stderr(process::Stdio::null())
-            .output();
+            .arg("-lstdlib")
+            .status()
+            .expect("Evoking clang failed.");
 
-    if let Ok(output) = clang_output {
-        if !output.status.success() {
-            return Err("Compiling to native binary failed. Please try compiling with clang manually using --ir.")
-        }
+    if !status.success() {
+        Err("Compiling to native binary failed. Please try compiling with clang manually using --ir.")
     } else {
-        return Err("Evoking clang for compiling failed. Please ensure clang is installed correctly.")
+        println!("Compilation successful! Compiled to file '{}'.", args.output.to_str().unwrap());
+        Ok(())
     }
-
-    println!("Compilation successful! Compiled to file '{}'.", args.output.to_str().unwrap());
-
-    Ok(())
 }

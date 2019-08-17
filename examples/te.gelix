@@ -2,19 +2,16 @@ exfn print(String a)
 
 exfn printnum(i64 a)
 
-func main() {
-    print("Hello World!")
+exfn read_line(String a) -> String
 
-    if (5 > 3) {
-        print("hi!")
-        printnum(1 + 4)
-    } else {
-        print("mathe is broke")
-    }
+func main() {
+    hello(Hello())
 }
 
-class FirstClass {
+func hello(Hello h) {
+    print(h.hi)
+}
 
-    val woo = "yes"
-    var hoo = true
+class Hello {
+    val hi = "Hello!"
 }
