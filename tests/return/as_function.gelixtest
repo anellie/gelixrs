@@ -1,10 +1,8 @@
-// ERR
+/*
+*/
 
-func test() {
-    return;
-}
+func test() return
 
 func main() {
-    // type mismatch causes SIGSEGV, thanks LLVM, very cool!
-    //print(test())
+    test()
 }

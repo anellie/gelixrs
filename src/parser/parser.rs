@@ -148,7 +148,6 @@ impl Parser {
     fn function(&mut self) -> Option<Function> {
         // Will generate a declaration that contains everything except a body
         let sig = self.ex_func_declaration()?;
-
         let body = self.expression()?;
         Some(Function { sig, body })
     }

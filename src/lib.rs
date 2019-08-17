@@ -26,5 +26,5 @@ pub fn compile_ir(mut declarations: DeclarationList) -> Option<Module> {
     let mut resolver = codegen::resolver::Resolver::new();
     resolver.resolve(&mut declarations)?;
     let generator = resolver.into_generator(declarations);
-    generator.generate()
+    Some(generator.generate())
 }

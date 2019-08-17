@@ -220,6 +220,7 @@ impl Resolver {
 
     /// During the fourth pass, all variables inside functions are checked.
     /// This is to ensure the variable is defined and allowed in the current scope.
+    /// TODO: Methods & return types
     fn fourth_pass(&mut self, list: &mut DeclarationList) -> Result<(), String> {
         for func in list.functions.iter_mut() {
             self.current_func_name = func.sig.name.lexeme.to_string();

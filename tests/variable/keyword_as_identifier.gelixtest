@@ -1,5 +1,5 @@
 // ERR
 
 func main() {
-    var this = "value"
+    var true = "value"
 }

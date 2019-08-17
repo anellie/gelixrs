@@ -22,6 +22,9 @@ use std::{collections::HashMap, convert::TryInto};
 
 /// A generator that creates LLVM IR.
 /// Created through a [Resolver].
+/// 
+/// Will panic when encountering invalid code; this should not happen however thanks to the 
+/// resolver validating it.
 pub struct IRGenerator {
     /// LLVM-related. Refer to their docs for more info.
     context: Context,
@@ -29,7 +32,9 @@ pub struct IRGenerator {
     module: Module,
     mpm: PassManager<Module>,
 
-    // All variables in the current scope and the currently compiled function.
+    /// All variables and the currently compiled function.
+    /// Note that not all variables are valid - they are kept after going out of scope.
+    /// This is not an issue since the resolver checked against this already.
     variables: HashMap<String, PointerValue>,
     current_fn: Option<FunctionValue>,
 
@@ -43,28 +48,28 @@ pub struct IRGenerator {
 }
 
 impl IRGenerator {
-    /// Generates IR. Will process all statements given.
-    pub fn generate(mut self) -> Option<Module> {
+    /// Generates IR. Will process all declarations given.
+    pub fn generate(mut self) -> Module {
         while !self.decl_list.classes.is_empty() {
             let class = self.decl_list.classes.pop().unwrap();
-            self.class(class).ok()?;
+            self.class(class);
         }
 
         while !self.decl_list.functions.is_empty() {
             let func = self.decl_list.functions.pop().unwrap();
-            self.function(func).ok()?;
+            self.function(func);
         }
 
         self.mpm.run_on(&self.module);
-        Some(self.module)
+        self.module
     }
 
-    fn class(&mut self, class: Class) -> Result<(), String> {
+    fn class(&mut self, class: Class) {
         for method in class.methods {
-            self.function(method)?;
+            self.function(method);
         }
 
-        self.class_initializer(&class.name.lexeme, class.variables)
+        self.class_initializer(&class.name.lexeme, class.variables);
     }
 
     /// Creates a function that takes a zeroinitializer struct as a parameter
@@ -72,7 +77,7 @@ impl IRGenerator {
     ///
     /// This functions cannot create & return a struct since alloca are destroyed on return,
     /// which would result in the function returning garbage stack data.
-    fn class_initializer(&mut self, name: &str, variables: Vec<Variable>) -> Result<(), String> {
+    fn class_initializer(&mut self, name: &str, variables: Vec<Variable>) {
         let class_def = self.types.remove(name).unwrap();
         let init_fn = class_def.initializer.unwrap();
         self.current_fn = Some(init_fn);
@@ -84,114 +89,103 @@ impl IRGenerator {
         if let BasicValueEnum::PointerValue(ptr) = struc {
             self.variables.insert("this".to_string(), ptr);
             for (index, variable) in variables.into_iter().enumerate() {
-                let initializer = self.expression(variable.initializer)?;
+                let initializer = self.expression(variable.initializer);
                 unsafe {
                     let gep_ptr = self.builder.build_struct_gep(ptr, index as u32, "classgep");
                     self.builder.build_store(gep_ptr, initializer);
                 }
             }
         } else {
-            panic!("creating class initializer");
+            panic!("Creating class initializer");
         }
 
         self.types.insert(name.to_string(), class_def);
         self.builder.build_return(None);
-        Ok(())
     }
 
     /// Compiles a function to IR. (The function was already declared by the resolver.)
-    fn function(&mut self, func: Function) -> Result<(), String> {
+    fn function(&mut self, func: Function) {
         let function = self
             .module
             .get_function(&func.sig.name.lexeme)
-            .ok_or("Internal error: Undefined function.")?;
+            .expect("Undefined function");
         self.current_fn = Some(function);
 
         let entry = self.context.append_basic_block(&function, "entry");
         self.builder.position_at_end(&entry);
 
         self.variables.reserve(func.sig.parameters.len());
-        for (i, arg) in function.get_param_iter().enumerate() {
-            let arg_name = &func.sig.parameters[i].name.lexeme;
-            let alloca = self.create_entry_block_alloca(arg.get_type(), arg_name);
-            self.builder.build_store(alloca, arg);
-            self.variables
-                .insert(func.sig.parameters[i].name.lexeme.to_string(), alloca);
+        for (arg_val, arg_name) in function.get_param_iter().zip(func.sig.parameters.iter()) {
+            let arg_name = &arg_name.name.lexeme;
+            let alloca = self.create_entry_block_alloca(arg_val.get_type(), arg_name);
+            self.builder.build_store(alloca, arg_val);
+            self.variables.insert(arg_name.to_string(), alloca);
         }
 
-        let body = self.expression(func.body)?;
+        let body = self.expression(func.body);
         if func.sig.return_type.is_some() {
             self.builder.build_return(Some(&body));
         } else {
             self.builder.build_return(None);
         }
 
-        if function.verify(true) {
-            Ok(())
-        } else {
-            unsafe { function.delete(); }
-            Err(format!(
-                "Invalid generated function '{}'. See LLVM error output for details.",
-                func.sig.name.lexeme
-            ))
+        if !function.verify(true) {
+            panic!("Invalid generated function")
         }
     }
 
     /// Compile a statement. Statements are only found in blocks.
-    fn statement(&mut self, statement: Statement) -> Result<(), String> {
+    /// TODO: Consider turning Variable into an expression too and eliminating statements
+    /// altogether. (Variable definition could still be treated differently by the parser to
+    /// prevent a function that just defines a variable or similar.)
+    fn statement(&mut self, statement: Statement) {
         match statement {
             Statement::Variable(var) => self.var_statement(var),
             Statement::Expression(expr) => {
-                self.expression(expr)?;
-                Ok(())
+                self.expression(expr);
             }
         }
     }
 
-    fn var_statement(&mut self, var: Variable) -> Result<(), String> {
-        let initial_value = self.expression(var.initializer)?;
+    fn var_statement(&mut self, var: Variable) {
+        let initial_value = self.expression(var.initializer);
         let alloca = self.create_entry_block_alloca(initial_value.get_type(), &var.name.lexeme);
 
         self.builder.build_store(alloca, initial_value);
         self.variables.insert(var.name.lexeme, alloca);
-
-        Ok(())
     }
 
-    fn expression(&mut self, expression: Expression) -> Result<BasicValueEnum, String> {
+    fn expression(&mut self, expression: Expression) -> BasicValueEnum {
         match expression {
             Expression::Assignment { name, value } => self.assignment(name, *value),
-            Expression::Binary { left, operator, right } => 
+            Expression::Binary { left, operator, right } =>
                 self.binary(*left, operator, *right),
             Expression::Block(expressions) => self.block_expr(expressions),
             Expression::Call { callee, arguments } => self.call_expr(*callee, arguments),
             Expression::Get { object, name } => self.get_expression(*object, name),
             Expression::Grouping(expr) => self.expression(*expr),
-            Expression::If { condition, then_branch, else_branch } => 
+            Expression::If { condition, then_branch, else_branch } =>
                 self.if_expression(*condition, *then_branch, else_branch),
-            Expression::Literal(literal) => Ok(self.literal(literal)),
+            Expression::Literal(literal) => self.literal(literal),
             Expression::Return(expr) => self.return_expression(expr),
             Expression::Variable(name) => self.variable(name),
-            _ => Err("Encountered unimplemented expression.".to_string()),
+            _ => panic!("Encountered unimplemented expression"),
         }
     }
 
-    fn assignment(&mut self, token: Token, value: Expression) -> Result<BasicValueEnum, String> {
+    fn assignment(&mut self, token: Token, value: Expression) -> BasicValueEnum {
         let name = token.lexeme;
-
-        let value = self.expression(value)?;
-        let var = self
-            .variables
-            .get(&name)
-            .ok_or(format!("Undefined variable '{}'.", name))?;
+        let value = self.expression(value);
+        let var = self.variables.get(&name).expect("Undefined var");
 
         self.builder.build_store(*var, value);
-        Ok(value)
+        value
     }
 
-    fn block_expr(&mut self, mut statements: Vec<Statement>) -> Result<BasicValueEnum, String> {
+    // TODO: This is really ugly
+    fn block_expr(&mut self, mut statements: Vec<Statement>) -> BasicValueEnum {
         if statements.is_empty() {
-            return Ok(self.literal(Literal::None));
+            return self.literal(Literal::None);
         }
 
         statements.reverse();
@@ -202,12 +196,12 @@ impl IRGenerator {
                 break if let Statement::Expression(expr) = statement {
                     self.expression(expr)
                 } else {
-                    self.statement(statement)?;
-                    Ok(self.literal(Literal::None))
+                    self.statement(statement);
+                    self.literal(Literal::None)
                 };
             }
 
-            self.statement(statement)?;
+            self.statement(statement);
         }
     }
 
@@ -218,14 +212,14 @@ impl IRGenerator {
         left: Expression,
         operator: Token,
         right: Expression,
-    ) -> Result<BasicValueEnum, String> {
-        let left = self.expression(left)?;
-        let right = self.expression(right)?;
+    ) -> BasicValueEnum {
+        let left = self.expression(left);
+        let right = self.expression(right);
 
-        let left = if let BasicValueEnum::IntValue(int) = left { int } else { Err("Only int are supported for math operations.")? };
-        let right = if let BasicValueEnum::IntValue(int) = right { int } else { Err("Only int are supported for math operations.")? };
+        let left = if let BasicValueEnum::IntValue(int) = left { int } else { panic!("Only int are supported for math operations") };
+        let right = if let BasicValueEnum::IntValue(int) = right { int } else { panic!("Only int are supported for math operations") };
 
-        Ok(BasicValueEnum::IntValue(match operator.t_type {
+        BasicValueEnum::IntValue(match operator.t_type {
             Type::Plus => self.builder.build_int_add(left, right, "tmpadd"),
             Type::Minus => self.builder.build_int_sub(left, right, "tmpsub"),
             Type::Star => self.builder.build_int_mul(left, right, "tmpmul"),
@@ -244,15 +238,15 @@ impl IRGenerator {
             Type::EqualEqual => self.builder.build_int_compare(IntPredicate::EQ, left, right, "tmpcmp"),
             Type::BangEqual => self.builder.build_int_compare(IntPredicate::NE, left, right, "tmpcmp"),
 
-            _ => Err("Unsupported binary operand.")?,
-        }))
+            _ => panic!("Unsupported binary operand"),
+        })
     }
 
     fn call_expr(
         &mut self,
         callee: Expression,
         arguments: Vec<Expression>,
-    ) -> Result<BasicValueEnum, String> {
+    ) -> BasicValueEnum {
         match callee {
             Expression::Variable(token) => {
                 let function = self.module.get_function(&token.lexeme);
@@ -267,19 +261,15 @@ impl IRGenerator {
                     let alloca = self.create_entry_block_alloca(struc.get_type(), "classinit");
 
                     self.builder.build_store(alloca, struc);
-                    self.func_call(initializer, arguments, Some(alloca.into()))?;
-                    return Ok(self.builder.build_load(alloca, "classinitload"));
+                    self.func_call(initializer, arguments, Some(alloca.into()));
+                    return self.builder.build_load(alloca, "classinitload");
                 }
 
-                Err(format!(
-                    "Could not find matching func or class '{}' to call.",
-                    token.lexeme
-                ))
+                panic!("Could not find matching func or class to call")
             }
 
-            // TODO: This is terrible
             Expression::Get { object, name } => {
-                let obj = self.expression(*object)?;
+                let obj = self.expression(*object);
                 if let BasicValueEnum::StructValue(struc) = obj {
                     let struc_type = struc.get_type();
                     let class_def = self
@@ -296,7 +286,7 @@ impl IRGenerator {
                 }
             }
 
-            _ => Err("Unsupported callee.".to_string())?,
+            _ => panic!("Unsupported callee"),
         }
     }
 
@@ -305,37 +295,36 @@ impl IRGenerator {
         function: FunctionValue,
         arguments: Vec<Expression>,
         first_arg: Option<BasicValueEnum>,
-    ) -> Result<BasicValueEnum, String> {
+    ) -> BasicValueEnum {
         let mut args = Vec::with_capacity(arguments.len() + (first_arg.is_some() as usize));
         if let Some(arg) = first_arg {
             args.push(arg);
         }
         for arg in arguments {
-            args.push(self.expression(arg)?);
+            args.push(self.expression(arg));
         }
 
         let ret_type = self
             .builder
             .build_call(function, args.as_slice(), "tmp")
             .try_as_basic_value();
-
-        Ok(ret_type.left().unwrap_or(self.none_const))
+        ret_type.left().unwrap_or(self.none_const)
     }
 
     fn get_expression(
         &mut self,
         object: Expression,
         name: Token,
-    ) -> Result<BasicValueEnum, String> {
-        let ptr = self.pointer_from_get(object, name)?;
-        Ok(self.builder.build_load(ptr, "classload"))
+    ) -> BasicValueEnum {
+        let ptr = self.pointer_from_get(object, name);
+        self.builder.build_load(ptr, "classload")
     }
 
     fn pointer_from_get(
         &mut self,
         object: Expression,
         name: Token,
-    ) -> Result<PointerValue, String> {
+    ) -> PointerValue {
         match object {
             Expression::Variable(obj_name) => {
                 let struc = self.variables.get(&obj_name.lexeme).unwrap();
@@ -343,22 +332,20 @@ impl IRGenerator {
             }
 
             Expression::Get { object, name: inner_name } => {
-                let object = self.pointer_from_get(*object, inner_name)?;
+                let object = self.pointer_from_get(*object, inner_name);
                 self.get_from_struct(&object, name)
             }
 
-            _ => Err("Invalid get expression.".to_string()),
+            _ => panic!("Invalid get expression"),
         }
     }
 
-    fn get_from_struct(&self, struc: &PointerValue, name: Token) -> Result<PointerValue, String> {
+    fn get_from_struct(&self, struc: &PointerValue, name: Token) -> PointerValue {
         let struc_def = self.find_class(*struc);
         let ptr_index = struc_def.var_map.get(&name.lexeme).unwrap();
 
         unsafe {
-            Ok(self
-                .builder
-                .build_struct_gep(*struc, *ptr_index, "classgep"))
+            self.builder.build_struct_gep(*struc, *ptr_index, "classgep")
         }
     }
 
@@ -367,9 +354,9 @@ impl IRGenerator {
         condition: Expression,
         then_b: Expression,
         else_b: Option<Box<Expression>>,
-    ) -> Result<BasicValueEnum, String> {
+    ) -> BasicValueEnum {
         let parent = self.cur_fn();
-        let condition = self.expression(condition)?;
+        let condition = self.expression(condition);
 
         if let BasicValueEnum::IntValue(value) = condition {
             let condition = self.builder.build_int_compare(
@@ -392,12 +379,12 @@ impl IRGenerator {
             }
 
             self.builder.position_at_end(&then_bb);
-            let then_val = self.expression(then_b)?;
+            let then_val = self.expression(then_b);
             self.builder.build_unconditional_branch(&cont_bb);
 
             self.builder.position_at_end(&else_bb);
             let ret_val = if let Some(else_b) = else_b {
-                let else_val = self.expression(*else_b)?;
+                let else_val = self.expression(*else_b);
 
                 self.builder.position_at_end(&cont_bb);
                 let phi = self.builder.build_phi(then_val.get_type(), "ifphi");
@@ -405,9 +392,9 @@ impl IRGenerator {
                     (&then_val, &then_bb),
                     (&else_val, &else_bb)
                 ]);
-                Ok(phi.as_basic_value())
+                phi.as_basic_value()
             } else {
-                Ok(self.literal(Literal::None))
+                self.literal(Literal::None)
             };
 
             self.builder.position_at_end(&else_bb);
@@ -416,16 +403,16 @@ impl IRGenerator {
 
             ret_val
         } else {
-            Err("If condition needs to be a boolean.".to_string())
+            panic!("If condition wasn't a boolean")
         }
     }
 
     fn return_expression(
         &mut self,
         expression: Option<Box<Expression>>,
-    ) -> Result<BasicValueEnum, String> {
+    ) -> BasicValueEnum {
         if let Some(expression) = expression {
-            let expression = self.expression(*expression)?;
+            let expression = self.expression(*expression);
             self.builder.build_return(Some(&expression));
         } else {
             self.builder.build_return(None);
@@ -435,7 +422,7 @@ impl IRGenerator {
         self.builder.clear_insertion_position();
 
         // Even though it is an expression, code after it gets discarded anyway
-        Ok(self.none_const)
+        self.none_const
     }
 
     // TODO: Array literals
@@ -462,11 +449,9 @@ impl IRGenerator {
         }
     }
 
-    fn variable(&mut self, name: Token) -> Result<BasicValueEnum, String> {
-        match self.variables.get(&name.lexeme) {
-            Some(var) => Ok(self.builder.build_load(*var, &name.lexeme)),
-            None => Err(format!("Could not find variable '{}'.", name.lexeme)),
-        }
+    fn variable(&mut self, name: Token) -> BasicValueEnum {
+        let var = self.variables.get(&name.lexeme).expect("Couldn't find variable");
+        self.builder.build_load(*var, &name.lexeme)
     }
 
     fn find_class(&self, struc: PointerValue) -> &ClassDef {

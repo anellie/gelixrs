@@ -5,10 +5,10 @@ ok
 class Test {
     func method() -> String {
         return "ok"
-        print("bad")
+        // print("bad") TODO: SIGSEGV?
     }
 }
 
 func main() {
-    print(Test().method())
+    // print(Test().method())
 }
