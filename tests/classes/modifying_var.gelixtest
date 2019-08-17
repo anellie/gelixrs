@@ -1,15 +1,13 @@
 /*
 ok
-1
 */
 
 func main() {
     val test = Test()
+    test.str = "ok"
     print(test.str)
-    printnum(test.test)
 }
 
 class Test {
-    var test = 1
-    val str = "ok"
+    var str = "fail"
 }

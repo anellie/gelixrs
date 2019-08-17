@@ -1,9 +1,10 @@
 /*
+hi!
 ok
 */
 
 func main() {
-    Test()
+    print(Test().ok)
 }
 
 class Test {
@@ -11,6 +12,6 @@ class Test {
     var ok = "ok"
 
     func init() {
-        print(this.ok)
+        print("hi!")
     }
 }

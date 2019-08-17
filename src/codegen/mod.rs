@@ -169,6 +169,7 @@ impl IRGenerator {
                 self.if_expression(*condition, *then_branch, else_branch),
             Expression::Literal(literal) => self.literal(literal),
             Expression::Return(expr) => self.return_expression(expr),
+            Expression::Set { object, name, value } => self.set_expression(*object, name, *value),
             Expression::Variable(name) => self.variable(name),
             _ => panic!("Encountered unimplemented expression"),
         }
@@ -335,13 +336,20 @@ impl IRGenerator {
                 self.get_from_struct(&object, name)
             }
 
+            Expression::Call { callee, arguments} => {
+                let value = self.call_expr(*callee, arguments);
+                let alloca = self.create_entry_block_alloca(value.get_type(), "callalloc");
+                self.builder.build_store(alloca, value);
+                self.get_from_struct(&alloca, name)
+            }
+
             _ => panic!("Invalid get expression"),
         }
     }
 
     fn get_from_struct(&self, struc: &PointerValue, name: Token) -> PointerValue {
         let struc_def = self.find_class(*struc);
-        let ptr_index = struc_def.var_map[&name.lexeme];
+        let ptr_index = struc_def.var_map[&name.lexeme].index;
 
         unsafe {
             self.builder.build_struct_gep(*struc, ptr_index, "classgep")
@@ -448,6 +456,18 @@ impl IRGenerator {
         self.none_const
     }
 
+    fn set_expression(
+        &mut self,
+        object: Expression,
+        name: Token,
+        value: Expression
+    ) -> BasicValueEnum {
+        let ptr = self.pointer_from_get(object, name);
+        let value = self.expression(value);
+        self.builder.build_store(ptr, value);
+        value
+    }
+
     // TODO: Array literals
     fn literal(&mut self, literal: Literal) -> BasicValueEnum {
         match literal {
@@ -509,7 +529,7 @@ impl IRGenerator {
 
 struct ClassDef {
     pub _type: StructType,
-    pub var_map: HashMap<String, u32>,
+    pub var_map: HashMap<String, ClassField>,
     pub methods: HashMap<String, FunctionValue>,
     // Note that the initializer is only None during creation in the Resolver.
     // By the time the IRGen gets to it, it is always Some.
@@ -524,5 +544,16 @@ impl ClassDef {
             methods: HashMap::new(),
             initializer: None,
         }
+    }
+}
+
+struct ClassField {
+    pub index: u32,
+    pub is_val: bool
+}
+
+impl ClassField {
+    pub fn new(index: u32, is_val: bool) -> ClassField {
+        ClassField { index, is_val }
     }
 }

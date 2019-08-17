@@ -1,15 +1,10 @@
-/*
-ok
-1
-*/
+// ERR
 
 func main() {
     val test = Test()
-    print(test.str)
-    printnum(test.test)
+    test.str = "fail"
 }
 
 class Test {
-    var test = 1
     val str = "ok"
 }

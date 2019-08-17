@@ -81,9 +81,3 @@ class Pet {
         this.owner = newOwner
     }
 }
-
-
-func numberIsTooBig(i64 number) -> bool {
-    if (number > 30) error "Result is too big!"
-    number
-}

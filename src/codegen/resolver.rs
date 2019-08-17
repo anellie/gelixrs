@@ -7,7 +7,7 @@ use super::super::{
     },
     lexer::token::Token,
 };
-use super::{ClassDef, IRGenerator};
+use super::{ClassDef, ClassField, IRGenerator};
 use inkwell::{
     builder::Builder,
     context::Context,
@@ -201,7 +201,7 @@ impl Resolver {
 
             for (i, field) in class.variables.iter_mut().enumerate() {
                 fields.push(self.resolve_expression(&mut field.initializer)?);
-                fields_map.insert(field.name.lexeme.to_string(), i as u32);
+                fields_map.insert(field.name.lexeme.to_string(), ClassField::new(i as u32, field.is_val));
             }
 
             let mut class_def = self.types.get_mut(&class.name.lexeme).unwrap();
@@ -409,6 +409,36 @@ impl Resolver {
                 self.get_type("None")
             }
 
+            Expression::Set { object, name, value } => {
+                let object = self.resolve_expression(object)?;
+
+                if let BasicTypeEnum::StructType(struc) = object {
+                    let class_def = self.find_class(struc);
+                    let class_field = class_def
+                        .var_map
+                        .get(&name.lexeme)
+                        .ok_or(format!("Unknown class field '{}'.", name.lexeme))?;
+
+                    if class_field.is_val {
+                        Err(format!("Class field '{}' cannot be set. (val)", name.lexeme))?
+                    }
+
+                    let field_type = class_def
+                        ._type
+                        .get_field_type_at_index(class_field.index)
+                        .expect("Internal error trying to get class field.");
+
+                    let expr_type = self.resolve_expression(value)?;
+                    if expr_type == field_type {
+                        Ok(expr_type)
+                    } else {
+                        Err(format!("Field {} is a different type.", name.lexeme))
+                    }
+                } else {
+                    Err("Get syntax (x.y) is only supported on class instances.".to_string())
+                }
+            }
+
             Expression::Literal(literal) => Ok(self.type_from_literal(literal)),
 
             Expression::Variable(name) => Ok(self.find_var(name)?._type),
@@ -425,10 +455,10 @@ impl Resolver {
         let class_def = self.find_class(struc);
 
         let var_index = class_def.var_map.get(&name.lexeme);
-        if let Some(index) = var_index {
+        if let Some(field) = var_index {
             return class_def
                 ._type
-                .get_field_type_at_index(*index)
+                .get_field_type_at_index(field.index)
                 .ok_or("Internal error trying to get class field.".to_string());
         }
 
