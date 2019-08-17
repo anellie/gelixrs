@@ -1,6 +1,6 @@
 use super::super::{
     ast::{
-        declaration::{DeclarationList, Class, FuncSignature},
+        declaration::{DeclarationList, FuncSignature, FunctionArg},
         expression::{Expression, LOGICAL_BINARY},
         literal::Literal,
         statement::Statement,
@@ -17,10 +17,7 @@ use inkwell::{
     values::BasicValueEnum,
     AddressSpace,
 };
-use std::collections::HashMap;
-use std::mem;
-use crate::ast::declaration::Function;
-use crate::lexer::token::Type;
+use std::{collections::HashMap, mem};
 
 /// A resolver. Resolves all variables and types.
 pub struct Resolver {
@@ -30,6 +27,8 @@ pub struct Resolver {
 
     /// All classes.
     types: HashMap<String, ClassDef>,
+    // A constant that is used for expressions that don't produce a value but are required to.
+    none_const: BasicTypeEnum,
     // All environments/scopes at the moment. Used like a stack.
     environments: Vec<Environment>,
 
@@ -46,10 +45,15 @@ pub struct Resolver {
 impl Resolver {
     /// Will do all passes after one another.
     pub fn resolve(&mut self, list: &mut DeclarationList) -> Option<()> {
-        self.run(list).or_else(|err| {
-            eprintln!("[Resolver] {} (occurred in function: {})", err, &self.current_func_name);
-            Err(())
-        }).ok()
+        self.run(list)
+            .or_else(|err| {
+                eprintln!(
+                    "[Resolver] {} (occurred in function: {})",
+                    err, &self.current_func_name
+                );
+                Err(())
+            })
+            .ok()
     }
 
     fn run(&mut self, list: &mut DeclarationList) -> Result<(), String> {
@@ -66,20 +70,36 @@ impl Resolver {
             self.declare_type(&class.name)?;
         }
 
-        for _enum in &list.enums {
-            self.declare_type(&_enum.name)?;
-        }
-
         Ok(())
     }
 
     fn declare_type(&mut self, name: &Token) -> Result<(), String> {
+        // Create an opaque struct & class definition
         let struc = self.context.opaque_struct_type(&name.lexeme);
+        let class_def = ClassDef::new(struc);
+
+        // Insert into type map for initializer to be able to resolve it
         let exists = self
             .types
-            .insert(name.lexeme.to_string(), ClassDef::new(struc));
+            .insert(name.lexeme.to_string(), class_def)
+            .is_some();
 
-        if exists.is_none() {
+        // Create an initializer function
+        let init_fn = FuncSignature {
+            name: Token::generic_identifier(format!("{}-init", &name.lexeme)),
+            return_type: None,
+            parameters: vec![FunctionArg {
+                name: Token::generic_identifier("this".to_string()),
+                _type: name.clone(),
+            }],
+        };
+        self.create_function(&init_fn, true)?;
+        self.types.get_mut(&name.lexeme).unwrap().initializer =
+            self.module.get_function(&init_fn.name.lexeme);
+
+        // Ensure it doesn't exist yet
+        if !exists {
+            // TODO: What is this?? causes 'tests/classes/class_as_var' to fail/panic
             self.environments
                 .first_mut()
                 .unwrap()
@@ -97,30 +117,46 @@ impl Resolver {
     /// During the second pass, all functions are declared.
     fn second_pass(&mut self, list: &mut DeclarationList) -> Result<(), String> {
         for ext_fn in &list.ext_functions {
-            self.create_function(&ext_fn)?;
+            self.create_function(&ext_fn, false)?;
         }
 
         for func in &list.functions {
-            self.create_function(&func.sig)?;
+            self.create_function(&func.sig, false)?;
         }
 
         for class in list.classes.iter_mut() {
-            self.create_initializer(class)?;
+            // This argument is put as the first on all class methods.
+            // This allows simply passing in the struct to a regular function
+            // to emulate class methods.
+            let this_arg = FunctionArg {
+                _type: class.name.clone(),
+                name: Token::generic_identifier("this".to_string()),
+            };
 
             for func in class.methods.iter_mut() {
+                func.sig.parameters.insert(0, this_arg.clone());
+
+                // Rename to prevent naming collisions
                 let old_name = func.sig.name.lexeme.clone();
                 func.sig.name.lexeme = format!("{}-{}", class.name.lexeme, func.sig.name.lexeme);
 
-                self.create_function(&func.sig)?;
+                self.create_function(&func.sig, false)?;
                 let class_def = self.types.get_mut(&class.name.lexeme).unwrap();
-                class_def.methods.insert(old_name, self.module.get_function(&func.sig.name.lexeme).unwrap());
+                class_def.methods.insert(
+                    old_name,
+                    self.module.get_function(&func.sig.name.lexeme).unwrap(),
+                );
             }
         }
 
         Ok(())
     }
 
-    fn create_function(&mut self, function: &FuncSignature) -> Result<(), String> {
+    fn create_function(
+        &mut self,
+        function: &FuncSignature,
+        first_is_ptr: bool,
+    ) -> Result<(), String> {
         if self
             .module
             .get_function(&function.name.lexeme.to_string())
@@ -135,6 +171,15 @@ impl Resolver {
         let mut parameters = Vec::new();
         for param in &function.parameters {
             parameters.push(self.resolve_type(&param._type)?);
+        }
+        // TODO: This is rather hacky/ugly
+        if first_is_ptr {
+            let first = parameters.remove(0);
+            if let BasicTypeEnum::StructType(struc) = first {
+                parameters.push(struc.ptr_type(AddressSpace::Generic).into());
+            } else {
+                panic!("create_function: first_is_ptr");
+            }
         }
         let parameters = parameters.as_slice();
 
@@ -154,22 +199,7 @@ impl Resolver {
         Ok(())
     }
 
-    fn create_initializer(&mut self, class: &mut Class) -> Result<(), String> {
-        let init_fn = Function {
-            sig: FuncSignature {
-                name: Token::generic_identifier("init".to_string()),
-                return_type: Some(class.name.clone()),
-                parameters: Vec::new()
-            },
-            body: Expression::Block(Vec::new())
-        };
-
-        class.methods.push(init_fn);
-        Ok(())
-    }
-
     /// During the third pass, all class structs are filled.
-    /// TODO: Structs that have structs as a field won't init properly due to wrong order
     fn third_pass(&mut self, list: &mut DeclarationList) -> Result<(), String> {
         for class in list.classes.iter_mut() {
             let mut fields = Vec::with_capacity(class.variables.len());
@@ -279,22 +309,29 @@ impl Resolver {
                 Ok(ret_type)
             }
 
-            Expression::Call { callee, token: _, arguments } => {
+            Expression::Call { callee, arguments } => {
+                let mut is_method = false;
+                if let Expression::Get { object: _, name: _ } = **callee {
+                    is_method = true;
+                }
+
                 let callee = self.resolve_expression(callee)?;
                 match callee {
+                    // Function call
                     BasicTypeEnum::PointerType(ptr) => {
                         let func = ptr.get_element_type();
                         if let AnyTypeEnum::FunctionType(func) = func {
-                            self.check_func_args(func, arguments)?;
+                            self.check_func_args(func, arguments, is_method)?;
                             Ok(func
                                 .get_return_type()
-                                .get_or_insert(self.types.get("None").unwrap()._type.into())
+                                .get_or_insert(self.none_const)
                                 .clone())
                         } else {
                             Err("Only functions or classes are allowed to be called.".to_string())
                         }
                     }
 
+                    // Class call
                     BasicTypeEnum::StructType(struc) => {
                         // TODO: Typecheck init
                         Ok(struc.into())
@@ -356,7 +393,11 @@ impl Resolver {
         }
     }
 
-    fn resolve_class_get(&mut self, struc: StructType, name: &mut Token) -> Result<BasicTypeEnum, String> {
+    fn resolve_class_get(
+        &mut self,
+        struc: StructType,
+        name: &mut Token,
+    ) -> Result<BasicTypeEnum, String> {
         let class_def = self.find_class(struc);
 
         let var_index = class_def.var_map.get(&name.lexeme);
@@ -369,7 +410,11 @@ impl Resolver {
 
         let method = class_def.methods.get(&name.lexeme);
         if let Some(method) = method {
-            return Ok(method.as_global_value().as_pointer_value().get_type().into());
+            return Ok(method
+                .as_global_value()
+                .as_pointer_value()
+                .get_type()
+                .into());
         }
 
         Err(format!("Unknown class field '{}'.", name.lexeme))
@@ -391,6 +436,7 @@ impl Resolver {
                 .i8_type()
                 .ptr_type(AddressSpace::Generic)
                 .as_basic_type_enum(),
+            "None" => self.none_const,
             _ => self
                 .types
                 .get(name)
@@ -402,7 +448,7 @@ impl Resolver {
 
     fn type_from_literal(&mut self, literal: &Literal) -> BasicTypeEnum {
         match literal {
-            Literal::None => self.types.get("None").unwrap()._type.into(),
+            Literal::None => self.none_const,
             Literal::Bool(_) => self.context.bool_type().as_basic_type_enum(),
             Literal::Float(_) => self.context.f32_type().as_basic_type_enum(),
             Literal::Double(_) => self.context.f64_type().as_basic_type_enum(),
@@ -471,11 +517,18 @@ impl Resolver {
         &mut self,
         func: FunctionType,
         arguments: &mut Vec<Expression>,
+        is_method: bool,
     ) -> Result<(), String> {
         let expected = func.get_param_types();
+        // Casting bool to int: 1 = true; 0 = false
+        let expected_len = expected.len() - (is_method as usize);
 
-        if expected.len() != arguments.len() {
-            Err("Incorrect amount of function arguments.")?;
+        if expected_len != arguments.len() {
+            Err(format!(
+                "Incorrect amount of function arguments. (Expected {}; got {})",
+                expected_len,
+                arguments.len()
+            ))?;
         }
 
         for (i, arg) in arguments.iter_mut().enumerate() {
@@ -509,19 +562,16 @@ impl Resolver {
         let mut environments = Vec::with_capacity(10);
         environments.push(Environment::new()); // global environment
 
-        let mut types = HashMap::with_capacity(10);
-        types.insert(
-            "None".to_string(),
-            ClassDef::new(
-                context.struct_type(&[BasicTypeEnum::IntType(context.bool_type())], true),
-            ),
-        );
+        let none_const = context
+            .struct_type(&[BasicTypeEnum::IntType(context.bool_type())], true)
+            .into();
 
         Resolver {
             context,
             module,
             builder,
-            types,
+            types: HashMap::with_capacity(10),
+            none_const,
             environments,
             environment_counter: 0,
             current_func: None,
@@ -541,14 +591,12 @@ impl Resolver {
         mpm.add_instruction_combining_pass();
         mpm.add_reassociate_pass();
 
-        let none_const =
-            self.types
-                .get("None")
-                .unwrap()
-                ._type
-                .const_named_struct(&[BasicValueEnum::IntValue(
-                    self.context.bool_type().const_int(0, false),
-                )]);
+        let none_const = self
+            .context
+            .struct_type(&[BasicTypeEnum::IntType(self.context.bool_type())], true)
+            .const_named_struct(&[BasicValueEnum::IntValue(
+                self.context.bool_type().const_int(0, false),
+            )]);
 
         IRGenerator {
             context: self.context,

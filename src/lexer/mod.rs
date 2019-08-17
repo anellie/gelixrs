@@ -126,7 +126,6 @@ impl Lexer {
 
             't' => match self.char_at(self.start + 1) {
                 'a' => self.check_identifier_keyword(2, &['k', 'e'], Type::Take),
-                'h' => self.check_identifier_keyword(2, &['i', 's'], Type::This),
                 'r' => self.check_identifier_keyword(2, &['u', 'e'], Type::True),
                 _ => Type::Identifier,
             },
@@ -211,7 +210,9 @@ impl Lexer {
     fn make_token(&mut self, t_type: Type) -> Token {
         Token {
             t_type,
-            lexeme: self.chars[(self.start)..(self.current)].into_iter().collect(),
+            lexeme: self.chars[(self.start)..(self.current)]
+                .into_iter()
+                .collect(),
             line: self.line,
         }
     }

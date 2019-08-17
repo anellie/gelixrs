@@ -338,11 +338,9 @@ impl Parser {
                         }
                     }
 
-                    let paren =
-                        self.consume(Type::RightParen, "Expected ')' after call arguments.")?;
+                    self.consume(Type::RightParen, "Expected ')' after call arguments.")?;
                     expression = Expression::Call {
                         callee: Box::new(expression),
-                        token: paren,
                         arguments,
                     }
                 }
@@ -369,7 +367,6 @@ impl Parser {
             _ if self.match_token(Type::True) => Expression::Literal(Literal::Bool(true)),
             _ if self.match_token(Type::LeftParen) => self.grouping()?,
             _ if self.check(Type::Identifier) => Expression::Variable(self.advance()),
-            _ if self.check(Type::This) => Expression::This(self.advance()),
             _ if self.check(Type::Int) => self.integer()?,
             _ if self.check(Type::Float) => self.float()?,
             _ if self.check(Type::String) => self.string(),

@@ -1,0 +1,11 @@
+// Err
+
+exfn printnum(i64 a)
+
+func main() {
+    printnum(Test.ok)
+}
+
+class Test {
+    val ok = 5
+}

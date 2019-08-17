@@ -48,7 +48,7 @@ pub struct FuncSignature {
 }
 
 /// A function argument.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FunctionArg {
     pub _type: Token,
     pub name: Token,

@@ -2,7 +2,7 @@ mod parser;
 
 use super::lexer::{
     token::{Token, Type},
-    Lexer
+    Lexer,
 };
 use std::{iter::Peekable, mem};
 

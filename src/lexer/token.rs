@@ -22,7 +22,7 @@ impl Token {
         Token {
             t_type: Type::Identifier,
             lexeme,
-            line: 0
+            line: 0,
         }
     }
 }
@@ -47,10 +47,11 @@ pub enum Type {
 
     Identifier, String, Int, Float, Char,
 
-    And, ExFn, Class, Else, Enum, Error, Ext, False,
+    And, ExFn, Class, Else, Enum,
+    Error, Ext, False,
     For, Func, If, In, None, Or,
-    Return, Super, Take, This,
-    True, Var, Val, When, While,
+    Return, Super, Take, True,
+    Var, Val, When, While,
 
     ScanError, EndOfFile,
 }

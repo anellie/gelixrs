@@ -1,0 +1,10 @@
+// ERR
+
+func main() {
+    val test = Test()
+}
+
+class Test {
+    var test = 1
+    val fail = this.test
+}

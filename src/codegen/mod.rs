@@ -60,18 +60,42 @@ impl IRGenerator {
     }
 
     fn class(&mut self, class: Class) -> Result<(), String> {
-        let mut default_values = Vec::with_capacity(class.variables.len());
-        for var in class.variables {
-            default_values.push(self.expression(var.initializer)?);
-        }
-
-        let mut class_def = self.types.get_mut(&class.name.lexeme).unwrap();
-        class_def.default_values = Some(default_values);
-
         for method in class.methods {
             self.function(method)?;
         }
 
+        self.class_initializer(&class.name.lexeme, class.variables)
+    }
+
+    /// Creates a function that takes a zeroinitializer struct as a parameter
+    /// and populates its fields with defaults.
+    ///
+    /// This functions cannot create & return a struct since alloca are destroyed on return,
+    /// which would result in the function returning garbage stack data.
+    fn class_initializer(&mut self, name: &str, variables: Vec<Variable>) -> Result<(), String> {
+        let class_def = self.types.remove(name).unwrap();
+        let init_fn = class_def.initializer.unwrap();
+        self.current_fn = Some(init_fn);
+
+        let entry = self.context.append_basic_block(&init_fn, "entry");
+        self.builder.position_at_end(&entry);
+
+        let struc = init_fn.get_first_param().unwrap();
+        if let BasicValueEnum::PointerValue(ptr) = struc {
+            self.variables.insert("this".to_string(), ptr);
+            for (index, variable) in variables.into_iter().enumerate() {
+                let initializer = self.expression(variable.initializer)?;
+                unsafe {
+                    let gep_ptr = self.builder.build_struct_gep(ptr, index as u32, "classgep");
+                    self.builder.build_store(gep_ptr, initializer);
+                }
+            }
+        } else {
+            panic!("creating class initializer");
+        }
+
+        self.types.insert(name.to_string(), class_def);
+        self.builder.build_return(None);
         Ok(())
     }
 
@@ -137,12 +161,14 @@ impl IRGenerator {
     fn expression(&mut self, expression: Expression) -> Result<BasicValueEnum, String> {
         match expression {
             Expression::Assignment { name, value } => self.assignment(name, *value),
-            Expression::Binary { left, operator, right } => self.binary(*left, operator, *right),
+            Expression::Binary { left, operator, right } => 
+                self.binary(*left, operator, *right),
             Expression::Block(expressions) => self.block_expr(expressions),
-            Expression::Call { callee, token: _, arguments } => self.call_expr(*callee, arguments),
+            Expression::Call { callee, arguments } => self.call_expr(*callee, arguments),
             Expression::Get { object, name } => self.get_expression(*object, name),
             Expression::Grouping(expr) => self.expression(*expr),
-            Expression::If { condition, then_branch, else_branch } => self.if_expression(*condition, *then_branch, else_branch),
+            Expression::If { condition, then_branch, else_branch } => 
+                self.if_expression(*condition, *then_branch, else_branch),
             Expression::Literal(literal) => Ok(self.literal(literal)),
             Expression::Return(expr) => self.return_expression(expr),
             Expression::Variable(name) => self.variable(name),
@@ -231,12 +257,18 @@ impl IRGenerator {
             Expression::Variable(token) => {
                 let function = self.module.get_function(&token.lexeme);
                 if let Some(function) = function {
-                    return self.func_call(function, arguments);
+                    return self.func_call(function, arguments, None);
                 }
 
                 let class = self.types.get(&token.lexeme);
                 if let Some(class_def) = class {
-                    return self.class_call(class_def, arguments);
+                    let initializer = class_def.initializer.unwrap();
+                    let struc = class_def._type.const_zero();
+                    let alloca = self.create_entry_block_alloca(struc.get_type(), "classinit");
+
+                    self.builder.build_store(alloca, struc);
+                    self.func_call(initializer, arguments, Some(alloca.into()))?;
+                    return Ok(self.builder.build_load(alloca, "classinitload"));
                 }
 
                 Err(format!(
@@ -248,21 +280,23 @@ impl IRGenerator {
             // TODO: This is terrible
             Expression::Get { object, name } => {
                 let obj = self.expression(*object)?;
-
                 if let BasicValueEnum::StructValue(struc) = obj {
                     let struc_type = struc.get_type();
-                    let class_def = self.types
+                    let class_def = self
+                        .types
                         .iter()
                         .find(|&_type| _type.1._type == struc_type)
                         .unwrap()
                         .1;
-                    return self.func_call(class_def.methods.get(&name.lexeme).unwrap().clone(), arguments);
-                }
 
-                Err("".to_string())
+                    let function = class_def.methods.get(&name.lexeme).unwrap().clone();
+                    self.func_call(function, arguments, Some(struc.into()))
+                } else {
+                    panic!("call_expr: Get expression without struct")
+                }
             }
 
-            _ => Err("Unsupported callee.".to_string())?
+            _ => Err("Unsupported callee.".to_string())?,
         }
     }
 
@@ -270,8 +304,12 @@ impl IRGenerator {
         &mut self,
         function: FunctionValue,
         arguments: Vec<Expression>,
+        first_arg: Option<BasicValueEnum>,
     ) -> Result<BasicValueEnum, String> {
-        let mut args = Vec::with_capacity(arguments.len());
+        let mut args = Vec::with_capacity(arguments.len() + (first_arg.is_some() as usize));
+        if let Some(arg) = first_arg {
+            args.push(arg);
+        }
         for arg in arguments {
             args.push(self.expression(arg)?);
         }
@@ -280,27 +318,8 @@ impl IRGenerator {
             .builder
             .build_call(function, args.as_slice(), "tmp")
             .try_as_basic_value();
-        if ret_type.is_left() {
-            Ok(ret_type.left().unwrap())
-        } else {
-            Ok(self.none_const)
-        }
-    }
 
-    // TODO: call init()
-    fn class_call(
-        &self,
-        class: &ClassDef,
-        _arguments: Vec<Expression>,
-    ) -> Result<BasicValueEnum, String> {
-        if let Some(defaults) = &class.default_values {
-            Ok(class._type.const_named_struct(defaults.as_slice()).into())
-        } else {
-            //self.class(class.ast_node); TODO:
-            Ok(class._type.const_named_struct(
-                class.default_values.as_ref().unwrap().as_slice(),
-            ).into())
-        }
+        Ok(ret_type.left().unwrap_or(self.none_const))
     }
 
     fn get_expression(
@@ -323,7 +342,7 @@ impl IRGenerator {
                 self.get_from_struct(struc, name)
             }
 
-            Expression::Get { object, name: inner_name} => {
+            Expression::Get { object, name: inner_name } => {
                 let object = self.pointer_from_get(*object, inner_name)?;
                 self.get_from_struct(&object, name)
             }
@@ -423,10 +442,18 @@ impl IRGenerator {
     fn literal(&mut self, literal: Literal) -> BasicValueEnum {
         match literal {
             Literal::None => self.none_const,
-            Literal::Bool(value) => BasicValueEnum::IntValue(self.context.bool_type().const_int(value as u64, false)),
-            Literal::Int(num) => BasicValueEnum::IntValue(self.context.i64_type().const_int(num.try_into().unwrap(), false)),
-            Literal::Float(num) => BasicValueEnum::FloatValue(self.context.f32_type().const_float(num.into())),
-            Literal::Double(num) => BasicValueEnum::FloatValue(self.context.f64_type().const_float(num)),
+            Literal::Bool(value) => self
+                .context
+                .bool_type()
+                .const_int(value as u64, false)
+                .into(),
+            Literal::Int(num) => self
+                .context
+                .i64_type()
+                .const_int(num.try_into().unwrap(), false)
+                .into(),
+            Literal::Float(num) => self.context.f32_type().const_float(num.into()).into(),
+            Literal::Double(num) => self.context.f64_type().const_float(num).into(),
             Literal::String(string) => {
                 let const_str = self.builder.build_global_string_ptr(&string, "literal-str");
                 BasicValueEnum::PointerValue(const_str.as_pointer_value())
@@ -473,19 +500,21 @@ impl IRGenerator {
 }
 
 struct ClassDef {
-    pub default_values: Option<Vec<BasicValueEnum>>,
     pub _type: StructType,
     pub var_map: HashMap<String, u32>,
-    pub methods: HashMap<String, FunctionValue>
+    pub methods: HashMap<String, FunctionValue>,
+    // Note that the initializer is only None during creation in the Resolver.
+    // By the time the IRGen gets to it, it is always Some.
+    pub initializer: Option<FunctionValue>,
 }
 
 impl ClassDef {
     pub fn new(_type: StructType) -> ClassDef {
         ClassDef {
-            default_values: None,
             _type,
             var_map: HashMap::new(),
-            methods: HashMap::new()
+            methods: HashMap::new(),
+            initializer: None,
         }
     }
 }

@@ -2,19 +2,12 @@
 I'm a method!
 */
 
-exfn printnum(i64 a)
-
 func main() {
-    var test = Test()
-    printnum(test.whoAmI())
+    Test().whoAmI()
 }
 
-
 class Test {
-
-    var hmm = 5
-
-    func whoAmI() -> i64 {
-        return 3
+    func whoAmI() {
+        print("I'm a method!")
     }
 }

@@ -34,7 +34,6 @@ pub enum Expression {
     /// A method/function call.
     Call {
         callee: Box<Expression>,
-        token: Token,
         arguments: Vec<Expression>,
     },
 
@@ -81,9 +80,6 @@ pub enum Expression {
         value: Box<Expression>,
         else_branch: Option<Box<Expression>>,
     },
-
-    /// 'this' keyword
-    This(Token),
 
     /// A unary operation. (!false)
     Unary {
