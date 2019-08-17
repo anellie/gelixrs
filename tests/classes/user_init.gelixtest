@@ -1,0 +1,16 @@
+/*
+ok
+*/
+
+func main() {
+    Test()
+}
+
+class Test {
+
+    var ok = "ok"
+
+    func init() {
+        print(this.ok)
+    }
+}

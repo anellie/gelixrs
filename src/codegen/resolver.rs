@@ -86,7 +86,7 @@ impl Resolver {
 
         // Create an initializer function
         let init_fn = FuncSignature {
-            name: Token::generic_identifier(format!("{}-init", &name.lexeme)),
+            name: Token::generic_identifier(format!("init-{}", &name.lexeme)),
             return_type: None,
             parameters: vec![FunctionArg {
                 name: Token::generic_identifier("this".to_string()),

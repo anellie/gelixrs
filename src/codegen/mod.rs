@@ -246,12 +246,22 @@ impl IRGenerator {
                 let class = self.types.get(&token.lexeme);
                 if let Some(class_def) = class {
                     let initializer = class_def.initializer.unwrap();
+                    // TODO: How NOT to clone an Option... borrowing can be a pain...
+                    let user_init = class_def.methods.get("init");
+                    let user_init = if let Some(u) = user_init { Some(u.clone()) } else { None };
+
                     let struc = class_def._type.const_zero();
                     let alloca = self.create_entry_block_alloca(struc.get_type(), "classinit");
 
                     self.builder.build_store(alloca, struc);
-                    self.func_call(initializer, arguments, Some(alloca.into()));
-                    return self.builder.build_load(alloca, "classinitload");
+                    self.func_call(initializer, Vec::new(), Some(alloca.into()));
+
+                    let struc = self.builder.build_load(alloca, "classinitload");
+                    if let Some(user_init) = user_init {
+                        self.func_call(user_init, arguments, Some(struc.into()));
+                    }
+
+                    return struc;
                 }
 
                 panic!("Could not find matching func or class to call")
