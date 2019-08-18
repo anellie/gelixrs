@@ -5,7 +5,7 @@ ok
 class Test {
     func method() -> String {
         return "ok"
-        // "bad" TODO: Somehow segfaults?
+        "bad"
     }
 }
 

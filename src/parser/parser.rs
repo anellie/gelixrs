@@ -431,9 +431,12 @@ impl Parser {
 
     fn integer(&mut self) -> Option<Expression> {
         let token = self.advance();
-        Some(Expression::Literal(Literal::Int(
-            token.lexeme.parse().ok()?,
-        )))
+        if let Ok(int) = token.lexeme.parse() {
+            Some(Expression::Literal(Literal::Int(int)))
+        } else {
+            self.error_at_current("Expected integer.")?;
+            None
+        }
     }
 
     // TODO: Support for single-prec float
