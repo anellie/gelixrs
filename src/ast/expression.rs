@@ -1,6 +1,6 @@
 use super::super::lexer::token::{Token, Type};
 use super::literal::Literal;
-use super::statement::Statement;
+use super::declaration::Variable;
 
 // All binary operand types that return a bool instead of the types of their values.
 pub static LOGICAL_BINARY: [Type; 6] = [
@@ -14,7 +14,8 @@ pub static LOGICAL_BINARY: [Type; 6] = [
 
 /// An enum with all expression types in Gelix.
 /// An expression is a language construct that returns a value of any type and cannot appear top-level.
-/// Currently, all statements except variable definitions are expressions.
+/// Currently, everything not top-level is an expression. However, some are not allowed in certain contexts;
+/// see the bottom of this enum.
 #[derive(Debug)]
 pub enum Expression {
     /// Assignment a la x = 5
@@ -28,8 +29,8 @@ pub enum Expression {
     },
 
     /// A block of code.
-    /// Last statement is return value, if it is not an Expression, None is returned.
-    Block(Vec<Statement>),
+    /// Last expression is the return value.
+    Block(Vec<Expression>),
 
     /// A method/function call.
     Call {
@@ -96,4 +97,12 @@ pub enum Expression {
         branches: Vec<(Expression, Expression)>,
         else_branch: Box<Expression>,
     },
+
+
+    /// Below are all 'higher expressions'. These are differentiated in the parser.
+    /// They are only allowed to appear as top-level inside a block.
+    /// All of them always produce None as a value.
+
+    /// A variable definition.
+    VarDef(Box<Variable>),
 }

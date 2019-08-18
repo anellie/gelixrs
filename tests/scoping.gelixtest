@@ -1,4 +1,7 @@
 /*
+outer
+inner
+innerst
 innerst
 inner
 outer
@@ -6,12 +9,15 @@ outer
 
 func main() {
     var a = "outer"
+    print(a)
 
     {
         var a = "inner"
+        print(a)
 
         {
             var a = "innerst"
+            print(a)
             print(a)
         }
 

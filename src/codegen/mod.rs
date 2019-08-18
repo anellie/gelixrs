@@ -5,7 +5,6 @@ use super::{
         declaration::{Class, DeclarationList, Function, Variable},
         expression::Expression,
         literal::Literal,
-        statement::Statement,
     },
     lexer::token::{Token, Type},
 };
@@ -134,27 +133,6 @@ impl IRGenerator {
         }
     }
 
-    /// Compile a statement. Statements are only found in blocks.
-    /// TODO: Consider turning Variable into an expression too and eliminating statements
-    /// altogether. (Variable definition could still be treated differently by the parser to
-    /// prevent a function that just defines a variable or similar.)
-    fn statement(&mut self, statement: Statement) {
-        match statement {
-            Statement::Variable(var) => self.var_statement(var),
-            Statement::Expression(expr) => {
-                self.expression(expr);
-            }
-        }
-    }
-
-    fn var_statement(&mut self, var: Variable) {
-        let initial_value = self.expression(var.initializer);
-        let alloca = self.create_entry_block_alloca(initial_value.get_type(), &var.name.lexeme);
-
-        self.builder.build_store(alloca, initial_value);
-        self.variables.insert(var.name.lexeme, alloca);
-    }
-
     fn expression(&mut self, expression: Expression) -> BasicValueEnum {
         match expression {
             Expression::Assignment { name, value } => self.assignment(name, *value),
@@ -171,6 +149,7 @@ impl IRGenerator {
             Expression::Return(expr) => self.return_expression(expr),
             Expression::Set { object, name, value } => self.set_expression(*object, name, *value),
             Expression::Variable(name) => self.variable(name),
+            Expression::VarDef(var) => self.var_def(*var),
             _ => panic!("Encountered unimplemented expression"),
         }
     }
@@ -184,15 +163,10 @@ impl IRGenerator {
         value
     }
 
-    fn block_expr(&mut self, statements: Vec<Statement>) -> BasicValueEnum {
-        statements.into_iter().fold(self.none_const, |_, stmt| {
-            if let Statement::Expression(expr) = stmt {
-                self.expression(expr)
-            } else {
-                self.statement(stmt);
-                self.none_const
-            }
-        })
+    fn block_expr(&mut self, expressions: Vec<Expression>) -> BasicValueEnum {
+        expressions
+            .into_iter()
+            .fold(self.none_const, |_, expr| self.expression(expr))
     }
 
     // TODO: Add float support
@@ -495,6 +469,16 @@ impl IRGenerator {
     fn variable(&mut self, name: Token) -> BasicValueEnum {
         let var = self.variables.get(&name.lexeme).expect("Couldn't find variable");
         self.builder.build_load(*var, &name.lexeme)
+    }
+
+    fn var_def(&mut self, var: Variable) -> BasicValueEnum {
+        let initial_value = self.expression(var.initializer);
+        let alloca = self.create_entry_block_alloca(initial_value.get_type(), &var.name.lexeme);
+
+        self.builder.build_store(alloca, initial_value);
+        self.variables.insert(var.name.lexeme, alloca);
+
+        self.none_const
     }
 
     fn find_class(&self, struc: PointerValue) -> &ClassDef {

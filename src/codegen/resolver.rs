@@ -3,7 +3,6 @@ use super::super::{
         declaration::{DeclarationList, Function, FuncSignature, FunctionArg},
         expression::{Expression, LOGICAL_BINARY},
         literal::Literal,
-        statement::Statement,
     },
     lexer::token::Token,
 };
@@ -257,20 +256,6 @@ impl Resolver {
         Ok(())
     }
 
-    fn resolve_statement(&mut self, statement: &mut Statement) -> Result<(), String> {
-        match statement {
-            Statement::Variable(var) => {
-                let _type = self.resolve_expression(&mut var.initializer)?;
-                self.define_variable(&mut var.name, !var.is_val, true, _type)
-            }
-
-            Statement::Expression(expr) => {
-                self.resolve_expression(expr)?;
-                Ok(())
-            }
-        }
-    }
-
     fn resolve_expression(&mut self, expression: &mut Expression) -> Result<BasicTypeEnum, String> {
         match expression {
             Expression::Assignment { name, value } => {
@@ -305,22 +290,12 @@ impl Resolver {
                 }
             }
 
-            Expression::Block(statements) => {
+            Expression::Block(expressions) => {
                 self.begin_scope();
-                for statement in statements.iter_mut() {
-                    self.resolve_statement(statement)?;
-                }
-
-                let mut ret_type = self.get_type("None")?;
-                let last = statements.last_mut();
-                if let Some(last) = last {
-                    if let Statement::Expression(expr) = last {
-                        ret_type = self.resolve_expression(expr)?;
-                    }
-                }
-
+                let ret_type = expressions.iter_mut().try_fold(self.none_const, |_, expr| {
+                    self.resolve_expression(expr)
+                })?;
                 self.end_scope();
-
                 Ok(ret_type)
             }
 
@@ -443,6 +418,12 @@ impl Resolver {
 
             Expression::Variable(name) => Ok(self.find_var(name)?._type),
 
+            Expression::VarDef(var) => {
+                let _type = self.resolve_expression(&mut var.initializer)?;
+                self.define_variable(&mut var.name, !var.is_val, true, _type)?;
+                Ok(self.none_const)
+            }
+
             _ => Err("Encountered unimplemented expression.")?,
         }
     }
@@ -525,7 +506,7 @@ impl Resolver {
     ) -> Result<(), String> {
         let def = VarDef::new(mutable, _type);
 
-        if self.find_var(token).is_ok() {
+        if self.var_exists(token) {
             let cur_env = self.environments.last_mut().unwrap();
             let new_name = format!("{}-{}", token.lexeme, self.environment_counter);
             let old_name = mem::replace(&mut token.lexeme, new_name);
@@ -557,6 +538,10 @@ impl Resolver {
         }
 
         Err(format!("Variable {} is not defined.", token.lexeme))
+    }
+
+    fn var_exists(&mut self, token: &Token) -> bool {
+        self.environments.iter().any(|env| env.variables.contains_key(&token.lexeme))
     }
 
     fn find_class(&mut self, struc: StructType) -> &ClassDef {

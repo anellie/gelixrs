@@ -8,11 +8,13 @@ use super::super::{
         },
         expression::Expression,
         literal::Literal,
-        statement::Statement,
     },
     lexer::token::{Token, Type},
 };
 use super::Parser;
+
+// All expressions that require no semicolon when used as a higher expression.
+static NO_SEMICOLON: [Type; 3] = [Type::If, Type::LeftBrace, Type::When];
 
 #[macro_use]
 mod bin_macro {
@@ -165,22 +167,22 @@ impl Parser {
         })
     }
 
-    fn statement(&mut self) -> Option<Statement> {
-        match () {
-            _ if self.match_token(Type::Var) => Some(Statement::Variable(self.variable(false)?)),
-            _ if self.match_token(Type::Val) => Some(Statement::Variable(self.variable(true)?)),
-            _ => self.expression_statement(),
-        }
-    }
-
-    fn expression_statement(&mut self) -> Option<Statement> {
-        let requires_semicolon =
-            ![Type::If, Type::LeftBrace, Type::When].contains(&self.current.t_type);
-        let statement = Statement::Expression(self.expression()?);
-        if requires_semicolon {
-            self.consume_semi_or_nl("Expected newline or ';' after expression.");
-        }
-        Some(statement)
+    /// A 'higher' expression is an expression that is only allowed to appear
+    /// as top-level inside a block.
+    /// This function can also produce a top-level non-higher expression.
+    fn higher_expression(&mut self) -> Option<Expression> {
+        Some(match () {
+            _ if self.match_token(Type::Var) => Expression::VarDef(Box::new(self.variable(false)?)),
+            _ if self.match_token(Type::Val) => Expression::VarDef(Box::new(self.variable(true)?)),
+            _ => {
+                let requires_semicolon = !NO_SEMICOLON.contains(&self.current.t_type);
+                let expression = self.expression()?;
+                if requires_semicolon {
+                    self.consume_semi_or_nl("Expected newline or ';' after expression.");
+                }
+                expression
+            }
+        })
     }
 
     fn expression(&mut self) -> Option<Expression> {
@@ -196,13 +198,13 @@ impl Parser {
     }
 
     fn block(&mut self) -> Option<Expression> {
-        let mut statements: Vec<Statement> = Vec::new();
+        let mut expressions: Vec<Expression> = Vec::new();
         while !self.check(Type::RightBrace) && !self.is_at_end() {
-            statements.push(self.statement()?);
+            expressions.push(self.higher_expression()?);
         }
 
         self.consume(Type::RightBrace, "Expected '}' after block.");
-        Some(Expression::Block(statements))
+        Some(Expression::Block(expressions))
     }
 
     fn take_expression(&mut self) -> Option<Expression> {
