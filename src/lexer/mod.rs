@@ -121,12 +121,14 @@ impl Lexer {
             'f' => match self.char_at(self.start + 1) {
                 'a' => self.check_identifier_keyword(2, &['l', 's', 'e'], Type::False),
                 'o' => self.check_identifier_keyword(2, &['r'], Type::For),
+                'r' => self.check_identifier_keyword(2, &['o', 'm'], Type::From),
                 'u' => self.check_identifier_keyword(2, &['n', 'c'], Type::Func),
                 _ => Type::Identifier,
             },
 
             't' => match self.char_at(self.start + 1) {
                 'a' => self.check_identifier_keyword(2, &['k', 'e'], Type::Take),
+                'o' => self.check_identifier_keyword(2, &[], Type::To),
                 'r' => self.check_identifier_keyword(2, &['u', 'e'], Type::True),
                 _ => Type::Identifier,
             },

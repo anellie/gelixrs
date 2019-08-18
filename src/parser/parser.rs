@@ -237,11 +237,47 @@ impl Parser {
     fn for_expression(&mut self) -> Option<Expression> {
         self.consume(Type::LeftParen, "Expected '(' after 'for'.");
 
-         let condition = Box::new(self.expression()?);
-         self.consume(Type::RightParen, "Expected ')' after for condition.");
-         let body = Box::new(self.expression()?);
+        if self.check_next(Type::From) {
+            // for (var from x to y)
+            let variable_name = self.consume(Type::Identifier, "Expected identifier after '('")?;
+            self.consume(Type::From, "Expected 'from' after identifier.")?;
+            let initial_value = self.integer()?;
+            self.consume(Type::To, "Expected 'to' after integer.")?;
+            let last_value = self.integer()?;
+            self.consume(Type::RightParen, "Expected ')' after for condition.");
 
-         Some(Expression::For { condition, body })
+            let variable = Expression::VarDef(Box::new(Variable {
+                name: variable_name.clone(),
+                is_val: false,
+                initializer: initial_value
+            }));
+
+            let var_increment = Expression::Assignment {
+                name: variable_name.clone(),
+                value: Box::new(Expression::Binary {
+                    left: Box::new(Expression::Variable(variable_name.clone())),
+                    operator: Token::generic_token(Type::Plus),
+                    right: Box::new(Expression::Literal(Literal::Int(1)))
+                }),
+            };
+
+            let for_loop = Expression::For {
+                condition: Box::new(Expression::Binary {
+                    left: Box::new(Expression::Variable(variable_name.clone())),
+                    operator: Token::generic_token(Type::LessEqual),
+                    right: Box::new(last_value)
+                }),
+                body: Box::new(Expression::Block(vec![self.expression()?, var_increment])),
+            };
+
+            Some(Expression::Block(vec![variable, for_loop]))
+        } else {
+            // for (condition)
+            let condition = Box::new(self.expression()?);
+            self.consume(Type::RightParen, "Expected ')' after for condition.");
+            let body = Box::new(self.expression()?);
+            Some(Expression::For { condition, body })
+        }
     }
 
     fn return_expression(&mut self) -> Option<Expression> {

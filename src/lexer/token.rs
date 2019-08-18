@@ -25,6 +25,14 @@ impl Token {
             line: 0,
         }
     }
+
+    pub fn generic_token(token: Type) -> Token {
+        Token {
+            t_type: token,
+            lexeme: "".to_string(),
+            line: 0,
+        }
+    }
 }
 
 /// All types of tokens available. Most are keywords or special chars.
@@ -49,8 +57,8 @@ pub enum Type {
 
     And, Break, Class, Else, Enum,
     Error, ExFn, Ext, False,
-    For, Func, If, In, None, Or,
-    Return, Super, Take, True,
+    For, From, Func, If, In, None, Or,
+    Return, Super, Take, To, True,
     Var, Val, When, While,
 
     ScanError, EndOfFile,

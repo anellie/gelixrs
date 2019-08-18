@@ -90,6 +90,11 @@ impl Parser {
         self.current.t_type == t_type
     }
 
+    /// Is the next token the given token?
+    fn check_next(&mut self, t_type: Type) -> bool {
+        self.tokens.peek().unwrap_or(&Token::eof_token(0)).t_type == t_type
+    }
+
     /// Same as check, but checks for ; or newlines
     /// (This special function is needed since newlines are not a token)
     fn check_semi_or_nl(&mut self) -> bool {
