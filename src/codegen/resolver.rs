@@ -669,14 +669,19 @@ impl Resolver {
         mpm.add_reassociate_pass();
         mpm.add_cfg_simplification_pass();
         mpm.add_basic_alias_analysis_pass();
-        mpm.add_dead_arg_elimination_pass();
-        mpm.add_dead_store_elimination_pass();
-        mpm.add_global_dce_pass();
-        mpm.add_tail_call_elimination_pass();
+
+        // Break tests
+        // mpm.add_dead_arg_elimination_pass();
+        // mpm.add_dead_store_elimination_pass();
+        // mpm.add_global_dce_pass();
+        // mpm.add_tail_call_elimination_pass();
+
+        // Cause segfaults
         // mpm.add_gvn_pass();
         // mpm.add_loop_deletion_pass();
-        // mpm.add_loop_unswitch_pass();            All of these cause segfaults, seemingly at random.
+        // mpm.add_loop_unswitch_pass();
         // mpm.add_promote_memory_to_register_pass();
+
         mpm.add_instruction_combining_pass();
         mpm.add_reassociate_pass();
 
