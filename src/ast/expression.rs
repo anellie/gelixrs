@@ -32,6 +32,9 @@ pub enum Expression {
     /// Last expression is the return value.
     Block(Vec<Expression>),
 
+    /// 'break' keyword. Always produces None as a value.
+    Break(Option<Box<Expression>>),
+
     /// A method/function call.
     Call {
         callee: Box<Expression>,

@@ -86,6 +86,7 @@ impl Lexer {
             's' => self.check_identifier_keyword(1, &['u', 'p', 'e', 'r'], Type::Super),
             'w' => self.check_identifier_keyword(1, &['h', 'e', 'n'], Type::When),
             'c' => self.check_identifier_keyword(1, &['l', 'a', 's', 's'], Type::Class),
+            'b' => self.check_identifier_keyword(1, &['r', 'e', 'a', 'k'], Type::Break),
 
             'i' => match self.char_at(self.start + 1) {
                 'f' => self.check_identifier_keyword(2, &[], Type::If),

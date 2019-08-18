@@ -1,0 +1,14 @@
+// ERR
+
+func main() {
+    test()
+}
+
+func test() -> i64 {
+    var i = 0
+    for (i < 10) {
+        if (i == 4) break i * 4
+        if (i != 3) break "wrong type"
+        i = i + 1
+    }
+}

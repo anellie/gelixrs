@@ -47,8 +47,8 @@ pub enum Type {
 
     Identifier, String, Int, Float, Char,
 
-    And, ExFn, Class, Else, Enum,
-    Error, Ext, False,
+    And, Break, Class, Else, Enum,
+    Error, ExFn, Ext, False,
     For, Func, If, In, None, Or,
     Return, Super, Take, True,
     Var, Val, When, While,

@@ -39,6 +39,11 @@ pub struct Resolver {
     current_func: Option<FunctionType>,
     /// The name of the current function. Mainly used for error reporting.
     current_func_name: String,
+
+    /// If the resolver is currently resolving a loop.
+    is_in_loop: bool,
+    /// The return type of the current loop.
+    current_loop_type: Option<BasicTypeEnum>
 }
 
 impl Resolver {
@@ -299,6 +304,28 @@ impl Resolver {
                 Ok(ret_type)
             }
 
+            Expression::Break(expr) => {
+                if !self.is_in_loop {
+                    Err("'break' is only allowed in loops.")?;
+                }
+
+                let break_type = if let Some(expr) = expr {
+                    self.resolve_expression(expr)?
+                } else {
+                    self.none_const
+                };
+
+                if let Some(loop_type) = self.current_loop_type {
+                    if break_type != loop_type {
+                        Err("All 'break' inside of a loop must have the same type.")?;
+                    }
+                } else {
+                    self.current_loop_type = Some(break_type)
+                }
+
+                self.get_type("None")
+            }
+
             Expression::Call { callee, arguments } => {
                 let callee = &mut **callee; // Don't you love boxes?
                 let mut is_method = false;
@@ -332,12 +359,27 @@ impl Resolver {
             }
 
             Expression::For { condition, body } => {
+                // Save previous state in case of nested loops
+                let was_in_loop = std::mem::replace(&mut self.is_in_loop, true);
+                let prev_loop_type = std::mem::replace(&mut self.current_loop_type, None);
+
                 let condition_type = self.resolve_expression(condition)?;
                 if condition_type != self.get_type("bool")? {
                     Err("For condition must be a boolean.")?
                 }
 
-                self.resolve_expression(body)
+                let body_type = self.resolve_expression(body)?;
+
+                // Restore previous state
+                self.is_in_loop = was_in_loop;
+                let loop_type = std::mem::replace(&mut self.current_loop_type, prev_loop_type);
+
+                if let Some(loop_type) = loop_type {
+                    if body_type == loop_type {
+                        return Ok(body_type)
+                    }
+                }
+                Ok(self.none_const)
             }
 
             Expression::Get { object, name } => {
@@ -615,6 +657,8 @@ impl Resolver {
             environment_counter: 0,
             current_func: None,
             current_func_name: "".to_string(),
+            is_in_loop: false,
+            current_loop_type: None
         }
     }
 
@@ -651,6 +695,7 @@ impl Resolver {
 
             variables: HashMap::with_capacity(10),
             current_fn: None,
+            loop_cont_block: None,
 
             decl_list,
 

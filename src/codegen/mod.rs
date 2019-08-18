@@ -9,6 +9,7 @@ use super::{
     lexer::token::{Token, Type},
 };
 use inkwell::{
+    basic_block::BasicBlock,
     builder::Builder,
     context::Context,
     module::Module,
@@ -36,6 +37,10 @@ pub struct IRGenerator {
     /// This is not an issue since the resolver checked against this already.
     variables: HashMap<String, PointerValue>,
     current_fn: Option<FunctionValue>,
+
+    /// The basic block that is jumped to at the end of a loop.
+    /// Stored here so 'break' expressions know where to jump to.
+    loop_cont_block: Option<BasicBlock>,
 
     // All declarations remaining to be compiled.
     decl_list: DeclarationList,
@@ -139,6 +144,7 @@ impl IRGenerator {
             Expression::Binary { left, operator, right } =>
                 self.binary(*left, operator, *right),
             Expression::Block(expressions) => self.block_expr(expressions),
+            Expression::Break(expr) => self.break_expression(expr),
             Expression::Call { callee, arguments } => self.call_expr(*callee, arguments),
             Expression::For { condition, body } => self.for_expression(*condition, *body),
             Expression::Get { object, name } => self.get_expression(*object, name),
@@ -334,6 +340,7 @@ impl IRGenerator {
         let cond_block = self.context.append_basic_block(&self.cur_fn(), "forcond");
         let loop_block = self.context.append_basic_block(&self.cur_fn(), "forloop");
         let cont_block = self.context.append_basic_block(&self.cur_fn(), "forcont");
+        let prev_cont_block = std::mem::replace(&mut self.loop_cont_block, Some(cont_block));
 
         self.builder.build_unconditional_branch(&cond_block);
         self.builder.position_at_end(&cond_block);
@@ -350,12 +357,31 @@ impl IRGenerator {
 
         self.builder.position_at_end(&loop_block);
         let body = self.expression(body);
-        let body_alloca = self.create_entry_block_alloca(body.get_type(), "forbody");
+        let body_alloca = self.get_or_create_variable(body.get_type(), "for-body");
+
         self.builder.build_store(body_alloca, body);
         self.builder.build_unconditional_branch(&cond_block);
 
         self.builder.position_at_end(&cont_block);
+        self.loop_cont_block = prev_cont_block;
         self.builder.build_load(body_alloca, "forbody")
+    }
+
+    fn break_expression(
+        &mut self,
+        expression: Option<Box<Expression>>,
+    ) -> BasicValueEnum {
+        if let Some(expression) = expression {
+            let expression = self.expression(*expression);
+            let body_alloca = self.get_or_create_variable(expression.get_type(), "for-body");
+            self.builder.build_store(body_alloca, expression);
+        }
+
+        self.builder.build_unconditional_branch(&self.loop_cont_block.expect("Getting loop block"));
+
+        // See [return_expression] for explanation on these two
+        self.builder.clear_insertion_position();
+        self.none_const
     }
 
     fn if_expression(
@@ -504,6 +530,19 @@ impl IRGenerator {
         }
 
         builder.build_alloca(ty, name)
+    }
+
+    /// Will get a variable, or create a variable with that name + an alloca for it.
+    fn get_or_create_variable<T: BasicType>(&mut self, ty: T, name: &str) -> PointerValue {
+        let alloca = self.variables.get(name);
+
+        if let Some(alloca) = alloca {
+            alloca.clone()
+        } else {
+            let alloca = self.create_entry_block_alloca(ty, "for-body");
+            self.variables.insert(name.to_string(), alloca);
+            alloca
+        }
     }
 
     fn cur_fn(&self) -> FunctionValue {

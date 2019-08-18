@@ -148,7 +148,6 @@ impl Parser {
     }
 
     fn function(&mut self) -> Option<Function> {
-        // Will generate a declaration that contains everything except a body
         let sig = self.ex_func_declaration()?;
         let body = self.expression()?;
         Some(Function { sig, body })
@@ -190,6 +189,7 @@ impl Parser {
             _ if self.match_token(Type::LeftBrace) => self.block(),
             _ if self.match_token(Type::If) => self.if_expression(),
             _ if self.match_token(Type::Return) => self.return_expression(),
+            _ if self.match_token(Type::Break) => self.break_expression(),
             _ if self.match_token(Type::Take) => self.take_expression(),
             _ if self.match_token(Type::For) => self.for_expression(),
             _ if self.match_token(Type::When) => self.when_expression(),
@@ -251,6 +251,15 @@ impl Parser {
         }
         self.consume_semi_or_nl("Expected newline or ';' after 'return'.");
         Some(Expression::Return(value))
+    }
+
+    fn break_expression(&mut self) -> Option<Expression> {
+        let mut value = None;
+        if !self.check_semi_or_nl() {
+            value = Some(Box::new(self.expression()?));
+        }
+        self.consume_semi_or_nl("Expected newline or ';' after 'break'.");
+        Some(Expression::Break(value))
     }
 
     fn when_expression(&mut self) -> Option<Expression> {
