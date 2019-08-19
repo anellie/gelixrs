@@ -79,12 +79,6 @@ pub enum Expression {
         value: Box<Expression>,
     },
 
-    /// 'take' keyword
-    Take {
-        value: Box<Expression>,
-        else_branch: Option<Box<Expression>>,
-    },
-
     /// A unary operation. (!false)
     Unary {
         operator: Token,

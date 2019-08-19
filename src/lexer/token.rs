@@ -58,7 +58,7 @@ pub enum Type {
     And, Break, Class, Else, Enum,
     Error, ExFn, Ext, False,
     For, From, Func, If, In, None, Or,
-    Return, Super, Take, To, True,
+    Return, Super, To, True,
     Var, Val, When, While,
 
     ScanError, EndOfFile,

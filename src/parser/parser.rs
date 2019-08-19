@@ -190,7 +190,6 @@ impl Parser {
             _ if self.match_token(Type::If) => self.if_expression(),
             _ if self.match_token(Type::Return) => self.return_expression(),
             _ if self.match_token(Type::Break) => self.break_expression(),
-            _ if self.match_token(Type::Take) => self.take_expression(),
             _ if self.match_token(Type::For) => self.for_expression(),
             _ if self.match_token(Type::When) => self.when_expression(),
             _ => self.assignment(),
@@ -205,15 +204,6 @@ impl Parser {
 
         self.consume(Type::RightBrace, "Expected '}' after block.");
         Some(Expression::Block(expressions))
-    }
-
-    fn take_expression(&mut self) -> Option<Expression> {
-        let value = Box::new(self.expression()?);
-        let mut else_branch = None;
-        if self.match_token(Type::Else) {
-            else_branch = Some(Box::new(self.expression()?));
-        }
-        Some(Expression::Take { value, else_branch })
     }
 
     fn if_expression(&mut self) -> Option<Expression> {
