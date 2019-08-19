@@ -17,6 +17,7 @@ use inkwell::{
     AddressSpace,
 };
 use std::{collections::HashMap, mem};
+use crate::lexer::token::Type;
 
 /// A resolver. Resolves all variables and types.
 pub struct Resolver {
@@ -456,6 +457,22 @@ impl Resolver {
                 }
             }
 
+            Expression::Unary { operator, right } => {
+                let right = self.resolve_expression(right)?;
+
+                match operator.t_type {
+                    Type::Minus => Ok(right),
+                    Type::Bang => {
+                        if right == self.get_type("bool")? {
+                            Ok(right)
+                        } else {
+                            Err("'!' can only be used on boolean values.".to_string())
+                        }
+                    }
+                    _ => panic!("Invalid unary expression."),
+                }
+            }
+
             Expression::Literal(literal) => Ok(self.type_from_literal(literal)),
 
             Expression::Variable(name) => Ok(self.find_var(name)?._type),
@@ -466,7 +483,24 @@ impl Resolver {
                 Ok(self.none_const)
             }
 
-            _ => Err("Encountered unimplemented expression.")?,
+            Expression::When { value, branches, else_branch } => {
+                let value = self.resolve_expression(value)?;
+                let result_type = self.resolve_expression(else_branch)?;
+
+                for branch in branches.iter_mut() {
+                    let condition = self.resolve_expression(&mut branch.0)?;
+                    let result = self.resolve_expression(&mut branch.1)?;
+
+                    if condition != value {
+                        Err("Can only compare values of same type in 'when'.".to_string())?;
+                    }
+                    if result != result_type {
+                        Err("Resulting values of 'when' must be same type.".to_string())?;
+                    }
+                }
+
+                Ok(result_type)
+            }
         }
     }
 
