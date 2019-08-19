@@ -1,6 +1,5 @@
 /*
 62
-string
 40
 84
 21
@@ -9,7 +8,8 @@ string
 
 func main() {
     printnum(23 + 39)
-    print("str" + "ing")
+    // TODO: Operator overloading
+    // print("str" + "ing")
 
     printnum(42 - 2)
     printnum(42 * 2)

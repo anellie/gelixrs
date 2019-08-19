@@ -154,9 +154,11 @@ impl IRGenerator {
             Expression::Literal(literal) => self.literal(literal),
             Expression::Return(expr) => self.return_expression(expr),
             Expression::Set { object, name, value } => self.set_expression(*object, name, *value),
+            Expression::Unary { operator, right } => self.unary_expression(operator, *right),
             Expression::Variable(name) => self.variable(name),
             Expression::VarDef(var) => self.var_def(*var),
-            _ => panic!("Encountered unimplemented expression"),
+            Expression::When { value, branches, else_branch } =>
+                self.when_expression(*value, branches, *else_branch)
         }
     }
 
@@ -468,6 +470,34 @@ impl IRGenerator {
         value
     }
 
+    fn unary_expression(&mut self, op: Token, expr: Expression) -> BasicValueEnum {
+        let expr = self.expression(expr);
+
+        match op.t_type {
+            Type::Minus => {
+                match expr {
+                    BasicValueEnum::IntValue(int) =>
+                        BasicValueEnum::IntValue(self.builder.build_int_neg(int.into(), "unaryneg")),
+
+                    BasicValueEnum::FloatValue(float) =>
+                        BasicValueEnum::FloatValue(self.builder.build_float_neg(float.into(), "unaryneg")),
+
+                    _ => panic!("Invalid unary negation"),
+                }
+            }
+
+            Type::Bang => {
+                if let BasicValueEnum::IntValue(int) = expr {
+                    BasicValueEnum::IntValue(self.builder.build_int_neg(int, "unaryinv"))
+                } else {
+                    panic!("Invalid unary binary negation")
+                }
+            }
+
+            _ => panic!("Invalid unary operator")
+        }
+    }
+
     // TODO: Array literals
     fn literal(&mut self, literal: Literal) -> BasicValueEnum {
         match literal {
@@ -512,6 +542,17 @@ impl IRGenerator {
         self.builder.build_store(alloca, initial_value);
         self.variables.insert(var.name.lexeme, alloca);
 
+        self.none_const
+    }
+
+    fn when_expression(
+        &mut self,
+        value: Expression,
+        branches: Vec<(Expression, Expression)>,
+        else_branch: Expression
+    ) -> BasicValueEnum {
+        // TODO: Implement when expressions
+        // Probably need a way to define equality for different types first...
         self.none_const
     }
 

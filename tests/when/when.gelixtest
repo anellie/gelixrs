@@ -2,8 +2,6 @@
 ok
 */
 
-exfn print(String a)
-
 func main() {
     when (4) {
         4 -> print("ok")
