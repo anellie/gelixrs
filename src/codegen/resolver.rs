@@ -377,10 +377,13 @@ impl Resolver {
 
                 if let Some(loop_type) = loop_type {
                     if body_type == loop_type {
-                        return Ok(body_type)
+                        Ok(body_type)
+                    } else {
+                        Ok(self.none_const)
                     }
+                } else {
+                    Ok(body_type)
                 }
-                Ok(self.none_const)
             }
 
             Expression::Get { object, name } => {

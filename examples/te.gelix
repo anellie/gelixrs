@@ -5,7 +5,8 @@ exfn printnum(i64 a)
 exfn read_line(String a) -> String
 
 func main() {
-    hello(Hello())
+    // TODO: Causes SIGSEGV during runtime
+    print(for (false) "hm")
 }
 
 func hello(Hello h) {
