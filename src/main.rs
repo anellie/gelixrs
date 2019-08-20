@@ -23,7 +23,7 @@ struct Opt {
 
     /// Path of the resulting executable
     #[structopt(short, long)]
-    output: PathBuf,
+    output: Option<PathBuf>,
 
     /// File to compile
     #[structopt(parse(from_os_str))]
@@ -88,7 +88,7 @@ fn main() -> Result<(), &'static str> {
         process::Command::new("clang")
             .arg("-static")
             .arg("-o")
-            .arg(&args.output)
+            .arg(&args.output.ok_or("Output location required.")?)
             .arg(asm_file)
             .arg("-L")
             .arg(stdlib_dir)
@@ -99,7 +99,7 @@ fn main() -> Result<(), &'static str> {
     if !status.success() {
         Err("Compiling to native binary failed. Please try compiling with clang manually using --ir.")
     } else {
-        println!("Compilation successful! Compiled to file '{}'.", args.output.to_str().unwrap());
+        println!("Compilation successful!");
         Ok(())
     }
 }

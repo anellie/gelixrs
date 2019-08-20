@@ -109,6 +109,15 @@ impl Parser {
 
     fn class_declaration(&mut self) -> Option<Class> {
         let name = self.consume(Type::Identifier, "Expected a class name.")?;
+
+        let mut supers = Vec::new();
+        if self.match_token(Type::Ext) {
+            loop {
+                supers.push(self.consume(Type::Identifier, "Expected superclass name.")?);
+                if !self.match_token(Type::Comma) { break; }
+            }
+        }
+
         self.consume(Type::LeftBrace, "Expected '{' before class body.");
 
         let mut methods: Vec<Function> = Vec::new();
@@ -126,6 +135,7 @@ impl Parser {
         self.consume(Type::RightBrace, "Expected '}' after class body.");
         Some(Class {
             name,
+            supers,
             methods,
             variables,
         })

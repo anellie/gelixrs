@@ -1,0 +1,27 @@
+/*
+ok
+ok
+ok2
+*/
+
+func main() {
+    val test = Subclass()
+    print(test.test())
+    print(test.test2())
+    print(test.test3())
+}
+
+class Class {
+
+    var test = "ok"
+
+    func test() -> String this.test
+}
+
+class Subclass ext Class {
+
+    var test2 = "ok2"
+
+    func test2() -> String this.test
+    func test3() -> String this.test2
+}

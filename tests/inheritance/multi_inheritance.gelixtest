@@ -1,0 +1,39 @@
+/*
+a
+b
+c
+a
+b
+c
+*/
+
+func main() {
+    val test = C()
+    print(test.a())
+    print(test.b())
+    print(test.c())
+    print(test.a)
+    print(test.b)
+    print(test.c)
+}
+
+class A {
+
+    var a = "a"
+
+    func a() -> String this.a
+}
+
+class B {
+
+    var b = "b"
+
+    func b() -> String this.b
+}
+
+class C ext A, B {
+
+    var c = "c"
+
+    func c() -> String this.c
+}

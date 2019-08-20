@@ -1,0 +1,28 @@
+/*
+class
+sub
+1
+*/
+
+func main() {
+    val test = Subclass()
+    print(test.test())
+    print(test.test2())
+    printnum(test.ok())
+}
+
+class Class {
+
+    var test = "class"
+
+    func test() -> String this.test
+    func ok() -> i64 0
+}
+
+class Subclass ext Class {
+
+    var test = "sub"
+
+    func test2() -> String this.test
+    func ok() -> i64 1
+}
