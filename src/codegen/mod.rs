@@ -15,11 +15,10 @@ use inkwell::{
     module::Module,
     passes::PassManager,
     types::{AnyTypeEnum, BasicType, StructType},
-    values::{BasicValueEnum, FunctionValue, PointerValue, StructValue},
+    values::{BasicValueEnum, FunctionValue, PointerValue},
     IntPredicate,
 };
 use std::{collections::HashMap, convert::TryInto};
-use inkwell::types::BasicTypeEnum;
 
 /// A generator that creates LLVM IR.
 /// Created through a [Resolver].
@@ -106,7 +105,8 @@ impl IRGenerator {
                 let init_fn = self.find_class_def(&sclass).initializer.unwrap();
                 unsafe {
                     let sclass_struc = self.builder.build_struct_gep(ptr, index, "classgep");
-                    self.builder.build_call(init_fn, &[sclass_struc.into()], "superinit");
+                    self.builder
+                        .build_call(init_fn, &[sclass_struc.into()], "superinit");
                 }
             }
         } else {
@@ -189,12 +189,7 @@ impl IRGenerator {
 
     // TODO: Add float support
     // TODO: Make this less ugly
-    fn binary(
-        &mut self,
-        left: Expression,
-        operator: Token,
-        right: Expression,
-    ) -> BasicValueEnum {
+    fn binary(&mut self, left: Expression, operator: Token, right: Expression) -> BasicValueEnum {
         let left = self.expression(left);
         let right = self.expression(right);
 
@@ -224,11 +219,7 @@ impl IRGenerator {
         })
     }
 
-    fn call_expr(
-        &mut self,
-        callee: Expression,
-        arguments: Vec<Expression>,
-    ) -> BasicValueEnum {
+    fn call_expr(&mut self, callee: Expression, arguments: Vec<Expression>) -> BasicValueEnum {
         match callee {
             Expression::Variable(token) => {
                 let function = self.module.get_function(&token.lexeme);
@@ -303,20 +294,12 @@ impl IRGenerator {
         ret_type.left().unwrap_or(self.none_const)
     }
 
-    fn get_expression(
-        &mut self,
-        object: Expression,
-        name: Token,
-    ) -> BasicValueEnum {
+    fn get_expression(&mut self, object: Expression, name: Token) -> BasicValueEnum {
         let ptr = self.pointer_from_get(object, name);
         self.builder.build_load(ptr, "classload")
     }
 
-    fn pointer_from_get(
-        &mut self,
-        object: Expression,
-        name: Token,
-    ) -> PointerValue {
+    fn pointer_from_get(&mut self, object: Expression, name: Token) -> PointerValue {
         match object {
             Expression::Variable(obj_name) => {
                 let struc = self.variables[&obj_name.lexeme];
@@ -328,7 +311,7 @@ impl IRGenerator {
                 self.get_from_struct(&object, name)
             }
 
-            Expression::Call { callee, arguments} => {
+            Expression::Call { callee, arguments } => {
                 let value = self.call_expr(*callee, arguments);
                 let alloca = self.create_entry_block_alloca(value.get_type(), "callalloc");
                 self.builder.build_store(alloca, value);
@@ -344,9 +327,7 @@ impl IRGenerator {
         let var = struc_def.var_map.get(&name.lexeme);
 
         if let Some(var) = var {
-            unsafe {
-                self.builder.build_struct_gep(*struc, var.index, "classgep")
-            }
+            unsafe { self.builder.build_struct_gep(*struc, var.index, "classgep") }
         } else {
             if let Some(sclass) = struc_def.superclass {
                 let sclass = self.find_class_def(&sclass);
@@ -355,7 +336,7 @@ impl IRGenerator {
                     let index = struc_def.var_map.len();
                     unsafe {
                         let sclass = self.builder.build_struct_gep(*struc, index as u32, "classgep");
-                        return self.get_from_struct(&sclass, name)
+                        return self.get_from_struct(&sclass, name);
                     }
                 }
             }
@@ -379,7 +360,9 @@ impl IRGenerator {
                 self.context.bool_type().const_int(0, false),
                 "forcond",
              )
-        } else { panic!("For condition") };
+        } else {
+            panic!("For condition")
+        };
         self.builder.build_conditional_branch(condition, &loop_block, &cont_block);
 
         self.builder.position_at_end(&loop_block);
@@ -394,17 +377,15 @@ impl IRGenerator {
         self.builder.build_load(body_alloca, "forbody")
     }
 
-    fn break_expression(
-        &mut self,
-        expression: Option<Box<Expression>>,
-    ) -> BasicValueEnum {
+    fn break_expression(&mut self, expression: Option<Box<Expression>>) -> BasicValueEnum {
         if let Some(expression) = expression {
             let expression = self.expression(*expression);
             let body_alloca = self.get_or_create_variable(expression.get_type(), "for-body");
             self.builder.build_store(body_alloca, expression);
         }
 
-        self.builder.build_unconditional_branch(&self.loop_cont_block.expect("Getting loop block"));
+        self.builder
+            .build_unconditional_branch(&self.loop_cont_block.expect("Getting loop block"));
 
         // See [return_expression] for explanation on these two
         self.builder.clear_insertion_position();
@@ -427,16 +408,20 @@ impl IRGenerator {
                 self.context.bool_type().const_int(0, false),
                 "ifcond",
             )
-        } else { panic!("If condition wasn't a boolean") };
+        } else {
+            panic!("If condition wasn't a boolean")
+        };
 
         let then_bb = self.context.append_basic_block(&parent, "then");
         let else_bb = self.context.append_basic_block(&parent, "else");
         let cont_bb = self.context.append_basic_block(&parent, "ifcont");
 
         if else_b.is_none() {
-            self.builder.build_conditional_branch(condition, &then_bb, &cont_bb);
+            self.builder
+                .build_conditional_branch(condition, &then_bb, &cont_bb);
         } else {
-            self.builder.build_conditional_branch(condition, &then_bb, &else_bb);
+            self.builder
+                .build_conditional_branch(condition, &then_bb, &else_bb);
         }
 
         self.builder.position_at_end(&then_bb);
@@ -465,10 +450,7 @@ impl IRGenerator {
         ret_val
     }
 
-    fn return_expression(
-        &mut self,
-        expression: Option<Box<Expression>>,
-    ) -> BasicValueEnum {
+    fn return_expression(&mut self, expression: Option<Box<Expression>>) -> BasicValueEnum {
         if let Some(expression) = expression {
             let expression = self.expression(*expression);
             self.builder.build_return(Some(&expression));
@@ -487,7 +469,7 @@ impl IRGenerator {
         &mut self,
         object: Expression,
         name: Token,
-        value: Expression
+        value: Expression,
     ) -> BasicValueEnum {
         let ptr = self.pointer_from_get(object, name);
         let value = self.expression(value);
@@ -509,7 +491,7 @@ impl IRGenerator {
 
                     _ => panic!("Invalid unary negation"),
                 }
-            }
+            },
 
             Type::Bang => {
                 if let BasicValueEnum::IntValue(int) = expr {
@@ -519,7 +501,7 @@ impl IRGenerator {
                 }
             }
 
-            _ => panic!("Invalid unary operator")
+            _ => panic!("Invalid unary operator"),
         }
     }
 
@@ -556,7 +538,10 @@ impl IRGenerator {
     }
 
     fn variable(&mut self, name: Token) -> BasicValueEnum {
-        let var = self.variables.get(&name.lexeme).expect("Couldn't find variable");
+        let var = self
+            .variables
+            .get(&name.lexeme)
+            .expect("Couldn't find variable");
         self.builder.build_load(*var, &name.lexeme)
     }
 
@@ -574,7 +559,7 @@ impl IRGenerator {
         &mut self,
         value: Expression,
         branches: Vec<(Expression, Expression)>,
-        else_branch: Expression
+        else_branch: Expression,
     ) -> BasicValueEnum {
         // TODO: Implement when expressions
         // Probably need a way to define equality for different types first...
@@ -637,7 +622,7 @@ struct ClassDef {
     pub initializer: Option<FunctionValue>,
     // The superclass of this class, if any.
     // The index of the superclass struct is always [var_map.len() + 1]
-    pub superclass: Option<StructType>
+    pub superclass: Option<StructType>,
 }
 
 impl ClassDef {
@@ -655,7 +640,7 @@ impl ClassDef {
 #[derive(Clone)]
 struct ClassField {
     pub index: u32,
-    pub is_val: bool
+    pub is_val: bool,
 }
 
 impl ClassField {

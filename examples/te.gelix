@@ -7,10 +7,15 @@ func main() {
     print(sub.test)
     sub.test = "ok!"
     print(sub.test)
+    sub.ok()
 }
 
 class Super {
     var test = "ok"
+
+    func ok() {
+        print("success!")
+    }
 }
 
 class Sub ext Super {

@@ -1,6 +1,6 @@
 use super::super::lexer::token::{Token, Type};
-use super::literal::Literal;
 use super::declaration::Variable;
+use super::literal::Literal;
 
 // All binary operand types that return a bool instead of the types of their values.
 pub static LOGICAL_BINARY: [Type; 6] = [
@@ -94,7 +94,6 @@ pub enum Expression {
         branches: Vec<(Expression, Expression)>,
         else_branch: Box<Expression>,
     },
-
 
     /// Below are all 'higher expressions'. These are differentiated in the parser.
     /// They are only allowed to appear as top-level inside a block.

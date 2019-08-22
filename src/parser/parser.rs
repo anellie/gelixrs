@@ -247,7 +247,7 @@ impl Parser {
             let variable = Expression::VarDef(Box::new(Variable {
                 name: variable_name.clone(),
                 is_val: false,
-                initializer: initial_value
+                initializer: initial_value,
             }));
 
             let var_increment = Expression::Assignment {
@@ -255,7 +255,7 @@ impl Parser {
                 value: Box::new(Expression::Binary {
                     left: Box::new(Expression::Variable(variable_name.clone())),
                     operator: Token::generic_token(Type::Plus),
-                    right: Box::new(Expression::Literal(Literal::Int(1)))
+                    right: Box::new(Expression::Literal(Literal::Int(1))),
                 }),
             };
 
@@ -263,7 +263,7 @@ impl Parser {
                 condition: Box::new(Expression::Binary {
                     left: Box::new(Expression::Variable(variable_name.clone())),
                     operator: Token::generic_token(Type::LessEqual),
-                    right: Box::new(last_value)
+                    right: Box::new(last_value),
                 }),
                 body: Box::new(Expression::Block(vec![self.expression()?, var_increment])),
             };

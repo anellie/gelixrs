@@ -1,12 +1,13 @@
 use super::super::{
     ast::{
-        declaration::{DeclarationList, Function, FuncSignature, FunctionArg},
+        declaration::{DeclarationList, FuncSignature, Function, FunctionArg},
         expression::{Expression, LOGICAL_BINARY},
         literal::Literal,
     },
     lexer::token::Token,
 };
 use super::{ClassDef, ClassField, IRGenerator};
+use crate::lexer::token::Type;
 use inkwell::{
     builder::Builder,
     context::Context,
@@ -17,7 +18,6 @@ use inkwell::{
     AddressSpace,
 };
 use std::{collections::HashMap, mem};
-use crate::lexer::token::Type;
 
 /// A resolver. Resolves all variables and types.
 pub struct Resolver {
@@ -44,7 +44,7 @@ pub struct Resolver {
     /// If the resolver is currently resolving a loop.
     is_in_loop: bool,
     /// The return type of the current loop.
-    current_loop_type: Option<BasicTypeEnum>
+    current_loop_type: Option<BasicTypeEnum>,
 }
 
 impl Resolver {
@@ -206,7 +206,10 @@ impl Resolver {
 
             for (i, field) in class.variables.iter_mut().enumerate() {
                 fields.push(self.resolve_expression(&mut field.initializer)?);
-                fields_map.insert(field.name.lexeme.to_string(), ClassField::new(i as u32, field.is_val));
+                fields_map.insert(
+                    field.name.lexeme.to_string(),
+                    ClassField::new(i as u32, field.is_val),
+                );
             }
 
             let mut superclass = None;
@@ -310,9 +313,9 @@ impl Resolver {
 
             Expression::Block(expressions) => {
                 self.begin_scope();
-                let ret_type = expressions.iter_mut().try_fold(self.none_const, |_, expr| {
-                    self.resolve_expression(expr)
-                })?;
+                let ret_type = expressions
+                    .iter_mut()
+                    .try_fold(self.none_const, |_, expr| self.resolve_expression(expr))?;
                 self.end_scope();
                 Ok(ret_type)
             }
@@ -345,11 +348,11 @@ impl Resolver {
                 match callee {
                     Expression::Get { object: _, name: _ } => {
                         is_method = true;
-                    },
+                    }
 
                     Expression::Variable(name) => {
                         if let Some(class_def) = self.types.get(&name.lexeme) {
-                            return Ok(class_def._type.into())
+                            return Ok(class_def._type.into());
                         }
                     }
 
@@ -364,7 +367,7 @@ impl Resolver {
                         return Ok(func
                             .get_return_type()
                             .get_or_insert(self.none_const)
-                            .clone())
+                            .clone());
                     }
                 }
 
@@ -507,11 +510,7 @@ impl Resolver {
         }
     }
 
-    fn resolve_class_get(
-        &self,
-        struc: StructType,
-        name: &Token,
-    ) -> Result<BasicTypeEnum, String> {
+    fn resolve_class_get(&self, struc: StructType, name: &Token) -> Result<BasicTypeEnum, String> {
         let class_def = self.find_class(struc);
 
         let var_index = class_def.var_map.get(&name.lexeme);
@@ -538,10 +537,12 @@ impl Resolver {
         Err(format!("Unknown class field '{}'.", name.lexeme))
     }
 
-    fn get_class_field_type(&self, class_def: &ClassDef, name: &Token) -> Result<BasicTypeEnum, String> {
-        let class_field = class_def
-            .var_map
-            .get(&name.lexeme);
+    fn get_class_field_type(
+        &self,
+        class_def: &ClassDef,
+        name: &Token,
+    ) -> Result<BasicTypeEnum, String> {
+        let class_field = class_def.var_map.get(&name.lexeme);
 
         if let Some(field) = class_field {
             let field_type = class_def
@@ -550,9 +551,12 @@ impl Resolver {
                 .expect("Internal error trying to get class field.");
 
             if field.is_val {
-                Err(format!("Class field '{}' cannot be set. (val)", name.lexeme))?
+                Err(format!(
+                    "Class field '{}' cannot be set. (val)",
+                    name.lexeme
+                ))?
             } else {
-                return Ok(field_type)
+                return Ok(field_type);
             }
         } else {
             if let Some(superclass) = class_def.superclass {
@@ -567,10 +571,7 @@ impl Resolver {
     }
 
     fn find_class_def(&self, struc: &StructType) -> Option<&ClassDef> {
-        Some(self.types
-            .iter()
-            .find(|&_type| _type.1._type == *struc)?
-            .1)
+        Some(self.types.iter().find(|&_type| _type.1._type == *struc)?.1)
     }
 
     fn resolve_type(&mut self, token: &Token) -> Result<BasicTypeEnum, String> {
@@ -659,7 +660,9 @@ impl Resolver {
     }
 
     fn var_exists(&mut self, token: &Token) -> bool {
-        self.environments.iter().any(|env| env.variables.contains_key(&token.lexeme))
+        self.environments
+            .iter()
+            .any(|env| env.variables.contains_key(&token.lexeme))
     }
 
     fn find_class(&self, struc: StructType) -> &ClassDef {
@@ -734,7 +737,7 @@ impl Resolver {
             current_func: None,
             current_func_name: "".to_string(),
             is_in_loop: false,
-            current_loop_type: None
+            current_loop_type: None,
         }
     }
 
