@@ -101,15 +101,12 @@ impl IRGenerator {
                 }
             }
 
-            let len = class_def.var_map.len();
-            for (i, sclass) in class_def.superclasses.iter().enumerate() {
-                if let BasicTypeEnum::StructType(sclass) = sclass {
-                    let index = (len + i) as u32;
-                    let init_fn = self.find_class_def(sclass).initializer.unwrap();
-                    unsafe {
-                        let sclass_struc = self.builder.build_struct_gep(ptr, index, "classgep");
-                        self.builder.build_call(init_fn, &[sclass_struc.into()], "superinit");
-                    }
+            if let Some(sclass) = class_def.superclass {
+                let index = class_def.var_map.len() as u32;
+                let init_fn = self.find_class_def(&sclass).initializer.unwrap();
+                unsafe {
+                    let sclass_struc = self.builder.build_struct_gep(ptr, index, "classgep");
+                    self.builder.build_call(init_fn, &[sclass_struc.into()], "superinit");
                 }
             }
         } else {
@@ -351,16 +348,14 @@ impl IRGenerator {
                 self.builder.build_struct_gep(*struc, var.index, "classgep")
             }
         } else {
-            for (i, sclass) in struc_def.superclasses.iter().enumerate() {
-                if let BasicTypeEnum::StructType(sclass) = sclass {
-                    let sclass = self.find_class_def(sclass);
-                    let var = sclass.var_map.get(&name.lexeme);
-                    if let Some(var) = var {
-                        let index = struc_def.var_map.len() + i;
-                        unsafe {
-                            let sclass = self.builder.build_struct_gep(*struc, index as u32, "classgep");
-                            return self.builder.build_struct_gep(sclass, var.index, "classgep")
-                        }
+            if let Some(sclass) = struc_def.superclass {
+                let sclass = self.find_class_def(&sclass);
+                let var = sclass.var_map.get(&name.lexeme);
+                if let Some(var) = var {
+                    let index = struc_def.var_map.len();
+                    unsafe {
+                        let sclass = self.builder.build_struct_gep(*struc, index as u32, "classgep");
+                        return self.get_from_struct(&sclass, name)
                     }
                 }
             }
@@ -640,10 +635,9 @@ struct ClassDef {
     // Note that the initializer is only None during creation in the Resolver.
     // By the time the IRGen gets to it, it is always Some.
     pub initializer: Option<FunctionValue>,
-    // All superclasses of this class.
-    // This is an enum instead of StructType so that primitives can also be subclassed.
-    // The index of the superclass struct is always [var_map.len() + index]
-    pub superclasses: Vec<BasicTypeEnum>
+    // The superclass of this class, if any.
+    // The index of the superclass struct is always [var_map.len() + 1]
+    pub superclass: Option<StructType>
 }
 
 impl ClassDef {
@@ -653,7 +647,7 @@ impl ClassDef {
             var_map: HashMap::new(),
             methods: HashMap::new(),
             initializer: None,
-            superclasses: Vec::new(),
+            superclass: None,
         }
     }
 }

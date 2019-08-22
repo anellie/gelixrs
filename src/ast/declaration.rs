@@ -27,7 +27,7 @@ impl DeclarationList {
 #[derive(Debug)]
 pub struct Class {
     pub name: Token,
-    pub supers: Vec<Token>,
+    pub superclass: Option<Token>,
     pub variables: Vec<Variable>,
     pub methods: Vec<Function>,
 }
