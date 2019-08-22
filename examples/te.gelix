@@ -2,17 +2,18 @@ exfn print(String a)
 
 exfn printnum(i64 a)
 
-exfn read_line(String a) -> String
-
 func main() {
-    // TODO: Causes SIGSEGV during runtime
-    print(for (false) "hm")
+    val sub = Sub()
+    print(Sub().test)
+    sub.test = "ok!"
+    printnum(Sub().hello)
+    print(Sub().test)
 }
 
-func hello(Hello h) {
-    print(h.hi)
+class Super {
+    var test = "ok"
 }
 
-class Hello {
-    val hi = "Hello!"
+class Sub ext Super {
+    val hello = 5
 }

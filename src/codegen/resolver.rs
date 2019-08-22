@@ -202,16 +202,24 @@ impl Resolver {
     fn third_pass(&mut self, list: &mut DeclarationList) -> Result<(), String> {
         for class in list.classes.iter_mut() {
             let mut fields = Vec::with_capacity(class.variables.len());
-            let mut fields_map = HashMap::new();
+            let mut fields_map = HashMap::with_capacity(class.variables.len());
+            let mut supers_map = Vec::with_capacity(class.supers.len());
 
             for (i, field) in class.variables.iter_mut().enumerate() {
                 fields.push(self.resolve_expression(&mut field.initializer)?);
                 fields_map.insert(field.name.lexeme.to_string(), ClassField::new(i as u32, field.is_val));
             }
 
+            for sclass in class.supers.iter() {
+                let sclass_type = self.get_type(&sclass.lexeme)?;
+                fields.push(sclass_type);
+                supers_map.push(sclass_type);
+            }
+
             let mut class_def = self.types.get_mut(&class.name.lexeme).unwrap();
             class_def._type.set_body(fields.as_slice(), false);
             class_def.var_map = fields_map;
+            class_def.superclasses = supers_map;
         }
 
         Ok(())
@@ -430,35 +438,8 @@ impl Resolver {
                 self.get_type("None")
             }
 
-            Expression::Set { object, name, value } => {
-                let object = self.resolve_expression(object)?;
-
-                if let BasicTypeEnum::StructType(struc) = object {
-                    let class_def = self.find_class(struc);
-                    let class_field = class_def
-                        .var_map
-                        .get(&name.lexeme)
-                        .ok_or(format!("Unknown class field '{}'.", name.lexeme))?;
-
-                    if class_field.is_val {
-                        Err(format!("Class field '{}' cannot be set. (val)", name.lexeme))?
-                    }
-
-                    let field_type = class_def
-                        ._type
-                        .get_field_type_at_index(class_field.index)
-                        .expect("Internal error trying to get class field.");
-
-                    let expr_type = self.resolve_expression(value)?;
-                    if expr_type == field_type {
-                        Ok(expr_type)
-                    } else {
-                        Err(format!("Field {} is a different type.", name.lexeme))
-                    }
-                } else {
-                    Err("Get syntax (x.y) is only supported on class instances.".to_string())
-                }
-            }
+            Expression::Set { object, name, value } =>
+                self.resolve_set_expr(&mut *object, name, &mut *value),
 
             Expression::Unary { operator, right } => {
                 let right = self.resolve_expression(right)?;
@@ -507,10 +488,63 @@ impl Resolver {
         }
     }
 
-    fn resolve_class_get(
+    fn resolve_set_expr(
         &mut self,
+        object: &mut Expression,
+        name: &Token,
+        value: &mut Expression
+    ) -> Result<BasicTypeEnum, String> {
+        let object = self.resolve_expression(object)?;
+
+        if let BasicTypeEnum::StructType(struc) = object {
+            self.get_set_type(struc, name, value)
+                .or_else(|err| {
+                    let class_def = self.find_class(struc);
+                    for sclass in class_def.superclasses.iter() {
+                        if let BasicTypeEnum::StructType(cls) = sclass {
+                            return self.get_set_type(cls.clone(), name, value)
+                        }
+                    }
+                    Err(err)
+                })
+        } else {
+            Err("Get syntax (x.y) is only supported on class instances.".to_string())
+        }
+    }
+
+    fn get_set_type(
+        &mut self,
+        object: StructType,
+        name: &Token,
+        value: &mut Expression
+    ) -> Result<BasicTypeEnum, String> {
+        let class_def = self.find_class(object);
+        let class_field = class_def
+            .var_map
+            .get(&name.lexeme)
+            .ok_or(format!("Unknown class field {}.", &name.lexeme))?;
+
+        if class_field.is_val {
+            Err(format!("Class field '{}' cannot be set. (val)", name.lexeme))?
+        }
+
+        let field_type = class_def
+            ._type
+            .get_field_type_at_index(class_field.index)
+            .expect("Internal error trying to get class field.");
+
+        let expr_type = self.resolve_expression(value)?;
+        if expr_type == field_type {
+            Ok(expr_type)
+        } else {
+            Err(format!("Field {} is a different type.", name.lexeme))
+        }
+    }
+
+    fn resolve_class_get(
+        &self,
         struc: StructType,
-        name: &mut Token,
+        name: &Token,
     ) -> Result<BasicTypeEnum, String> {
         let class_def = self.find_class(struc);
 
@@ -529,6 +563,13 @@ impl Resolver {
                 .as_pointer_value()
                 .get_type()
                 .into());
+        }
+
+        for sclass in class_def.superclasses.iter() {
+            if let BasicTypeEnum::StructType(struc) = sclass {
+                let result = self.resolve_class_get(struc.clone(), name);
+                if result.is_ok() { return result; }
+            }
         }
 
         Err(format!("Unknown class field '{}'.", name.lexeme))
@@ -623,7 +664,7 @@ impl Resolver {
         self.environments.iter().any(|env| env.variables.contains_key(&token.lexeme))
     }
 
-    fn find_class(&mut self, struc: StructType) -> &ClassDef {
+    fn find_class(&self, struc: StructType) -> &ClassDef {
         self.types
             .iter()
             .find(|&_type| _type.1._type == struc)

@@ -19,6 +19,7 @@ use inkwell::{
     IntPredicate,
 };
 use std::{collections::HashMap, convert::TryInto};
+use inkwell::types::BasicTypeEnum;
 
 /// A generator that creates LLVM IR.
 /// Created through a [Resolver].
@@ -606,6 +607,10 @@ struct ClassDef {
     // Note that the initializer is only None during creation in the Resolver.
     // By the time the IRGen gets to it, it is always Some.
     pub initializer: Option<FunctionValue>,
+    // All superclasses of this class.
+    // This is an enum instead of StructType so that primitives can also be subclassed.
+    // The index of the superclass struct is always [var_map.len() + index]
+    pub superclasses: Vec<BasicTypeEnum>
 }
 
 impl ClassDef {
@@ -615,10 +620,12 @@ impl ClassDef {
             var_map: HashMap::new(),
             methods: HashMap::new(),
             initializer: None,
+            superclasses: Vec::new(),
         }
     }
 }
 
+#[derive(Clone)]
 struct ClassField {
     pub index: u32,
     pub is_val: bool
