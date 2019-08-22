@@ -15,7 +15,7 @@ use inkwell::{
     module::Module,
     passes::PassManager,
     types::{AnyTypeEnum, BasicType, StructType},
-    values::{BasicValueEnum, FunctionValue, PointerValue},
+    values::{BasicValueEnum, FunctionValue, PointerValue, StructValue},
     IntPredicate,
 };
 use std::{collections::HashMap, convert::TryInto};
@@ -98,6 +98,18 @@ impl IRGenerator {
                 unsafe {
                     let gep_ptr = self.builder.build_struct_gep(ptr, index as u32, "classgep");
                     self.builder.build_store(gep_ptr, initializer);
+                }
+            }
+
+            let len = class_def.var_map.len();
+            for (i, sclass) in class_def.superclasses.iter().enumerate() {
+                if let BasicTypeEnum::StructType(sclass) = sclass {
+                    let index = (len + i) as u32;
+                    let init_fn = self.find_class_def(sclass).initializer.unwrap();
+                    unsafe {
+                        let sclass_struc = self.builder.build_struct_gep(ptr, index, "classgep");
+                        self.builder.build_call(init_fn, &[sclass_struc.into()], "superinit");
+                    }
                 }
             }
         } else {
@@ -332,10 +344,27 @@ impl IRGenerator {
 
     fn get_from_struct(&self, struc: &PointerValue, name: Token) -> PointerValue {
         let struc_def = self.find_class(*struc);
-        let ptr_index = struc_def.var_map[&name.lexeme].index;
+        let var = struc_def.var_map.get(&name.lexeme);
 
-        unsafe {
-            self.builder.build_struct_gep(*struc, ptr_index, "classgep")
+        if let Some(var) = var {
+            unsafe {
+                self.builder.build_struct_gep(*struc, var.index, "classgep")
+            }
+        } else {
+            for (i, sclass) in struc_def.superclasses.iter().enumerate() {
+                if let BasicTypeEnum::StructType(sclass) = sclass {
+                    let sclass = self.find_class_def(sclass);
+                    let var = sclass.var_map.get(&name.lexeme);
+                    if let Some(var) = var {
+                        let index = struc_def.var_map.len() + i;
+                        unsafe {
+                            let sclass = self.builder.build_struct_gep(*struc, index as u32, "classgep");
+                            return self.builder.build_struct_gep(sclass, var.index, "classgep")
+                        }
+                    }
+                }
+            }
+            unreachable!("get expr")
         }
     }
 
@@ -560,14 +589,18 @@ impl IRGenerator {
     fn find_class(&self, struc: PointerValue) -> &ClassDef {
         let struc_ptr_type = struc.get_type().get_element_type();
         if let AnyTypeEnum::StructType(struc_type) = struc_ptr_type {
-            self.types
-                .iter()
-                .find(|&_type| _type.1._type == struc_type)
-                .unwrap()
-                .1
+            self.find_class_def(&struc_type)
         } else {
             panic!("Invalid class instance pointer!!")
         }
+    }
+
+    fn find_class_def(&self, struc: &StructType) -> &ClassDef {
+        self.types
+            .iter()
+            .find(|&_type| _type.1._type == *struc)
+            .unwrap()
+            .1
     }
 
     fn create_entry_block_alloca<T: BasicType>(&self, ty: T, name: &str) -> PointerValue {

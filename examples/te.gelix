@@ -4,10 +4,9 @@ exfn printnum(i64 a)
 
 func main() {
     val sub = Sub()
-    print(Sub().test)
+    print(sub.test)
     sub.test = "ok!"
-    printnum(Sub().hello)
-    print(Sub().test)
+    print(sub.test)
 }
 
 class Super {

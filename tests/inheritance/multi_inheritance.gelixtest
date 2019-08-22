@@ -9,9 +9,9 @@ c
 
 func main() {
     val test = C()
-    print(test.a())
-    print(test.b())
-    print(test.c())
+    print(test._a())
+    print(test._b())
+    print(test._c())
     print(test.a)
     print(test.b)
     print(test.c)
@@ -21,19 +21,19 @@ class A {
 
     var a = "a"
 
-    func a() -> String this.a
+    func _a() -> String this.a
 }
 
 class B {
 
     var b = "b"
 
-    func b() -> String this.b
+    func _b() -> String this.b
 }
 
 class C ext A, B {
 
     var c = "c"
 
-    func c() -> String this.c
+    func _c() -> String this.c
 }
