@@ -13,15 +13,15 @@ func main() {
 
 class Class {
 
-    var test = "ok"
+    var _test = "ok"
 
-    func test() -> String this.test
+    func test() -> String this._test
 }
 
 class Subclass ext Class {
 
-    var test2 = "ok2"
+    var _test2 = "ok2"
 
-    func test2() -> String this.test
-    func test3() -> String this.test2
+    func test2() -> String this._test
+    func test3() -> String this._test2
 }

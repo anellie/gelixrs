@@ -13,16 +13,16 @@ func main() {
 
 class Class {
 
-    var test = "class"
+    var _test = "class"
 
-    func test() -> String this.test
+    func test() -> String this._test
     func ok() -> i64 0
 }
 
 class Subclass ext Class {
 
-    var test = "sub"
+    var _test = "sub"
 
-    func test2() -> String this.test
+    func test2() -> String this._test
     func ok() -> i64 1
 }

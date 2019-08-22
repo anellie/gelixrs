@@ -15,7 +15,7 @@ use inkwell::{
     module::Module,
     passes::PassManager,
     types::{AnyTypeEnum, BasicType, StructType},
-    values::{BasicValueEnum, FunctionValue, PointerValue},
+    values::{BasicValueEnum, FunctionValue, PointerValue, StructValue},
     IntPredicate,
 };
 use std::{collections::HashMap, convert::TryInto};
@@ -254,22 +254,36 @@ impl IRGenerator {
             Expression::Get { object, name } => {
                 let obj = self.expression(*object);
                 if let BasicValueEnum::StructValue(struc) = obj {
-                    let struc_type = struc.get_type();
-                    let class_def = self
-                        .types
-                        .iter()
-                        .find(|&_type| _type.1._type == struc_type)
-                        .unwrap()
-                        .1;
-
-                    let function = class_def.methods[&name.lexeme].clone();
-                    self.func_call(function, arguments, Some(struc.into()))
+                    self.method_call(struc, name, arguments)
                 } else {
                     panic!("call_expr: Get expression without struct")
                 }
             }
 
             _ => panic!("Unsupported callee"),
+        }
+    }
+
+    fn method_call(&mut self, struc: StructValue, name: Token, arguments: Vec<Expression>) -> BasicValueEnum {
+        let struc_type = struc.get_type();
+        let class_def = self.find_class_def(&struc_type);
+
+        let function = class_def.methods.get(&name.lexeme);
+
+        if let Some(func) = function {
+            self.func_call(func.clone(), arguments, Some(struc.into()))
+        } else {
+            let struc_ptr = self.create_entry_block_alloca(struc_type, "callalloc");
+            self.builder.build_store(struc_ptr, struc);
+            let index = class_def.var_map.len() as u32;
+
+            let superclass = unsafe { self.builder.build_struct_gep(struc_ptr, index, "callgep") };
+            let superclass = self.builder.build_load(superclass, "callload");
+            if let BasicValueEnum::StructValue(superclass) = superclass {
+                self.method_call(superclass, name, arguments)
+            } else {
+                panic!("Method call");
+            }
         }
     }
 
