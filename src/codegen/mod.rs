@@ -9,13 +9,14 @@ use super::{
     lexer::token::{Token, Type},
 };
 use inkwell::{
+    AddressSpace,
     basic_block::BasicBlock,
     builder::Builder,
     context::Context,
     module::Module,
     passes::PassManager,
     types::{AnyTypeEnum, BasicType, StructType},
-    values::{BasicValueEnum, FunctionValue, PointerValue, StructValue},
+    values::{BasicValueEnum, FunctionValue, PointerValue},
     IntPredicate,
 };
 use std::{collections::HashMap, convert::TryInto};
@@ -95,19 +96,21 @@ impl IRGenerator {
             for (index, variable) in variables.into_iter().enumerate() {
                 let initializer = self.expression(variable.initializer);
                 unsafe {
-                    let gep_ptr = self.builder.build_struct_gep(ptr, index as u32, "classgep");
+                    let index = class_def.var_offset + index as u32;
+                    let gep_ptr = self.builder.build_struct_gep(ptr, index, "classgep");
                     self.builder.build_store(gep_ptr, initializer);
                 }
             }
 
             if let Some(sclass) = class_def.superclass {
-                let index = class_def.var_map.len() as u32;
                 let init_fn = self.find_class_def(&sclass).initializer.unwrap();
-                unsafe {
-                    let sclass_struc = self.builder.build_struct_gep(ptr, index, "classgep");
-                    self.builder
-                        .build_call(init_fn, &[sclass_struc.into()], "superinit");
-                }
+                let sclass_struc = self.builder.build_bitcast(
+                    ptr,
+                    sclass.ptr_type(AddressSpace::Generic),
+                    "bitcast",
+                );
+                self.builder
+                    .build_call(init_fn, &[sclass_struc.into()], "superinit");
             }
         } else {
             panic!("Creating class initializer");
@@ -234,10 +237,7 @@ impl IRGenerator {
                     let user_init = class_def.methods.get("init");
                     let user_init = if let Some(u) = user_init { Some(u.clone()) } else { None };
 
-                    let struc = class_def._type.const_zero();
-                    let alloca = self.create_entry_block_alloca(struc.get_type(), "classinit");
-
-                    self.builder.build_store(alloca, struc);
+                    let alloca = self.create_entry_block_alloca(class_def._type, "classinit");
                     self.func_call(initializer, Vec::new(), Some(alloca.into()));
 
                     let struc = self.builder.build_load(alloca, "classinitload");
@@ -254,7 +254,9 @@ impl IRGenerator {
             Expression::Get { object, name } => {
                 let obj = self.expression(*object);
                 if let BasicValueEnum::StructValue(struc) = obj {
-                    self.method_call(struc, name, arguments)
+                    let alloca = self.create_entry_block_alloca(struc.get_type(), "callalloc");
+                    self.builder.build_store(alloca, struc);
+                    self.method_call(alloca, name, arguments)
                 } else {
                     panic!("call_expr: Get expression without struct")
                 }
@@ -264,22 +266,32 @@ impl IRGenerator {
         }
     }
 
-    fn method_call(&mut self, struc: StructValue, name: Token, arguments: Vec<Expression>) -> BasicValueEnum {
-        let struc_type = struc.get_type();
-        let class_def = self.find_class_def(&struc_type);
-
+    fn method_call(
+        &mut self,
+        struc: PointerValue,
+        name: Token,
+        arguments: Vec<Expression>,
+    ) -> BasicValueEnum {
+        let class_def = self.find_class(struc);
         let function = class_def.methods.get(&name.lexeme);
 
         if let Some(func) = function {
-            self.func_call(func.clone(), arguments, Some(struc.into()))
+            let func = func.clone();
+            self.func_call(
+                func,
+                arguments,
+                Some(self.builder.build_load(struc, "callload").into()),
+            )
         } else {
-            let struc_ptr = self.create_entry_block_alloca(struc_type, "callalloc");
-            self.builder.build_store(struc_ptr, struc);
-            let index = class_def.var_map.len() as u32;
-
-            let superclass = unsafe { self.builder.build_struct_gep(struc_ptr, index, "callgep") };
-            let superclass = self.builder.build_load(superclass, "callload");
-            if let BasicValueEnum::StructValue(superclass) = superclass {
+            let superclass = self.builder.build_bitcast(
+                struc,
+                class_def
+                    .superclass
+                    .unwrap()
+                    .ptr_type(AddressSpace::Generic),
+                "callcast",
+            );
+            if let BasicValueEnum::PointerValue(superclass) = superclass {
                 self.method_call(superclass, name, arguments)
             } else {
                 panic!("Method call");
@@ -343,18 +355,7 @@ impl IRGenerator {
         if let Some(var) = var {
             unsafe { self.builder.build_struct_gep(*struc, var.index, "classgep") }
         } else {
-            if let Some(sclass) = struc_def.superclass {
-                let sclass = self.find_class_def(&sclass);
-                let var = sclass.var_map.get(&name.lexeme);
-                if let Some(var) = var {
-                    let index = struc_def.var_map.len();
-                    unsafe {
-                        let sclass = self.builder.build_struct_gep(*struc, index as u32, "classgep");
-                        return self.get_from_struct(&sclass, name);
-                    }
-                }
-            }
-            unreachable!("get expr")
+            panic!("get from struct")
         }
     }
 
@@ -377,7 +378,8 @@ impl IRGenerator {
         } else {
             panic!("For condition")
         };
-        self.builder.build_conditional_branch(condition, &loop_block, &cont_block);
+        self.builder
+            .build_conditional_branch(condition, &loop_block, &cont_block);
 
         self.builder.position_at_end(&loop_block);
         let body = self.expression(body);
@@ -631,12 +633,15 @@ struct ClassDef {
     pub _type: StructType,
     pub var_map: HashMap<String, ClassField>,
     pub methods: HashMap<String, FunctionValue>,
-    // Note that the initializer is only None during creation in the Resolver.
-    // By the time the IRGen gets to it, it is always Some.
+    /// Note that the initializer is only None during creation in the Resolver.
+    /// By the time the IRGen gets to it, it is always Some.
     pub initializer: Option<FunctionValue>,
-    // The superclass of this class, if any.
-    // The index of the superclass struct is always [var_map.len() + 1]
+    /// The superclass of this class, if any.
+    /// The index of the superclass struct is always [var_map.len() + 1]
     pub superclass: Option<StructType>,
+    /// Offset at which variables unique to the struct start.
+    /// All vars before this index are inherited from superclasses.
+    pub var_offset: u32,
 }
 
 impl ClassDef {
@@ -647,11 +652,12 @@ impl ClassDef {
             methods: HashMap::new(),
             initializer: None,
             superclass: None,
+            var_offset: 0,
         }
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct ClassField {
     pub index: u32,
     pub is_val: bool,

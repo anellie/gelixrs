@@ -1,6 +1,6 @@
 use super::super::{
     ast::{
-        declaration::{DeclarationList, FuncSignature, Function, FunctionArg},
+        declaration::{Class, DeclarationList, FuncSignature, Function, FunctionArg},
         expression::{Expression, LOGICAL_BINARY},
         literal::Literal,
     },
@@ -200,33 +200,76 @@ impl Resolver {
 
     /// During the third pass, all class structs are filled.
     fn third_pass(&mut self, list: &mut DeclarationList) -> Result<(), String> {
-        for class in list.classes.iter_mut() {
-            let mut fields = Vec::with_capacity(class.variables.len());
-            let mut fields_map = HashMap::with_capacity(class.variables.len());
+        let mut done_classes = Vec::with_capacity(list.classes.len());
 
-            for (i, field) in class.variables.iter_mut().enumerate() {
-                fields.push(self.resolve_expression(&mut field.initializer)?);
-                fields_map.insert(
-                    field.name.lexeme.to_string(),
-                    ClassField::new(i as u32, field.is_val),
-                );
-            }
+        while !list.classes.is_empty() {
+            let mut class = list.classes.pop().unwrap();
 
-            let mut superclass = None;
-            if let Some(sclass) = &class.superclass {
-                let sclass_type = self.get_type(&sclass.lexeme)?;
-                fields.push(sclass_type);
-                if let BasicTypeEnum::StructType(struc) = sclass_type {
-                    superclass = Some(struc);
+            // We don't make mistakes, we just make happy little clone()s.
+            let mut superclass = class.superclass.clone();
+            while superclass.is_some() {
+                let scls_name = superclass.clone().unwrap();
+                let class_index = list
+                    .classes
+                    .iter()
+                    .position(|cls| cls.name.lexeme == scls_name.lexeme);
+
+                if let Some(class_index) = class_index {
+                    let mut _superclass = list.classes.remove(class_index);
+                    superclass = _superclass.superclass.clone();
+                    self.fill_class_struct(&mut _superclass)?;
+                    done_classes.push(_superclass);
                 } else {
-                    Err("Only classes can be inherited from.")?
+                    Err(format!("Unknown class {}.", scls_name.lexeme))?
                 }
             }
 
-            let mut class_def = self.types.get_mut(&class.name.lexeme).unwrap();
-            class_def._type.set_body(fields.as_slice(), false);
-            class_def.var_map = fields_map;
-            class_def.superclass = superclass;
+            self.fill_class_struct(&mut class)?;
+            done_classes.push(class)
+        }
+
+        list.classes = done_classes;
+        Ok(())
+    }
+
+    fn fill_class_struct(&mut self, class: &mut Class) -> Result<(), String> {
+        let mut fields = Vec::with_capacity(class.variables.len());
+        let mut fields_map = HashMap::with_capacity(class.variables.len());
+
+        let mut superclass = None;
+        if let Some(sclass) = &class.superclass {
+            let sclass_type = self.get_type(&sclass.lexeme)?;
+            if let BasicTypeEnum::StructType(struc) = sclass_type {
+                let sclass_def = self.find_class_def(&struc).unwrap();
+                for ((i, (name, field)), f_type) in sclass_def
+                    .var_map
+                    .iter()
+                    .enumerate()
+                    .zip(struc.get_field_types().iter())
+                {
+                    fields.insert(i, f_type.clone());
+                    fields_map.insert(name.to_string(), ClassField::new(i as u32, field.is_val));
+                }
+                superclass = Some(struc);
+            } else {
+                Err("Only classes can be inherited from.")?
+            }
+        }
+
+        for field in class.variables.iter_mut() {
+            fields.push(self.resolve_expression(&mut field.initializer)?);
+            fields_map.insert(
+                field.name.lexeme.to_string(),
+                ClassField::new((fields.len() - 1) as u32, field.is_val),
+            );
+        }
+
+        let mut class_def = self.types.get_mut(&class.name.lexeme).unwrap();
+        class_def._type.set_body(fields.as_slice(), false);
+        class_def.var_map = fields_map;
+        class_def.superclass = superclass;
+        if let Some(superclass) = superclass {
+            class_def.var_offset = superclass.count_fields();
         }
 
         Ok(())

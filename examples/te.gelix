@@ -4,20 +4,20 @@ exfn printnum(i64 a)
 
 func main() {
     val sub = Sub()
-    print(sub.test)
-    sub.test = "ok!"
-    print(sub.test)
-    sub.ok()
+    printnum(sub.a)
+    print(sub.t)
+    printnum(sub.ok())
+    print(sub.nice())
 }
 
 class Super {
-    var test = "ok"
+    val a = 5
+    val b = "okay"
 
-    func ok() {
-        print("success!")
-    }
+    func ok() -> i64 6
+    func nice() -> String this.b
 }
 
 class Sub ext Super {
-    val hello = 5
+    val t = "yes"
 }
