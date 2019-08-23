@@ -39,7 +39,6 @@ mod bin_macro {
     }
 }
 
-// TODO: Implement the rest of the parser.
 impl Parser {
     /// Parses the tokens and returns a full AST.
     /// Returns Some on success, None if any part of the source is invalid syntax.
@@ -57,7 +56,7 @@ impl Parser {
             None
         } else {
             Some(list)
-        }
+    }
     }
 
     /// The entry point for generating a declaration.
@@ -306,6 +305,9 @@ impl Parser {
         let mut else_branch = None;
         while !self.match_token(Type::RightBrace) {
             if self.match_token(Type::Else) {
+                if else_branch.is_some() {
+                    self.error_at_current("'when' expression can only have 1 'else' branch.");
+                }
                 self.consume(Type::Arrow, "Expected '->' after when condition.");
                 else_branch = Some(self.expression()?);
             } else {
@@ -403,7 +405,6 @@ impl Parser {
         Some(expression)
     }
 
-    // TODO: Support for array literals
     fn primary(&mut self) -> Option<Expression> {
         Some(match () {
             _ if self.match_token(Type::None) => Expression::Literal(Literal::None),

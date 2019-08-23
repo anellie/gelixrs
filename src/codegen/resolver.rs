@@ -13,14 +13,16 @@ use inkwell::{
     context::Context,
     module::Module,
     passes::PassManager,
-    types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType, StructType},
+    types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType, PointerType, StructType},
     values::BasicValueEnum,
     AddressSpace,
 };
 use std::{collections::HashMap, mem};
 
 /// A resolver. Resolves all variables and types.
+/// Also already defines all functions + fills all class structs.
 pub struct Resolver {
+    /// LLVM-related. See LLVM + Inkwell docs for details.
     context: Context,
     builder: Builder,
     module: Module,
@@ -29,9 +31,9 @@ pub struct Resolver {
     types: HashMap<String, ClassDef>,
     // A constant that is used for expressions that don't produce a value but are required to.
     none_const: BasicTypeEnum,
+
     // All environments/scopes at the moment. Used like a stack.
     environments: Vec<Environment>,
-
     /// Used to make unique variable names when a name collision occurs.
     /// Increments every time a new scope is created.
     environment_counter: usize,
@@ -115,12 +117,13 @@ impl Resolver {
 
     /// During the second pass, all functions are declared.
     fn second_pass(&mut self, list: &mut DeclarationList) -> Result<(), String> {
-        for ext_fn in &list.ext_functions {
-            self.create_function(&ext_fn, false)?;
-        }
-
-        for func in &list.functions {
-            self.create_function(&func.sig, false)?;
+        for func in list
+            .functions
+            .iter()
+            .map(|func| &func.sig)
+            .chain(list.ext_functions.iter())
+        {
+            self.create_function(&func, false)?;
         }
 
         for class in list.classes.iter_mut() {
@@ -151,6 +154,8 @@ impl Resolver {
         Ok(())
     }
 
+    /// Creates a function.
+    /// first_is_ptr will turn the first arg into a pointer, which is used for class methods.
     fn create_function(
         &mut self,
         function: &FuncSignature,
@@ -167,11 +172,10 @@ impl Resolver {
             ));
         }
 
-        let mut parameters = Vec::new();
+        let mut parameters = Vec::with_capacity(function.parameters.len());
         for param in &function.parameters {
             parameters.push(self.resolve_type(&param._type)?);
         }
-        // TODO: This is rather hacky/ugly
         if first_is_ptr {
             let first = parameters.remove(0);
             if let BasicTypeEnum::StructType(struc) = first {
@@ -205,22 +209,31 @@ impl Resolver {
         while !list.classes.is_empty() {
             let mut class = list.classes.pop().unwrap();
 
-            // We don't make mistakes, we just make happy little clone()s.
-            let mut superclass = class.superclass.clone();
-            while superclass.is_some() {
-                let scls_name = superclass.clone().unwrap();
+            // This monster ensures all superclasses are filled first.
+            let mut super_tok = class.superclass.clone();
+            while super_tok.is_some() {
+                let super_name = super_tok.clone().unwrap();
                 let class_index = list
                     .classes
                     .iter()
-                    .position(|cls| cls.name.lexeme == scls_name.lexeme);
+                    .position(|cls| cls.name.lexeme == super_name.lexeme);
 
                 if let Some(class_index) = class_index {
-                    let mut _superclass = list.classes.remove(class_index);
-                    superclass = _superclass.superclass.clone();
-                    self.fill_class_struct(&mut _superclass)?;
-                    done_classes.push(_superclass);
+                    let mut superclass = list.classes.remove(class_index);
+                    super_tok = superclass.superclass.clone();
+                    self.fill_class_struct(&mut superclass)?;
+                    done_classes.push(superclass);
                 } else {
-                    Err(format!("Unknown class {}.", scls_name.lexeme))?
+                    if done_classes
+                        .iter()
+                        .any(|cls| cls.name.lexeme == super_name.lexeme)
+                    {
+                        // Superclass was already resolved.
+                        super_tok = None;
+                    } else {
+                        // Superclass doesn't exist.
+                        Err(format!("Unknown class {}.", super_name.lexeme))?
+                    }
                 }
             }
 
@@ -237,20 +250,22 @@ impl Resolver {
         let mut fields_map = HashMap::with_capacity(class.variables.len());
 
         let mut superclass = None;
-        if let Some(sclass) = &class.superclass {
-            let sclass_type = self.get_type(&sclass.lexeme)?;
-            if let BasicTypeEnum::StructType(struc) = sclass_type {
-                let sclass_def = self.find_class_def(&struc).unwrap();
-                for ((i, (name, field)), f_type) in sclass_def
+        if let Some(super_name) = &class.superclass {
+            let super_type = self.get_type(&super_name.lexeme)?;
+            if let BasicTypeEnum::StructType(super_struct) = super_type {
+                let super_def = self.find_class_def(&super_struct).unwrap();
+
+                for ((i, (name, field)), f_type) in super_def
                     .var_map
                     .iter()
                     .enumerate()
-                    .zip(struc.get_field_types().iter())
+                    .zip(super_struct.get_field_types().iter())
                 {
-                    fields.insert(i, f_type.clone());
+                    fields.push(f_type.clone());
                     fields_map.insert(name.to_string(), ClassField::new(i as u32, field.is_val));
                 }
-                superclass = Some(struc);
+
+                superclass = Some(super_struct);
             } else {
                 Err("Only classes can be inherited from.")?
             }
@@ -278,14 +293,13 @@ impl Resolver {
     /// During the fourth pass, all variables inside functions are checked.
     /// This is to ensure the variable is defined and allowed in the current scope.
     fn fourth_pass(&mut self, list: &mut DeclarationList) -> Result<(), String> {
-        for func in list.functions.iter_mut() {
+        for func in list.functions.iter_mut().chain(
+            list.classes
+                .iter_mut()
+                .map(|class| &mut class.methods)
+                .flatten(),
+        ) {
             self.resolve_function(func)?;
-        }
-
-        for class in list.classes.iter_mut() {
-            for method in class.methods.iter_mut() {
-                self.resolve_function(method)?;
-            }
         }
 
         Ok(())
@@ -307,11 +321,13 @@ impl Resolver {
         }
 
         let body_type = self.resolve_expression(&mut func.body)?;
-        let ret_type = if let Some(type_tok) = &func.sig.return_type {
-            self.resolve_type(type_tok)?
-        } else {
-            body_type // Body type does not matter when ret type is None
-        };
+        let ret_type = func
+            .sig
+            .return_type
+            .as_ref()
+            .map(|tok| self.resolve_type(tok))
+            .unwrap_or(Ok(body_type))?;
+
         if body_type != ret_type {
             Err("Function return type does not match body type.".to_string())?;
         }
@@ -368,12 +384,10 @@ impl Resolver {
                     Err("'break' is only allowed in loops.")?;
                 }
 
-                let break_type = if let Some(expr) = expr {
-                    self.resolve_expression(expr)?
-                } else {
-                    self.none_const
-                };
-
+                let break_type = expr
+                    .as_mut()
+                    .map(|expr| self.resolve_expression(&mut *expr))
+                    .unwrap_or(Ok(self.none_const))?;
                 if let Some(loop_type) = self.current_loop_type {
                     if break_type != loop_type {
                         Err("All 'break' inside of a loop must have the same type.")?;
@@ -433,15 +447,13 @@ impl Resolver {
                 self.is_in_loop = was_in_loop;
                 let loop_type = std::mem::replace(&mut self.current_loop_type, prev_loop_type);
 
-                if let Some(loop_type) = loop_type {
+                loop_type.map(|loop_type| {
                     if body_type == loop_type {
                         Ok(body_type)
                     } else {
                         Ok(self.none_const)
                     }
-                } else {
-                    Ok(body_type)
-                }
+                }).unwrap_or(Ok(body_type))
             }
 
             Expression::Get { object, name } => {
@@ -734,14 +746,17 @@ impl Resolver {
             ))?;
         }
 
-        for (i, arg) in arguments.iter_mut().enumerate() {
+        arguments
+            .iter_mut()
+            .zip(expected.iter())
+            .try_for_each(|(arg, exp)| {
             let arg_type = self.resolve_expression(arg)?;
-            if arg_type != expected[i] {
-                Err("Call argument is the wrong type.")?;
+            if arg_type != *exp {
+                Err("Call argument is the wrong type.".to_string())
+            } else {
+                Ok(())
             }
-        }
-
-        Ok(())
+        })
     }
 
     fn begin_scope(&mut self) {
@@ -785,7 +800,7 @@ impl Resolver {
     }
 
     /// Turns the resolver into a generator for IR. Call resolve() first.
-    pub fn into_generator(self, decl_list: DeclarationList) -> IRGenerator {
+    pub fn into_generator(self) -> IRGenerator {
         let mpm = PassManager::create(());
         mpm.add_instruction_combining_pass();
         mpm.add_reassociate_pass();
@@ -824,8 +839,6 @@ impl Resolver {
             current_fn: None,
             loop_cont_block: None,
 
-            decl_list,
-
             types: self.types,
             none_const: none_const.into(),
         }
@@ -857,6 +870,7 @@ impl Environment {
 struct VarDef {
     /// If the variable can be reassigned.
     pub mutable: bool,
+
     /// The underlying LLVM type.
     pub _type: BasicTypeEnum,
 }

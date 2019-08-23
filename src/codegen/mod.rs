@@ -9,15 +9,14 @@ use super::{
     lexer::token::{Token, Type},
 };
 use inkwell::{
-    AddressSpace,
     basic_block::BasicBlock,
     builder::Builder,
     context::Context,
     module::Module,
     passes::PassManager,
     types::{AnyTypeEnum, BasicType, StructType},
-    values::{BasicValueEnum, FunctionValue, PointerValue},
-    IntPredicate,
+    values::{BasicValueEnum, FunctionValue, PointerValue, StructValue},
+    AddressSpace, IntPredicate,
 };
 use std::{collections::HashMap, convert::TryInto};
 
@@ -43,28 +42,20 @@ pub struct IRGenerator {
     /// Stored here so 'break' expressions know where to jump to.
     loop_cont_block: Option<BasicBlock>,
 
-    // All declarations remaining to be compiled.
-    decl_list: DeclarationList,
-
     // All types (classes) that were produced by the [Resolver].
     types: HashMap<String, ClassDef>,
+
     // A constant that is used for expressions that don't produce a value but are required to.
     none_const: BasicValueEnum,
 }
 
 impl IRGenerator {
     /// Generates IR. Will process all declarations given.
-    pub fn generate(mut self) -> Module {
-        while !self.decl_list.classes.is_empty() {
-            let class = self.decl_list.classes.pop().unwrap();
-            self.class(class);
-        }
-
-        while !self.decl_list.functions.is_empty() {
-            let func = self.decl_list.functions.pop().unwrap();
-            self.function(func);
-        }
-
+    pub fn generate(mut self, list: DeclarationList) -> Module {
+        list.classes.into_iter().for_each(|class| self.class(class));
+        list.functions
+            .into_iter()
+            .for_each(|func| self.function(func));
         self.mpm.run_on(&self.module);
         self.module
     }
@@ -90,30 +81,29 @@ impl IRGenerator {
         let entry = self.context.append_basic_block(&init_fn, "entry");
         self.builder.position_at_end(&entry);
 
+        // Get the pointer to the class and store it as the 'this' variable
         let struc = init_fn.get_first_param().unwrap();
-        if let BasicValueEnum::PointerValue(ptr) = struc {
-            self.variables.insert("this".to_string(), ptr);
-            for (index, variable) in variables.into_iter().enumerate() {
-                let initializer = self.expression(variable.initializer);
-                unsafe {
-                    let index = class_def.var_offset + index as u32;
-                    let gep_ptr = self.builder.build_struct_gep(ptr, index, "classgep");
-                    self.builder.build_store(gep_ptr, initializer);
-                }
-            }
+        let ptr = coerce_ptr(struc);
+        self.variables.insert("this".to_string(), ptr);
 
-            if let Some(sclass) = class_def.superclass {
-                let init_fn = self.find_class_def(&sclass).initializer.unwrap();
-                let sclass_struc = self.builder.build_bitcast(
-                    ptr,
-                    sclass.ptr_type(AddressSpace::Generic),
-                    "bitcast",
-                );
-                self.builder
-                    .build_call(init_fn, &[sclass_struc.into()], "superinit");
+        // Insert default values into all struct fields
+        for (index, variable) in variables.into_iter().enumerate() {
+            let initializer = self.expression(variable.initializer);
+            let index = class_def.var_offset + index as u32;
+            unsafe {
+                let gep_ptr = self.builder.build_struct_gep(ptr, index, "classgep");
+                self.builder.build_store(gep_ptr, initializer);
             }
-        } else {
-            panic!("Creating class initializer");
+        }
+
+        // Call the superclass initializer, if a superclass exists
+        if let Some(sclass) = class_def.superclass {
+            let init_fn = self.find_class_def(&sclass).initializer.unwrap();
+            let sclass_struc =
+                self.builder
+                    .build_bitcast(ptr, sclass.ptr_type(AddressSpace::Generic), "bitcast");
+            self.builder
+                .build_call(init_fn, &[sclass_struc.into()], "superinit");
         }
 
         self.types.insert(name.to_string(), class_def);
@@ -233,9 +223,7 @@ impl IRGenerator {
                 let class = self.types.get(&token.lexeme);
                 if let Some(class_def) = class {
                     let initializer = class_def.initializer.unwrap();
-                    // TODO: How NOT to clone an Option... borrowing can be a pain...
-                    let user_init = class_def.methods.get("init");
-                    let user_init = if let Some(u) = user_init { Some(u.clone()) } else { None };
+                    let user_init = class_def.methods.get("init").cloned();
 
                     let alloca = self.create_entry_block_alloca(class_def._type, "classinit");
                     self.func_call(initializer, Vec::new(), Some(alloca.into()));
@@ -253,13 +241,9 @@ impl IRGenerator {
 
             Expression::Get { object, name } => {
                 let obj = self.expression(*object);
-                if let BasicValueEnum::StructValue(struc) = obj {
-                    let alloca = self.create_entry_block_alloca(struc.get_type(), "callalloc");
-                    self.builder.build_store(alloca, struc);
-                    self.method_call(alloca, name, arguments)
-                } else {
-                    panic!("call_expr: Get expression without struct")
-                }
+                let alloca = self.create_entry_block_alloca(obj.get_type(), "callalloc");
+                self.builder.build_store(alloca, obj);
+                self.method_call(alloca, name, arguments)
             }
 
             _ => panic!("Unsupported callee"),
@@ -291,11 +275,7 @@ impl IRGenerator {
                     .ptr_type(AddressSpace::Generic),
                 "callcast",
             );
-            if let BasicValueEnum::PointerValue(superclass) = superclass {
-                self.method_call(superclass, name, arguments)
-            } else {
-                panic!("Method call");
-            }
+            self.method_call(coerce_ptr(superclass), name, arguments)
         }
     }
 
@@ -305,13 +285,10 @@ impl IRGenerator {
         arguments: Vec<Expression>,
         first_arg: Option<BasicValueEnum>,
     ) -> BasicValueEnum {
-        let mut args = Vec::with_capacity(arguments.len() + (first_arg.is_some() as usize));
-        if let Some(arg) = first_arg {
-            args.push(arg);
-        }
-        for arg in arguments {
-            args.push(self.expression(arg));
-        }
+        let args: Vec<BasicValueEnum> = first_arg
+            .into_iter()
+            .chain(arguments.into_iter().map(|arg| self.expression(arg)))
+            .collect();
 
         let ret_type = self
             .builder
@@ -350,13 +327,8 @@ impl IRGenerator {
 
     fn get_from_struct(&self, struc: &PointerValue, name: Token) -> PointerValue {
         let struc_def = self.find_class(*struc);
-        let var = struc_def.var_map.get(&name.lexeme);
-
-        if let Some(var) = var {
-            unsafe { self.builder.build_struct_gep(*struc, var.index, "classgep") }
-        } else {
-            panic!("get from struct")
-        }
+        let var = struc_def.var_map.get(&name.lexeme).unwrap();
+        unsafe { self.builder.build_struct_gep(*struc, var.index, "classgep") }
     }
 
     fn for_expression(&mut self, condition: Expression, body: Expression) -> BasicValueEnum {
@@ -403,7 +375,7 @@ impl IRGenerator {
         self.builder
             .build_unconditional_branch(&self.loop_cont_block.expect("Getting loop block"));
 
-        // See [return_expression] for explanation on these two
+        // See return expression for explanation on these two
         self.builder.clear_insertion_position();
         self.none_const
     }
@@ -432,13 +404,11 @@ impl IRGenerator {
         let else_bb = self.context.append_basic_block(&parent, "else");
         let cont_bb = self.context.append_basic_block(&parent, "ifcont");
 
-        if else_b.is_none() {
-            self.builder
-                .build_conditional_branch(condition, &then_bb, &cont_bb);
-        } else {
-            self.builder
-                .build_conditional_branch(condition, &then_bb, &else_bb);
-        }
+        self.builder.build_conditional_branch(
+            condition,
+            &then_bb,
+            else_b.as_ref().map(|_| &else_bb).unwrap_or(&cont_bb),
+        );
 
         self.builder.position_at_end(&then_bb);
         let then_val = self.expression(then_b);
@@ -450,10 +420,7 @@ impl IRGenerator {
 
             self.builder.position_at_end(&cont_bb);
             let phi = self.builder.build_phi(then_val.get_type(), "ifphi");
-            phi.add_incoming(&[
-                (&then_val, &then_bb),
-                (&else_val, &else_bb)
-            ]);
+            phi.add_incoming(&[(&then_val, &then_bb), (&else_val, &else_bb)]);
             phi.as_basic_value()
         } else {
             self.literal(Literal::None)
@@ -497,16 +464,16 @@ impl IRGenerator {
         let expr = self.expression(expr);
 
         match op.t_type {
-            Type::Minus => {
-                match expr {
-                    BasicValueEnum::IntValue(int) =>
-                        BasicValueEnum::IntValue(self.builder.build_int_neg(int.into(), "unaryneg")),
+            Type::Minus => match expr {
+                BasicValueEnum::IntValue(int) => {
+                    BasicValueEnum::IntValue(self.builder.build_int_neg(int.into(), "unaryneg"))
+                }
 
-                    BasicValueEnum::FloatValue(float) =>
-                        BasicValueEnum::FloatValue(self.builder.build_float_neg(float.into(), "unaryneg")),
+                BasicValueEnum::FloatValue(float) => BasicValueEnum::FloatValue(
+                    self.builder.build_float_neg(float.into(), "unaryneg"),
+                ),
 
                     _ => panic!("Invalid unary negation"),
-                }
             },
 
             Type::Bang => {
@@ -613,15 +580,11 @@ impl IRGenerator {
 
     /// Will get a variable, or create a variable with that name + an alloca for it.
     fn get_or_create_variable<T: BasicType>(&mut self, ty: T, name: &str) -> PointerValue {
-        let alloca = self.variables.get(name);
-
-        if let Some(alloca) = alloca {
-            alloca.clone()
-        } else {
+        self.variables.get(name).cloned().unwrap_or_else(|| {
             let alloca = self.create_entry_block_alloca(ty, "for-body");
             self.variables.insert(name.to_string(), alloca);
             alloca
-        }
+        })
     }
 
     fn cur_fn(&self) -> FunctionValue {
@@ -629,22 +592,33 @@ impl IRGenerator {
     }
 }
 
+/// A class definition containing all information about a class's LLVM representation.
 struct ClassDef {
+    /// The LLVM struct representing this class.
     pub _type: StructType,
+
+    /// A map of all class members.
     pub var_map: HashMap<String, ClassField>,
+
+    /// A map of all class methods.
     pub methods: HashMap<String, FunctionValue>,
+
     /// Note that the initializer is only None during creation in the Resolver.
     /// By the time the IRGen gets to it, it is always Some.
     pub initializer: Option<FunctionValue>,
+
     /// The superclass of this class, if any.
     /// The index of the superclass struct is always [var_map.len() + 1]
     pub superclass: Option<StructType>,
+
     /// Offset at which variables unique to the struct start.
     /// All vars before this index are inherited from superclasses.
     pub var_offset: u32,
 }
 
 impl ClassDef {
+    /// Creates a new class definition.
+    /// Mostly uninitialized, is initialized inside the [Resolver].
     pub fn new(_type: StructType) -> ClassDef {
         ClassDef {
             _type,
@@ -657,14 +631,27 @@ impl ClassDef {
     }
 }
 
+/// A field on a class.
 #[derive(Clone, Debug)]
 struct ClassField {
+    /// Index of the field inside the LLVM struct.
     pub index: u32,
+
+    /// If this field is mutable. Checked in resolver, IRGenerator ignores this.
     pub is_val: bool,
 }
 
 impl ClassField {
     pub fn new(index: u32, is_val: bool) -> ClassField {
         ClassField { index, is_val }
+    }
+}
+
+/// Coerce a basic value into a pointer. Panics if the value wasn't a pointer.
+fn coerce_ptr(value: BasicValueEnum) -> PointerValue {
+    if let BasicValueEnum::PointerValue(ptr) = value {
+        ptr
+    } else {
+        panic!("expected ptr")
     }
 }

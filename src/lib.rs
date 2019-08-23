@@ -25,6 +25,6 @@ pub fn parse_source(code: &String) -> Option<DeclarationList> {
 pub fn compile_ir(mut declarations: DeclarationList) -> Option<Module> {
     let mut resolver = codegen::resolver::Resolver::new();
     resolver.resolve(&mut declarations)?;
-    let generator = resolver.into_generator(declarations);
-    Some(generator.generate())
+    let generator = resolver.into_generator();
+    Some(generator.generate(declarations))
 }

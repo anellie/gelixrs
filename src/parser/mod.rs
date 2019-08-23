@@ -71,12 +71,11 @@ impl Parser {
     fn advance(&mut self) -> Token {
         self.previous_line = self.current.line;
 
-        let old_token = if let Some(next) = self.tokens.next() {
-            mem::replace(&mut self.current, next)
-        } else {
-            let line = self.current.line + 1;
-            mem::replace(&mut self.current, Token::eof_token(line))
-        };
+        let next_token = self
+            .tokens
+            .next()
+            .unwrap_or_else(|| Token::eof_token(self.current.line + 1));
+        let old_token = mem::replace(&mut self.current, next_token);
 
         if self.check(Type::ScanError) {
             self.lexer_error();
