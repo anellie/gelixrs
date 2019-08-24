@@ -1,3 +1,9 @@
+/*
+ * Developed by Felix Ang. (felix.ang@pm.me).
+ * Last modified on 8/15/19 6:57 PM.
+ * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
+ */
+
 use std::{
     env::current_dir, 
     ffi::CStr,

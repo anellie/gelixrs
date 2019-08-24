@@ -1,3 +1,9 @@
+/*
+ * Developed by Felix Ang. (felix.ang@pm.me).
+ * Last modified on 8/22/19 8:19 PM.
+ * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
+ */
+
 use super::super::lexer::token::{Token, Type};
 use super::declaration::Variable;
 use super::literal::Literal;

@@ -1,3 +1,9 @@
+/*
+ * Developed by Felix Ang. (felix.ang@pm.me).
+ * Last modified on 8/24/19 2:12 PM.
+ * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
+ */
+
 /// A token in the gelix language. These are produced by a [Lexer].
 #[derive(Debug, Clone)]
 pub struct Token {

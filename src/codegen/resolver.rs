@@ -1,3 +1,9 @@
+/*
+ * Developed by Felix Ang. (felix.ang@pm.me).
+ * Last modified on 8/24/19 2:19 PM.
+ * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
+ */
+
 use super::super::{
     ast::{
         declaration::{Class, DeclarationList, FuncSignature, Function, FunctionArg},

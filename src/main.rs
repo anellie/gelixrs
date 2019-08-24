@@ -1,3 +1,9 @@
+/*
+ * Developed by Felix Ang. (felix.ang@pm.me).
+ * Last modified on 8/20/19 10:00 PM.
+ * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
+ */
+
 use std::{
     env,
     fs,

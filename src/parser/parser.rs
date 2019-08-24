@@ -1,3 +1,9 @@
+/*
+ * Developed by Felix Ang. (felix.ang@pm.me).
+ * Last modified on 8/24/19 2:13 PM.
+ * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
+ */
+
 //! This module contains all functions directly responsible for parsing the tokens
 //! and creating the AST from them.
 

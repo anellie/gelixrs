@@ -1,3 +1,9 @@
+/*
+ * Developed by Felix Ang. (felix.ang@pm.me).
+ * Last modified on 8/23/19 5:56 PM.
+ * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
+ */
+
 #![feature(bind_by_move_pattern_guards)]
 #![feature(associated_type_bounds)]
 
