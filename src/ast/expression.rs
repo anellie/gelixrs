@@ -7,6 +7,8 @@
 use super::super::lexer::token::{Token, Type};
 use super::declaration::Variable;
 use super::literal::Literal;
+use std::fmt::{Display, Formatter, Error};
+use std::borrow::Borrow;
 
 // All binary operand types that return a bool instead of the types of their values.
 pub static LOGICAL_BINARY: [Type; 6] = [
@@ -107,4 +109,92 @@ pub enum Expression {
 
     /// A variable definition.
     VarDef(Box<Variable>),
+}
+
+impl Expression {
+    /// Returns the line the expression is on.
+    /// Can also return None if the expression does not contain information on its line.
+    pub fn get_line(&self) -> Option<usize> {
+        Some(match self {
+            Expression::Assignment { name, .. } => name.line,
+            Expression::Binary { operator , .. } => operator.line,
+            Expression::Block(vec) => vec.first()?.get_line()?,
+            Expression::Break(expr) => (*expr).as_ref()?.get_line()?,
+            Expression::Call { callee, .. } => callee.get_line()?,
+            Expression::For { condition, .. } => condition.get_line()?,
+            Expression::Get { name, .. } => name.line,
+            Expression::Grouping(expr) => expr.get_line()?,
+            Expression::If { condition, .. } => condition.get_line()?,
+            Expression::Literal(_) => None?,
+            Expression::Return(expr) => (*expr).as_ref()?.get_line()?,
+            Expression::Set { name, .. } => name.line,
+            Expression::Unary { operator, .. } => operator.line,
+            Expression::Variable(name) => name.line,
+            Expression::When { value, .. } => value.get_line()?,
+            Expression::VarDef(var) => var.name.line,
+        })
+    }
+}
+
+impl Display for Expression {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+        match self {
+            Expression::Assignment { name, value } =>
+                write!(f, "{} = {}", name.lexeme, value),
+
+            Expression::Binary { left, operator, right } =>
+                write!(f, "{} {} {}", left, operator.lexeme, right),
+
+            Expression::Block(_) => write!(f, "{{ ... }}"),
+
+            Expression::Break(expr) =>
+                if let Some(expr) = expr {
+                    write!(f, "break {}", expr)
+                } else {
+                    write!(f, "break")
+                },
+
+            Expression::Call { callee, arguments } =>
+                write!(f, "{}({:?})", callee, arguments),
+
+            Expression::For { condition, body } =>
+                write!(f, "for ({}) {}", condition, body),
+
+            Expression::Get { object, name } =>
+                write!(f, "{}.{}", object, name.lexeme),
+
+            Expression::Grouping(expr) => write!(f, "({})", expr),
+
+            Expression::If { condition, then_branch, else_branch } =>
+                if let Some(else_branch) = else_branch {
+                    write!(f, "if ({}) {} else {}", condition, then_branch, else_branch)
+                } else {
+                    write!(f, "if ({}) {}", condition, then_branch)
+                },
+
+            Expression::Literal(literal) =>
+                write!(f, "{}", literal),
+
+            Expression::Return(expr) =>
+                if let Some(expr) = expr {
+                    write!(f, "return {}", expr)
+                } else {
+                    write!(f, "return")
+                },
+
+            Expression::Set { object, name, value } =>
+                write!(f, "{}.{} = {}", object, name.lexeme, value),
+
+            Expression::Unary { operator, right } =>
+                write!(f, "{}{}", operator.lexeme, right),
+
+            Expression::Variable(var) => write!(f, "{}", var.lexeme),
+
+            Expression::When { value, .. } =>
+                write!(f, "when ({}) {{ ... }}", value),
+
+            Expression::VarDef(var) =>
+                write!(f, "var {} = {}", var.name.lexeme, var.initializer),
+        }
+    }
 }

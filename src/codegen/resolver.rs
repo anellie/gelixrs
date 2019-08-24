@@ -886,3 +886,17 @@ impl VarDef {
         VarDef { mutable, _type }
     }
 }
+
+struct Error {
+    pub line: Option<usize>,
+    pub message: String
+}
+
+impl Error {
+    pub fn new(message: String, expr: Expression) -> Result<(), Error> {
+        Err(Error {
+            line: expr.get_line(),
+            message
+        })
+    }
+}

@@ -4,6 +4,8 @@
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
+use std::fmt::{Display, Formatter, Error};
+
 /// An enum containing all literals possible in Gelix.
 #[derive(Debug)]
 pub enum Literal {
@@ -15,4 +17,19 @@ pub enum Literal {
     Char(char),
     String(String),
     Array(Vec<Literal>),
+}
+
+impl Display for Literal {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+        match self {
+            Literal::None => write!(f, "None"),
+            Literal::Bool(val) => write!(f, "{}", val),
+            Literal::Int(val) => write!(f, "{}", val),
+            Literal::Float(val) => write!(f, "{}", val),
+            Literal::Double(val) => write!(f, "{}", val),
+            Literal::Char(val) => write!(f, "{}", val),
+            Literal::String(val) => write!(f, "{}", val),
+            Literal::Array(val) => write!(f, "{:?}", val),
+        }
+    }
 }
