@@ -1,6 +1,6 @@
 // ERR
 
-fun test() {
+func test() {
     print("oh no");
 }
 

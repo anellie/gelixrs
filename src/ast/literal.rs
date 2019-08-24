@@ -4,7 +4,7 @@
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
-use std::fmt::{Display, Formatter, Error};
+use std::fmt::{Display, Error, Formatter};
 
 /// An enum containing all literals possible in Gelix.
 #[derive(Debug)]
@@ -28,7 +28,7 @@ impl Display for Literal {
             Literal::Float(val) => write!(f, "{}", val),
             Literal::Double(val) => write!(f, "{}", val),
             Literal::Char(val) => write!(f, "{}", val),
-            Literal::String(val) => write!(f, "{}", val),
+            Literal::String(val) => write!(f, "\"{}\"", val),
             Literal::Array(val) => write!(f, "{:?}", val),
         }
     }

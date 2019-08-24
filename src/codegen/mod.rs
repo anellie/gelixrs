@@ -21,7 +21,7 @@ use inkwell::{
     module::Module,
     passes::PassManager,
     types::{AnyTypeEnum, BasicType, StructType},
-    values::{BasicValueEnum, FunctionValue, PointerValue, StructValue},
+    values::{BasicValueEnum, FunctionValue, PointerValue},
     AddressSpace, IntPredicate,
 };
 use std::{collections::HashMap, convert::TryInto};
@@ -546,9 +546,9 @@ impl IRGenerator {
 
     fn when_expression(
         &mut self,
-        value: Expression,
-        branches: Vec<(Expression, Expression)>,
-        else_branch: Expression,
+        _value: Expression,
+        _branches: Vec<(Expression, Expression)>,
+        _else_branch: Expression,
     ) -> BasicValueEnum {
         // TODO: Implement when expressions
         // Probably need a way to define equality for different types first...

@@ -7,19 +7,18 @@
 use super::super::{
     ast::{
         declaration::{Class, DeclarationList, FuncSignature, Function, FunctionArg},
-        expression::{Expression, LOGICAL_BINARY},
+        expression::{Expression, LOGICAL_BINARY, display_vec},
         literal::Literal,
     },
-    lexer::token::Token,
+    lexer::token::{Token, Type},
 };
 use super::{ClassDef, ClassField, IRGenerator};
-use crate::lexer::token::Type;
 use inkwell::{
     builder::Builder,
     context::Context,
     module::Module,
     passes::PassManager,
-    types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType, PointerType, StructType},
+    types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType, StructType},
     values::BasicValueEnum,
     AddressSpace,
 };
@@ -61,15 +60,28 @@ impl Resolver {
         self.run(list)
             .or_else(|err| {
                 eprintln!(
-                    "[Resolver] {} (occurred in function: {})",
-                    err, &self.current_func_name
+                    "[Resolver] {}:
+{} |
+{} | {}
+{} |
+Occurred in function: {}",
+                    err.message,
+                    err.line
+                        .map(|l| (l - 1).to_string())
+                        .unwrap_or("?".to_string()),
+                    err.line.map(|l| l.to_string()).unwrap_or("?".to_string()),
+                    err.expression,
+                    err.line
+                        .map(|l| (l + 1).to_string())
+                        .unwrap_or("?".to_string()),
+                    &self.current_func_name
                 );
                 Err(())
             })
             .ok()
     }
 
-    fn run(&mut self, list: &mut DeclarationList) -> Result<(), String> {
+    fn run(&mut self, list: &mut DeclarationList) -> Result<(), Error> {
         self.first_pass(list)?;
         self.second_pass(list)?;
         self.third_pass(list)?;
@@ -78,7 +90,7 @@ impl Resolver {
 
     /// During the first pass, the types map is filled with all types.
     /// These types are opaque, and filled later.
-    fn first_pass(&mut self, list: &DeclarationList) -> Result<(), String> {
+    fn first_pass(&mut self, list: &DeclarationList) -> Result<(), Error> {
         for class in &list.classes {
             self.declare_type(&class.name)?;
         }
@@ -86,7 +98,7 @@ impl Resolver {
         Ok(())
     }
 
-    fn declare_type(&mut self, name: &Token) -> Result<(), String> {
+    fn declare_type(&mut self, name: &Token) -> Result<(), Error> {
         // Create an opaque struct & class definition
         let struc = self.context.opaque_struct_type(&name.lexeme);
         let class_def = ClassDef::new(struc);
@@ -114,15 +126,19 @@ impl Resolver {
         if !exists {
             Ok(())
         } else {
-            Err(format!(
-                "The type/class/enum {} was declared more than once!",
-                name.lexeme
-            ))
+            Err(Error {
+                line: Some(name.line),
+                message: format!(
+                    "The type/class {} was declared more than once!",
+                    name.lexeme
+                ),
+                expression: format!("class {} {{ ... }}", name.lexeme),
+            })
         }
     }
 
     /// During the second pass, all functions are declared.
-    fn second_pass(&mut self, list: &mut DeclarationList) -> Result<(), String> {
+    fn second_pass(&mut self, list: &mut DeclarationList) -> Result<(), Error> {
         for func in list
             .functions
             .iter()
@@ -166,16 +182,19 @@ impl Resolver {
         &mut self,
         function: &FuncSignature,
         first_is_ptr: bool,
-    ) -> Result<(), String> {
+    ) -> Result<(), Error> {
         if self
             .module
             .get_function(&function.name.lexeme.to_string())
             .is_some()
         {
-            return Err(format!(
-                "The function {} was declared more than once!",
-                function.name.lexeme
-            ));
+            Err(Error::new_fn(
+                format!(
+                    "The function {} was declared more than once!",
+                    function.name.lexeme
+                ),
+                function,
+            ))?;
         }
 
         let mut parameters = Vec::with_capacity(function.parameters.len());
@@ -209,7 +228,7 @@ impl Resolver {
     }
 
     /// During the third pass, all class structs are filled.
-    fn third_pass(&mut self, list: &mut DeclarationList) -> Result<(), String> {
+    fn third_pass(&mut self, list: &mut DeclarationList) -> Result<(), Error> {
         let mut done_classes = Vec::with_capacity(list.classes.len());
 
         while !list.classes.is_empty() {
@@ -238,7 +257,14 @@ impl Resolver {
                         super_tok = None;
                     } else {
                         // Superclass doesn't exist.
-                        Err(format!("Unknown class {}.", super_name.lexeme))?
+                        Err(Error {
+                            line: Some(super_name.line),
+                            message: format!("Unknown class '{}'", super_name.lexeme),
+                            expression: format!(
+                                "class {} ext {} {{ ... }}",
+                                class.name.lexeme, super_name.lexeme
+                            ),
+                        })?;
                     }
                 }
             }
@@ -251,7 +277,7 @@ impl Resolver {
         Ok(())
     }
 
-    fn fill_class_struct(&mut self, class: &mut Class) -> Result<(), String> {
+    fn fill_class_struct(&mut self, class: &mut Class) -> Result<(), Error> {
         let mut fields = Vec::with_capacity(class.variables.len());
         let mut fields_map = HashMap::with_capacity(class.variables.len());
 
@@ -273,7 +299,14 @@ impl Resolver {
 
                 superclass = Some(super_struct);
             } else {
-                Err("Only classes can be inherited from.")?
+                Err(Error {
+                    line: Some(super_name.line),
+                    message: "Only classes can be inherited from".to_string(),
+                    expression: format!(
+                        "class {} ext {} {{ ... }}",
+                        class.name.lexeme, super_name.lexeme
+                    ),
+                })?;
             }
         }
 
@@ -298,7 +331,7 @@ impl Resolver {
 
     /// During the fourth pass, all variables inside functions are checked.
     /// This is to ensure the variable is defined and allowed in the current scope.
-    fn fourth_pass(&mut self, list: &mut DeclarationList) -> Result<(), String> {
+    fn fourth_pass(&mut self, list: &mut DeclarationList) -> Result<(), Error> {
         for func in list.functions.iter_mut().chain(
             list.classes
                 .iter_mut()
@@ -311,7 +344,7 @@ impl Resolver {
         Ok(())
     }
 
-    fn resolve_function(&mut self, func: &mut Function) -> Result<(), String> {
+    fn resolve_function(&mut self, func: &mut Function) -> Result<(), Error> {
         self.current_func_name = func.sig.name.lexeme.to_string();
         self.current_func = Some(
             self.module
@@ -335,14 +368,17 @@ impl Resolver {
             .unwrap_or(Ok(body_type))?;
 
         if body_type != ret_type {
-            Err("Function return type does not match body type.".to_string())?;
+            Err(Error::new_fn(
+                "Function return type does not match body type".to_string(),
+                &func.sig,
+            ))?;
         }
 
         self.end_scope();
         Ok(())
     }
 
-    fn resolve_expression(&mut self, expression: &mut Expression) -> Result<BasicTypeEnum, String> {
+    fn resolve_expression(&mut self, expression: &mut Expression) -> Result<BasicTypeEnum, Error> {
         match expression {
             Expression::Assignment { name, value } => {
                 let var = self.find_var(name)?;
@@ -351,10 +387,16 @@ impl Resolver {
                     if expr_type == var._type {
                         Ok(expr_type)
                     } else {
-                        Err(format!("Variable {} is a different type.", name.lexeme))
+                        Err(Error::new(
+                            format!("Variable {} is a different type", name.lexeme),
+                            expression,
+                        ))?
                     }
                 } else {
-                    Err(format!("Variable {} is not assignable (val)", name.lexeme))
+                    Err(Error::new(
+                        format!("Variable {} is not assignable (val)", name.lexeme),
+                        expression,
+                    ))?
                 }
             }
 
@@ -369,10 +411,10 @@ impl Resolver {
                         Ok(left)
                     }
                 } else {
-                    Err(format!(
-                        "Binary operands have incompatible types! {:?} and {:?}",
-                        left, right
-                    ))
+                    Err(Error::new(
+                        format!("Binary operands have incompatible types"),
+                        expression,
+                    ))?
                 }
             }
 
@@ -387,7 +429,10 @@ impl Resolver {
 
             Expression::Break(expr) => {
                 if !self.is_in_loop {
-                    Err("'break' is only allowed in loops.")?;
+                    return Err(Error::new(
+                        "'break' is only allowed in loops".to_string(),
+                        expression,
+                    ));
                 }
 
                 let break_type = expr
@@ -396,7 +441,10 @@ impl Resolver {
                     .unwrap_or(Ok(self.none_const))?;
                 if let Some(loop_type) = self.current_loop_type {
                     if break_type != loop_type {
-                        Err("All 'break' inside of a loop must have the same type.")?;
+                        Err(Error::new(
+                            "All 'break' inside of a loop must have the same type".to_string(),
+                            expression,
+                        ))?;
                     }
                 } else {
                     self.current_loop_type = Some(break_type)
@@ -434,7 +482,10 @@ impl Resolver {
                     }
                 }
 
-                Err("Only functions or classes are allowed to be called.".to_string())
+                Err(Error::new(
+                    "Only functions or classes are allowed to be called".to_string(),
+                    expression,
+                ))
             }
 
             Expression::For { condition, body } => {
@@ -444,7 +495,10 @@ impl Resolver {
 
                 let condition_type = self.resolve_expression(condition)?;
                 if condition_type != self.get_type("bool")? {
-                    Err("For condition must be a boolean.")?
+                    return Err(Error::new(
+                        "For condition must be a boolean".to_string(),
+                        expression,
+                    ));
                 }
 
                 let body_type = self.resolve_expression(body)?;
@@ -468,7 +522,10 @@ impl Resolver {
                 if let BasicTypeEnum::StructType(struc) = object {
                     self.resolve_class_get(struc, name)
                 } else {
-                    Err("Get syntax (x.y) is only supported on class instances.".to_string())
+                    Err(Error::new(
+                        "Get syntax (x.y) is only supported on class instances".to_string(),
+                        expression,
+                    ))
                 }
             }
 
@@ -477,7 +534,10 @@ impl Resolver {
             Expression::If { condition, then_branch, else_branch } => {
                 let condition_type = self.resolve_expression(condition)?;
                 if condition_type != self.get_type("bool")? {
-                    Err("If condition must be a boolean.")?
+                    return Err(Error::new(
+                        "If condition must be a boolean".to_string(),
+                        expression,
+                    ));
                 }
 
                 let then_type = self.resolve_expression(then_branch)?;
@@ -497,10 +557,16 @@ impl Resolver {
                     let func_type = self.cur_fn().get_return_type();
                     if let Some(func_type) = func_type {
                         if expr_type != func_type {
-                            Err("Return expression is not the functions return type.")?
+                            Err(Error::new(
+                                "Return expression is not the functions return type".to_string(),
+                                expression,
+                            ))?
                         }
                     } else {
-                        Err("Cannot return a value from a function that returns None.")?
+                        Err(Error::new(
+                            "Cannot return a value from a function that returns None".to_string(),
+                            expression,
+                        ))?
                     }
                 }
                 self.get_type("None")
@@ -517,10 +583,16 @@ impl Resolver {
                     if expr_type == field_type {
                         Ok(expr_type)
                     } else {
-                        Err(format!("Field {} is a different type.", name.lexeme))
+                        Err(Error::new(
+                            format!("Field {} is a different type", name.lexeme),
+                            expression,
+                        ))
                     }
                 } else {
-                    Err("Set syntax (x.y = z) is only supported on class instances.".to_string())
+                    Err(Error::new(
+                        "Set syntax (x.y = z) is only supported on class instances".to_string(),
+                        expression,
+                    ))
                 }
             }
 
@@ -533,10 +605,13 @@ impl Resolver {
                         if right == self.get_type("bool")? {
                             Ok(right)
                         } else {
-                            Err("'!' can only be used on boolean values.".to_string())
+                            Err(Error::new(
+                                "'!' can only be used on boolean values".to_string(),
+                                expression,
+                            ))
                         }
                     }
-                    _ => panic!("Invalid unary expression."),
+                    _ => panic!("Invalid unary expression"),
                 }
             }
 
@@ -559,10 +634,16 @@ impl Resolver {
                     let result = self.resolve_expression(&mut branch.1)?;
 
                     if condition != value {
-                        Err("Can only compare values of same type in 'when'.".to_string())?;
+                        return Err(Error::new(
+                            "Can only compare values of same type in 'when'".to_string(),
+                            expression,
+                        ));
                     }
                     if result != result_type {
-                        Err("Resulting values of 'when' must be same type.".to_string())?;
+                        return Err(Error::new(
+                            "Resulting values of 'when' must be same type".to_string(),
+                            expression,
+                        ));
                     }
                 }
 
@@ -571,15 +652,15 @@ impl Resolver {
         }
     }
 
-    fn resolve_class_get(&self, struc: StructType, name: &Token) -> Result<BasicTypeEnum, String> {
+    fn resolve_class_get(&self, struc: StructType, name: &Token) -> Result<BasicTypeEnum, Error> {
         let class_def = self.find_class(struc);
 
         let var_index = class_def.var_map.get(&name.lexeme);
         if let Some(field) = var_index {
-            return class_def
+            return Ok(class_def
                 ._type
                 .get_field_type_at_index(field.index)
-                .ok_or("Internal error trying to get class field.".to_string());
+                .expect("Internal error trying to get class field"));
         }
 
         let method = class_def.methods.get(&name.lexeme);
@@ -595,27 +676,32 @@ impl Resolver {
             return self.resolve_class_get(sclass.clone(), name);
         }
 
-        Err(format!("Unknown class field '{}'.", name.lexeme))
+        Err(Error {
+            line: Some(name.line),
+            message: format!("Unknown class field '{}'", name.lexeme),
+            expression: name.lexeme.clone(),
+        })
     }
 
     fn get_class_field_type(
         &self,
         class_def: &ClassDef,
         name: &Token,
-    ) -> Result<BasicTypeEnum, String> {
+    ) -> Result<BasicTypeEnum, Error> {
         let class_field = class_def.var_map.get(&name.lexeme);
 
         if let Some(field) = class_field {
             let field_type = class_def
                 ._type
                 .get_field_type_at_index(field.index)
-                .expect("Internal error trying to get class field.");
+                .expect("Internal error trying to get class field");
 
             if field.is_val {
-                Err(format!(
-                    "Class field '{}' cannot be set. (val)",
-                    name.lexeme
-                ))?
+                Err(Error {
+                    line: Some(name.line),
+                    message: format!("Class field '{}' cannot be set (val)", name.lexeme),
+                    expression: name.lexeme.clone(),
+                })?;
             } else {
                 return Ok(field_type);
             }
@@ -628,18 +714,22 @@ impl Resolver {
             }
         }
 
-        Err(format!("Unknown class field '{}'.", name.lexeme))
+        Err(Error {
+            line: Some(name.line),
+            message: format!("Unknown class field '{}'", name.lexeme),
+            expression: name.lexeme.clone(),
+        })
     }
 
     fn find_class_def(&self, struc: &StructType) -> Option<&ClassDef> {
         Some(self.types.iter().find(|&_type| _type.1._type == *struc)?.1)
     }
 
-    fn resolve_type(&mut self, token: &Token) -> Result<BasicTypeEnum, String> {
+    fn resolve_type(&mut self, token: &Token) -> Result<BasicTypeEnum, Error> {
         self.get_type(&token.lexeme)
     }
 
-    fn get_type(&mut self, name: &str) -> Result<BasicTypeEnum, String> {
+    fn get_type(&mut self, name: &str) -> Result<BasicTypeEnum, Error> {
         Ok(match name {
             "bool" => self.context.bool_type().as_basic_type_enum(),
             "f32" => self.context.f32_type().as_basic_type_enum(),
@@ -655,7 +745,11 @@ impl Resolver {
             _ => self
                 .types
                 .get(name)
-                .ok_or(format!("Unknown type {}", name))?
+                .ok_or(Error {
+                        line: None, 
+                        message: format!("Unknown type {}", name), 
+                    expression: "".to_string(),
+                })?
                 ._type
                 .as_basic_type_enum(),
         })
@@ -683,7 +777,7 @@ impl Resolver {
         mutable: bool,
         allow_redefine: bool,
         _type: BasicTypeEnum,
-    ) -> Result<(), String> {
+    ) -> Result<(), Error> {
         let def = VarDef::new(mutable, _type);
 
         if self.var_exists(token) {
@@ -694,10 +788,17 @@ impl Resolver {
                 .moved_vars
                 .insert(old_name.clone(), token.lexeme.clone());
 
-            let was_defined_in_cur_env = cur_env.variables.insert(old_name, def.clone()).is_some();
+            let was_defined_in_cur_env = cur_env
+                .variables
+                .insert(old_name.clone(), def.clone())
+                .is_some();
 
             if was_defined_in_cur_env && !allow_redefine {
-                Err(format!("Cannot redefine variable {}.", token.lexeme))?
+                Err(Error {
+                    line: Some(token.line),
+                    message: format!("Cannot redefine variable '{}'", old_name),
+                    expression: old_name.clone(),
+                })?;
             }
         }
 
@@ -707,7 +808,7 @@ impl Resolver {
         Ok(())
     }
 
-    fn find_var(&mut self, token: &mut Token) -> Result<VarDef, String> {
+    fn find_var(&mut self, token: &mut Token) -> Result<VarDef, Error> {
         for env in self.environments.iter().rev() {
             if let Some(var) = env.variables.get(&token.lexeme) {
                 if env.moved_vars.contains_key(&token.lexeme) {
@@ -717,7 +818,11 @@ impl Resolver {
             }
         }
 
-        Err(format!("Variable {} is not defined.", token.lexeme))
+        Err(Error {
+            line: Some(token.line),
+            message: format!("Variable '{}' is not defined", token.lexeme),
+            expression: token.lexeme.clone(),
+        })
     }
 
     fn var_exists(&mut self, token: &Token) -> bool {
@@ -739,17 +844,21 @@ impl Resolver {
         func: FunctionType,
         arguments: &mut Vec<Expression>,
         is_method: bool,
-    ) -> Result<(), String> {
+    ) -> Result<(), Error> {
         let expected = func.get_param_types();
         // Casting bool to int: 1 = true; 0 = false
         let expected_len = expected.len() - (is_method as usize);
 
         if expected_len != arguments.len() {
-            Err(format!(
-                "Incorrect amount of function arguments. (Expected {}; got {})",
-                expected_len,
-                arguments.len()
-            ))?;
+            Err(Error {
+                line: arguments.first().map(|e| e.get_line()).flatten(),
+                message: format!(
+                    "Incorrect amount of function arguments. (Expected {}; got {})",
+                    expected_len,
+                    arguments.len()
+                ),
+                expression: display_vec(arguments),
+            })?;
         }
 
         arguments
@@ -758,7 +867,10 @@ impl Resolver {
             .try_for_each(|(arg, exp)| {
             let arg_type = self.resolve_expression(arg)?;
             if arg_type != *exp {
-                Err("Call argument is the wrong type.".to_string())
+                    Err(Error::new(
+                        "Call argument is the wrong type".to_string(),
+                        arg,
+                    ))
             } else {
                 Ok(())
             }
@@ -889,14 +1001,24 @@ impl VarDef {
 
 struct Error {
     pub line: Option<usize>,
-    pub message: String
+    pub message: String,
+    pub expression: String,
 }
 
 impl Error {
-    pub fn new(message: String, expr: Expression) -> Result<(), Error> {
-        Err(Error {
+    pub fn new(message: String, expr: &Expression) -> Error {
+        Error {
             line: expr.get_line(),
-            message
-        })
+            message,
+            expression: expr.to_string(),
+        }
+    }
+
+    pub fn new_fn(message: String, func: &FuncSignature) -> Error {
+        Error {
+            line: Some(func.name.line),
+            message,
+            expression: format!("func {}(...)", func.name.lexeme),
+        }
     }
 }
