@@ -6,19 +6,20 @@
 
 use crate::mir::builder::MIRBuilder;
 use std::collections::HashMap;
-use crate::mir::mir::{MIRVariable, MIRType, MIRFuncArg};
+use crate::mir::mir::{MIRVariable, MIRType, MIRFuncArg, MIRStructMem};
 use crate::ast::declaration::{DeclarationList, Class, Function, FuncSignature, FunctionArg};
 use crate::ast::expression::{Expression};
 use crate::mir::MIR;
 use crate::lexer::token::Token;
 use std::rc::Rc;
+use std::ops::Index;
 
 type Res<T> = Result<T, Error>;
 
 pub struct MIRGenerator {
     builder: MIRBuilder,
 
-    environments: Vec<HashMap<Rc<String>, MIRVariable>>,
+    environments: Vec<HashMap<Rc<String>, Rc<MIRVariable>>>,
 
     is_in_loop: bool,
     current_loop_ret_type: Option<MIRType>,
@@ -55,7 +56,7 @@ impl MIRGenerator {
 
     fn run(&mut self, mut list: DeclarationList) -> Res<()> {
         self.first_pass(&list)?;
-        self.second_pass(&list)?;
+        self.second_pass(&mut list)?;
         self.third_pass(&mut list)?;
         self.fourth_pass(list)
     }
@@ -96,9 +97,17 @@ impl MIRGenerator {
     }
 
     /// During the second pass, all functions are declared/created.
-    fn second_pass(&mut self, list: &DeclarationList) -> Res<()> {
+    fn second_pass(&mut self, list: &mut DeclarationList) -> Res<()> {
         for function in list.ext_functions.iter().chain(list.functions.iter().map(|f| &f.sig)) {
             self.create_function(&function)?;
+        }
+
+        for class in list.classes.iter_mut() {
+            let name = &class.name.lexeme;
+            for method in class.methods.iter_mut() {
+                method.sig.name.lexeme = Rc::new(format!("{}-{}", name, method.sig.name.lexeme));
+                self.create_function(&method.sig)?;
+            }
         }
 
         Ok(())
@@ -128,7 +137,7 @@ impl MIRGenerator {
 
         self.environments.first_mut().unwrap().insert(
             Rc::clone(&func_sig.name.lexeme),
-            MIRVariable::new(Rc::clone(&func_sig.name.lexeme), MIRType::Function(function), false)
+            Rc::new(MIRVariable::new(Rc::clone(&func_sig.name.lexeme), MIRType::Function(function), false))
         );
 
         Ok(())
@@ -206,21 +215,38 @@ impl MIRGenerator {
             superclass = Some(super_struct);
         }
 
-        for field in class.variables.iter_mut() {
-            fields.insert(
-                Rc::clone(&field.name.lexeme),
-                Rc::new(MIRVariable::new(
-                    Rc::clone(&field.name.lexeme),
-                    self.resolve_expression(&field.initializer)?,
-                    !field.is_val
-                ))
-            );
-        }
+        self.build_class_init(class, &mut fields)?;
 
         let class_rc = self.builder.find_struct(&class.name.lexeme).unwrap();
         let mut class_def = class_rc.borrow_mut();
         class_def.members = fields;
         class_def.super_struct = superclass;
+
+        Ok(())
+    }
+
+    fn build_class_init(
+        &mut self,
+        class: &mut Class,
+        fields: &mut HashMap<Rc<String>, Rc<MIRStructMem>>
+    ) -> Res<()> {
+        let function_rc = self.builder.find_function(&format!("{}-internal-init", &class.name.lexeme)).unwrap();
+        let mut function = function_rc.borrow_mut();
+        function.append_block("entry".to_string());
+        drop(function);
+        self.builder.set_pointer(Rc::clone(&function_rc), Rc::new("entry".to_string()));
+
+        for (i, field) in class.variables.iter_mut().enumerate() {
+            // TODO: Properly build StructSet instead of just uselessly evaluating the expression...
+            fields.insert(
+                Rc::clone(&field.name.lexeme),
+                Rc::new(MIRStructMem {
+                    mutable: !field.is_val,
+                    _type: self.generate_expression(&field.initializer)?,
+                    index: i as u32
+                })
+            );
+        }
 
         Ok(())
     }
@@ -234,13 +260,13 @@ impl MIRGenerator {
                 .map(|class| class.methods)
                 .flatten()
         ) {
-            self.resolve_function(func)?;
+            self.generate_function(func)?;
         }
 
         Ok(())
     }
 
-    fn resolve_function(&mut self, mut func: Function) -> Result<(), Error> {
+    fn generate_function(&mut self, mut func: Function) -> Res<()> {
         let function_rc = self.builder.find_function(&func.sig.name.lexeme).unwrap();
         let mut function = function_rc.borrow_mut();
         function.append_block("entry".to_string());
@@ -260,7 +286,7 @@ impl MIRGenerator {
             self.define_variable(&mut param.name, false, false, param_type)?;
         }
 
-        let body_type = self.resolve_expression(&mut func.body)?;
+        let body_type = self.generate_expression(&mut func.body)?;
         if body_type != function_rc.borrow().ret_type {
             Err(Error::new_fn(
                 "Function return type does not match body type",
@@ -272,19 +298,19 @@ impl MIRGenerator {
         Ok(())
     }
 
-    fn resolve_expression(&mut self, _expression: &Expression) -> Res<MIRType> {
+    fn generate_expression(&mut self, _expression: &Expression) -> Res<MIRType> {
         unimplemented!()
     }
 
-    // TODO: Also add the needed alloca to the MIRFunction
     fn define_variable(
         &mut self,
         token: &mut Token,
         mutable: bool,
         allow_redefine: bool,
         _type: MIRType,
-    ) -> Result<(), Error> {
-        let def = MIRVariable::new(Rc::clone(&token.lexeme), _type, mutable);
+    ) -> Res<()> {
+        let def = Rc::new(MIRVariable::new(Rc::clone(&token.lexeme), _type, mutable));
+        self.builder.create_variable(Rc::clone(&def));
 
         let cur_env = self.environments.last_mut().unwrap();
         let was_defined = cur_env.insert(Rc::clone(&token.lexeme), def).is_some();

@@ -5,7 +5,7 @@
  */
 
 use super::mir::{MIRFunction, MIRType};
-use crate::mir::mir::{MIRStruct, MIRFuncArg};
+use crate::mir::mir::{MIRStruct, MIRFuncArg, MIRVariable};
 use std::collections::HashMap;
 use crate::mir::{MIR, MutRc, mutrc_new};
 use std::rc::Rc;
@@ -56,9 +56,10 @@ impl MIRBuilder {
         }
     }
 
-    pub(super) fn create_variable(&mut self, _name: &str, _type: &MIRType) {
-        let _func = self.cur_fn();
-        // TODO!
+    /// Will create the variable in the current function.
+    pub(super) fn create_variable(&mut self, variable: Rc<MIRVariable>) {
+        let func = self.cur_fn();
+        func.borrow_mut().variables.insert(Rc::clone(&variable.name), variable);
     }
 
     pub(super) fn find_type(&self, name: &String) -> Option<MIRType> {

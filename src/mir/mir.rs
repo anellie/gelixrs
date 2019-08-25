@@ -26,8 +26,15 @@ pub enum MIRType {
 #[derive(Debug)]
 pub struct MIRStruct {
     pub name: Rc<String>,
-    pub members: HashMap<Rc<String>, Rc<MIRVariable>>,
+    pub members: HashMap<Rc<String>, Rc<MIRStructMem>>,
     pub super_struct: Option<MutRc<MIRStruct>>
+}
+
+#[derive(Debug)]
+pub struct MIRStructMem {
+    pub mutable: bool,
+    pub _type: MIRType,
+    pub index: u32,
 }
 
 impl PartialEq for MIRStruct {
@@ -41,7 +48,7 @@ pub struct MIRFunction {
     pub name: Rc<String>,
     pub parameters: Vec<MIRFuncArg>,
     pub blocks: HashMap<Rc<String>, MIRBlock>,
-    pub variables: HashMap<String, MutRc<MIRVariable>>,
+    pub variables: HashMap<Rc<String>, Rc<MIRVariable>>,
     pub ret_type: MIRType
 }
 
