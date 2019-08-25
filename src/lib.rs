@@ -16,6 +16,7 @@ pub mod ast;
 pub mod parser;
 pub mod mir;
 pub mod lexer;
+pub mod ir;
 
 #[cfg(test)]
 pub mod tests;

@@ -7,7 +7,6 @@
 use std::collections::HashMap;
 use crate::ast::literal::Literal;
 use crate::lexer::token::Token;
-use inkwell::values::PointerValue;
 use crate::mir::MutRc;
 use std::rc::Rc;
 
@@ -46,7 +45,7 @@ impl PartialEq for MIRStruct {
 #[derive(Debug)]
 pub struct MIRFunction {
     pub name: Rc<String>,
-    pub parameters: Vec<MIRFuncArg>,
+    pub parameters: Vec<Rc<MIRVariable>>,
     pub blocks: HashMap<Rc<String>, MIRBlock>,
     pub variables: HashMap<Rc<String>, Rc<MIRVariable>>,
     pub ret_type: MIRType
@@ -73,22 +72,15 @@ impl MIRFunction {
 }
 
 #[derive(Debug)]
-pub struct MIRFuncArg {
-    pub name: Rc<String>,
-    pub _type: MIRType
-}
-
-#[derive(Debug)]
 pub struct MIRVariable {
     pub mutable: bool,
     pub _type: MIRType,
     pub name: Rc<String>,
-    pub alloca: Option<PointerValue>
 }
 
 impl MIRVariable {
     pub fn new(name: Rc<String>, _type: MIRType, mutable: bool) -> MIRVariable {
-        MIRVariable { name, _type, mutable, alloca: None }
+        MIRVariable { name, _type, mutable }
     }
 }
 
@@ -120,7 +112,6 @@ pub enum MIRExpression {
         right: Box<MIRExpression>
     },
 
-    // Maybe already resolve the callee to a function?
     Call {
         callee: Box<MIRExpression>,
         arguments: Vec<MIRExpression>
@@ -144,10 +135,16 @@ pub enum MIRExpression {
         right: Box<MIRExpression>
     },
 
-    VarGet(MIRVariable),
+    VarGet(Rc<MIRVariable>),
 
     VarStore {
-        var: Rc<String>,
+        var: Rc<MIRVariable>,
         value: Box<MIRExpression>
+    }
+}
+
+impl MIRExpression {
+    pub(super) fn get_type(&self) -> MIRType {
+        unimplemented!()
     }
 }

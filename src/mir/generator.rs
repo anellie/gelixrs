@@ -6,13 +6,27 @@
 
 use crate::mir::builder::MIRBuilder;
 use std::collections::HashMap;
-use crate::mir::mir::{MIRVariable, MIRType, MIRFuncArg, MIRStructMem};
+use crate::mir::mir::{MIRVariable, MIRType, MIRStructMem, MIRExpression};
 use crate::ast::declaration::{DeclarationList, Class, Function, FuncSignature, FunctionArg};
 use crate::ast::expression::{Expression};
 use crate::mir::MIR;
 use crate::lexer::token::Token;
 use std::rc::Rc;
-use std::ops::Index;
+
+#[macro_use]
+mod match_macro {
+    /// This macro checks if 2 enum values are of the same variant.
+    /// It does not check that their content is the same.
+    #[macro_export]
+    macro_rules! matches(
+        ($e:expr, $p:pat) => (
+            match $e {
+                $p => true,
+                _ => false
+            }
+        )
+    );
+}
 
 type Res<T> = Result<T, Error>;
 
@@ -123,12 +137,13 @@ impl MIRGenerator {
 
         let mut parameters = Vec::with_capacity(func_sig.parameters.len());
         for param in func_sig.parameters.iter() {
-            parameters.push(MIRFuncArg {
+            parameters.push(Rc::new(MIRVariable {
+                mutable: false,
                 name: Rc::clone(&param.name.lexeme),
                 _type: self.builder
                     .find_type(&param._type.lexeme)
                     .ok_or_else(|| Error::new_fn("Function parameter has unknown type", &func_sig))?
-            })
+            }))
         }
 
         let function = self.builder
@@ -236,13 +251,13 @@ impl MIRGenerator {
         drop(function);
         self.builder.set_pointer(Rc::clone(&function_rc), Rc::new("entry".to_string()));
 
-        for (i, field) in class.variables.iter_mut().enumerate() {
+        for (i, field) in class.variables.drain(..).enumerate() {
             // TODO: Properly build StructSet instead of just uselessly evaluating the expression...
             fields.insert(
                 Rc::clone(&field.name.lexeme),
                 Rc::new(MIRStructMem {
                     mutable: !field.is_val,
-                    _type: self.generate_expression(&field.initializer)?,
+                    _type: self.generate_expression(field.initializer)?.get_type(),
                     index: i as u32
                 })
             );
@@ -266,7 +281,7 @@ impl MIRGenerator {
         Ok(())
     }
 
-    fn generate_function(&mut self, mut func: Function) -> Res<()> {
+    fn generate_function(&mut self, func: Function) -> Res<()> {
         let function_rc = self.builder.find_function(&func.sig.name.lexeme).unwrap();
         let mut function = function_rc.borrow_mut();
         function.append_block("entry".to_string());
@@ -274,19 +289,11 @@ impl MIRGenerator {
         self.builder.set_pointer(Rc::clone(&function_rc), Rc::new("entry".to_string()));
 
         self.begin_scope();
-        for param in func.sig.parameters.iter_mut() {
-            let param_type = self.builder
-                .find_type(&param._type.lexeme)
-                .ok_or_else(|| Error::new(
-                    Some(param.name.line),
-                    "Unknown function parameter type",
-                    format!("{} {}", param._type.lexeme, param.name.lexeme)
-                ))?;
-
-            self.define_variable(&mut param.name, false, false, param_type)?;
+        for param in function_rc.borrow().parameters.iter() {
+            self.insert_variable(Rc::clone(param), false, func.sig.name.line)?;
         }
 
-        let body_type = self.generate_expression(&mut func.body)?;
+        let body_type = self.generate_expression(func.body)?.get_type();
         if body_type != function_rc.borrow().ret_type {
             Err(Error::new_fn(
                 "Function return type does not match body type",
@@ -298,31 +305,72 @@ impl MIRGenerator {
         Ok(())
     }
 
-    fn generate_expression(&mut self, _expression: &Expression) -> Res<MIRType> {
-        unimplemented!()
+    fn generate_expression(&mut self, expression: Expression) -> Res<MIRExpression> {
+        match expression {
+            Expression::Assignment { name, value } => {
+                let var = self.find_var(&name)?;
+                if var.mutable {
+                    let value = self.generate_expression(*value)?;
+                    if value.get_type() == var._type {
+                        Ok(self.builder.build_store(var, value))
+                    } else {
+                        Err(Error::new(
+                            Some(name.line),
+                            &format!("Variable {} is a different type", name.lexeme),
+                            name.lexeme.to_string(),
+                        ))?
+                    }
+                } else {
+                    Err(Error::new(
+                        Some(name.line),
+                        &format!("Variable {} is not assignable (val)", name.lexeme),
+                        name.lexeme.to_string(),
+                    ))?
+                }
+            }
+
+            _ => Err(Error::new(None, "", "".to_string()))
+        }
     }
 
     fn define_variable(
         &mut self,
         token: &mut Token,
         mutable: bool,
-        allow_redefine: bool,
         _type: MIRType,
     ) -> Res<()> {
         let def = Rc::new(MIRVariable::new(Rc::clone(&token.lexeme), _type, mutable));
-        self.builder.create_variable(Rc::clone(&def));
+        self.builder.add_function_variable(Rc::clone(&def));
+        self.insert_variable(def, true, token.line)?;
+        Ok(())
+    }
 
+    fn insert_variable(&mut self, var: Rc<MIRVariable>, allow_redefine: bool, line: usize) -> Res<()> {
         let cur_env = self.environments.last_mut().unwrap();
-        let was_defined = cur_env.insert(Rc::clone(&token.lexeme), def).is_some();
+        let was_defined = cur_env.insert(Rc::clone(&var.name), Rc::clone(&var)).is_some();
         if was_defined && !allow_redefine {
             Err(Error {
-                line: Some(token.line),
-                message: format!("Cannot redefine variable '{}' in the same scope.", &token.lexeme),
-                code: (*token.lexeme).clone(),
+                line: Some(line),
+                message: format!("Cannot redefine variable '{}' in the same scope.", &var.name),
+                code: (*var.name).clone(),
             })?;
         }
 
         Ok(())
+    }
+
+    fn find_var(&mut self, token: &Token) -> Res<Rc<MIRVariable>> {
+        for env in self.environments.iter().rev() {
+            if let Some(var) = env.get(&token.lexeme) {
+                return Ok(Rc::clone(var))
+            }
+        }
+
+        Err(Error {
+            line: Some(token.line),
+            message: format!("Variable '{}' is not defined", token.lexeme),
+            code: (*token.lexeme).clone(),
+        })
     }
 
     fn begin_scope(&mut self) {

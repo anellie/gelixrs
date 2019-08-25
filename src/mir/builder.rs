@@ -5,7 +5,7 @@
  */
 
 use super::mir::{MIRFunction, MIRType};
-use crate::mir::mir::{MIRStruct, MIRFuncArg, MIRVariable};
+use crate::mir::mir::{MIRStruct, MIRVariable, MIRExpression};
 use std::collections::HashMap;
 use crate::mir::{MIR, MutRc, mutrc_new};
 use std::rc::Rc;
@@ -38,7 +38,7 @@ impl MIRBuilder {
         &mut self,
         name: Rc<String>,
         ret_type: MIRType,
-        parameters: Vec<MIRFuncArg>
+        parameters: Vec<Rc<MIRVariable>>
     ) -> Option<MutRc<MIRFunction>> {
         let function = mutrc_new(MIRFunction {
             name: Rc::clone(&name),
@@ -57,9 +57,16 @@ impl MIRBuilder {
     }
 
     /// Will create the variable in the current function.
-    pub(super) fn create_variable(&mut self, variable: Rc<MIRVariable>) {
+    pub(super) fn add_function_variable(&mut self, variable: Rc<MIRVariable>) {
         let func = self.cur_fn();
         func.borrow_mut().variables.insert(Rc::clone(&variable.name), variable);
+    }
+
+    pub(super) fn build_store(&mut self, var: Rc<MIRVariable>, value: MIRExpression) -> MIRExpression {
+        MIRExpression::VarStore {
+            var,
+            value: Box::new(value)
+        }
     }
 
     pub(super) fn find_type(&self, name: &String) -> Option<MIRType> {
@@ -86,6 +93,12 @@ impl MIRBuilder {
             function,
             block
         })
+    }
+
+    pub(super) fn insert_at_ptr(&mut self, expr: MIRExpression) {
+        let func = self.cur_fn();
+        let mut func = func.borrow_mut();
+        func.blocks.get_mut(&self.position.as_ref().unwrap().block).unwrap().expressions.push(expr);
     }
 
     fn cur_fn(&self) -> MutRc<MIRFunction> {
