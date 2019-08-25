@@ -5,6 +5,7 @@
  */
 
 use std::fmt::{Display, Error, Formatter};
+use std::rc::Rc;
 
 /// An enum containing all literals possible in Gelix.
 #[derive(Debug)]
@@ -15,7 +16,7 @@ pub enum Literal {
     Float(f32),
     Double(f64),
     Char(char),
-    String(String),
+    String(Rc<String>),
     Array(Vec<Literal>),
 }
 

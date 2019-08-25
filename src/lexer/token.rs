@@ -4,13 +4,16 @@
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
+use std::rc::Rc;
+
 /// A token in the gelix language. These are produced by a [Lexer].
+/// Cloning a Token is cheap, since the lexemes are refcounted.
 #[derive(Debug, Clone)]
 pub struct Token {
     /// The type of the token.
     pub t_type: Type,
     /// The lexeme of the token. Does not include escape chars (ex. String lexeme is <i>I'm a string!</i>)
-    pub lexeme: String,
+    pub lexeme: Rc<String>,
     /// The line the token is on.
     pub line: usize,
 }
@@ -19,7 +22,7 @@ impl Token {
     pub fn eof_token(line: usize) -> Token {
         Token {
             t_type: Type::EndOfFile,
-            lexeme: "\0".to_string(),
+            lexeme: Rc::new("\0".to_string()),
             line,
         }
     }
@@ -27,7 +30,7 @@ impl Token {
     pub fn generic_identifier(lexeme: String) -> Token {
         Token {
             t_type: Type::Identifier,
-            lexeme,
+            lexeme: Rc::new(lexeme),
             line: 0,
         }
     }
@@ -35,7 +38,7 @@ impl Token {
     pub fn generic_token(token: Type) -> Token {
         Token {
             t_type: token,
-            lexeme: "".to_string(),
+            lexeme: Rc::new("".to_string()),
             line: 0,
         }
     }
