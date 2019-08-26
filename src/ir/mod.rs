@@ -1,5 +1,11 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
+ * Last modified on 8/26/19 9:33 PM.
+ * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
+ */
+
+/*
+ * Developed by Felix Ang. (felix.ang@pm.me).
  * Last modified on 8/26/19 6:48 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
@@ -203,6 +209,16 @@ impl IRGenerator {
                     panic!("Call target wasn't a function pointer");
                 }
             },
+
+            MIRExpression::Function(func) => {
+                BasicValueEnum::PointerValue(
+                    self.module
+                        .get_function(&func.borrow().name)
+                        .unwrap()
+                        .as_global_value()
+                        .as_pointer_value()
+                )
+            }
 
             MIRExpression::StructGet { object, index } => {
                 let struc = self.generate_expression(object);

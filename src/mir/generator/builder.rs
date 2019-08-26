@@ -1,5 +1,11 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
+ * Last modified on 8/26/19 9:43 PM.
+ * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
+ */
+
+/*
+ * Developed by Felix Ang. (felix.ang@pm.me).
  * Last modified on 8/26/19 7:56 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
@@ -22,11 +28,16 @@ use std::collections::HashMap;
 use crate::mir::{MIR, MutRc, mutrc_new};
 use std::rc::Rc;
 use crate::lexer::token::Token;
+use crate::ast::literal::Literal;
 
 pub struct MIRBuilder {
     position: Option<Pointer>,
     functions: HashMap<Rc<String>, MutRc<MIRFunction>>,
     types: HashMap<Rc<String>, MutRc<MIRStruct>>,
+
+    /// Simply a const of the string "tmp".
+    /// Used for temporary variables needed for class init.
+    tmp_const: Rc<String>
 }
 
 impl MIRBuilder {
@@ -71,7 +82,7 @@ impl MIRBuilder {
     /// Will create the variable in the current function.
     pub fn add_function_variable(&mut self, variable: Rc<MIRVariable>) {
         let func = self.cur_fn();
-        func.borrow_mut().variables.insert(Rc::clone(&variable.name), variable);
+        func.borrow_mut().insert_var(Rc::clone(&variable.name), variable);
     }
 
     pub fn build_binary(
@@ -93,7 +104,39 @@ impl MIRBuilder {
             arguments: args
         }
     }
-    
+
+    pub fn build_constructor(&mut self, class_ref: MutRc<MIRStruct>) -> MIRExpression {
+        let class = class_ref.borrow();
+        let var = Rc::new(MIRVariable::new(
+            Rc::clone(&self.tmp_const),
+            MIRType::Struct(Rc::clone(&class_ref)),
+            false
+        ));
+        self.cur_fn().borrow_mut().insert_var(Rc::clone(&self.tmp_const), Rc::clone(&var));
+
+        let init_fn = self.find_function(&format!("{}-internal-init", &class.name)).unwrap();
+        let init_call = MIRExpression::Call {
+            callee: Box::new(MIRExpression::Function(init_fn)),
+            arguments: vec![MIRExpression::VarGet(Rc::clone(&var))]
+        };
+        self.insert_at_ptr(init_call);
+
+        let user_init = self.find_function(&format!("{}-init", &class.name));
+        if let Some(user_init) = user_init {
+            let init_call = MIRExpression::Call {
+                callee: Box::new(MIRExpression::Function(user_init)),
+                arguments: vec![MIRExpression::VarGet(Rc::clone(&var))]
+            };
+            self.insert_at_ptr(init_call);
+        }
+
+        MIRExpression::VarGet(var)
+    }
+
+    pub fn build_literal(&self, literal: Literal) -> MIRExpression {
+        MIRExpression::Literal(literal)
+    }
+
     pub fn build_store(&self, var: Rc<MIRVariable>, value: MIRExpression) -> MIRExpression {
         MIRExpression::VarStore {
             var,
@@ -153,6 +196,7 @@ impl MIRBuilder {
             position: None,
             types: HashMap::new(),
             functions: HashMap::new(),
+            tmp_const: Rc::new("tmp".to_string())
         }
     }
 }

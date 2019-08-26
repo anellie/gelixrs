@@ -1,5 +1,11 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
+ * Last modified on 8/26/19 9:43 PM.
+ * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
+ */
+
+/*
+ * Developed by Felix Ang. (felix.ang@pm.me).
  * Last modified on 8/26/19 7:52 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
@@ -68,7 +74,7 @@ impl PartialEq for MIRFunction {
 impl MIRFunction {
     pub fn append_block(&mut self, mut name: String) -> Rc<String> {
         if self.blocks.contains_key(&name) {
-            name = format!("name-{}", self.blocks.len());
+            name = format!("{}-{}", name, self.blocks.len());
         }
         let rc = Rc::new(name);
         self.blocks.insert(Rc::clone(&rc), MIRBlock {
@@ -76,6 +82,14 @@ impl MIRFunction {
             last: MIRFlow::Return(None)
         });
         rc
+    }
+
+    pub fn insert_var(&mut self, mut name: Rc<String>, var: Rc<MIRVariable>) -> Rc<String> {
+        if self.variables.contains_key(&name) {
+            name = Rc::new(format!("{}-{}", name, self.variables.len()));
+        }
+        self.variables.insert(Rc::clone(&name), var);
+        name
     }
 }
 
@@ -125,6 +139,8 @@ pub enum MIRExpression {
         arguments: Vec<MIRExpression>
     },
 
+    Function(MutRc<MIRFunction>),
+
     StructGet {
         object: Box<MIRExpression>,
         index: u32
@@ -173,6 +189,8 @@ impl MIRExpression {
                 }
             },
 
+            MIRExpression::Function(func) => func.borrow().ret_type.clone(),
+
             MIRExpression::StructGet { object, index } =>
                 MIRExpression::type_from_struct_get(object, index),
 
@@ -182,11 +200,11 @@ impl MIRExpression {
             MIRExpression::Literal(literal) => {
                 match literal {
                     Literal::None => MIRType::None,
-                    Literal::Bool(value) => MIRType::Bool,
-                    Literal::Int(num) => MIRType::Int,
-                    Literal::Float(num) => MIRType::Float,
-                    Literal::Double(num) => MIRType::Double,
-                    Literal::String(string) => MIRType::String,
+                    Literal::Bool(_) => MIRType::Bool,
+                    Literal::Int(_) => MIRType::Int,
+                    Literal::Float(_) => MIRType::Float,
+                    Literal::Double(_) => MIRType::Double,
+                    Literal::String(_) => MIRType::String,
                     _ => panic!("unknown literal"),
                 }
             },

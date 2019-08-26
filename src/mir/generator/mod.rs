@@ -1,5 +1,11 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
+ * Last modified on 8/26/19 9:45 PM.
+ * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
+ */
+
+/*
+ * Developed by Felix Ang. (felix.ang@pm.me).
  * Last modified on 8/26/19 7:56 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
@@ -26,7 +32,6 @@ use crate::mir::generator::passes::{PreMIRPass, PostMIRPass};
 use crate::mir::generator::passes::fill_struct::FillStructPass;
 use crate::mir::generator::passes::typecheck::TypecheckPass;
 use crate::ast::literal::Literal;
-use std::borrow::Borrow;
 use std::cell::RefCell;
 
 type Res<T> = Result<T, Error>;
@@ -99,12 +104,12 @@ impl MIRGenerator {
         self.builder.set_pointer(Rc::clone(&function_rc), Rc::new("entry".to_string()));
 
         self.begin_scope();
-        for param in RefCell::borrow(&function_rc).parameters.iter() {
+        for param in function_rc.borrow().parameters.iter() {
             self.insert_variable(Rc::clone(param), false, func.sig.name.line)?;
         }
 
         let body_type = self.generate_expression(func.body)?.get_type();
-        if body_type != RefCell::borrow(&function_rc).ret_type {
+        if body_type != function_rc.borrow().ret_type {
             Err(Error::new_fn(
                 "Function return type does not match body type",
                 &func.sig,
@@ -174,21 +179,44 @@ impl MIRGenerator {
             Expression::Break(_) => unimplemented!(),
 
             Expression::Call { callee, arguments } => {
-                let callee = self.generate_expression(*callee)?;
+                match *callee {
+                    // Method call
+                    Expression::Get { object: _, name: _ } => {
+                        unimplemented!()
+                    }
 
-                let mut args = Vec::with_capacity(arguments.len());
-                for arg in arguments {
-                    args.push(self.generate_expression(arg)?)
+                    // Might be class constructor
+                    Expression::Variable(name) => {
+                        unimplemented!()
+                    }
+
+                    _ => (),
                 }
 
-                self.builder.build_call(callee, args)
+                // match above fell through, its either a function call or invalid
+                let callee = self.generate_expression(*callee)?;
+                if let MIRType::Function(func) = callee.get_type() {
+                    let args = unimplemented!(); // TODO
+                    self.builder.build_call(callee, args)
+                } else {
+                    /// TODO: useless error
+                    return Err(Error::new(
+                        None,
+                        "Only functions or classes are allowed to be called",
+                        "".to_string(),
+                    ))
+                }
             }
 
             Expression::For { condition: _, body: _ } => unimplemented!(),
             Expression::Get { object: _, name: _ } => unimplemented!(),
-            Expression::Grouping(_) => unimplemented!(),
+
+            Expression::Grouping(expr) => self.generate_expression(*expr)?,
+
             Expression::If { condition: _, then_branch: _, else_branch: _ } => unimplemented!(),
-            Expression::Literal(_) => unimplemented!(),
+
+            Expression::Literal(literal) => self.builder.build_literal(literal),
+
             Expression::Return(_) => unimplemented!(),
             Expression::Set { object: _, name: _, value: _ } => unimplemented!(),
             Expression::Unary { operator: _, right: _ } => unimplemented!(),
