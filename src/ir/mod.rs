@@ -1,5 +1,11 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
+ * Last modified on 8/26/19 9:49 PM.
+ * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
+ */
+
+/*
+ * Developed by Felix Ang. (felix.ang@pm.me).
  * Last modified on 8/26/19 9:33 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
@@ -334,5 +340,51 @@ impl IRGenerator {
 
     fn cur_fn(&self) -> FunctionValue {
         self.current_fn.unwrap()
+    }
+
+    pub fn new() -> IRGenerator {
+        let context = Context::create();
+        let module = context.create_module("main");
+        let builder = context.create_builder();
+
+        let mpm = PassManager::create(());
+        mpm.add_instruction_combining_pass();
+        mpm.add_reassociate_pass();
+        mpm.add_cfg_simplification_pass();
+        mpm.add_basic_alias_analysis_pass();
+
+        // Break tests
+        // mpm.add_dead_arg_elimination_pass();
+        // mpm.add_dead_store_elimination_pass();
+        // mpm.add_global_dce_pass();
+        // mpm.add_tail_call_elimination_pass();
+
+        // Cause segfaults
+        // mpm.add_gvn_pass();
+        // mpm.add_loop_deletion_pass();
+        // mpm.add_loop_unswitch_pass();
+        // mpm.add_promote_memory_to_register_pass();
+
+        mpm.add_instruction_combining_pass();
+        mpm.add_reassociate_pass();
+
+        let none_const = context
+            .struct_type(&[BasicTypeEnum::IntType(context.bool_type())], true)
+            .const_named_struct(&[BasicValueEnum::IntValue(
+                context.bool_type().const_int(0, false),
+            )]);
+
+        IRGenerator {
+            context,
+            module,
+            builder,
+            mpm,
+
+            variables: Vec::with_capacity(10),
+            current_fn: None,
+
+            types: HashMap::with_capacity(10),
+            none_const: none_const.into(),
+        }
     }
 }

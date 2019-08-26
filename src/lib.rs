@@ -1,5 +1,11 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
+ * Last modified on 8/26/19 9:49 PM.
+ * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
+ */
+
+/*
+ * Developed by Felix Ang. (felix.ang@pm.me).
  * Last modified on 8/23/19 5:56 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
@@ -31,6 +37,6 @@ pub fn parse_source(code: &String) -> Option<DeclarationList> {
 }
 
 pub fn compile_ir(declarations: DeclarationList) -> Option<Module> {
-    mir::generator::MIRGenerator::new().generate(declarations)?;
-    unimplemented!()
+    let mir = mir::generator::MIRGenerator::new().generate(declarations)?;
+    Some(ir::IRGenerator::new().generate(mir))
 }
