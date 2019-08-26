@@ -1,5 +1,11 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
+ * Last modified on 8/26/19 6:48 PM.
+ * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
+ */
+
+/*
+ * Developed by Felix Ang. (felix.ang@pm.me).
  * Last modified on 8/25/19 6:18 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
@@ -308,18 +314,6 @@ impl IRGenerator {
             .map(|param| self.to_ir_type(&param._type))
             .collect();
         self.to_ir_type(&func.ret_type).fn_type(params.as_slice(), false)
-    }
-
-    fn create_entry_block_alloca<T: BasicType>(&self, ty: T, name: &str) -> PointerValue {
-        let builder = self.context.create_builder();
-        let entry = self.cur_fn().get_first_basic_block().unwrap();
-
-        match entry.get_first_instruction() {
-            Some(inst) => builder.position_before(&inst),
-            None => builder.position_at_end(&entry),
-        }
-
-        builder.build_alloca(ty, name)
     }
 
     fn cur_fn(&self) -> FunctionValue {

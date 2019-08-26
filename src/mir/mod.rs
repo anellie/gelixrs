@@ -1,5 +1,11 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
+ * Last modified on 8/26/19 5:53 PM.
+ * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
+ */
+
+/*
+ * Developed by Felix Ang. (felix.ang@pm.me).
  * Last modified on 8/24/19 5:49 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
@@ -9,7 +15,6 @@ use std::collections::HashMap;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-pub mod builder;
 pub mod generator;
 pub mod mir;
 
