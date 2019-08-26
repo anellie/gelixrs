@@ -1,24 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/26/19 9:43 PM.
- * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
- */
-
-/*
- * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/26/19 7:56 PM.
- * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
- */
-
-/*
- * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/26/19 6:48 PM.
- * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
- */
-
-/*
- * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/24/19 5:50 PM.
+ * Last modified on 8/26/19 10:20 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -184,11 +166,8 @@ impl MIRBuilder {
         Rc::clone(&self.position.as_ref().unwrap().function)
     }
 
-    pub fn get_mir(self) -> MIR {
-        MIR {
-            types: self.types.into_iter().map(|(_, v)| v).collect(),
-            functions: self.functions
-        }
+    pub fn get_types(self) -> Vec<MutRc<MIRStruct>> {
+        self.types.into_iter().map(|(_, v)| v).collect()
     }
 
     pub fn new() -> MIRBuilder {

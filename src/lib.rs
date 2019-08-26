@@ -1,12 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/26/19 9:49 PM.
- * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
- */
-
-/*
- * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/23/19 5:56 PM.
+ * Last modified on 8/26/19 10:50 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 

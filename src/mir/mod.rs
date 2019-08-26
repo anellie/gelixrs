@@ -4,13 +4,7 @@
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
-/*
- * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/24/19 5:49 PM.
- * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
- */
-
-use mir::{MIRStruct, MIRFunction};
+use mir::{MIRStruct, MIRVariable};
 use std::collections::HashMap;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -25,7 +19,8 @@ fn mutrc_new<T>(value: T) -> MutRc<T> {
 }
 
 /// A struct produced by the generator. It contains the full MIR representation of the source.
+#[derive(Debug)]
 pub struct MIR {
     pub types: Vec<MutRc<MIRStruct>>,
-    pub functions: HashMap<Rc<String>, MutRc<MIRFunction>>,
+    pub functions: HashMap<Rc<String>, Rc<MIRVariable>>,
 }

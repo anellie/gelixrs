@@ -1,24 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/26/19 9:49 PM.
- * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
- */
-
-/*
- * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/26/19 9:33 PM.
- * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
- */
-
-/*
- * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/26/19 6:48 PM.
- * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
- */
-
-/*
- * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/25/19 6:18 PM.
+ * Last modified on 8/26/19 10:53 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -36,7 +18,7 @@ use inkwell::{
     context::Context,
     module::Module,
     passes::PassManager,
-    types::{BasicTypeEnum, BasicType, FunctionType, StructType},
+    types::{AnyTypeEnum, BasicTypeEnum, BasicType, FunctionType, StructType},
     values::{BasicValueEnum, FunctionValue, PointerValue},
     AddressSpace, IntPredicate,
 };
@@ -77,11 +59,21 @@ pub struct IRGenerator {
 impl IRGenerator {
     /// Generates IR. Will process MIR given.
     pub fn generate(mut self, mir: MIR) -> Module {
-        // TODO: Fill var map with all functions first.
+        // Put all functions into the variables map first
+        for (name, func) in mir.functions.iter() {
+            let func_val = if let MIRType::Function(func) = &func._type {
+                let func = func.borrow();
+                self.module.add_function(&name, self.get_fn_type(&func), None)
+            } else { panic!("that function ain't a function...") };
+
+            self.variables.push((Rc::clone(&func), func_val.as_global_value().as_pointer_value()));
+        }
+
         mir.types.into_iter().for_each(|struc| self.struc(struc.borrow()));
         mir.functions
             .into_iter()
-            .for_each(|(name, func)| self.function(name, func.borrow()));
+            .for_each(|(name, func)| self.function(name, func));
+
         self.mpm.run_on(&self.module);
         self.module
     }
@@ -90,18 +82,21 @@ impl IRGenerator {
         unimplemented!()
     }
 
-    fn function(&mut self, name: Rc<String>, func: Ref<MIRFunction>) {
-        let func_val = self.module.add_function(&name, self.get_fn_type(&func), None);
+    fn function(&mut self, name: Rc<String>, func: Rc<MIRVariable>) {
+        let func_val = self.module.get_function(&name).unwrap();
         self.current_fn = Some(func_val.clone());
-        if !func.blocks.is_empty() {
-            self.function_body(func, func_val)
+        if let MIRType::Function(func) = &func._type {
+            let func = func.borrow();
+            if !func.blocks.is_empty() {
+                self.function_body(func, func_val)
+            }
         }
     }
 
     fn function_body(&mut self, func: Ref<MIRFunction>, func_val: FunctionValue) {
         let mut iter = func.blocks.iter();
         let first = iter.next().unwrap();
-        let bb = self.context.append_basic_block(&func_val, &func.name);
+        let bb = self.context.append_basic_block(&func_val, &first.0);
 
         self.builder.position_at_end(&bb);
         for (arg, arg_val) in func.parameters.iter().zip(func_val.get_param_iter()) {
@@ -250,7 +245,7 @@ impl IRGenerator {
 
             MIRExpression::Literal(literal) => {
                 match literal {
-                    Literal::None => unimplemented!(),
+                    Literal::None => self.none_const,
                     Literal::Bool(value) => self
                         .context
                         .bool_type()
@@ -300,7 +295,13 @@ impl IRGenerator {
             },
 
             MIRExpression::VarGet(var) => {
-                BasicValueEnum::PointerValue(self.get_variable(var))
+                let var = self.get_variable(var);
+                // If it is a function, loading it isn't be possible.
+                if let AnyTypeEnum::FunctionType(_) = var.get_type().get_element_type() {
+                    BasicValueEnum::PointerValue(var)
+                } else {
+                    self.builder.build_load(var, "var")
+                }
             },
 
             MIRExpression::VarStore { var, value } => {
@@ -335,7 +336,13 @@ impl IRGenerator {
             .iter()
             .map(|param| self.to_ir_type(&param._type))
             .collect();
-        self.to_ir_type(&func.ret_type).fn_type(params.as_slice(), false)
+
+        let ret_type = self.to_ir_type(&func.ret_type);
+        if ret_type == self.none_const.get_type() {
+            self.context.void_type().fn_type(params.as_slice(), false)
+        } else {
+            ret_type.fn_type(params.as_slice(), false)
+        }
     }
 
     fn cur_fn(&self) -> FunctionValue {

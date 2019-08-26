@@ -1,18 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/26/19 9:45 PM.
- * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
- */
-
-/*
- * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/26/19 7:56 PM.
- * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
- */
-
-/*
- * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/26/19 6:48 PM.
+ * Last modified on 8/26/19 10:37 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -21,16 +9,15 @@ mod passes;
 
 use builder::MIRBuilder;
 use std::collections::HashMap;
-use crate::mir::mir::{MIRVariable, MIRType, MIRExpression};
+use crate::mir::mir::{MIRVariable, MIRType, MIRExpression, MIRFunction};
 use crate::ast::declaration::{DeclarationList, Function, FuncSignature};
-use crate::ast::expression::{Expression};
-use crate::mir::MIR;
+use crate::ast::expression::{Expression, display_vec};
+use crate::mir::{MIR, MutRc};
 use crate::lexer::token::{Token, Type};
 use std::rc::Rc;
 use crate::mir::generator::passes::declare::DeclarePass;
-use crate::mir::generator::passes::{PreMIRPass, PostMIRPass};
+use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::generator::passes::fill_struct::FillStructPass;
-use crate::mir::generator::passes::typecheck::TypecheckPass;
 use crate::ast::literal::Literal;
 use std::cell::RefCell;
 
@@ -76,11 +63,11 @@ impl MIRGenerator {
         // Generate the MIR
         self.generate_mir(list)?;
 
-        // Run post-MIR passes
-        TypecheckPass::new(&mut self).run()?;
-
-        // Finally, return the finished MIR
-        Ok(self.builder.get_mir())
+        // Return the finished MIR
+        Ok(MIR {
+            types: self.builder.get_types(),
+            functions: self.environments.remove(0)
+        })
     }
 
     fn generate_mir(&mut self, list: DeclarationList) -> Result<(), Error> {
@@ -108,14 +95,15 @@ impl MIRGenerator {
             self.insert_variable(Rc::clone(param), false, func.sig.name.line)?;
         }
 
-        let body_type = self.generate_expression(func.body)?.get_type();
-        if body_type != function_rc.borrow().ret_type {
+        let body = self.generate_expression(func.body)?;
+        if body.get_type() != function_rc.borrow().ret_type {
             Err(Error::new_fn(
                 "Function return type does not match body type",
                 &func.sig,
             ))?;
         }
 
+        self.builder.insert_at_ptr(body);
         self.end_scope();
         Ok(())
     }
@@ -179,7 +167,7 @@ impl MIRGenerator {
             Expression::Break(_) => unimplemented!(),
 
             Expression::Call { callee, arguments } => {
-                match *callee {
+                match &*callee {
                     // Method call
                     Expression::Get { object: _, name: _ } => {
                         unimplemented!()
@@ -187,7 +175,9 @@ impl MIRGenerator {
 
                     // Might be class constructor
                     Expression::Variable(name) => {
-                        unimplemented!()
+                        if let Some(struc) = self.builder.find_struct(&name.lexeme) {
+                            return Ok(self.builder.build_constructor(struc))
+                        }
                     }
 
                     _ => (),
@@ -196,10 +186,10 @@ impl MIRGenerator {
                 // match above fell through, its either a function call or invalid
                 let callee = self.generate_expression(*callee)?;
                 if let MIRType::Function(func) = callee.get_type() {
-                    let args = unimplemented!(); // TODO
+                    let args = self.generate_func_args(func, arguments)?;
                     self.builder.build_call(callee, args)
                 } else {
-                    /// TODO: useless error
+                    // TODO: useless error
                     return Err(Error::new(
                         None,
                         "Only functions or classes are allowed to be called",
@@ -231,8 +221,8 @@ impl MIRGenerator {
             Expression::VarDef(var) => {
                 let init = self.generate_expression(var.initializer)?;
                 let _type = init.get_type();
-                self.define_variable(&var.name, !var.is_val, _type)?;
-                MIRGenerator::none_const()
+                let var = self.define_variable(&var.name, !var.is_val, _type)?;
+                self.builder.build_store(var, init)
             },
         })
     }
@@ -242,11 +232,11 @@ impl MIRGenerator {
         token: &Token,
         mutable: bool,
         _type: MIRType,
-    ) -> Res<()> {
+    ) -> Res<Rc<MIRVariable>> {
         let def = Rc::new(MIRVariable::new(Rc::clone(&token.lexeme), _type, mutable));
         self.builder.add_function_variable(Rc::clone(&def));
-        self.insert_variable(def, true, token.line)?;
-        Ok(())
+        self.insert_variable(Rc::clone(&def), true, token.line)?;
+        Ok(def)
     }
 
     fn insert_variable(&mut self, var: Rc<MIRVariable>, allow_redefine: bool, line: usize) -> Res<()> {
@@ -277,6 +267,41 @@ impl MIRGenerator {
         })
     }
 
+    fn generate_func_args(
+        &mut self,
+        func_ref: MutRc<MIRFunction>,
+        arguments: Vec<Expression>,
+    ) -> Res<Vec<MIRExpression>> {
+        let func = func_ref.borrow();
+
+        if func.parameters.len() != arguments.len() {
+            Err(Error {
+                line: arguments.first().map(|e| e.get_line()).flatten(),
+                message: format!(
+                    "Incorrect amount of function arguments. (Expected {}; got {})",
+                    func.parameters.len(),
+                    arguments.len()
+                ),
+                code: display_vec(&arguments),
+            })?;
+        }
+
+        let mut result = Vec::with_capacity(arguments.len());
+        for (argument, parameter) in arguments.into_iter().zip(func.parameters.iter()) {
+            let argument = self.generate_expression(argument)?;
+            if argument.get_type() != parameter._type {
+                Err(Error::new(
+                    None,
+                    "Call argument is the wrong type",
+                    "".to_string(),
+                ))?;
+            }
+            result.push(argument)
+        }
+
+        Ok(result)
+    }
+
     fn begin_scope(&mut self) {
         self.environments.push(HashMap::new());
     }
@@ -290,13 +315,18 @@ impl MIRGenerator {
     }
 
     pub fn new() -> MIRGenerator {
-        MIRGenerator {
+        let mut generator = MIRGenerator {
             builder: MIRBuilder::new(),
             environments: Vec::with_capacity(5),
 
             is_in_loop: false,
             current_loop_ret_type: None,
-        }
+        };
+
+        // Global scope
+        generator.begin_scope();
+
+        generator
     }
 }
 
