@@ -1,14 +1,22 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
+ * Last modified on 8/26/19 7:52 PM.
+ * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
+ */
+
+/*
+ * Developed by Felix Ang. (felix.ang@pm.me).
  * Last modified on 8/24/19 5:49 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
 use std::collections::HashMap;
 use crate::ast::literal::Literal;
-use crate::lexer::token::Token;
+use crate::ast::expression::LOGICAL_BINARY;
+use crate::lexer::token::{Token, Type};
 use crate::mir::MutRc;
 use std::rc::Rc;
+use std::cell::RefCell;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum MIRType {
@@ -144,7 +152,65 @@ pub enum MIRExpression {
 }
 
 impl MIRExpression {
+    /// Returns the type of this MIRExpression.
+    /// Note that this function does not do type validation, and calling this function
+    /// on malformed expressions is undefined behavior that can lead to panics.
     pub(super) fn get_type(&self) -> MIRType {
-        unimplemented!()
+        match self {
+            MIRExpression::Binary { left, operator, .. } => {
+                if LOGICAL_BINARY.contains(&operator.t_type) {
+                    MIRType::Bool
+                } else {
+                    left.get_type()
+                }
+            },
+
+            MIRExpression::Call { callee, .. } => {
+                if let MIRType::Function(func) = callee.get_type() {
+                    RefCell::borrow(&func).ret_type.clone()
+                } else {
+                    panic!("non-function call type")
+                }
+            },
+
+            MIRExpression::StructGet { object, index } =>
+                MIRExpression::type_from_struct_get(object, index),
+
+            MIRExpression::StructSet { object, index, .. } =>
+                MIRExpression::type_from_struct_get(object, index),
+
+            MIRExpression::Literal(literal) => {
+                match literal {
+                    Literal::None => MIRType::None,
+                    Literal::Bool(value) => MIRType::Bool,
+                    Literal::Int(num) => MIRType::Int,
+                    Literal::Float(num) => MIRType::Float,
+                    Literal::Double(num) => MIRType::Double,
+                    Literal::String(string) => MIRType::String,
+                    _ => panic!("unknown literal"),
+                }
+            },
+
+            MIRExpression::Unary { operator, right } => {
+                match operator.t_type {
+                    Type::Bang => MIRType::Bool,
+                    Type::Minus => right.get_type(),
+                    _ => panic!("invalid unary")
+                }
+            },
+
+            MIRExpression::VarGet(var) => var._type.clone(),
+
+            MIRExpression::VarStore { var, .. } => var._type.clone(),
+        }
+    }
+
+    fn type_from_struct_get(object: &MIRExpression, index: &u32) -> MIRType {
+        let object = object.get_type();
+        if let MIRType::Struct(struc) = object {
+            RefCell::borrow(&struc).members.iter().find(|(_, mem)| mem.index == *index).unwrap().1._type.clone()
+        } else {
+            panic!("non-struct struct get")
+        }
     }
 }

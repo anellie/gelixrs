@@ -1,5 +1,11 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
+ * Last modified on 8/26/19 7:56 PM.
+ * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
+ */
+
+/*
+ * Developed by Felix Ang. (felix.ang@pm.me).
  * Last modified on 8/26/19 6:48 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
@@ -93,6 +99,10 @@ impl MIRBuilder {
             var,
             value: Box::new(value)
         }
+    }
+
+    pub fn build_load(&self, var: Rc<MIRVariable>) -> MIRExpression {
+        MIRExpression::VarGet(var)
     }
 
     pub fn find_type(&self, name: &String) -> Option<MIRType> {

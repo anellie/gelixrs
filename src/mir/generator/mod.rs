@@ -1,12 +1,12 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/26/19 6:48 PM.
+ * Last modified on 8/26/19 7:56 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/24/19 8:18 PM.
+ * Last modified on 8/26/19 6:48 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -19,13 +19,15 @@ use crate::mir::mir::{MIRVariable, MIRType, MIRExpression};
 use crate::ast::declaration::{DeclarationList, Function, FuncSignature};
 use crate::ast::expression::{Expression};
 use crate::mir::MIR;
-use crate::lexer::token::Token;
+use crate::lexer::token::{Token, Type};
 use std::rc::Rc;
 use crate::mir::generator::passes::declare::DeclarePass;
 use crate::mir::generator::passes::{PreMIRPass, PostMIRPass};
 use crate::mir::generator::passes::fill_struct::FillStructPass;
 use crate::mir::generator::passes::typecheck::TypecheckPass;
 use crate::ast::literal::Literal;
+use std::borrow::Borrow;
+use std::cell::RefCell;
 
 type Res<T> = Result<T, Error>;
 
@@ -97,12 +99,12 @@ impl MIRGenerator {
         self.builder.set_pointer(Rc::clone(&function_rc), Rc::new("entry".to_string()));
 
         self.begin_scope();
-        for param in function_rc.borrow().parameters.iter() {
+        for param in RefCell::borrow(&function_rc).parameters.iter() {
             self.insert_variable(Rc::clone(param), false, func.sig.name.line)?;
         }
 
         let body_type = self.generate_expression(func.body)?.get_type();
-        if body_type != function_rc.borrow().ret_type {
+        if body_type != RefCell::borrow(&function_rc).ret_type {
             Err(Error::new_fn(
                 "Function return type does not match body type",
                 &func.sig,
@@ -119,7 +121,15 @@ impl MIRGenerator {
                 let var = self.find_var(&name)?;
                 if var.mutable {
                     let value = self.generate_expression(*value)?;
-                    self.builder.build_store(var, value)
+                    if value.get_type() == var._type {
+                        self.builder.build_store(var, value)
+                    } else {
+                        Err(Error::new(
+                            Some(name.line),
+                            &format!("Variable {} is a different type", name.lexeme),
+                            name.lexeme.to_string(),
+                        ))?
+                   }
                 } else {
                     Err(Error::new(
                         Some(name.line),
@@ -132,13 +142,33 @@ impl MIRGenerator {
             Expression::Binary { left, operator, right } => {
                 let left = self.generate_expression(*left)?;
                 let right = self.generate_expression(*right)?;
-                self.builder.build_binary(left, operator, right)
+
+                if (left.get_type() == MIRType::Int) && (right.get_type() == MIRType::Int) {
+                    self.builder.build_binary(left, operator, right)
+                } else {
+                    Err(Error::new(
+                        Some(operator.line),
+                        "Binary operations are only allowed on i64.",
+                        format!("{:?}", operator.t_type),
+                    ))?
+                }
             }
 
-            Expression::Block(expressions) => {
-                expressions
-                    .into_iter()
-                    .try_fold(MIRGenerator::none_const(), |_, expr| self.generate_expression(expr))?
+            Expression::Block(mut expressions) => {
+                self.begin_scope();
+
+                let last = expressions.pop();
+                for expression in expressions {
+                    let expression = self.generate_expression(expression)?;
+                    self.builder.insert_at_ptr(expression);
+                }
+
+                let last = last
+                    .map(|e| self.generate_expression(e))
+                    .unwrap_or_else(|| Ok(MIRGenerator::none_const()))?;
+
+                self.end_scope();
+                last
             }
 
             Expression::Break(_) => unimplemented!(),
@@ -162,15 +192,26 @@ impl MIRGenerator {
             Expression::Return(_) => unimplemented!(),
             Expression::Set { object: _, name: _, value: _ } => unimplemented!(),
             Expression::Unary { operator: _, right: _ } => unimplemented!(),
-            Expression::Variable(_) => unimplemented!(),
+
+            Expression::Variable(var) => {
+                let var = self.find_var(&var)?;
+                self.builder.build_load(var)
+            },
+
             Expression::When { value: _, branches: _, else_branch: _ } => unimplemented!(),
-            Expression::VarDef(_) => unimplemented!(),
+
+            Expression::VarDef(var) => {
+                let init = self.generate_expression(var.initializer)?;
+                let _type = init.get_type();
+                self.define_variable(&var.name, !var.is_val, _type)?;
+                MIRGenerator::none_const()
+            },
         })
     }
 
     fn define_variable(
         &mut self,
-        token: &mut Token,
+        token: &Token,
         mutable: bool,
         _type: MIRType,
     ) -> Res<()> {
