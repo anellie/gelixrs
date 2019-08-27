@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/26/19 10:19 PM.
+ * Last modified on 8/27/19 3:48 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -102,12 +102,12 @@ pub struct MIRBlock {
 
 #[derive(Debug)]
 pub enum MIRFlow {
-    Jump(String),
+    Jump(Rc<String>),
 
     Branch {
         condition: MIRExpression,
-        then_b: String,
-        else_b: String
+        then_b: Rc<String>,
+        else_b: Rc<String>
     },
 
     Return(Option<MIRExpression>)
@@ -128,6 +128,8 @@ pub enum MIRExpression {
     },
 
     Function(MutRc<MIRFunction>),
+
+    Phi(Vec<(MIRExpression, Rc<String>)>),
 
     StructGet {
         object: Box<MIRExpression>,
@@ -178,6 +180,8 @@ impl MIRExpression {
             },
 
             MIRExpression::Function(func) => func.borrow().ret_type.clone(),
+
+            MIRExpression::Phi(branches) => branches.first().unwrap().0.get_type(),
 
             MIRExpression::StructGet { object, index } =>
                 MIRExpression::type_from_struct_get(object, index),

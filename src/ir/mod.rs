@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/26/19 10:53 PM.
+ * Last modified on 8/27/19 6:05 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -19,11 +19,11 @@ use inkwell::{
     module::Module,
     passes::PassManager,
     types::{AnyTypeEnum, BasicTypeEnum, BasicType, FunctionType, StructType},
-    values::{BasicValueEnum, FunctionValue, PointerValue},
+    values::{BasicValue, BasicValueEnum, FunctionValue, PointerValue},
     AddressSpace, IntPredicate,
 };
 use std::{
-    cell::Ref, 
+    cell::{Ref, RefMut},
     collections::HashMap, 
     convert::TryInto, 
     rc::Rc,
@@ -86,19 +86,18 @@ impl IRGenerator {
         let func_val = self.module.get_function(&name).unwrap();
         self.current_fn = Some(func_val.clone());
         if let MIRType::Function(func) = &func._type {
-            let func = func.borrow();
+            let func = func.borrow_mut();
             if !func.blocks.is_empty() {
                 self.function_body(func, func_val)
             }
         }
     }
 
-    fn function_body(&mut self, func: Ref<MIRFunction>, func_val: FunctionValue) {
-        let mut iter = func.blocks.iter();
-        let first = iter.next().unwrap();
-        let bb = self.context.append_basic_block(&func_val, &first.0);
+    fn function_body(&mut self, mut func: RefMut<MIRFunction>, func_val: FunctionValue) {
+        let entry_b = func.blocks.remove_entry(&"entry".to_string() /* TODO: should be const */).unwrap();
+        let entry_bb = self.context.append_basic_block(&func_val, &entry_b.0);
 
-        self.builder.position_at_end(&bb);
+        self.builder.position_at_end(&entry_bb);
         for (arg, arg_val) in func.parameters.iter().zip(func_val.get_param_iter()) {
             let alloca = self.builder.build_alloca(arg_val.get_type(), &arg.name);
             self.builder.build_store(alloca, arg_val);
@@ -109,10 +108,16 @@ impl IRGenerator {
             self.variables.push((Rc::clone(&var), alloca));
         }
 
-        self.fill_basic_block(first.1, bb);
+        // Fill in all blocks first before generating any actual code;
+        // otherwise referencing a block yet to be built would result in a panic
+        for (name, block) in func.blocks.iter() {
+            self.context.append_basic_block(&func_val, name);
+        }
 
-        for (name, block) in iter {
-            let bb = self.context.append_basic_block(&func_val, name);
+        self.fill_basic_block(&entry_b.1, entry_bb);
+
+        for (name, block) in func.blocks.iter() {
+            let bb = self.get_block(name);
             self.fill_basic_block(block, bb);
         }
     }
@@ -219,6 +224,23 @@ impl IRGenerator {
                         .as_global_value()
                         .as_pointer_value()
                 )
+            }
+
+            MIRExpression::Phi(branches) => {
+                let branches: Vec<(BasicValueEnum, BasicBlock)> = branches
+                    .iter()
+                    .map(|(expr, br)| (self.generate_expression(expr), self.get_block(br)))
+                    .collect();
+                let _type = branches[0].0.get_type();
+
+                let branches_ref: Vec<(&dyn BasicValue, &BasicBlock)> = branches
+                    .iter()
+                    .map(|(expr, br)| (expr as &dyn BasicValue, br))
+                    .collect();
+
+                let phi = self.builder.build_phi(_type, "phi");
+                phi.add_incoming(branches_ref.as_slice());
+                phi.as_basic_value()
             }
 
             MIRExpression::StructGet { object, index } => {

@@ -1,11 +1,11 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/26/19 10:20 PM.
+ * Last modified on 8/27/19 4:20 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
 use super::super::mir::{MIRFunction, MIRType};
-use crate::mir::mir::{MIRStruct, MIRVariable, MIRExpression};
+use crate::mir::mir::{MIRStruct, MIRVariable, MIRExpression, MIRFlow};
 use std::collections::HashMap;
 use crate::mir::{MIR, MutRc, mutrc_new};
 use std::rc::Rc;
@@ -115,6 +115,10 @@ impl MIRBuilder {
         MIRExpression::VarGet(var)
     }
 
+    pub fn build_phi(&self, first: (MIRExpression, Rc<String>), second: (MIRExpression, Rc<String>)) -> MIRExpression {
+        MIRExpression::Phi(vec![first, second])
+    }
+
     pub fn build_literal(&self, literal: Literal) -> MIRExpression {
         MIRExpression::Literal(literal)
     }
@@ -128,6 +132,10 @@ impl MIRBuilder {
 
     pub fn build_load(&self, var: Rc<MIRVariable>) -> MIRExpression {
         MIRExpression::VarGet(var)
+    }
+
+    pub fn set_return(&mut self, ret: MIRFlow) {
+        self.cur_fn().borrow_mut().blocks.get_mut(&self.position.as_ref().unwrap().block).unwrap().last = ret
     }
 
     pub fn find_type(&self, name: &String) -> Option<MIRType> {
@@ -156,13 +164,17 @@ impl MIRBuilder {
         })
     }
 
+    pub fn set_block(&mut self, block: &Rc<String>) {
+        self.position.as_mut().map(|ptr| ptr.block = Rc::clone(block));
+    }
+
     pub fn insert_at_ptr(&mut self, expr: MIRExpression) {
         let func = self.cur_fn();
         let mut func = func.borrow_mut();
         func.blocks.get_mut(&self.position.as_ref().unwrap().block).unwrap().expressions.push(expr);
     }
 
-    fn cur_fn(&self) -> MutRc<MIRFunction> {
+    pub fn cur_fn(&self) -> MutRc<MIRFunction> {
         Rc::clone(&self.position.as_ref().unwrap().function)
     }
 

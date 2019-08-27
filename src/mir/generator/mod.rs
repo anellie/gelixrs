@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/26/19 10:37 PM.
+ * Last modified on 8/27/19 5:49 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -9,7 +9,7 @@ mod passes;
 
 use builder::MIRBuilder;
 use std::collections::HashMap;
-use crate::mir::mir::{MIRVariable, MIRType, MIRExpression, MIRFunction};
+use crate::mir::mir::{MIRVariable, MIRType, MIRExpression, MIRFunction, MIRFlow};
 use crate::ast::declaration::{DeclarationList, Function, FuncSignature};
 use crate::ast::expression::{Expression, display_vec};
 use crate::mir::{MIR, MutRc};
@@ -86,6 +86,7 @@ impl MIRGenerator {
     fn generate_function(&mut self, func: Function) -> Res<()> {
         let function_rc = self.builder.find_function(&func.sig.name.lexeme).unwrap();
         let mut function = function_rc.borrow_mut();
+        let func_type = function.ret_type.clone();
         function.append_block("entry".to_string());
         drop(function);
         self.builder.set_pointer(Rc::clone(&function_rc), Rc::new("entry".to_string()));
@@ -96,7 +97,7 @@ impl MIRGenerator {
         }
 
         let body = self.generate_expression(func.body)?;
-        if body.get_type() != function_rc.borrow().ret_type {
+        if (func_type != MIRType::None) && (body.get_type() != func_type) {
             Err(Error::new_fn(
                 "Function return type does not match body type",
                 &func.sig,
@@ -203,7 +204,59 @@ impl MIRGenerator {
 
             Expression::Grouping(expr) => self.generate_expression(*expr)?,
 
-            Expression::If { condition: _, then_branch: _, else_branch: _ } => unimplemented!(),
+            Expression::If { condition, then_branch, else_branch } => {
+                let condition = self.generate_expression(*condition)?;
+                if let MIRType::Bool = condition.get_type() {} else {
+                    return Err(Error::new(
+                        then_branch.get_line(),
+                        "If condition must be a boolean",
+                        "if (...)".to_string()
+                    ))
+                };
+
+                let func = self.builder.cur_fn();
+                let mut func = func.borrow_mut();
+                let then_b = func.append_block("then".to_string());
+                let else_b = func.append_block("else".to_string());
+                let cont_b = func.append_block("cont".to_string());
+                // Setting return will mutably borrow the func; drop this one to prevent panic
+                drop(func);
+
+                self.builder.set_return(MIRFlow::Branch {
+                    condition,
+                    then_b: Rc::clone(&then_b),
+                    else_b: Rc::clone(&else_b),
+                });
+
+
+                self.builder.set_block(&then_b);
+                let then_val = self.generate_expression(*then_branch)?;
+                self.builder.set_return(MIRFlow::Jump(Rc::clone(&cont_b)));
+
+                self.builder.set_block(&else_b);
+                self.builder.set_return(MIRFlow::Jump(Rc::clone(&cont_b)));
+
+                if let Some(else_branch) = else_branch {
+                    let else_val = self.generate_expression(*else_branch)?;
+                    self.builder.set_block(&cont_b);
+
+                    if then_val.get_type() == else_val.get_type() {
+                        return Ok(self.builder.build_phi(
+                            (then_val, Rc::clone(&then_b)),
+                            (else_val, Rc::clone(&else_b))
+                        ))
+                    } else {
+                        self.builder.set_block(&else_b);
+                        self.builder.insert_at_ptr(else_val);
+                    }
+                }
+
+                self.builder.set_block(&then_b);
+                self.builder.insert_at_ptr(then_val);
+
+                self.builder.set_block(&cont_b);
+                MIRGenerator::none_const()
+            },
 
             Expression::Literal(literal) => self.builder.build_literal(literal),
 
