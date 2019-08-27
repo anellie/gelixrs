@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/27/19 3:48 PM.
+ * Last modified on 8/27/19 6:20 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -11,6 +11,7 @@ use crate::lexer::token::{Token, Type};
 use crate::mir::MutRc;
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::hash::{Hasher, Hash};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum MIRType {
@@ -91,6 +92,12 @@ pub struct MIRVariable {
 impl MIRVariable {
     pub fn new(name: Rc<String>, _type: MIRType, mutable: bool) -> MIRVariable {
         MIRVariable { name, _type, mutable }
+    }
+}
+
+impl Hash for MIRVariable {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.name.hash(state)
     }
 }
 

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/27/19 6:05 PM.
+ * Last modified on 8/27/19 9:19 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -28,32 +28,33 @@ use std::{
     convert::TryInto, 
     rc::Rc,
 };
+use std::hash::{Hash, Hasher};
 
 /// A generator that creates LLVM IR out of Gelix mid-level IR (MIR).
 ///
 /// Will panic when encountering invalid code; this should not happen however thanks to the
 /// MIRGenerator validating the MIR it generates.
 pub struct IRGenerator {
-    /// LLVM-related. Refer to their docs for more info.
+    // LLVM-related. Refer to their docs for more info.
     context: Context,
     builder: Builder,
     module: Module,
     mpm: PassManager<Module>,
 
-    /// All variables and the currently compiled function.
-    /// Note that not all variables are valid - they are kept after going out of scope.
-    /// This is not an issue since the MIR generator checked against this already.
-    /// TODO: Find a way to use a hash map for variables.
-    /// The issue is that Rc<T> does not implement Eq to check if 2 Rcs are pointing at the same
-    /// address.
-    variables: Vec<(Rc<MIRVariable>, PointerValue)>,
+    // All variables, the currently compiled function, and its blocks.
+    // Note that not all variables are valid - they are kept after going out of scope.
+    // This is not an issue since the MIR generator checked against this already.
+    variables: HashMap<PtrEqRc<MIRVariable>, PointerValue>,
     current_fn: Option<FunctionValue>,
+    blocks: HashMap<Rc<String>, BasicBlock>,
 
     // All types (classes) that are available.
     types: HashMap<Rc<String>, StructType>,
 
     // A constant that is used for expressions that don't produce a value but are required to.
     none_const: BasicValueEnum,
+    // Simply a string called "entry". Needed to find the entry block of functions.
+    entry_const: String
 }
 
 impl IRGenerator {
@@ -66,7 +67,7 @@ impl IRGenerator {
                 self.module.add_function(&name, self.get_fn_type(&func), None)
             } else { panic!("that function ain't a function...") };
 
-            self.variables.push((Rc::clone(&func), func_val.as_global_value().as_pointer_value()));
+            self.variables.insert(PtrEqRc::new(func), func_val.as_global_value().as_pointer_value());
         }
 
         mir.types.into_iter().for_each(|struc| self.struc(struc.borrow()));
@@ -94,24 +95,27 @@ impl IRGenerator {
     }
 
     fn function_body(&mut self, mut func: RefMut<MIRFunction>, func_val: FunctionValue) {
-        let entry_b = func.blocks.remove_entry(&"entry".to_string() /* TODO: should be const */).unwrap();
+        self.blocks.clear();
+
+        let entry_b = func.blocks.remove_entry(&self.entry_const).unwrap();
         let entry_bb = self.context.append_basic_block(&func_val, &entry_b.0);
 
         self.builder.position_at_end(&entry_bb);
         for (arg, arg_val) in func.parameters.iter().zip(func_val.get_param_iter()) {
             let alloca = self.builder.build_alloca(arg_val.get_type(), &arg.name);
             self.builder.build_store(alloca, arg_val);
-            self.variables.push((Rc::clone(arg), alloca));
+            self.variables.insert(PtrEqRc::new(arg), alloca);
         }
         for (name, var) in func.variables.iter() {
             let alloca = self.builder.build_alloca(self.to_ir_type(&var._type), &name);
-            self.variables.push((Rc::clone(&var), alloca));
+            self.variables.insert(PtrEqRc::new(var), alloca);
         }
 
         // Fill in all blocks first before generating any actual code;
         // otherwise referencing a block yet to be built would result in a panic
         for (name, block) in func.blocks.iter() {
-            self.context.append_basic_block(&func_val, name);
+            let bb = self.context.append_basic_block(&func_val, name);
+            self.blocks.insert(Rc::clone(name), bb);
         }
 
         self.fill_basic_block(&entry_b.1, entry_bb);
@@ -156,15 +160,13 @@ impl IRGenerator {
         };
     }
 
-    // TODO: This is utterly disgusting... yuck
     fn get_block(&self, name: &String) -> BasicBlock {
-        let blocks = self.cur_fn().get_basic_blocks();
-        *blocks.iter().find(|bb| bb.get_name().to_str().unwrap() == name).unwrap()
+        self.blocks[name]
     }
 
-    // TODO: This is just as disgusting...
     fn get_variable(&self, var: &Rc<MIRVariable>) -> PointerValue {
-        self.variables.iter().find(|(v, _)| Rc::ptr_eq(var, v)).unwrap().1
+        let wrap = PtrEqRc::new(var);
+        self.variables[&wrap]
     }
 
     fn generate_expression(&mut self, expression: &MIRExpression) -> BasicValueEnum {
@@ -409,11 +411,36 @@ impl IRGenerator {
             builder,
             mpm,
 
-            variables: Vec::with_capacity(10),
+            variables: HashMap::with_capacity(10),
             current_fn: None,
+            blocks: HashMap::with_capacity(10),
 
             types: HashMap::with_capacity(10),
             none_const: none_const.into(),
+            entry_const: String::from("entry")
         }
+    }
+}
+
+struct PtrEqRc<T: Hash>(Rc<T>);
+
+impl<T: Hash> PtrEqRc<T> {
+    fn new(rc: &Rc<T>) -> PtrEqRc<T> {
+        PtrEqRc(Rc::clone(rc))
+    }
+}
+
+impl<T: Hash> PartialEq for PtrEqRc<T> {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl<T: Hash> Eq for PtrEqRc<T> {
+}
+
+impl<T: Hash> Hash for PtrEqRc<T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.hash(state)
     }
 }
