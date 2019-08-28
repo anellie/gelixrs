@@ -25,7 +25,7 @@ pub mod tests;
 use ast::declaration::DeclarationList;
 use inkwell::module::Module;
 
-pub fn parse_source(code: &String) -> Option<DeclarationList> {
+pub fn parse_source(code: &str) -> Option<DeclarationList> {
     let lexer = lexer::Lexer::new(code);
     let parser = parser::Parser::new(lexer);
     parser.parse()

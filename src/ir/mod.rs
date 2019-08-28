@@ -8,7 +8,7 @@ use super::{
     ast::literal::Literal,
     lexer::token::Type,
     mir::{
-        mir::{MIRBlock, MIRExpression, MIRFlow, MIRFunction, MIRStruct, MIRType, MIRVariable},
+        nodes::{MIRBlock, MIRExpression, MIRFlow, MIRFunction, MIRStruct, MIRType, MIRVariable},
         MIR,
     },
 };
@@ -45,7 +45,6 @@ pub struct IRGenerator {
     // Note that not all variables are valid - they are kept after going out of scope.
     // This is not an issue since the MIR generator checked against this already.
     variables: HashMap<PtrEqRc<MIRVariable>, PointerValue>,
-    current_fn: Option<FunctionValue>,
     blocks: HashMap<Rc<String>, BasicBlock>,
 
     // All types (classes) that are available.
@@ -110,7 +109,6 @@ impl IRGenerator {
 
     fn function(&mut self, name: Rc<String>, func: Rc<MIRVariable>) {
         let func_val = self.module.get_function(&name).unwrap();
-        self.current_fn = Some(func_val.clone());
         if let MIRType::Function(func) = &func._type {
             let func = func.borrow_mut();
             if !func.blocks.is_empty() {
@@ -142,7 +140,7 @@ impl IRGenerator {
 
         // Fill in all blocks first before generating any actual code;
         // otherwise referencing a block yet to be built would result in a panic
-        for (name, block) in func.blocks.iter() {
+        for (name, _block) in func.blocks.iter() {
             let bb = self.context.append_basic_block(&func_val, name);
             self.blocks.insert(Rc::clone(name), bb);
         }
@@ -364,11 +362,11 @@ impl IRGenerator {
                 match operator.t_type {
                     Type::Minus => match expr {
                         BasicValueEnum::IntValue(int) => BasicValueEnum::IntValue(
-                            self.builder.build_int_neg(int.into(), "unaryneg"),
+                            self.builder.build_int_neg(int, "unaryneg"),
                         ),
 
                         BasicValueEnum::FloatValue(float) => BasicValueEnum::FloatValue(
-                            self.builder.build_float_neg(float.into(), "unaryneg"),
+                            self.builder.build_float_neg(float, "unaryneg"),
                         ),
 
                         _ => panic!("Invalid unary negation"),
@@ -450,10 +448,6 @@ impl IRGenerator {
         }
     }
 
-    fn cur_fn(&self) -> FunctionValue {
-        self.current_fn.unwrap()
-    }
-
     pub fn new() -> IRGenerator {
         let context = Context::create();
         let module = context.create_module("main");
@@ -493,7 +487,6 @@ impl IRGenerator {
             mpm,
 
             variables: HashMap::with_capacity(10),
-            current_fn: None,
             blocks: HashMap::with_capacity(10),
 
             types: HashMap::with_capacity(10),

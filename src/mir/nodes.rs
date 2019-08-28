@@ -201,11 +201,11 @@ impl MIRExpression {
             MIRExpression::Phi(branches) => branches.first().unwrap().0.get_type(),
 
             MIRExpression::StructGet { object, index } => {
-                MIRExpression::type_from_struct_get(object, index)
+                MIRExpression::type_from_struct_get(object, *index)
             }
 
             MIRExpression::StructSet { object, index, .. } => {
-                MIRExpression::type_from_struct_get(object, index)
+                MIRExpression::type_from_struct_get(object, *index)
             }
 
             MIRExpression::Literal(literal) => match literal {
@@ -230,13 +230,13 @@ impl MIRExpression {
         }
     }
 
-    fn type_from_struct_get(object: &MIRExpression, index: &u32) -> MIRType {
+    fn type_from_struct_get(object: &MIRExpression, index: u32) -> MIRType {
         let object = object.get_type();
         if let MIRType::Struct(struc) = object {
             RefCell::borrow(&struc)
                 .members
                 .iter()
-                .find(|(_, mem)| mem.index == *index)
+                .find(|(_, mem)| mem.index == index)
                 .unwrap()
                 .1
                 ._type

@@ -8,7 +8,7 @@ use crate::ast::declaration::{Class, DeclarationList, FuncSignature, FunctionArg
 use crate::lexer::token::Token;
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::generator::{Error, MIRGenerator, Res};
-use crate::mir::mir::{MIRType, MIRVariable};
+use crate::mir::nodes::{MIRType, MIRVariable};
 use std::rc::Rc;
 
 pub struct DeclarePass<'p> {

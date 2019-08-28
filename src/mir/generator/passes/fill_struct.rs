@@ -7,7 +7,7 @@
 use crate::ast::declaration::{Class, DeclarationList};
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::generator::{Error, MIRGenerator, Res};
-use crate::mir::mir::MIRStructMem;
+use crate::mir::nodes::MIRStructMem;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -36,24 +36,22 @@ impl<'p> PreMIRPass for FillStructPass<'p> {
                     super_tok = superclass.superclass.clone();
                     self.fill_class_struct(&mut superclass)?;
                     done_classes.push(superclass);
+                } else if done_classes
+                    .iter()
+                    .any(|cls| cls.name.lexeme == super_name.lexeme)
+                {
+                    // Superclass was already resolved.
+                    super_tok = None;
                 } else {
-                    if done_classes
-                        .iter()
-                        .any(|cls| cls.name.lexeme == super_name.lexeme)
-                    {
-                        // Superclass was already resolved.
-                        super_tok = None;
-                    } else {
-                        // Superclass doesn't exist.
-                        Err(Error {
-                            line: Some(super_name.line),
-                            message: format!("Unknown class '{}'", super_name.lexeme),
-                            code: format!(
-                                "class {} ext {} {{ ... }}",
-                                class.name.lexeme, super_name.lexeme
-                            ),
-                        })?;
-                    }
+                    // Superclass doesn't exist.
+                    return Err(Error {
+                        line: Some(super_name.line),
+                        message: format!("Unknown class '{}'", super_name.lexeme),
+                        code: format!(
+                            "class {} ext {} {{ ... }}",
+                            class.name.lexeme, super_name.lexeme
+                        ),
+                    });
                 }
             }
 

@@ -145,11 +145,9 @@ impl Lexer {
 
     /// Helper function for [identifier_type], checks if rest of keyword matches
     fn check_identifier_keyword(&self, start: usize, pattern: &[char], t_type: Type) -> Type {
-        // Loop all chars in the pattern; if one does not match it is NOT the keyword
-        for ch in 0..pattern.len() {
-            if self.char_at(self.start + start + ch) != pattern[ch] {
-                return Type::Identifier;
-            }
+        // Check all chars in the pattern; if one does not match it isn't the keyword
+        if pattern.iter().enumerate().any(|(i, ch)| self.char_at(self.start + start + i) != *ch) {
+            return Type::Identifier;
         }
 
         // If the next char is alphabetic, it is an identifier that starts with a keyword ('superb')
@@ -221,7 +219,7 @@ impl Lexer {
             t_type,
             lexeme: Rc::new(
                 self.chars[(self.start)..(self.current)]
-                    .into_iter()
+                    .iter()
                     .collect(),
             ),
             line: self.line,

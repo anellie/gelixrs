@@ -95,10 +95,10 @@ fn main() -> Result<(), &'static str> {
         .status()
         .expect("Evoking clang failed.");
 
-    if !status.success() {
-        Err("Compiling to native binary failed. Please try compiling with clang manually using --ir.")
-    } else {
+    if status.success() {
         println!("Compilation successful!");
         Ok(())
+    } else {
+        Err("Compiling to native binary failed. Please try compiling with clang manually using --ir.")
     }
 }

@@ -4,7 +4,7 @@
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
-mod parser;
+mod parsing;
 
 use super::lexer::{
     token::{Token, Type},

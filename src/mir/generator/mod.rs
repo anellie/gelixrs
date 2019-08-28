@@ -8,13 +8,13 @@ mod builder;
 mod passes;
 
 use crate::ast::declaration::{DeclarationList, FuncSignature, Function};
-use crate::ast::expression::{display_vec, Expression};
+use crate::ast::expression::{display_slice, Expression};
 use crate::ast::literal::Literal;
-use crate::lexer::token::{Token, Type};
+use crate::lexer::token::Token;
 use crate::mir::generator::passes::declare::DeclarePass;
 use crate::mir::generator::passes::fill_struct::FillStructPass;
 use crate::mir::generator::passes::PreMIRPass;
-use crate::mir::mir::{MIRExpression, MIRFlow, MIRFunction, MIRStructMem, MIRType, MIRVariable};
+use crate::mir::nodes::{MIRExpression, MIRFlow, MIRFunction, MIRStructMem, MIRType, MIRVariable};
 use crate::mir::{MutRc, MIR};
 use builder::MIRBuilder;
 use std::collections::HashMap;
@@ -42,12 +42,12 @@ impl MIRGenerator {
                     err.message,
                     err.line
                         .map(|l| (l - 1).to_string())
-                        .unwrap_or("?".to_string()),
-                    err.line.map(|l| l.to_string()).unwrap_or("?".to_string()),
+                        .unwrap_or_else(|| "?".to_string()),
+                    err.line.map(|l| l.to_string()).unwrap_or_else(|| "?".to_string()),
                     err.code,
                     err.line
                         .map(|l| (l + 1).to_string())
-                        .unwrap_or("?".to_string()),
+                        .unwrap_or_else(|| "?".to_string()),
                 );
                 Err(())
             })
@@ -101,10 +101,10 @@ impl MIRGenerator {
             if func_type == body.get_type() {
                 self.builder.set_return(MIRFlow::Return(body));
             } else {
-                Err(Error::new_fn(
+                return Err(Error::new_fn(
                     "Function return type does not match body type",
                     &func.sig,
-                ))?;
+                ));
             }
         } else {
             self.builder.insert_at_ptr(body)
@@ -123,18 +123,18 @@ impl MIRGenerator {
                     if value.get_type() == var._type {
                         self.builder.build_store(var, value)
                     } else {
-                        Err(Error::new(
+                        return Err(Error::new(
                             Some(name.line),
                             &format!("Variable {} is a different type", name.lexeme),
                             name.lexeme.to_string(),
-                        ))?
+                        ))
                     }
                 } else {
-                    Err(Error::new(
+                    return Err(Error::new(
                         Some(name.line),
                         &format!("Variable {} is not assignable (val)", name.lexeme),
                         name.lexeme.to_string(),
-                    ))?
+                    ))
                 }
             }
 
@@ -149,11 +149,11 @@ impl MIRGenerator {
                 if (left.get_type() == MIRType::Int) && (right.get_type() == MIRType::Int) {
                     self.builder.build_binary(left, operator, right)
                 } else {
-                    Err(Error::new(
+                    return Err(Error::new(
                         Some(operator.line),
                         "Binary operations are only allowed on i64.",
                         format!("{:?}", operator.t_type),
-                    ))?
+                    ))
                 }
             }
 
@@ -299,7 +299,7 @@ impl MIRGenerator {
                 }
 
                 self.builder.set_return(MIRFlow::Return(
-                    value.unwrap_or_else(|| MIRGenerator::none_const()),
+                    value.unwrap_or_else(MIRGenerator::none_const),
                 ));
                 MIRGenerator::none_const()
             }
@@ -313,7 +313,7 @@ impl MIRGenerator {
                 let value = self.generate_expression(*value)?;
 
                 if value.get_type() != field._type {
-                    Err(Error::useless("Cannot set class member to different type."))?;
+                    return Err(Error::useless("Cannot set class member to different type."));
                 }
 
                 self.builder.build_struct_set(object, field, value)
@@ -367,14 +367,14 @@ impl MIRGenerator {
             .insert(Rc::clone(&var.name), Rc::clone(&var))
             .is_some();
         if was_defined && !allow_redefine {
-            Err(Error {
+            return Err(Error {
                 line: Some(line),
                 message: format!(
                     "Cannot redefine variable '{}' in the same scope.",
                     &var.name
                 ),
                 code: (*var.name).clone(),
-            })?;
+            });
         }
 
         Ok(())
@@ -409,7 +409,7 @@ impl MIRGenerator {
                         .borrow()
                         .members
                         .get(&name.lexeme)
-                        .ok_or(Error::useless(
+                        .ok_or_else(|| Error::useless(
                             "Get syntax is only supported on class instances.",
                         ))?,
                 ),
@@ -429,26 +429,26 @@ impl MIRGenerator {
         let func = func_ref.borrow();
 
         if func.parameters.len() != arguments.len() {
-            Err(Error {
+            return Err(Error {
                 line: arguments.first().map(|e| e.get_line()).flatten(),
                 message: format!(
                     "Incorrect amount of function arguments. (Expected {}; got {})",
                     func.parameters.len(),
                     arguments.len()
                 ),
-                code: display_vec(&arguments),
-            })?;
+                code: display_slice(&arguments),
+            });
         }
 
         let mut result = Vec::with_capacity(arguments.len());
         for (argument, parameter) in arguments.into_iter().zip(func.parameters.iter()) {
             let argument = self.generate_expression(argument)?;
             if argument.get_type() != parameter._type {
-                Err(Error::new(
+                return Err(Error::new(
                     None,
                     "Call argument is the wrong type",
                     "".to_string(),
-                ))?;
+                ));
             }
             result.push(argument)
         }
@@ -468,7 +468,7 @@ impl MIRGenerator {
         MIRExpression::Literal(Literal::None)
     }
 
-    pub fn new() -> MIRGenerator {
+    pub fn new() -> Self {
         let mut generator = MIRGenerator {
             builder: MIRBuilder::new(),
             environments: Vec::with_capacity(5),

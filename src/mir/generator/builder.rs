@@ -4,11 +4,11 @@
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
-use super::super::mir::{MIRFunction, MIRType};
+use super::super::nodes::{MIRFunction, MIRType};
 use crate::ast::literal::Literal;
 use crate::lexer::token::Token;
-use crate::mir::mir::{MIRExpression, MIRFlow, MIRStruct, MIRStructMem, MIRVariable};
-use crate::mir::{mutrc_new, MutRc, MIR};
+use crate::mir::nodes::{MIRExpression, MIRFlow, MIRStruct, MIRStructMem, MIRVariable};
+use crate::mir::{mutrc_new, MutRc};
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -208,9 +208,9 @@ impl MIRBuilder {
     }
 
     pub fn set_block(&mut self, block: &Rc<String>) {
-        self.position
-            .as_mut()
-            .map(|ptr| ptr.block = Rc::clone(block));
+        if let Some(pos) = self.position.as_mut() {
+            pos.block = Rc::clone(block)
+        }
     }
 
     pub fn insert_at_ptr(&mut self, expr: MIRExpression) {

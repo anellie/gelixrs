@@ -157,7 +157,7 @@ impl Display for Expression {
             }
 
             Expression::Call { callee, arguments } => {
-                write!(f, "{}{}", callee, display_vec(arguments))
+                write!(f, "{}{}", callee, display_slice(arguments))
             }
 
             Expression::For { condition, body } => write!(f, "for ({}) {}", condition, body),
@@ -205,9 +205,9 @@ impl Display for Expression {
     }
 }
 
-pub fn display_vec(vec: &Vec<Expression>) -> String {
+pub fn display_slice(slice: &[Expression]) -> String {
     let mut string = String::new();
-    for expr in vec.iter() {
+    for expr in slice.iter() {
         string.push_str(&expr.to_string())
     }
     format!("({})", string)

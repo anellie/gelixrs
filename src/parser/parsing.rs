@@ -225,10 +225,9 @@ impl Parser {
         self.consume(Type::RightParen, "Expected ')' after if condition.");
         let then_branch = Box::new(self.expression()?);
 
-        let mut else_branch = None;
-        if self.match_token(Type::Else) {
-            else_branch = Some(Box::new(self.expression()?));
-        }
+        let else_branch = if self.match_token(Type::Else) {
+            Some(Box::new(self.expression()?))
+        } else { None };
 
         Some(Expression::If {
             condition,
@@ -284,19 +283,19 @@ impl Parser {
     }
 
     fn return_expression(&mut self) -> Option<Expression> {
-        let mut value = None;
-        if !self.check_semi_or_nl() {
-            value = Some(Box::new(self.expression()?));
-        }
+        let value = if !self.check_semi_or_nl() {
+            Some(Box::new(self.expression()?))
+        } else { None };
+
         self.consume_semi_or_nl("Expected newline or ';' after 'return'.");
         Some(Expression::Return(value))
     }
 
     fn break_expression(&mut self) -> Option<Expression> {
-        let mut value = None;
-        if !self.check_semi_or_nl() {
-            value = Some(Box::new(self.expression()?));
-        }
+        let value = if !self.check_semi_or_nl() {
+            Some(Box::new(self.expression()?))
+        } else { None };
+
         self.consume_semi_or_nl("Expected newline or ';' after 'break'.");
         Some(Expression::Break(value))
     }

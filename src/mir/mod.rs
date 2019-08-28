@@ -4,13 +4,13 @@
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
-use mir::{MIRStruct, MIRVariable};
+use nodes::{MIRStruct, MIRVariable};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
 pub mod generator;
-pub mod mir;
+pub mod nodes;
 
 type MutRc<T> = Rc<RefCell<T>>;
 
