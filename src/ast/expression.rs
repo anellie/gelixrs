@@ -140,8 +140,11 @@ impl Display for Expression {
         match self {
             Expression::Assignment { name, value } => write!(f, "{} = {}", name.lexeme, value),
 
-            Expression::Binary { left, operator, right } =>
-                write!(f, "{} {} {}", left, operator.lexeme, right),
+            Expression::Binary {
+                left,
+                operator,
+                right,
+            } => write!(f, "{} {} {}", left, operator.lexeme, right),
 
             Expression::Block(_) => write!(f, "{{ ... }}"),
 
@@ -153,8 +156,9 @@ impl Display for Expression {
                 }
             }
 
-            Expression::Call { callee, arguments } =>
-                write!(f, "{}{}", callee, display_vec(arguments)),
+            Expression::Call { callee, arguments } => {
+                write!(f, "{}{}", callee, display_vec(arguments))
+            }
 
             Expression::For { condition, body } => write!(f, "for ({}) {}", condition, body),
 
@@ -162,7 +166,11 @@ impl Display for Expression {
 
             Expression::Grouping(expr) => write!(f, "({})", expr),
 
-            Expression::If { condition, then_branch, else_branch } => {
+            Expression::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
                 if let Some(else_branch) = else_branch {
                     write!(f, "if ({}) {} else {}", condition, then_branch, else_branch)
                 } else {
@@ -180,8 +188,11 @@ impl Display for Expression {
                 }
             }
 
-            Expression::Set { object, name, value } =>
-                write!(f, "{}.{} = {}", object, name.lexeme, value),
+            Expression::Set {
+                object,
+                name,
+                value,
+            } => write!(f, "{}.{} = {}", object, name.lexeme, value),
 
             Expression::Unary { operator, right } => write!(f, "{}{}", operator.lexeme, right),
 

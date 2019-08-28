@@ -4,15 +4,15 @@
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
+use crate::ast::declaration::{Class, DeclarationList};
+use crate::mir::generator::passes::PreMIRPass;
+use crate::mir::generator::{Error, MIRGenerator, Res};
+use crate::mir::mir::MIRStructMem;
 use std::collections::HashMap;
 use std::rc::Rc;
-use crate::ast::declaration::{Class, DeclarationList};
-use crate::mir::generator::{Error, MIRGenerator, Res};
-use crate::mir::generator::passes::PreMIRPass;
-use crate::mir::mir::MIRStructMem;
 
 pub struct FillStructPass<'p> {
-    gen: &'p mut MIRGenerator
+    gen: &'p mut MIRGenerator,
 }
 
 impl<'p> PreMIRPass for FillStructPass<'p> {
@@ -73,16 +73,20 @@ impl<'p> FillStructPass<'p> {
 
         let mut superclass = None;
         if let Some(super_name) = &class.superclass {
-            let super_struct = self.gen.builder
+            let super_struct = self
+                .gen
+                .builder
                 .find_struct(&super_name.lexeme)
-                .ok_or_else(|| Error::new(
-                    Some(super_name.line),
-                    "Unknown class",
-                    format!(
-                        "class {} ext {} {{ ... }}",
-                        class.name.lexeme, super_name.lexeme
+                .ok_or_else(|| {
+                    Error::new(
+                        Some(super_name.line),
+                        "Unknown class",
+                        format!(
+                            "class {} ext {} {{ ... }}",
+                            class.name.lexeme, super_name.lexeme
+                        ),
                     )
-                ))?;
+                })?;
 
             for member in super_struct.borrow().members.iter() {
                 fields.insert(Rc::clone(member.0), Rc::clone(member.1));
@@ -107,34 +111,39 @@ impl<'p> FillStructPass<'p> {
         &mut self,
         class: &mut Class,
         fields: &mut HashMap<Rc<String>, Rc<MIRStructMem>>,
-        fields_vec: &mut Vec<Rc<MIRStructMem>>
+        fields_vec: &mut Vec<Rc<MIRStructMem>>,
     ) -> Res<()> {
-        let function_rc = self.gen.builder.find_function(&format!("{}-internal-init", &class.name.lexeme)).unwrap();
+        let function_rc = self
+            .gen
+            .builder
+            .find_function(&format!("{}-internal-init", &class.name.lexeme))
+            .unwrap();
         let mut function = function_rc.borrow_mut();
         let struct_var = Rc::clone(&function.parameters[0]);
         function.append_block("entry".to_string());
         drop(function);
-        self.gen.builder.set_pointer(Rc::clone(&function_rc), Rc::new("entry".to_string()));
+        self.gen
+            .builder
+            .set_pointer(Rc::clone(&function_rc), Rc::new("entry".to_string()));
 
         for (i, field) in class.variables.drain(..).enumerate() {
             let value = self.gen.generate_expression(field.initializer)?;
             let member = Rc::new(MIRStructMem {
                 mutable: !field.is_val,
                 _type: value.get_type(),
-                index: i as u32
+                index: i as u32,
             });
 
-            fields.insert(
-                Rc::clone(&field.name.lexeme),
-                Rc::clone(&member)
-            );
+            fields.insert(Rc::clone(&field.name.lexeme), Rc::clone(&member));
             fields_vec.push(Rc::clone(&member));
 
-            self.gen.builder.insert_at_ptr(self.gen.builder.build_struct_set(
-                self.gen.builder.build_load(Rc::clone(&struct_var)),
-                member,
-                value
-            ));
+            self.gen
+                .builder
+                .insert_at_ptr(self.gen.builder.build_struct_set(
+                    self.gen.builder.build_load(Rc::clone(&struct_var)),
+                    member,
+                    value,
+                ));
         }
 
         Ok(())

@@ -4,17 +4,9 @@
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
+use inkwell::{execution_engine::JitFunction, OptimizationLevel};
 use std::{
-    env::current_dir, 
-    ffi::CStr,
-    fs::read_to_string, 
-    path::PathBuf,
-    sync::Mutex,
-    os::raw::c_char
-};
-use inkwell::{
-    OptimizationLevel,
-    execution_engine::JitFunction
+    env::current_dir, ffi::CStr, fs::read_to_string, os::raw::c_char, path::PathBuf, sync::Mutex,
 };
 
 type MainFn = unsafe extern "C" fn();
@@ -24,12 +16,15 @@ lazy_static! {
 }
 
 #[no_mangle]
-extern fn test_print(string: *const c_char) {
+extern "C" fn test_print(string: *const c_char) {
     let string = unsafe { CStr::from_ptr(string) };
-    RESULT.lock().unwrap().push_str(&format!("{}\n", string.to_str().unwrap()));
+    RESULT
+        .lock()
+        .unwrap()
+        .push_str(&format!("{}\n", string.to_str().unwrap()));
 }
 #[no_mangle]
-extern fn test_printnum(num: i64) {
+extern "C" fn test_printnum(num: i64) {
     RESULT.lock().unwrap().push_str(&format!("{}\n", num));
 }
 
@@ -54,9 +49,12 @@ fn for_file(file: PathBuf) -> Result<(), ()> {
         let result = exec_jit(source);
 
         if result != expected {
-            println!("\n\n\nTest failed!\nResult: {:?}\nExpected: {:?}", result, expected);
+            println!(
+                "\n\n\nTest failed!\nResult: {:?}\nExpected: {:?}",
+                result, expected
+            );
         }
-        println!("\n", );
+        println!("\n",);
     }
 
     Ok(())
@@ -66,9 +64,18 @@ fn exec_jit(source: String) -> Result<String, ()> {
     let code = super::parse_source(&source).ok_or(())?;
     let module = super::compile_ir(code).ok_or(())?;
 
-    let engine = module.create_jit_execution_engine(OptimizationLevel::None).ok().ok_or(())?;
-    engine.add_global_mapping(&module.get_function("print").ok_or(())?, test_print as usize);
-    engine.add_global_mapping(&module.get_function("printnum").ok_or(())?, test_printnum as usize);
+    let engine = module
+        .create_jit_execution_engine(OptimizationLevel::None)
+        .ok()
+        .ok_or(())?;
+    engine.add_global_mapping(
+        &module.get_function("print").ok_or(())?,
+        test_print as usize,
+    );
+    engine.add_global_mapping(
+        &module.get_function("printnum").ok_or(())?,
+        test_printnum as usize,
+    );
 
     unsafe {
         let main_fn: JitFunction<MainFn> = engine.get_function("main").ok().ok_or(())?;

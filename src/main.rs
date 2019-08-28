@@ -4,12 +4,7 @@
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
-use std::{
-    env,
-    fs,
-    path::PathBuf,
-    process
-};
+use std::{env, fs, path::PathBuf, process};
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
@@ -35,7 +30,6 @@ struct Opt {
     #[structopt(parse(from_os_str))]
     file: PathBuf,
 }
-
 
 fn main() -> Result<(), &'static str> {
     let args = Opt::from_args();
@@ -90,17 +84,16 @@ fn main() -> Result<(), &'static str> {
         .status()
         .expect("Evoking clang failed.");
 
-    let status =
-        process::Command::new("clang")
-            .arg("-static")
-            .arg("-o")
-            .arg(&args.output.ok_or("Output location required.")?)
-            .arg(asm_file)
-            .arg("-L")
-            .arg(stdlib_dir)
-            .arg("-lstdlib")
-            .status()
-            .expect("Evoking clang failed.");
+    let status = process::Command::new("clang")
+        .arg("-static")
+        .arg("-o")
+        .arg(&args.output.ok_or("Output location required.")?)
+        .arg(asm_file)
+        .arg("-L")
+        .arg(stdlib_dir)
+        .arg("-lstdlib")
+        .status()
+        .expect("Evoking clang failed.");
 
     if !status.success() {
         Err("Compiling to native binary failed. Please try compiling with clang manually using --ir.")

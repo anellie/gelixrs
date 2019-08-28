@@ -6,8 +6,8 @@
 
 pub mod token;
 
-use token::{Token, Type};
 use std::rc::Rc;
+use token::{Token, Type};
 
 /// A lexer is an iterator that turns gelix source code into [Token]s.
 pub struct Lexer {
@@ -219,9 +219,11 @@ impl Lexer {
     fn make_token(&mut self, t_type: Type) -> Token {
         Token {
             t_type,
-            lexeme: Rc::new(self.chars[(self.start)..(self.current)]
-                .into_iter()
-                .collect()),
+            lexeme: Rc::new(
+                self.chars[(self.start)..(self.current)]
+                    .into_iter()
+                    .collect(),
+            ),
             line: self.line,
         }
     }

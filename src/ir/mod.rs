@@ -8,9 +8,9 @@ use super::{
     ast::literal::Literal,
     lexer::token::Type,
     mir::{
-        mir::{MIRStruct, MIRFunction, MIRType, MIRBlock, MIRExpression, MIRFlow, MIRVariable},
+        mir::{MIRBlock, MIRExpression, MIRFlow, MIRFunction, MIRStruct, MIRType, MIRVariable},
         MIR,
-    }
+    },
 };
 use inkwell::{
     basic_block::BasicBlock,
@@ -18,17 +18,17 @@ use inkwell::{
     context::Context,
     module::Module,
     passes::PassManager,
-    types::{AnyTypeEnum, BasicTypeEnum, BasicType, FunctionType, StructType},
+    types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType, StructType},
     values::{BasicValue, BasicValueEnum, FunctionValue, PointerValue},
     AddressSpace, IntPredicate,
 };
+use std::hash::{Hash, Hasher};
 use std::{
     cell::{Ref, RefMut},
     collections::HashMap, 
     convert::TryInto, 
     rc::Rc,
 };
-use std::hash::{Hash, Hasher};
 
 /// A generator that creates LLVM IR out of Gelix mid-level IR (MIR).
 ///
@@ -56,7 +56,9 @@ pub struct IRGenerator {
     // Simply a string called "entry". Needed to find the entry block of functions.
     entry_const: String,
 
-    deref_structs: bool
+    // Determines if struct instances are dereferenced from PoiterType to StructType.
+    // This variable is needed since calls cannot have deref'd arguments.
+    deref_structs: bool,
 }
 
 impl IRGenerator {
@@ -73,13 +75,21 @@ impl IRGenerator {
         for (name, func) in mir.functions.iter() {
             let func_val = if let MIRType::Function(func) = &func._type {
                 let func = func.borrow();
-                self.module.add_function(&name, self.get_fn_type(&func), None)
-            } else { panic!("that function ain't a function...") };
+                self.module
+                    .add_function(&name, self.get_fn_type(&func), None)
+            } else {
+                panic!("that function ain't a function...")
+            };
 
-            self.variables.insert(PtrEqRc::new(func), func_val.as_global_value().as_pointer_value());
+            self.variables.insert(
+                PtrEqRc::new(func),
+                func_val.as_global_value().as_pointer_value(),
+            );
         }
 
-        mir.types.into_iter().for_each(|struc| self.struc(struc.borrow()));
+        mir.types
+            .into_iter()
+            .for_each(|struc| self.struc(struc.borrow()));
         mir.functions
             .into_iter()
             .for_each(|(name, func)| self.function(name, func));
@@ -90,7 +100,11 @@ impl IRGenerator {
 
     fn struc(&mut self, _struc: Ref<MIRStruct>) {
         let struc_val = self.types[&_struc.name];
-        let body: Vec<BasicTypeEnum> = _struc.member_order.iter().map(|mem| self.to_ir_type_no_ptr(&mem._type)).collect();
+        let body: Vec<BasicTypeEnum> = _struc
+            .member_order
+            .iter()
+            .map(|mem| self.to_ir_type_no_ptr(&mem._type))
+            .collect();
         struc_val.set_body(body.as_slice(), false);
     }
 
@@ -120,7 +134,9 @@ impl IRGenerator {
             self.variables.insert(PtrEqRc::new(arg), alloca);
         }
         for (name, var) in func.variables.iter() {
-            let alloca = self.builder.build_alloca(self.to_ir_type_no_ptr(&var._type), &name);
+            let alloca = self
+                .builder
+                .build_alloca(self.to_ir_type_no_ptr(&var._type), &name);
             self.variables.insert(PtrEqRc::new(var), alloca);
         }
 
@@ -165,20 +181,26 @@ impl IRGenerator {
         match &mir_bb.last {
             MIRFlow::None => self.builder.build_return(None),
 
-            MIRFlow::Jump(block) => self.builder.build_unconditional_branch(&self.get_block(block)),
+            MIRFlow::Jump(block) => self
+                .builder
+                .build_unconditional_branch(&self.get_block(block)),
 
-            MIRFlow::Branch { condition, then_b, else_b } => {
+            MIRFlow::Branch {
+                condition,
+                then_b,
+                else_b,
+            } => {
                 let condition = self.generate_expression(condition);
                 if let BasicValueEnum::IntValue(condition) = condition {
                     self.builder.build_conditional_branch(
                         condition,
                         &self.get_block(then_b),
-                        &self.get_block(else_b)
+                        &self.get_block(else_b),
                     )
                 } else {
                     panic!("br condition wasn't a boolean");
                 }
-            },
+            }
 
             MIRFlow::Return(value) => {
                 let value = self.generate_expression(value);
@@ -187,7 +209,7 @@ impl IRGenerator {
                 } else {
                     self.builder.build_return(Some(&value))
                 }
-            },
+            }
         };
     }
 
@@ -204,7 +226,11 @@ impl IRGenerator {
         match expression {
             // TODO: This is verbose and not very flexible.
             // Should really be replaced with operator overloading in gelix or similar
-            MIRExpression::Binary { left, operator, right } => {
+            MIRExpression::Binary {
+                left,
+                operator,
+                right,
+            } => {
                 let left = self.generate_expression(left);
                 let right = self.generate_expression(right);
 
@@ -232,7 +258,7 @@ impl IRGenerator {
 
                     _ => panic!("Unsupported binary operand"),
                 })
-            },
+            }
 
             MIRExpression::Call { callee, arguments } => {
                 let callee = self.generate_expression(callee);
@@ -244,22 +270,23 @@ impl IRGenerator {
                         .collect();
                     self.deref_structs = true;
                     
-                    let ret = self.builder.build_call(ptr, arguments.as_slice(), "call").try_as_basic_value();
+                    let ret = self
+                        .builder
+                        .build_call(ptr, arguments.as_slice(), "call")
+                        .try_as_basic_value();
                     ret.left().unwrap_or(self.none_const)
                 } else {
                     panic!("Call target wasn't a function pointer");
                 }
-            },
+            }
 
-            MIRExpression::Function(func) => {
-                BasicValueEnum::PointerValue(
+            MIRExpression::Function(func) => BasicValueEnum::PointerValue(
                     self.module
                         .get_function(&func.borrow().name)
                         .unwrap()
                         .as_global_value()
-                        .as_pointer_value()
-                )
-            }
+                    .as_pointer_value(),
+            ),
 
             MIRExpression::Phi(branches) => {
                 let cur_block = self.builder.get_insert_block().unwrap();
@@ -292,9 +319,13 @@ impl IRGenerator {
                 } else {
                     panic!("Get target wasn't a struct")
                 }
-            },
+            }
 
-            MIRExpression::StructSet { object, index, value } => {
+            MIRExpression::StructSet {
+                object,
+                index,
+                value,
+            } => {
                 let struc = self.generate_expression(object);
                 if let BasicValueEnum::PointerValue(ptr) = struc {
                     let ptr = unsafe { self.builder.build_struct_gep(ptr, *index, "classgep") };
@@ -304,10 +335,9 @@ impl IRGenerator {
                 } else {
                     panic!("Get target wasn't a struct")
                 }
-            },
+            }
 
-            MIRExpression::Literal(literal) => {
-                match literal {
+            MIRExpression::Literal(literal) => match literal {
                     Literal::None => self.none_const,
                     Literal::Bool(value) => self
                         .context
@@ -326,7 +356,6 @@ impl IRGenerator {
                         BasicValueEnum::PointerValue(const_str.as_pointer_value())
                     }
                     _ => panic!("What is that?"),
-                }
             },
 
             // TODO: This is stupidly verbose
@@ -334,9 +363,9 @@ impl IRGenerator {
                 let expr = self.generate_expression(right);
                 match operator.t_type {
                     Type::Minus => match expr {
-                        BasicValueEnum::IntValue(int) => {
-                            BasicValueEnum::IntValue(self.builder.build_int_neg(int.into(), "unaryneg"))
-                        }
+                        BasicValueEnum::IntValue(int) => BasicValueEnum::IntValue(
+                            self.builder.build_int_neg(int.into(), "unaryneg"),
+                        ),
 
                         BasicValueEnum::FloatValue(float) => BasicValueEnum::FloatValue(
                             self.builder.build_float_neg(float.into(), "unaryneg"),
@@ -355,7 +384,7 @@ impl IRGenerator {
 
                     _ => panic!("Invalid unary operator"),
                 }
-            },
+            }
 
             MIRExpression::VarGet(var) => self.load_ptr(self.get_variable(var)),
 
@@ -364,7 +393,7 @@ impl IRGenerator {
                 let value = self.generate_expression(value);
                 self.builder.build_store(variable, value);
                 value
-            },
+            }
         }
     }
 
@@ -372,16 +401,17 @@ impl IRGenerator {
         match ptr.get_type().get_element_type() {
             AnyTypeEnum::FunctionType(_) => BasicValueEnum::PointerValue(ptr),
             AnyTypeEnum::StructType(_) if !self.deref_structs => BasicValueEnum::PointerValue(ptr),
-            _ => self.builder.build_load(ptr, "var")
+            _ => self.builder.build_load(ptr, "var"),
         }
     }
 
     fn to_ir_type(&self, mir: &MIRType) -> BasicTypeEnum {
         let ir = self.to_ir_type_no_ptr(mir);
         match ir {
-            BasicTypeEnum::StructType(struc) if ir != self.none_const.get_type() =>
-                struc.ptr_type(AddressSpace::Generic).as_basic_type_enum(),
-            _ => ir
+            BasicTypeEnum::StructType(struc) if ir != self.none_const.get_type() => {
+                struc.ptr_type(AddressSpace::Generic).as_basic_type_enum()
+            }
+            _ => ir,
         }
     }
 
@@ -397,8 +427,11 @@ impl IRGenerator {
                 .i8_type()
                 .ptr_type(AddressSpace::Generic)
                 .as_basic_type_enum(),
-            MIRType::Function(func) => self.get_fn_type(&func.borrow()).ptr_type(AddressSpace::Generic).as_basic_type_enum(),
-            MIRType::Struct(struc) => self.types[&struc.borrow().name].as_basic_type_enum()
+            MIRType::Function(func) => self
+                .get_fn_type(&func.borrow())
+                .ptr_type(AddressSpace::Generic)
+                .as_basic_type_enum(),
+            MIRType::Struct(struc) => self.types[&struc.borrow().name].as_basic_type_enum(),
         }
     }
 
@@ -466,7 +499,7 @@ impl IRGenerator {
             types: HashMap::with_capacity(10),
             none_const: none_const.into(),
             entry_const: String::from("entry"),
-            deref_structs: true
+            deref_structs: true,
         }
     }
 }
@@ -485,8 +518,7 @@ impl<T: Hash> PartialEq for PtrEqRc<T> {
     }
 }
 
-impl<T: Hash> Eq for PtrEqRc<T> {
-}
+impl<T: Hash> Eq for PtrEqRc<T> {}
 
 impl<T: Hash> Hash for PtrEqRc<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {

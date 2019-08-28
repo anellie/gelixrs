@@ -5,8 +5,8 @@
  */
 
 use mir::{MIRStruct, MIRVariable};
-use std::collections::HashMap;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 pub mod generator;

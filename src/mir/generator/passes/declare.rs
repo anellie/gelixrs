@@ -4,16 +4,16 @@
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
-use crate::mir::generator::passes::PreMIRPass;
-use crate::mir::generator::{MIRGenerator, Res, Error};
-use crate::ast::declaration::{DeclarationList, FuncSignature, FunctionArg, Class};
+use crate::ast::declaration::{Class, DeclarationList, FuncSignature, FunctionArg};
 use crate::lexer::token::Token;
+use crate::mir::generator::passes::PreMIRPass;
+use crate::mir::generator::{Error, MIRGenerator, Res};
+use crate::mir::mir::{MIRType, MIRVariable};
 use std::rc::Rc;
-use crate::mir::mir::{MIRVariable, MIRType};
 
 pub struct DeclarePass<'p> {
     gen: &'p mut MIRGenerator,
-    none_const: Rc<String>
+    none_const: Rc<String>,
 }
 
 impl<'p> PreMIRPass for DeclarePass<'p> {
@@ -35,32 +35,37 @@ impl<'p> DeclarePass<'p> {
 
     fn create_class(&mut self, class: &Class) -> Res<()> {
         // Create struct (filled later)
-        self.gen.builder
+        self.gen
+            .builder
             .create_struct(Rc::clone(&class.name.lexeme))
-            .ok_or_else(|| Error::new(
-                Some(class.name.line),
-                "Class was already defined!",
-                format!("class {} {{ ... }}", &class.name.lexeme))
-            )?;
+            .ok_or_else(|| {
+                Error::new(
+                    Some(class.name.line),
+                    "Class was already defined!",
+                    format!("class {} {{ ... }}", &class.name.lexeme),
+                )
+            })?;
 
         // Create init function
-        self.create_function(
-            &FuncSignature {
-                name: Token::generic_identifier(format!("{}-internal-init", &class.name.lexeme)),
-                return_type: None,
-                parameters: vec![FunctionArg {
-                    name: Token::generic_identifier("this".to_string()),
-                    _type: class.name.clone(),
-                }],
-            }
-        )?;
+        self.create_function(&FuncSignature {
+            name: Token::generic_identifier(format!("{}-internal-init", &class.name.lexeme)),
+            return_type: None,
+            parameters: vec![FunctionArg {
+                name: Token::generic_identifier("this".to_string()),
+                _type: class.name.clone(),
+            }],
+        })?;
 
         Ok(())
     }
 
     /// This part declares all functions (their signatures).
     fn functions(&mut self, list: &mut DeclarationList) -> Res<()> {
-        for function in list.ext_functions.iter().chain(list.functions.iter().map(|f| &f.sig)) {
+        for function in list
+            .ext_functions
+            .iter()
+            .chain(list.functions.iter().map(|f| &f.sig))
+        {
             self.create_function(&function)?;
         }
 
@@ -76,31 +81,50 @@ impl<'p> DeclarePass<'p> {
     }
 
     fn create_function(&mut self, func_sig: &FuncSignature) -> Res<()> {
-        let ret_type = &self.gen.builder.find_type(
-            func_sig.return_type
-                .as_ref()
-                .map(|t| &t.lexeme)
-                .unwrap_or(&self.none_const)
-        ).ok_or_else(|| Error::new_fn("Unknown function return type", &func_sig))?;
+        let ret_type = &self
+            .gen
+            .builder
+            .find_type(
+                func_sig
+                    .return_type
+                    .as_ref()
+                    .map(|t| &t.lexeme)
+                    .unwrap_or(&self.none_const),
+            )
+            .ok_or_else(|| Error::new_fn("Unknown function return type", &func_sig))?;
 
         let mut parameters = Vec::with_capacity(func_sig.parameters.len());
         for param in func_sig.parameters.iter() {
             parameters.push(Rc::new(MIRVariable {
                 mutable: false,
                 name: Rc::clone(&param.name.lexeme),
-                _type: self.gen.builder
+                _type: self
+                    .gen
+                    .builder
                     .find_type(&param._type.lexeme)
-                    .ok_or_else(|| Error::new_fn("Function parameter has unknown type", &func_sig))?
+                    .ok_or_else(|| {
+                        Error::new_fn("Function parameter has unknown type", &func_sig)
+                    })?,
             }))
         }
 
-        let function = self.gen.builder
-            .create_function(Rc::clone(&func_sig.name.lexeme), ret_type.clone(), parameters)
+        let function = self
+            .gen
+            .builder
+            .create_function(
+                Rc::clone(&func_sig.name.lexeme),
+                ret_type.clone(),
+                parameters,
+            )
             .ok_or_else(|| Error::new_fn("Function was declared twice", &func_sig))?;
 
         self.gen.environments.first_mut().unwrap().insert(
             Rc::clone(&func_sig.name.lexeme),
-            Rc::new(MIRVariable::new(Rc::clone(&func_sig.name.lexeme), MIRType::Function(function), false))
+            Rc::new(MIRVariable::new(
+                Rc::clone(&func_sig.name.lexeme),
+                MIRType::Function(function),
+                false,
+            )),
         );
 
         Ok(())
@@ -109,7 +133,7 @@ impl<'p> DeclarePass<'p> {
     pub fn new(gen: &'p mut MIRGenerator) -> DeclarePass<'p> {
         DeclarePass {
             gen,
-            none_const: Rc::new("None".to_string())
+            none_const: Rc::new("None".to_string()),
         }
     }
 }

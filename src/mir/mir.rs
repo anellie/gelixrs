@@ -4,14 +4,14 @@
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
-use std::collections::HashMap;
-use crate::ast::literal::Literal;
 use crate::ast::expression::LOGICAL_BINARY;
+use crate::ast::literal::Literal;
 use crate::lexer::token::{Token, Type};
 use crate::mir::MutRc;
-use std::rc::Rc;
 use std::cell::RefCell;
-use std::hash::{Hasher, Hash};
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
+use std::rc::Rc;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum MIRType {
@@ -22,7 +22,7 @@ pub enum MIRType {
     Double,
     String,
     Function(MutRc<MIRFunction>),
-    Struct(MutRc<MIRStruct>)
+    Struct(MutRc<MIRStruct>),
 }
 
 #[derive(Debug)]
@@ -30,7 +30,7 @@ pub struct MIRStruct {
     pub name: Rc<String>,
     pub members: HashMap<Rc<String>, Rc<MIRStructMem>>,
     pub member_order: Vec<Rc<MIRStructMem>>,
-    pub super_struct: Option<MutRc<MIRStruct>>
+    pub super_struct: Option<MutRc<MIRStruct>>,
 }
 
 #[derive(Debug)]
@@ -52,7 +52,7 @@ pub struct MIRFunction {
     pub parameters: Vec<Rc<MIRVariable>>,
     pub blocks: HashMap<Rc<String>, MIRBlock>,
     pub variables: HashMap<Rc<String>, Rc<MIRVariable>>,
-    pub ret_type: MIRType
+    pub ret_type: MIRType,
 }
 
 impl PartialEq for MIRFunction {
@@ -67,10 +67,13 @@ impl MIRFunction {
             name = format!("{}-{}", name, self.blocks.len());
         }
         let rc = Rc::new(name);
-        self.blocks.insert(Rc::clone(&rc), MIRBlock {
-            expressions: Vec::with_capacity(5),
-            last: MIRFlow::None
-        });
+        self.blocks.insert(
+            Rc::clone(&rc),
+            MIRBlock {
+                expressions: Vec::with_capacity(5),
+                last: MIRFlow::None,
+            },
+        );
         rc
     }
 
@@ -92,7 +95,11 @@ pub struct MIRVariable {
 
 impl MIRVariable {
     pub fn new(name: Rc<String>, _type: MIRType, mutable: bool) -> MIRVariable {
-        MIRVariable { name, _type, mutable }
+        MIRVariable {
+            name,
+            _type,
+            mutable,
+        }
     }
 }
 
@@ -105,7 +112,7 @@ impl Hash for MIRVariable {
 #[derive(Debug)]
 pub struct MIRBlock {
     pub expressions: Vec<MIRExpression>,
-    pub last: MIRFlow
+    pub last: MIRFlow,
 }
 
 #[derive(Debug)]
@@ -117,10 +124,10 @@ pub enum MIRFlow {
     Branch {
         condition: MIRExpression,
         then_b: Rc<String>,
-        else_b: Rc<String>
+        else_b: Rc<String>,
     },
 
-    Return(MIRExpression)
+    Return(MIRExpression),
 }
 
 #[derive(Debug)]
@@ -129,12 +136,12 @@ pub enum MIRExpression {
     Binary {
         left: Box<MIRExpression>,
         operator: Token,
-        right: Box<MIRExpression>
+        right: Box<MIRExpression>,
     },
 
     Call {
         callee: Box<MIRExpression>,
-        arguments: Vec<MIRExpression>
+        arguments: Vec<MIRExpression>,
     },
 
     Function(MutRc<MIRFunction>),
@@ -143,28 +150,28 @@ pub enum MIRExpression {
 
     StructGet {
         object: Box<MIRExpression>,
-        index: u32
+        index: u32,
     },
 
     StructSet {
         object: Box<MIRExpression>,
         index: u32,
-        value: Box<MIRExpression>
+        value: Box<MIRExpression>,
     },
 
     Literal(Literal),
 
     Unary {
         operator: Token,
-        right: Box<MIRExpression>
+        right: Box<MIRExpression>,
     },
 
     VarGet(Rc<MIRVariable>),
 
     VarStore {
         var: Rc<MIRVariable>,
-        value: Box<MIRExpression>
-    }
+        value: Box<MIRExpression>,
+    },
 }
 
 impl MIRExpression {
@@ -179,7 +186,7 @@ impl MIRExpression {
                 } else {
                     left.get_type()
                 }
-            },
+            }
 
             MIRExpression::Call { callee, .. } => {
                 if let MIRType::Function(func) = callee.get_type() {
@@ -187,36 +194,34 @@ impl MIRExpression {
                 } else {
                     panic!("non-function call type")
                 }
-            },
+            }
 
             MIRExpression::Function(func) => func.borrow().ret_type.clone(),
 
             MIRExpression::Phi(branches) => branches.first().unwrap().0.get_type(),
 
-            MIRExpression::StructGet { object, index } =>
-                MIRExpression::type_from_struct_get(object, index),
+            MIRExpression::StructGet { object, index } => {
+                MIRExpression::type_from_struct_get(object, index)
+            }
 
-            MIRExpression::StructSet { object, index, .. } =>
-                MIRExpression::type_from_struct_get(object, index),
+            MIRExpression::StructSet { object, index, .. } => {
+                MIRExpression::type_from_struct_get(object, index)
+            }
 
-            MIRExpression::Literal(literal) => {
-                match literal {
-                    Literal::None => MIRType::None,
-                    Literal::Bool(_) => MIRType::Bool,
-                    Literal::Int(_) => MIRType::Int,
-                    Literal::Float(_) => MIRType::Float,
-                    Literal::Double(_) => MIRType::Double,
-                    Literal::String(_) => MIRType::String,
-                    _ => panic!("unknown literal"),
-                }
+            MIRExpression::Literal(literal) => match literal {
+                Literal::None => MIRType::None,
+                Literal::Bool(_) => MIRType::Bool,
+                Literal::Int(_) => MIRType::Int,
+                Literal::Float(_) => MIRType::Float,
+                Literal::Double(_) => MIRType::Double,
+                Literal::String(_) => MIRType::String,
+                _ => panic!("unknown literal"),
             },
 
-            MIRExpression::Unary { operator, right } => {
-                match operator.t_type {
-                    Type::Bang => MIRType::Bool,
-                    Type::Minus => right.get_type(),
-                    _ => panic!("invalid unary")
-                }
+            MIRExpression::Unary { operator, right } => match operator.t_type {
+                Type::Bang => MIRType::Bool,
+                Type::Minus => right.get_type(),
+                _ => panic!("invalid unary"),
             },
 
             MIRExpression::VarGet(var) => var._type.clone(),
@@ -228,7 +233,14 @@ impl MIRExpression {
     fn type_from_struct_get(object: &MIRExpression, index: &u32) -> MIRType {
         let object = object.get_type();
         if let MIRType::Struct(struc) = object {
-            RefCell::borrow(&struc).members.iter().find(|(_, mem)| mem.index == *index).unwrap().1._type.clone()
+            RefCell::borrow(&struc)
+                .members
+                .iter()
+                .find(|(_, mem)| mem.index == *index)
+                .unwrap()
+                .1
+                ._type
+                .clone()
         } else {
             panic!("non-struct struct get")
         }
