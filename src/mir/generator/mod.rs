@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/28/19 4:07 PM.
+ * Last modified on 8/28/19 4:44 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -103,7 +103,7 @@ impl MIRGenerator {
                 &func.sig,
             ))?;
         }
-        self.builder.set_return(MIRFlow::Return(Some(body)));
+        self.builder.set_return(MIRFlow::Return(body));
         self.end_scope();
         Ok(())
     }
@@ -262,7 +262,23 @@ impl MIRGenerator {
 
             Expression::Literal(literal) => self.builder.build_literal(literal),
 
-            Expression::Return(_) => unimplemented!(),
+            Expression::Return(value) => {
+                let value = value.map(|v| self.generate_expression(*v)).transpose()?;
+                let _type = value.as_ref().map(|v| v.get_type()).unwrap_or(MIRType::None);
+
+                if _type != self.builder.cur_fn().borrow().ret_type {
+                    // TODO: useless error
+                    return Err(Error::new(
+                        None,
+                        "Return expression has wrong type",
+                        "".to_string(),
+                    ))
+                }
+
+                self.builder.set_return(MIRFlow::Return(value.unwrap_or_else(|| MIRGenerator::none_const())));
+                MIRGenerator::none_const()
+            },
+
             Expression::Set { object: _, name: _, value: _ } => unimplemented!(),
             Expression::Unary { operator: _, right: _ } => unimplemented!(),
 

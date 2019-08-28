@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/28/19 4:24 PM.
+ * Last modified on 8/28/19 4:42 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -100,8 +100,17 @@ impl IRGenerator {
         let entry_b = func.blocks.remove_entry(&self.entry_const).unwrap();
         let entry_bb = self.context.append_basic_block(&func_val, &entry_b.0);
 
+        // First, build all function alloca
         self.builder.position_at_end(&entry_bb);
-        self.build_func_alloca(func);
+        for (arg, arg_val) in func.parameters.iter().zip(func_val.get_param_iter()) {
+            let alloca = self.builder.build_alloca(arg_val.get_type(), &arg.name);
+            self.builder.build_store(alloca, arg_val);
+            self.variables.insert(PtrEqRc::new(arg), alloca);
+        }
+        for (name, var) in func.variables.iter() {
+            let alloca = self.builder.build_alloca(self.to_ir_type(&var._type), &name);
+            self.variables.insert(PtrEqRc::new(var), alloca);
+        }
 
         // Fill in all blocks first before generating any actual code;
         // otherwise referencing a block yet to be built would result in a panic
@@ -128,18 +137,6 @@ impl IRGenerator {
         }
     }
 
-    fn build_func_alloca(&mut self, func: RefMut<MIRFunction>) {
-        for (arg, arg_val) in func.parameters.iter().zip(func_val.get_param_iter()) {
-            let alloca = self.builder.build_alloca(arg_val.get_type(), &arg.name);
-            self.builder.build_store(alloca, arg_val);
-            self.variables.insert(PtrEqRc::new(arg), alloca);
-        }
-        for (name, var) in func.variables.iter() {
-            let alloca = self.builder.build_alloca(self.to_ir_type(&var._type), &name);
-            self.variables.insert(PtrEqRc::new(var), alloca);
-        }
-    }
-
     fn fill_basic_block(&mut self, mir_bb: &MIRBlock, block: BasicBlock) {
         match block.get_first_instruction() {
             Some(inst) => self.builder.position_before(&inst),
@@ -154,6 +151,8 @@ impl IRGenerator {
     fn build_bb_end(&mut self, mir_bb: &MIRBlock, block: BasicBlock) {
         self.builder.position_at_end(&block);
         match &mir_bb.last {
+            MIRFlow::None => panic!("IRGen encountered block with missing last statement."),
+
             MIRFlow::Jump(block) => self.builder.build_unconditional_branch(&self.get_block(block)),
 
             MIRFlow::Branch { condition, then_b, else_b } => {
@@ -170,16 +169,11 @@ impl IRGenerator {
             },
 
             MIRFlow::Return(value) => {
-                if let Some(value) = value {
-                    let value = self.generate_expression(value);
-
-                    if value.get_type() == self.none_const.get_type() {
-                        self.builder.build_return(None)
-                    } else {
-                        self.builder.build_return(Some(&value))
-                    }
-                } else {
+                let value = self.generate_expression(value);
+                if value.get_type() == self.none_const.get_type() {
                     self.builder.build_return(None)
+                } else {
+                    self.builder.build_return(Some(&value))
                 }
             },
         };

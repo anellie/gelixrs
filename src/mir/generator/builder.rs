@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/28/19 4:07 PM.
+ * Last modified on 8/28/19 4:43 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -135,7 +135,15 @@ impl MIRBuilder {
     }
 
     pub fn set_return(&mut self, ret: MIRFlow) {
-        self.cur_fn().borrow_mut().blocks.get_mut(&self.position.as_ref().unwrap().block).unwrap().last = ret
+        let cur_fn = self.cur_fn();
+        let mut cur_fn = cur_fn.borrow_mut();
+        let mut block = cur_fn.blocks.get_mut(&self.position.as_ref().unwrap().block).unwrap();
+        // If the return type is not None, it was already overridden by something else
+        // (return or break expression mostly) and should not be changed.
+        // (discriminant returns a unique id of an enum variant)
+        if std::mem::discriminant(&block.last) == std::mem::discriminant(&MIRFlow::None) {
+            block.last = ret
+        }
     }
 
     pub fn find_type(&self, name: &String) -> Option<MIRType> {

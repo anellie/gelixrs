@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/27/19 6:20 PM.
+ * Last modified on 8/28/19 4:40 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -68,7 +68,7 @@ impl MIRFunction {
         let rc = Rc::new(name);
         self.blocks.insert(Rc::clone(&rc), MIRBlock {
             expressions: Vec::with_capacity(5),
-            last: MIRFlow::Return(None)
+            last: MIRFlow::None
         });
         rc
     }
@@ -109,6 +109,8 @@ pub struct MIRBlock {
 
 #[derive(Debug)]
 pub enum MIRFlow {
+    None,
+
     Jump(Rc<String>),
 
     Branch {
@@ -117,7 +119,7 @@ pub enum MIRFlow {
         else_b: Rc<String>
     },
 
-    Return(Option<MIRExpression>)
+    Return(MIRExpression)
 }
 
 #[derive(Debug)]
