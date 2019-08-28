@@ -29,6 +29,7 @@ pub enum MIRType {
 pub struct MIRStruct {
     pub name: Rc<String>,
     pub members: HashMap<Rc<String>, Rc<MIRStructMem>>,
+    pub member_order: Vec<Rc<MIRStructMem>>,
     pub super_struct: Option<MutRc<MIRStruct>>
 }
 

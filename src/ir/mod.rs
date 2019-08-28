@@ -54,12 +54,21 @@ pub struct IRGenerator {
     // A constant that is used for expressions that don't produce a value but are required to.
     none_const: BasicValueEnum,
     // Simply a string called "entry". Needed to find the entry block of functions.
-    entry_const: String
+    entry_const: String,
+
+    deref_structs: bool
 }
 
 impl IRGenerator {
     /// Generates IR. Will process MIR given.
     pub fn generate(mut self, mir: MIR) -> Module {
+        // Create structs for all classes
+        for struc in mir.types.iter() {
+            let struc = struc.borrow();
+            let val = self.context.opaque_struct_type(&struc.name);
+            self.types.insert(Rc::clone(&struc.name), val);
+        }
+
         // Put all functions into the variables map first
         for (name, func) in mir.functions.iter() {
             let func_val = if let MIRType::Function(func) = &func._type {
@@ -80,7 +89,9 @@ impl IRGenerator {
     }
 
     fn struc(&mut self, _struc: Ref<MIRStruct>) {
-        unimplemented!()
+        let struc_val = self.types[&_struc.name];
+        let body: Vec<BasicTypeEnum> = _struc.member_order.iter().map(|mem| self.to_ir_type_no_ptr(&mem._type)).collect();
+        struc_val.set_body(body.as_slice(), false);
     }
 
     fn function(&mut self, name: Rc<String>, func: Rc<MIRVariable>) {
@@ -92,6 +103,7 @@ impl IRGenerator {
                 self.function_body(func, func_val)
             }
         }
+        func_val.verify(true);
     }
 
     fn function_body(&mut self, mut func: RefMut<MIRFunction>, func_val: FunctionValue) {
@@ -108,7 +120,7 @@ impl IRGenerator {
             self.variables.insert(PtrEqRc::new(arg), alloca);
         }
         for (name, var) in func.variables.iter() {
-            let alloca = self.builder.build_alloca(self.to_ir_type(&var._type), &name);
+            let alloca = self.builder.build_alloca(self.to_ir_type_no_ptr(&var._type), &name);
             self.variables.insert(PtrEqRc::new(var), alloca);
         }
 
@@ -151,7 +163,7 @@ impl IRGenerator {
     fn build_bb_end(&mut self, mir_bb: &MIRBlock, block: BasicBlock) {
         self.builder.position_at_end(&block);
         match &mir_bb.last {
-            MIRFlow::None => panic!("IRGen encountered block with missing last statement."),
+            MIRFlow::None => self.builder.build_return(None),
 
             MIRFlow::Jump(block) => self.builder.build_unconditional_branch(&self.get_block(block)),
 
@@ -225,11 +237,13 @@ impl IRGenerator {
             MIRExpression::Call { callee, arguments } => {
                 let callee = self.generate_expression(callee);
                 if let BasicValueEnum::PointerValue(ptr) = callee {
+                    self.deref_structs = false;
                     let arguments: Vec<BasicValueEnum> = arguments
                         .iter()
                         .map(|arg| self.generate_expression(arg))
                         .collect();
-
+                    self.deref_structs = true;
+                    
                     let ret = self.builder.build_call(ptr, arguments.as_slice(), "call").try_as_basic_value();
                     ret.left().unwrap_or(self.none_const)
                 } else {
@@ -274,7 +288,7 @@ impl IRGenerator {
                 let struc = self.generate_expression(object);
                 if let BasicValueEnum::PointerValue(ptr) = struc {
                     let ptr = unsafe { self.builder.build_struct_gep(ptr, *index, "classgep") };
-                    BasicValueEnum::PointerValue(ptr)
+                    self.load_ptr(ptr)
                 } else {
                     panic!("Get target wasn't a struct")
                 }
@@ -343,15 +357,7 @@ impl IRGenerator {
                 }
             },
 
-            MIRExpression::VarGet(var) => {
-                let var = self.get_variable(var);
-                // If it is a function, loading it isn't be possible.
-                if let AnyTypeEnum::FunctionType(_) = var.get_type().get_element_type() {
-                    BasicValueEnum::PointerValue(var)
-                } else {
-                    self.builder.build_load(var, "var")
-                }
-            },
+            MIRExpression::VarGet(var) => self.load_ptr(self.get_variable(var)),
 
             MIRExpression::VarStore { var, value } => {
                 let variable = self.get_variable(var);
@@ -362,7 +368,24 @@ impl IRGenerator {
         }
     }
 
+    fn load_ptr(&mut self, ptr: PointerValue) -> BasicValueEnum {
+        match ptr.get_type().get_element_type() {
+            AnyTypeEnum::FunctionType(_) => BasicValueEnum::PointerValue(ptr),
+            AnyTypeEnum::StructType(_) if !self.deref_structs => BasicValueEnum::PointerValue(ptr),
+            _ => self.builder.build_load(ptr, "var")
+        }
+    }
+
     fn to_ir_type(&self, mir: &MIRType) -> BasicTypeEnum {
+        let ir = self.to_ir_type_no_ptr(mir);
+        match ir {
+            BasicTypeEnum::StructType(struc) if ir != self.none_const.get_type() =>
+                struc.ptr_type(AddressSpace::Generic).as_basic_type_enum(),
+            _ => ir
+        }
+    }
+
+    fn to_ir_type_no_ptr(&self, mir: &MIRType) -> BasicTypeEnum {
         match mir {
             MIRType::None => self.none_const.get_type(),
             MIRType::Bool => self.context.bool_type().as_basic_type_enum(),
@@ -375,7 +398,7 @@ impl IRGenerator {
                 .ptr_type(AddressSpace::Generic)
                 .as_basic_type_enum(),
             MIRType::Function(func) => self.get_fn_type(&func.borrow()).ptr_type(AddressSpace::Generic).as_basic_type_enum(),
-            MIRType::Struct(struc) => self.types[&struc.borrow().name].ptr_type(AddressSpace::Generic).as_basic_type_enum()
+            MIRType::Struct(struc) => self.types[&struc.borrow().name].as_basic_type_enum()
         }
     }
 
@@ -442,7 +465,8 @@ impl IRGenerator {
 
             types: HashMap::with_capacity(10),
             none_const: none_const.into(),
-            entry_const: String::from("entry")
+            entry_const: String::from("entry"),
+            deref_structs: true
         }
     }
 }

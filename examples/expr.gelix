@@ -1,9 +1,13 @@
+class FirstMIRClass {
+    val a = 5
+    var b = "stringy..."
+}
+
+exfn print(String b)
 exfn printnum(i64 a)
 
 func main() {
-    var a = {
-        var b = 5 + 5
-        if (true) b + 6 else 63
-    }
-    printnum(a)
+    var a = FirstMIRClass()
+    printnum(a.a)
+    print(FirstMIRClass().b)
 }

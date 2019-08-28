@@ -5,7 +5,7 @@
  */
 
 use super::super::mir::{MIRFunction, MIRType};
-use crate::mir::mir::{MIRStruct, MIRVariable, MIRExpression, MIRFlow};
+use crate::mir::mir::{MIRStruct, MIRVariable, MIRExpression, MIRFlow, MIRStructMem};
 use std::collections::HashMap;
 use crate::mir::{MIR, MutRc, mutrc_new};
 use std::rc::Rc;
@@ -27,6 +27,7 @@ impl MIRBuilder {
         let class = mutrc_new(MIRStruct {
             name: Rc::clone(&name),
             members: HashMap::new(),
+            member_order: Vec::new(),
             super_struct: None
         });
 
@@ -121,6 +122,21 @@ impl MIRBuilder {
 
     pub fn build_literal(&self, literal: Literal) -> MIRExpression {
         MIRExpression::Literal(literal)
+    }
+
+    pub fn build_struct_get(&self, object: MIRExpression, field: Rc<MIRStructMem>) -> MIRExpression {
+        MIRExpression::StructGet {
+            object: Box::new(object),
+            index: field.index
+        }
+    }
+
+    pub fn build_struct_set(&self, object: MIRExpression, field: Rc<MIRStructMem>, value: MIRExpression) -> MIRExpression {
+        MIRExpression::StructSet {
+            object: Box::new(object),
+            index: field.index,
+            value: Box::new(value)
+        }
     }
 
     pub fn build_store(&self, var: Rc<MIRVariable>, value: MIRExpression) -> MIRExpression {

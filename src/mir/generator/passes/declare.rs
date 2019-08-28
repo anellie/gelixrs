@@ -34,6 +34,15 @@ impl<'p> DeclarePass<'p> {
     }
 
     fn create_class(&mut self, class: &Class) -> Res<()> {
+        // Create struct (filled later)
+        self.gen.builder
+            .create_struct(Rc::clone(&class.name.lexeme))
+            .ok_or_else(|| Error::new(
+                Some(class.name.line),
+                "Class was already defined!",
+                format!("class {} {{ ... }}", &class.name.lexeme))
+            )?;
+
         // Create init function
         self.create_function(
             &FuncSignature {
@@ -45,15 +54,6 @@ impl<'p> DeclarePass<'p> {
                 }],
             }
         )?;
-
-        // Create struct (filled later)
-        self.gen.builder
-            .create_struct(Rc::clone(&class.name.lexeme))
-            .ok_or_else(|| Error::new(
-                Some(class.name.line),
-                "Class was already defined!",
-                format!("class {} {{ ... }}", &class.name.lexeme))
-            )?;
 
         Ok(())
     }

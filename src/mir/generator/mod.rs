@@ -9,7 +9,7 @@ mod passes;
 
 use builder::MIRBuilder;
 use std::collections::HashMap;
-use crate::mir::mir::{MIRVariable, MIRType, MIRExpression, MIRFunction, MIRFlow};
+use crate::mir::mir::{MIRVariable, MIRType, MIRExpression, MIRFunction, MIRFlow, MIRStructMem};
 use crate::ast::declaration::{DeclarationList, Function, FuncSignature};
 use crate::ast::expression::{Expression, display_vec};
 use crate::mir::{MIR, MutRc};
@@ -19,7 +19,6 @@ use crate::mir::generator::passes::declare::DeclarePass;
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::generator::passes::fill_struct::FillStructPass;
 use crate::ast::literal::Literal;
-use std::cell::RefCell;
 
 type Res<T> = Result<T, Error>;
 
@@ -97,13 +96,19 @@ impl MIRGenerator {
         }
 
         let body = self.generate_expression(func.body)?;
-        if (func_type != MIRType::None) && (body.get_type() != func_type) {
-            Err(Error::new_fn(
-                "Function return type does not match body type",
-                &func.sig,
-            ))?;
+        if func_type != MIRType::None {
+            if func_type == body.get_type() {
+                self.builder.set_return(MIRFlow::Return(body));
+            } else {
+                Err(Error::new_fn(
+                    "Function return type does not match body type",
+                    &func.sig,
+                ))?;
+            }
+        } else {
+            self.builder.insert_at_ptr(body)
         }
-        self.builder.set_return(MIRFlow::Return(body));
+
         self.end_scope();
         Ok(())
     }
@@ -199,7 +204,11 @@ impl MIRGenerator {
             }
 
             Expression::For { condition: _, body: _ } => unimplemented!(),
-            Expression::Get { object: _, name: _ } => unimplemented!(),
+
+            Expression::Get { object, name } => {
+                let (object, field) = self.get_class_field(*object, name)?;
+                self.builder.build_struct_get(object, field)
+            },
 
             Expression::Grouping(expr) => self.generate_expression(*expr)?,
 
@@ -279,7 +288,17 @@ impl MIRGenerator {
                 MIRGenerator::none_const()
             },
 
-            Expression::Set { object: _, name: _, value: _ } => unimplemented!(),
+            Expression::Set { object, name, value } => {
+                let (object, field) = self.get_class_field(*object, name)?;
+                let value = self.generate_expression(*value)?;
+
+                if value.get_type() != field._type {
+                    Err(Error::useless("Cannot set class member to different type."))?;
+                }
+
+                self.builder.build_struct_set(object, field, value)
+            },
+
             Expression::Unary { operator: _, right: _ } => unimplemented!(),
 
             Expression::Variable(var) => {
@@ -336,6 +355,20 @@ impl MIRGenerator {
             message: format!("Variable '{}' is not defined", token.lexeme),
             code: (*token.lexeme).clone(),
         })
+    }
+
+    fn get_class_field(&mut self, object: Expression, name: Token) -> Res<(MIRExpression, Rc<MIRStructMem>)> {
+        let object = self.generate_expression(object)?;
+
+        if let MIRType::Struct(struc) = object.get_type() {
+            Ok((object, Rc::clone(struc
+                .borrow()
+                .members
+                .get(&name.lexeme)
+                .ok_or(Error::useless("Get syntax is only supported on class instances."))?)))
+        } else {
+            Err(Error::useless("Get syntax is only supported on class instances."))
+        }
     }
 
     fn generate_func_args(
@@ -422,6 +455,15 @@ impl Error {
             line: Some(func_sig.name.line),
             message: message.to_string(),
             code: format!("func {}(...)", func_sig.name.lexeme),
+        }
+    }
+
+    // TODO: Should redo error handling entirely, to be honest...
+    pub fn useless(message: &str) -> Error {
+        Error {
+            line: None,
+            message: message.to_string(),
+            code: "".to_string()
         }
     }
 

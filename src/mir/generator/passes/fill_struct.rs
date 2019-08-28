@@ -69,6 +69,7 @@ impl<'p> PreMIRPass for FillStructPass<'p> {
 impl<'p> FillStructPass<'p> {
     fn fill_class_struct(&mut self, class: &mut Class) -> Result<(), Error> {
         let mut fields = HashMap::with_capacity(class.variables.len());
+        let mut fields_vec = Vec::with_capacity(class.variables.len());
 
         let mut superclass = None;
         if let Some(super_name) = &class.superclass {
@@ -85,16 +86,18 @@ impl<'p> FillStructPass<'p> {
 
             for member in super_struct.borrow().members.iter() {
                 fields.insert(Rc::clone(member.0), Rc::clone(member.1));
+                fields_vec.push(Rc::clone(member.1));
             }
 
             superclass = Some(super_struct);
         }
 
-        self.build_class_init(class, &mut fields)?;
+        self.build_class_init(class, &mut fields, &mut fields_vec)?;
 
         let class_rc = self.gen.builder.find_struct(&class.name.lexeme).unwrap();
         let mut class_def = class_rc.borrow_mut();
         class_def.members = fields;
+        class_def.member_order = fields_vec;
         class_def.super_struct = superclass;
 
         Ok(())
@@ -103,24 +106,35 @@ impl<'p> FillStructPass<'p> {
     fn build_class_init(
         &mut self,
         class: &mut Class,
-        fields: &mut HashMap<Rc<String>, Rc<MIRStructMem>>
+        fields: &mut HashMap<Rc<String>, Rc<MIRStructMem>>,
+        fields_vec: &mut Vec<Rc<MIRStructMem>>
     ) -> Res<()> {
         let function_rc = self.gen.builder.find_function(&format!("{}-internal-init", &class.name.lexeme)).unwrap();
         let mut function = function_rc.borrow_mut();
+        let struct_var = Rc::clone(&function.parameters[0]);
         function.append_block("entry".to_string());
         drop(function);
         self.gen.builder.set_pointer(Rc::clone(&function_rc), Rc::new("entry".to_string()));
 
         for (i, field) in class.variables.drain(..).enumerate() {
-            // TODO: Properly build StructSet instead of just uselessly evaluating the expression...
+            let value = self.gen.generate_expression(field.initializer)?;
+            let member = Rc::new(MIRStructMem {
+                mutable: !field.is_val,
+                _type: value.get_type(),
+                index: i as u32
+            });
+
             fields.insert(
                 Rc::clone(&field.name.lexeme),
-                Rc::new(MIRStructMem {
-                    mutable: !field.is_val,
-                    _type: self.gen.generate_expression(field.initializer)?.get_type(),
-                    index: i as u32
-                })
+                Rc::clone(&member)
             );
+            fields_vec.push(Rc::clone(&member));
+
+            self.gen.builder.insert_at_ptr(self.gen.builder.build_struct_set(
+                self.gen.builder.build_load(Rc::clone(&struct_var)),
+                member,
+                value
+            ));
         }
 
         Ok(())
