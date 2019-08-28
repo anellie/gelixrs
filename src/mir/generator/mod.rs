@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/27/19 5:49 PM.
+ * Last modified on 8/28/19 4:07 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -103,8 +103,7 @@ impl MIRGenerator {
                 &func.sig,
             ))?;
         }
-
-        self.builder.insert_at_ptr(body);
+        self.builder.set_return(MIRFlow::Return(Some(body)));
         self.end_scope();
         Ok(())
     }
@@ -216,8 +215,8 @@ impl MIRGenerator {
 
                 let func = self.builder.cur_fn();
                 let mut func = func.borrow_mut();
-                let then_b = func.append_block("then".to_string());
-                let else_b = func.append_block("else".to_string());
+                let mut then_b = func.append_block("then".to_string());
+                let mut else_b = func.append_block("else".to_string());
                 let cont_b = func.append_block("cont".to_string());
                 // Setting return will mutably borrow the func; drop this one to prevent panic
                 drop(func);
@@ -228,16 +227,16 @@ impl MIRGenerator {
                     else_b: Rc::clone(&else_b),
                 });
 
-
                 self.builder.set_block(&then_b);
                 let then_val = self.generate_expression(*then_branch)?;
+                then_b = self.builder.cur_block_name();
                 self.builder.set_return(MIRFlow::Jump(Rc::clone(&cont_b)));
 
                 self.builder.set_block(&else_b);
-                self.builder.set_return(MIRFlow::Jump(Rc::clone(&cont_b)));
-
                 if let Some(else_branch) = else_branch {
                     let else_val = self.generate_expression(*else_branch)?;
+                    else_b = self.builder.cur_block_name();
+                    self.builder.set_return(MIRFlow::Jump(Rc::clone(&cont_b)));
                     self.builder.set_block(&cont_b);
 
                     if then_val.get_type() == else_val.get_type() {
@@ -253,6 +252,9 @@ impl MIRGenerator {
 
                 self.builder.set_block(&then_b);
                 self.builder.insert_at_ptr(then_val);
+
+                self.builder.set_block(&else_b);
+                self.builder.set_return(MIRFlow::Jump(Rc::clone(&cont_b)));
 
                 self.builder.set_block(&cont_b);
                 MIRGenerator::none_const()

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/27/19 4:20 PM.
+ * Last modified on 8/28/19 4:07 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -176,6 +176,10 @@ impl MIRBuilder {
 
     pub fn cur_fn(&self) -> MutRc<MIRFunction> {
         Rc::clone(&self.position.as_ref().unwrap().function)
+    }
+
+    pub fn cur_block_name(&self) -> Rc<String> {
+        Rc::clone(&self.position.as_ref().unwrap().block)
     }
 
     pub fn get_types(self) -> Vec<MutRc<MIRStruct>> {

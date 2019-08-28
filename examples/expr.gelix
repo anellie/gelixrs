@@ -1,6 +1,9 @@
-exfn print(String a)
+exfn printnum(i64 a)
 
 func main() {
-    var a = "Hello MIR!"
-    print(a)
+    var a = {
+        var b = 5 + 5
+        if (true) b + 6 else 63
+    }
+    printnum(a)
 }
