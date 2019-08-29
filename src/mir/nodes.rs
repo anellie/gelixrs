@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/28/19 4:40 PM.
+ * Last modified on 8/29/19 10:05 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -139,6 +139,11 @@ pub enum MIRExpression {
         right: Box<MIRExpression>,
     },
 
+    Bitcast {
+        object: Box<MIRExpression>,
+        goal: MutRc<MIRStruct>
+    },
+
     Call {
         callee: Box<MIRExpression>,
         arguments: Vec<MIRExpression>,
@@ -187,6 +192,8 @@ impl MIRExpression {
                     left.get_type()
                 }
             }
+
+            MIRExpression::Bitcast { goal, .. } => MIRType::Struct(Rc::clone(goal)),
 
             MIRExpression::Call { callee, .. } => {
                 if let MIRType::Function(func) = callee.get_type() {

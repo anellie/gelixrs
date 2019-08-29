@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/28/19 4:42 PM.
+ * Last modified on 8/29/19 10:43 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -126,11 +126,19 @@ impl IRGenerator {
 
         // First, build all function alloca
         self.builder.position_at_end(&entry_bb);
+
         for (arg, arg_val) in func.parameters.iter().zip(func_val.get_param_iter()) {
-            let alloca = self.builder.build_alloca(arg_val.get_type(), &arg.name);
-            self.builder.build_store(alloca, arg_val);
-            self.variables.insert(PtrEqRc::new(arg), alloca);
+            // If the type of the function parameter is a pointer (aka a struct or function),
+            // creating an alloca isn't needed; the pointer can be used directly.
+            if let BasicValueEnum::PointerValue(ptr) = arg_val {
+                self.variables.insert(PtrEqRc::new(arg), ptr);
+            } else {
+                let alloca = self.builder.build_alloca(self.unwrap_ptr(arg_val.get_type()), &arg.name);
+                self.builder.build_store(alloca, arg_val);
+                self.variables.insert(PtrEqRc::new(arg), alloca);
+            }
         }
+
         for (name, var) in func.variables.iter() {
             let alloca = self
                 .builder
@@ -256,6 +264,12 @@ impl IRGenerator {
 
                     _ => panic!("Unsupported binary operand"),
                 })
+            }
+
+            MIRExpression::Bitcast { object, goal } => {
+                let object = self.generate_expression(object);
+                let type_ = self.to_ir_type(&MIRType::Struct(Rc::clone(goal)));
+                self.builder.build_bitcast(object, type_, "bitcast")
             }
 
             MIRExpression::Call { callee, arguments } => {
@@ -389,6 +403,7 @@ impl IRGenerator {
             MIRExpression::VarStore { var, value } => {
                 let variable = self.get_variable(var);
                 let value = self.generate_expression(value);
+                let value = self.unwrap_value_ptr(value);
                 self.builder.build_store(variable, value);
                 value
             }
@@ -398,8 +413,24 @@ impl IRGenerator {
     fn load_ptr(&mut self, ptr: PointerValue) -> BasicValueEnum {
         match ptr.get_type().get_element_type() {
             AnyTypeEnum::FunctionType(_) => BasicValueEnum::PointerValue(ptr),
-            AnyTypeEnum::StructType(_) if !self.deref_structs => BasicValueEnum::PointerValue(ptr),
+            AnyTypeEnum::StructType(_) => BasicValueEnum::PointerValue(ptr),
             _ => self.builder.build_load(ptr, "var"),
+        }
+    }
+
+    fn unwrap_ptr(&self, ptr: BasicTypeEnum) -> BasicTypeEnum {
+        if let BasicTypeEnum::PointerType(ptr) = ptr {
+            ptr.get_element_type().as_struct_type().as_basic_type_enum()
+        } else {
+            ptr
+        }
+    }
+
+    fn unwrap_value_ptr(&self, ptr: BasicValueEnum) -> BasicValueEnum {
+        if let BasicValueEnum::PointerValue(ptr) = ptr {
+            self.builder.build_load(ptr, "ptr-load")
+        } else {
+            ptr
         }
     }
 

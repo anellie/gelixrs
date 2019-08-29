@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/28/19 4:44 PM.
+ * Last modified on 8/28/19 9:49 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -410,13 +410,13 @@ impl MIRGenerator {
                         .members
                         .get(&name.lexeme)
                         .ok_or_else(|| Error::useless(
-                            "Get syntax is only supported on class instances.",
+                            "Unknown class member",
                         ))?,
                 ),
             ))
         } else {
             Err(Error::useless(
-                "Get syntax is only supported on class instances.",
+                "Get syntax is only supported on class instances",
             ))
         }
     }

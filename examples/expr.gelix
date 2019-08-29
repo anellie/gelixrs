@@ -3,11 +3,16 @@ class FirstMIRClass {
     var b = "stringy..."
 }
 
+class SecondMIRClass ext FirstMIRClass {
+    val c = "I'm a subclass!"
+}
+
 exfn print(String b)
 exfn printnum(i64 a)
 
 func main() {
-    var a = FirstMIRClass()
+    var a = SecondMIRClass()
     printnum(a.a)
     print(FirstMIRClass().b)
+    print(a.c)
 }

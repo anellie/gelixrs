@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/28/19 4:43 PM.
+ * Last modified on 8/29/19 10:12 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -80,6 +80,13 @@ impl MIRBuilder {
             left: Box::new(left),
             operator,
             right: Box::new(right),
+        }
+    }
+
+    pub fn build_bitcast(&self, obj: MIRExpression, goal: &MutRc<MIRStruct>) -> MIRExpression {
+        MIRExpression::Bitcast {
+            object: Box::new(obj),
+            goal: Rc::clone(&goal)
         }
     }
 
