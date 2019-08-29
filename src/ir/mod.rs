@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/29/19 10:43 PM.
+ * Last modified on 8/29/19 11:02 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -403,7 +403,14 @@ impl IRGenerator {
             MIRExpression::VarStore { var, value } => {
                 let variable = self.get_variable(var);
                 let value = self.generate_expression(value);
-                let value = self.unwrap_value_ptr(value);
+
+                // String pointers should not be unwrapped
+                let value = if var._type == MIRType::String {
+                    value
+                } else {
+                    self.unwrap_value_ptr(value)
+                };
+
                 self.builder.build_store(variable, value);
                 value
             }
