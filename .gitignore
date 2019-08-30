@@ -2,3 +2,5 @@
 /stdlib/target
 **/*.rs.bk
 .idea
+testing.gel
+testing.out

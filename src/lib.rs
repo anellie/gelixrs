@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 6:17 PM.
+ * Last modified on 8/30/19 7:18 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -27,6 +27,7 @@ use lexer::token::Token;
 
 type Res<T> = Result<T, Error>;
 
+/// An error produced by all parts of the compiler.
 pub struct Error {
     pub lines: (usize, usize),
     pub start: usize,
@@ -51,6 +52,7 @@ impl Error {
         }
     }
 
+    /// Produces a nice looking string representation to be shown to the user.
     pub fn to_string(&self, source: &String) -> String {
         let (start_line, end_line) = self.lines;
         let mut result = format!("[{}] {}", self.producer, self.message);

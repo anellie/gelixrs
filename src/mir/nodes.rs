@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 6:21 PM.
+ * Last modified on 8/30/19 7:17 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -14,6 +14,7 @@ use std::fmt::{Display, Error, Formatter};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
+/// All types in Gelix.
 #[derive(Debug, Clone, PartialEq)]
 pub enum MIRType {
     None,
@@ -41,6 +42,7 @@ impl Display for MIRType {
     }
 }
 
+/// A struct that represents a class.
 #[derive(Debug)]
 pub struct MIRStruct {
     pub name: Rc<String>,
@@ -49,6 +51,13 @@ pub struct MIRStruct {
     pub super_struct: Option<MutRc<MIRStruct>>,
 }
 
+impl PartialEq for MIRStruct {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
+
+/// A member of a struct.
 #[derive(Debug)]
 pub struct MIRStructMem {
     pub mutable: bool,
@@ -56,12 +65,7 @@ pub struct MIRStructMem {
     pub index: u32,
 }
 
-impl PartialEq for MIRStruct {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
-    }
-}
-
+/// A function in MIR. Consists of blocks.
 #[derive(Debug)]
 pub struct MIRFunction {
     pub name: Rc<String>,
@@ -78,6 +82,8 @@ impl PartialEq for MIRFunction {
 }
 
 impl MIRFunction {
+    /// Appends a new block; will returns the block name.
+    /// The name can be different than the given one when it was already in use.
     pub fn append_block(&mut self, mut name: String) -> Rc<String> {
         if self.blocks.contains_key(&name) {
             name = format!("{}-{}", name, self.blocks.len());
@@ -93,6 +99,7 @@ impl MIRFunction {
         rc
     }
 
+    /// Inserts a variable into the functions allocation table.
     pub fn insert_var(&mut self, mut name: Rc<String>, var: Rc<MIRVariable>) -> Rc<String> {
         if self.variables.contains_key(&name) {
             name = Rc::new(format!("{}-{}", name, self.variables.len()));
@@ -102,6 +109,7 @@ impl MIRFunction {
     }
 }
 
+/// A variable inside a function.
 #[derive(Debug)]
 pub struct MIRVariable {
     pub mutable: bool,
@@ -125,70 +133,88 @@ impl Hash for MIRVariable {
     }
 }
 
+/// A block inside a function.
 #[derive(Debug)]
 pub struct MIRBlock {
     pub expressions: Vec<MIRExpression>,
     pub last: MIRFlow,
 }
 
+/// The last part of a block.
 #[derive(Debug)]
 pub enum MIRFlow {
+    /// Return void
     None,
 
+    /// Jump to another block
     Jump(Rc<String>),
 
+    /// Jump to another block conditionally
     Branch {
         condition: MIRExpression,
         then_b: Rc<String>,
         else_b: Rc<String>,
     },
 
+    /// Return a value
     Return(MIRExpression),
 }
 
+/// All expressions in MIR. All of them produce a value.
 #[derive(Debug)]
 pub enum MIRExpression {
-    // Maybe turn this into a function call? » left.add(right) «
+    /// Simply a binary operation between numbers.
     Binary {
         left: Box<MIRExpression>,
         operator: Type,
         right: Box<MIRExpression>,
     },
 
+    /// Casts a struct to another struct type.
     Bitcast {
         object: Box<MIRExpression>,
         goal: MutRc<MIRStruct>,
     },
 
+    /// A function call.
     Call {
         callee: Box<MIRExpression>,
         arguments: Vec<MIRExpression>,
     },
 
+    /// Simply produces the function as a value.
     Function(MutRc<MIRFunction>),
 
+    /// A Phi node. Returns a different value based on
+    /// which block the current block was reached from.
     Phi(Vec<(MIRExpression, Rc<String>)>),
 
+    /// Gets a member of a struct.
     StructGet {
         object: Box<MIRExpression>,
         index: u32,
     },
 
+    /// Sets a member of a struct.
     StructSet {
         object: Box<MIRExpression>,
         index: u32,
         value: Box<MIRExpression>,
     },
 
+    /// Simply produces the literal as value.
     Literal(Literal),
 
+    /// A unary expression on numbers.
     Unary {
         operator: Type,
         right: Box<MIRExpression>,
     },
 
+    /// Returns a variable.
     VarGet(Rc<MIRVariable>),
 
+    /// Stores a value inside a variable.
     VarStore {
         var: Rc<MIRVariable>,
         value: Box<MIRExpression>,
@@ -253,6 +279,7 @@ impl MIRExpression {
         }
     }
 
+    /// Returns the type of a struct member.
     fn type_from_struct_get(object: &MIRExpression, index: u32) -> MIRType {
         let object = object.get_type();
         if let MIRType::Struct(struc) = object {

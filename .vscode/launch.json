@@ -19,7 +19,7 @@
                     "kind": "bin"
                 }
             },
-            "args": ["examples/expr.gelix", "--ir"],
+            "args": ["testing.gel", "--ir"],
             "cwd": "${workspaceFolder}"
         },
         {

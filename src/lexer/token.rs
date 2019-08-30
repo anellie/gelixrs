@@ -1,12 +1,12 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 6:20 PM.
+ * Last modified on 8/30/19 7:10 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
 use std::rc::Rc;
 
-/// A token in the gelix language. These are produced by a [Lexer].
+/// A token in the gelix language. These are produced by a lexer.
 /// Cloning a Token is cheap, since the lexemes are refcounted.
 #[derive(Debug, Clone)]
 pub struct Token {

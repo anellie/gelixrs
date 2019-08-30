@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 6:24 PM.
+ * Last modified on 8/30/19 7:34 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -21,16 +21,31 @@ use builder::MIRBuilder;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+/// The MIRGenerator turns a list of declarations produced by the parser
+/// into their MIR representation.
+///
+/// MIR is an intermediate format between the AST and LLVM IR.
+///
+/// The generator not only generates MIR, but also checks the code
+/// for correctness (type-checking, scoping, etc.).
 pub struct MIRGenerator {
+    /// The builder used to build the MIR.
     builder: MIRBuilder,
+    /// An environment is a scope that variables live in.
+    /// This variable is used like a stack.
+    /// See the begin_scope and end_scope functions for more info.
     environments: Vec<HashMap<Rc<String>, Rc<MIRVariable>>>,
 
+    /// If the current position is inside a loop.
     is_in_loop: bool,
+    /// The current return type of the loop, determined by break expressions.
     current_loop_ret_type: Option<MIRType>,
+    /// The block to jump to when the current loop finishes.
     current_loop_cont_block: Option<Rc<String>>,
 }
 
 impl MIRGenerator {
+    /// Will do everything needed to generate MIR from the AST.
     pub fn generate(mut self, mut list: DeclarationList) -> Res<MIR> {
         // Run all pre-MIR passes
         DeclarePass::new(&mut self).run(&mut list)?;
@@ -140,7 +155,7 @@ impl MIRGenerator {
             }
 
             Expression::Block(expressions) => {
-                if expressions.len() == 0 {
+                if expressions.is_empty() {
                     return Ok(Self::none_const());
                 }
 
@@ -410,13 +425,17 @@ impl MIRGenerator {
         })
     }
 
+    /// Defines a new variable. It is put into the variable list in the current function
+    /// and placed in the topmost scope.
     fn define_variable(&mut self, token: &Token, mutable: bool, _type: MIRType) -> Rc<MIRVariable> {
         let def = Rc::new(MIRVariable::new(Rc::clone(&token.lexeme), _type, mutable));
         self.builder.add_function_variable(Rc::clone(&def));
-        self.insert_variable(Rc::clone(&def), true, token.line);
+        self.insert_variable(Rc::clone(&def), true, token.line).unwrap_or(());
         def
     }
 
+    /// Inserts a variable into the topmost scope.
+    /// Note that the variable does NOT get added to the function!
     fn insert_variable(
         &mut self,
         var: Rc<MIRVariable>,
@@ -443,6 +462,7 @@ impl MIRGenerator {
         Ok(())
     }
 
+    /// Searches all scopes for a variable, starting at the top.
     fn find_var(&mut self, token: &Token) -> Res<Rc<MIRVariable>> {
         for env in self.environments.iter().rev() {
             if let Some(var) = env.get(&token.lexeme) {
@@ -457,6 +477,7 @@ impl MIRGenerator {
         ))
     }
 
+    /// Will search for a variable and create it in the topmost scope if it does not exist.
     fn find_or_create_var(&mut self, type_: MIRType, name: Token) -> Res<Rc<MIRVariable>> {
         let var = self
             .find_var(&name)
@@ -519,8 +540,8 @@ impl MIRGenerator {
         }
 
         let mut result = Vec::with_capacity(arguments.len());
-        for (argument, parameter) in arguments.into_iter().zip(func.parameters.iter()) {
-            let arg = self.generate_expression(&argument)?;
+        for (argument, parameter) in arguments.iter().zip(func.parameters.iter()) {
+            let arg = self.generate_expression(argument)?;
             if arg.get_type() != parameter._type {
                 return Err(Self::anon_err(
                     argument.get_token(),
@@ -533,10 +554,22 @@ impl MIRGenerator {
         Ok(result)
     }
 
+    /// Creates a new scope. A new scope is created for every function and block,
+    /// in addition to the bottom global scope.
+    ///
+    /// # Example
+    /// (global scope #1)
+    /// func main() {       <- new scope (#2) for the class main
+    ///     var a = 5       <- a now in scope #2
+    ///     {               <- new scope (#3)
+    ///         var b = 1   <- b now in scope #3
+    ///     }               <- scope #3 gets removed, along with b
+    /// }                   <- scope #2 gets removed, along with a
     fn begin_scope(&mut self) {
         self.environments.push(HashMap::new());
     }
 
+    /// Removes the topmost scope.
     fn end_scope(&mut self) {
         self.environments.pop();
     }
@@ -549,6 +582,8 @@ impl MIRGenerator {
         Error::new(start, end, "MIRGenerator", message.to_string())
     }
 
+    /// Produces an error when the caller cannot gurantee that the expression contains a token.
+    /// If it doesn't, the function creates a generic "unknown location" token.
     fn anon_err(tok: Option<&Token>, message: &str) -> Error {
         let generic = Token::generic_token(Type::Identifier);
         let tok = tok.unwrap_or_else(|| &generic);

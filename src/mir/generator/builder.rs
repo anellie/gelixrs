@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 6:21 PM.
+ * Last modified on 8/30/19 7:17 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -12,7 +12,9 @@ use crate::mir::{mutrc_new, MutRc};
 use std::collections::HashMap;
 use std::rc::Rc;
 
+/// A builder for assisting in creating MIR.
 pub struct MIRBuilder {
+    /// The current insertion position.
     position: Option<Pointer>,
     functions: HashMap<Rc<String>, MutRc<MIRFunction>>,
     types: HashMap<Rc<String>, MutRc<MIRStruct>>,

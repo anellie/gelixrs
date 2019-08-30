@@ -1,15 +1,14 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 6:18 PM.
+ * Last modified on 8/30/19 6:39 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
 use super::super::lexer::token::{Token, Type};
 use super::declaration::Variable;
 use super::literal::Literal;
-use std::fmt::{Display, Error, Formatter};
 
-// All binary operand types that return a bool instead of the types of their values.
+/// All binary operand types that return a bool instead of the types of their values.
 pub static LOGICAL_BINARY: [Type; 6] = [
     Type::Greater,
     Type::Less,
@@ -23,6 +22,7 @@ pub static LOGICAL_BINARY: [Type; 6] = [
 /// An expression is a language construct that returns a value of any type and cannot appear top-level.
 /// Currently, everything not top-level is an expression. However, some are not allowed in certain contexts;
 /// see the bottom of this enum.
+/// Expressions appear as part of a declaration.
 #[derive(Debug)]
 pub enum Expression {
     /// Assignment a la x = 5
@@ -73,7 +73,7 @@ pub enum Expression {
         else_branch: Option<Box<Expression>>,
     },
 
-    /// A simple [Literal].
+    /// A simple literal.
     Literal(Literal),
 
     /// 'return' keyword. Always produces None as a value.
@@ -102,9 +102,9 @@ pub enum Expression {
         else_branch: Box<Expression>,
     },
 
-    /// Below are all 'higher expressions'. These are differentiated in the parser.
-    /// They are only allowed to appear as top-level inside a block.
-    /// All of them always produce None as a value.
+    // Below are all 'higher expressions'. These are differentiated in the parser.
+    // They are only allowed to appear as top-level inside a block.
+    // All of them always produce None as a value.
 
     /// A variable definition.
     VarDef(Box<Variable>),
@@ -133,82 +133,4 @@ impl Expression {
             Expression::VarDef(var) => &var.name,
         })
     }
-}
-
-impl Display for Expression {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-        match self {
-            Expression::Assignment { name, value } => write!(f, "{} = {}", name.lexeme, value),
-
-            Expression::Binary {
-                left,
-                operator,
-                right,
-            } => write!(f, "{} {} {}", left, operator.lexeme, right),
-
-            Expression::Block(_) => write!(f, "{{ ... }}"),
-
-            Expression::Break(expr) => {
-                if let Some(expr) = expr {
-                    write!(f, "break {}", expr)
-                } else {
-                    write!(f, "break")
-                }
-            }
-
-            Expression::Call { callee, arguments } => {
-                write!(f, "{}{}", callee, display_slice(arguments))
-            }
-
-            Expression::For { condition, body } => write!(f, "for ({}) {}", condition, body),
-
-            Expression::Get { object, name } => write!(f, "{}.{}", object, name.lexeme),
-
-            Expression::Grouping(expr) => write!(f, "({})", expr),
-
-            Expression::If {
-                condition,
-                then_branch,
-                else_branch,
-            } => {
-                if let Some(else_branch) = else_branch {
-                    write!(f, "if ({}) {} else {}", condition, then_branch, else_branch)
-                } else {
-                    write!(f, "if ({}) {}", condition, then_branch)
-                }
-            }
-
-            Expression::Literal(literal) => write!(f, "{}", literal),
-
-            Expression::Return(expr) => {
-                if let Some(expr) = expr {
-                    write!(f, "return {}", expr)
-                } else {
-                    write!(f, "return")
-                }
-            }
-
-            Expression::Set {
-                object,
-                name,
-                value,
-            } => write!(f, "{}.{} = {}", object, name.lexeme, value),
-
-            Expression::Unary { operator, right } => write!(f, "{}{}", operator.lexeme, right),
-
-            Expression::Variable(var) => write!(f, "{}", var.lexeme),
-
-            Expression::When { value, .. } => write!(f, "when ({}) {{ ... }}", value),
-
-            Expression::VarDef(var) => write!(f, "var {} = {}", var.name.lexeme, var.initializer),
-        }
-    }
-}
-
-pub fn display_slice(slice: &[Expression]) -> String {
-    let mut string = String::new();
-    for expr in slice.iter() {
-        string.push_str(&expr.to_string())
-    }
-    format!("({})", string)
 }

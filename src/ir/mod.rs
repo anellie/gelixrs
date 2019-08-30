@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 3:41 PM.
+ * Last modified on 8/30/19 6:57 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -22,11 +22,11 @@ use inkwell::{
     values::{BasicValue, BasicValueEnum, FunctionValue, PointerValue},
     AddressSpace, IntPredicate,
 };
-use std::hash::{Hash, Hasher};
 use std::{
     cell::{Ref, RefMut},
     collections::HashMap, 
-    convert::TryInto, 
+    convert::TryInto,
+    hash::{Hash, Hasher},
     rc::Rc,
 };
 
@@ -41,23 +41,21 @@ pub struct IRGenerator {
     module: Module,
     mpm: PassManager<Module>,
 
-    // All variables, the currently compiled function, and its blocks.
-    // Note that not all variables are valid - they are kept after going out of scope.
-    // This is not an issue since the MIR generator checked against this already.
+    /// All variables, the currently compiled function.
+    /// Note that not all variables are valid - they are kept after going out of scope.
+    /// This is not an issue since the MIR generator checked against this already.
     variables: HashMap<PtrEqRc<MIRVariable>, PointerValue>,
+    /// All blocks in the current function.
     blocks: HashMap<Rc<String>, BasicBlock>,
 
-    // All types (classes) that are available.
+    /// All types (classes/structs) that are available.
     types: HashMap<Rc<String>, StructType>,
 
-    // A constant that is used for expressions that don't produce a value but are required to.
+    /// A constant that is used for expressions that don't produce a value but are required to,
+    /// like return or break expressions.
     none_const: BasicValueEnum,
-    // Simply a string called "entry". Needed to find the entry block of functions.
+    /// Simply a string called "entry". Used to find the entry block of functions.
     entry_const: String,
-
-    // Determines if struct instances are dereferenced from PoiterType to StructType.
-    // This variable is needed since calls cannot have deref'd arguments.
-    deref_structs: bool,
 }
 
 impl IRGenerator {
@@ -97,6 +95,7 @@ impl IRGenerator {
         self.module
     }
 
+    /// Generates a struct and its body
     fn struc(&mut self, _struc: Ref<MIRStruct>) {
         let struc_val = self.types[&_struc.name];
         let body: Vec<BasicTypeEnum> = _struc
@@ -107,6 +106,7 @@ impl IRGenerator {
         struc_val.set_body(body.as_slice(), false);
     }
 
+    /// Generates a function; function should already be declared in the module.
     fn function(&mut self, name: Rc<String>, func: Rc<MIRVariable>) {
         let func_val = self.module.get_function(&name).unwrap();
         if let MIRType::Function(func) = &func._type {
@@ -118,6 +118,7 @@ impl IRGenerator {
         func_val.verify(true);
     }
 
+    /// Generates a function's body.
     fn function_body(&mut self, mut func: RefMut<MIRFunction>, func_val: FunctionValue) {
         self.blocks.clear();
 
@@ -277,13 +278,11 @@ impl IRGenerator {
             MIRExpression::Call { callee, arguments } => {
                 let callee = self.generate_expression(callee);
                 if let BasicValueEnum::PointerValue(ptr) = callee {
-                    self.deref_structs = false;
                     let arguments: Vec<BasicValueEnum> = arguments
                         .iter()
                         .map(|arg| self.generate_expression(arg))
                         .collect();
-                    self.deref_structs = true;
-                    
+
                     let ret = self
                         .builder
                         .build_call(ptr, arguments.as_slice(), "call")
@@ -419,6 +418,8 @@ impl IRGenerator {
         }
     }
 
+    /// Loads a pointer, turning it into a value.
+    /// Does not load structs or functions, since they are only ever used as pointers.
     fn load_ptr(&mut self, ptr: PointerValue) -> BasicValueEnum {
         match ptr.get_type().get_element_type() {
             AnyTypeEnum::FunctionType(_) => BasicValueEnum::PointerValue(ptr),
@@ -427,6 +428,8 @@ impl IRGenerator {
         }
     }
 
+    /// If the parameter 'ptr' is a struct pointer, the struct itself is returned.
+    /// Otherwise, ptr is simply returned without modification.
     fn unwrap_ptr(&self, ptr: BasicTypeEnum) -> BasicTypeEnum {
         if let BasicTypeEnum::PointerType(ptr) = ptr {
             ptr.get_element_type().as_struct_type().as_basic_type_enum()
@@ -435,6 +438,7 @@ impl IRGenerator {
         }
     }
 
+    /// Same as [unwrap_ptr], but for values instead of types.
     fn unwrap_value_ptr(&self, ptr: BasicValueEnum) -> BasicValueEnum {
         if let BasicValueEnum::PointerValue(ptr) = ptr {
             self.builder.build_load(ptr, "ptr-load")
@@ -443,6 +447,8 @@ impl IRGenerator {
         }
     }
 
+    /// Converts a MIRType to the corresponding LLVM type.
+    /// Structs are returned as PointerType<StructType>.
     fn to_ir_type(&self, mir: &MIRType) -> BasicTypeEnum {
         let ir = self.to_ir_type_no_ptr(mir);
         match ir {
@@ -453,6 +459,7 @@ impl IRGenerator {
         }
     }
 
+    /// Converts a MIRType to the corresponding LLVM type. Structs are returned as StructType.
     fn to_ir_type_no_ptr(&self, mir: &MIRType) -> BasicTypeEnum {
         match mir {
             MIRType::None => self.none_const.get_type(),
@@ -473,6 +480,7 @@ impl IRGenerator {
         }
     }
 
+    /// Generates the LLVM FunctionType of a MIR function.
     fn get_fn_type(&self, func: &Ref<MIRFunction>) -> FunctionType {
         let params: Vec<BasicTypeEnum> = func
             .parameters
@@ -532,11 +540,12 @@ impl IRGenerator {
             types: HashMap::with_capacity(10),
             none_const: none_const.into(),
             entry_const: String::from("entry"),
-            deref_structs: true,
         }
     }
 }
 
+/// A Rc that can be compared by checking for pointer equality.
+/// Used as a HashMap key to allow unique keys with the same data.
 struct PtrEqRc<T: Hash>(Rc<T>);
 
 impl<T: Hash> PtrEqRc<T> {

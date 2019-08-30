@@ -121,13 +121,13 @@ exfn sin(i64 a) -> i64
 /* Lastly, a look at all inbuilt types in Gelix:                            Literals:
  * bool                 -> Simple true/false bool.                          true | false
  * i8, i16, i32, i64    -> Integers of varying bit sizes.                   12
- * f32, f64             -> Single and double-prescision floats.             24f | 564.03    (f denotes single-precision)
+ * f32, f64             -> Single and double-precision floats.              24f | 564.03    (f denotes single-precision)
  * char                 -> A text character.  TODO: Determine encoding.     c'c' | c"c"
  * String               -> A simple sequence of chars.                      "Hello" | 'World'
  *
  * File                 -> A wrapper for file I/O. API TBD.                 ---
  *
- * All types are classes, Gelix does not have 'primitive' values.
+ * All types behave like classes, Gelix does not have 'primitive' values.
  */
 
 "Thanks for reading!"

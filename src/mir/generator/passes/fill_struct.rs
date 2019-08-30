@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 6:06 PM.
+ * Last modified on 8/30/19 6:57 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -11,6 +11,8 @@ use crate::mir::nodes::{MIRExpression, MIRStructMem};
 use std::collections::HashMap;
 use std::rc::Rc;
 
+/// This pass fills all structs with their members
+/// and creates their internal init function.
 pub struct FillStructPass<'p> {
     gen: &'p mut MIRGenerator,
 }

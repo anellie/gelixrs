@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 6:10 PM.
+ * Last modified on 8/30/19 6:57 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -12,6 +12,8 @@ use crate::mir::nodes::{MIRType, MIRVariable};
 use crate::Res;
 use std::rc::Rc;
 
+/// This pass declares all structs and functions in the AST.
+/// It does not fill structs; they are kept empty.
 pub struct DeclarePass<'p> {
     gen: &'p mut MIRGenerator,
     none_const: Rc<String>,
