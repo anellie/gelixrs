@@ -1,12 +1,12 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/29/19 10:12 PM.
+ * Last modified on 8/30/19 1:39 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
 use super::super::nodes::{MIRFunction, MIRType};
 use crate::ast::literal::Literal;
-use crate::lexer::token::Token;
+use crate::lexer::token::{Token, Type};
 use crate::mir::nodes::{MIRExpression, MIRFlow, MIRStruct, MIRStructMem, MIRVariable};
 use crate::mir::{mutrc_new, MutRc};
 use std::collections::HashMap;
@@ -80,6 +80,13 @@ impl MIRBuilder {
             left: Box::new(left),
             operator,
             right: Box::new(right),
+        }
+    }
+
+    pub fn build_unary(&self, right: MIRExpression, op: Token) -> MIRExpression {
+        MIRExpression::Unary {
+            operator: op,
+            right: Box::new(right)
         }
     }
 

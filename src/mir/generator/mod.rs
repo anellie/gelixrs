@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/28/19 9:49 PM.
+ * Last modified on 8/30/19 1:41 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -10,7 +10,7 @@ mod passes;
 use crate::ast::declaration::{DeclarationList, FuncSignature, Function};
 use crate::ast::expression::{display_slice, Expression};
 use crate::ast::literal::Literal;
-use crate::lexer::token::Token;
+use crate::lexer::token::{Token, Type};
 use crate::mir::generator::passes::declare::DeclarePass;
 use crate::mir::generator::passes::fill_struct::FillStructPass;
 use crate::mir::generator::passes::PreMIRPass;
@@ -319,10 +319,21 @@ impl MIRGenerator {
                 self.builder.build_struct_set(object, field, value)
             }
 
-            Expression::Unary {
-                operator: _,
-                right: _,
-            } => unimplemented!(),
+            Expression::Unary { operator, right, } => {
+                let right = self.generate_expression(*right)?;
+
+                match operator.t_type {
+                    Type::Minus => self.builder.build_unary(right, operator),
+                    Type::Bang => {
+                        if right.get_type() == MIRType::Bool {
+                            self.builder.build_unary(right, operator)
+                        } else {
+                            return Err(Error::useless("'!' can only be used on boolean values"))
+                        }
+                    }
+                    _ => panic!("Invalid unary expression"),
+                }
+            },
 
             Expression::Variable(var) => {
                 let var = self.find_var(&var)?;
