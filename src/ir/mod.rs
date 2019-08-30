@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 11:21 PM.
+ * Last modified on 8/30/19 11:43 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -310,6 +310,11 @@ impl IRGenerator {
                 }
             }
 
+            MIRExpression::DoRet => {
+                self.builder.clear_insertion_position();
+                self.none_const
+            }
+
             MIRExpression::Function(func) => BasicValueEnum::PointerValue(
                     self.module
                         .get_function(&func.borrow().name)
@@ -383,8 +388,16 @@ impl IRGenerator {
                     Literal::Float(num) => self.context.f32_type().const_float((*num).into()).into(),
                     Literal::Double(num) => self.context.f64_type().const_float(*num).into(),
                     Literal::String(string) => {
-                        let const_str = self.builder.build_global_string_ptr(&string, "literal-str");
-                        BasicValueEnum::PointerValue(const_str.as_pointer_value())
+                        // If the builder's insert position is not set, creating a global string pointer
+                        // will segfault (https://github.com/TheDan64/inkwell/issues/32)
+                        // This is usually only the case when a return expression unset the position
+                        // earlier, in which case the actual value doesn't matter anyway.
+                        if self.builder.get_insert_block().is_none() {
+                            self.none_const
+                        } else {
+                            let const_str = self.builder.build_global_string_ptr(&string, "literal-str");
+                            BasicValueEnum::PointerValue(const_str.as_pointer_value())
+                        }
                     }
                     _ => panic!("What is that?"),
             },

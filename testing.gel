@@ -5,6 +5,10 @@ exfn printnum(i64 a)
 func main() {
     val s = Super()
     print(s.sub.a)
+
+    return
+
+    print("bad")
 }
 
 class Super {

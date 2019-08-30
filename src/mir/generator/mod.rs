@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 10:56 PM.
+ * Last modified on 8/30/19 11:24 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -456,6 +456,7 @@ impl MIRGenerator {
                     }
                     self.builder.set_return(MIRFlow::Jump(Rc::clone(&cont_b)));
 
+                    let branch_b = self.builder.cur_block_name();
                     cases.push((val, Rc::clone(&branch_b)));
                     phi_nodes.push((branch_val, branch_b))
                 }

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 10:41 PM.
+ * Last modified on 8/30/19 11:39 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -189,6 +189,10 @@ pub enum MIRExpression {
         arguments: Vec<MIRExpression>,
     },
 
+    /// An expression indicating that any code after it should be discarded,
+    /// and that the next statement in the block should be the terminator ([MIRFlow]).
+    DoRet,
+
     /// Simply produces the function as a value.
     Function(MutRc<MIRFunction>),
 
@@ -251,6 +255,8 @@ impl MIRExpression {
                     panic!("non-function call type")
                 }
             }
+
+            MIRExpression::DoRet => MIRType::None,
 
             MIRExpression::Function(func) => func.borrow().ret_type.clone(),
 

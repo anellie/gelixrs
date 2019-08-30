@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 10:44 PM.
+ * Last modified on 8/30/19 11:41 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -192,7 +192,9 @@ impl MIRBuilder {
         // (return or break expression mostly) and should not be changed.
         // (discriminant returns a unique id of an enum variant)
         if std::mem::discriminant(&block.last) == std::mem::discriminant(&MIRFlow::None) {
-            block.last = ret
+            block.last = ret;
+            drop(cur_fn);
+            self.insert_at_ptr(MIRExpression::DoRet)
         }
     }
 
