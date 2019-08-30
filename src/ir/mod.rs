@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 11:14 PM.
+ * Last modified on 8/30/19 11:21 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -360,6 +360,7 @@ impl IRGenerator {
                 if let BasicValueEnum::PointerValue(ptr) = struc {
                     let ptr = unsafe { self.builder.build_struct_gep(ptr, *index, "classgep") };
                     let value = self.generate_expression(value);
+                    let value = self.unwrap_value_ptr(value);
                     self.builder.build_store(ptr, value);
                     value
                 } else {
@@ -447,21 +448,23 @@ impl IRGenerator {
 
     /// If the parameter 'ptr' is a struct pointer, the struct itself is returned.
     /// Otherwise, ptr is simply returned without modification.
-    fn unwrap_ptr(&self, ptr: BasicTypeEnum) -> BasicTypeEnum {
-        if let BasicTypeEnum::PointerType(ptr) = ptr {
-            ptr.get_element_type().as_struct_type().as_basic_type_enum()
-        } else {
-            ptr
+    fn unwrap_ptr(&self, ty: BasicTypeEnum) -> BasicTypeEnum {
+        if let BasicTypeEnum::PointerType(ptr) = ty {
+            if let AnyTypeEnum::StructType(struc) = ptr.get_element_type() {
+                return struc.as_basic_type_enum()
+            }
         }
+        ty
     }
 
     /// Same as [unwrap_ptr], but for values instead of types.
-    fn unwrap_value_ptr(&self, ptr: BasicValueEnum) -> BasicValueEnum {
-        if let BasicValueEnum::PointerValue(ptr) = ptr {
-            self.builder.build_load(ptr, "ptr-load")
-        } else {
-            ptr
+    fn unwrap_value_ptr(&self, val: BasicValueEnum) -> BasicValueEnum {
+        if let BasicValueEnum::PointerValue(ptr) = val {
+            if let AnyTypeEnum::StructType(_) = ptr.get_type().get_element_type() {
+                return self.builder.build_load(ptr, "ptr-load")
+            }
         }
+        val
     }
 
     /// Converts a MIRType to the corresponding LLVM type.
