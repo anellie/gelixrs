@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/24/19 2:09 PM.
+ * Last modified on 8/30/19 3:17 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -22,9 +22,9 @@ pub struct Parser {
     /// The line of the token before the current one.
     previous_line: usize,
 
-    /// If an error occurred while creating a statement.
-    /// Will signal the compiler that it should not compile.
-    had_error: bool,
+    /// If an error occurred while creating a declaration, it will be put in this Vec.
+    /// If it is empty, parsing was successful.
+    errors: Vec<String>,
 }
 
 /// This impl block contains all 'helper' functions of the parser.
@@ -115,21 +115,21 @@ impl Parser {
     /// Will set appropriate state.
     /// Returns None; allows returning from calling function with ?
     fn error_at_current(&mut self, message: &str) -> Option<()> {
-        eprintln!(
+        let msg = format!(
             "[Line {}][Token '{}' / {:?}] {}",
             self.current.line, self.current.lexeme, self.current.t_type, message
         );
-        self.had_error = true;
+        self.errors.push(msg);
         None
     }
 
     /// Reports an error produced by the lexer.
     fn lexer_error(&mut self) {
-        eprintln!(
+        let msg = format!(
             "[Line {}] Lexer error: {}",
             self.current.line, self.current.lexeme
         );
-        self.had_error = true;
+        self.errors.push(msg);
     }
 
     /// Will attempt to sync after an error to allow compilation to continue.
@@ -156,7 +156,7 @@ impl Parser {
             current: Token::eof_token(0),
             previous_line: 0,
 
-            had_error: false,
+            errors: Vec::new(),
         };
 
         // Set state correctly.

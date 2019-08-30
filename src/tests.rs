@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/15/19 6:57 PM.
+ * Last modified on 8/30/19 3:27 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -50,19 +50,18 @@ fn for_file(file: PathBuf) -> Result<(), ()> {
 
         if result != expected {
             println!(
-                "\n\n\nTest failed!\nResult: {:?}\nExpected: {:?}",
+                "Test failed!\nResult: {:?}\nExpected: {:?}\n",
                 result, expected
             );
         }
-        println!("\n",);
     }
 
     Ok(())
 }
 
 fn exec_jit(source: String) -> Result<String, ()> {
-    let code = super::parse_source(&source).ok_or(())?;
-    let module = super::compile_ir(code).ok_or(())?;
+    let code = super::parse_source(&source).ok().ok_or(())?;
+    let module = super::compile_ir(code).ok().ok_or(())?;
 
     let engine = module
         .create_jit_execution_engine(OptimizationLevel::None)

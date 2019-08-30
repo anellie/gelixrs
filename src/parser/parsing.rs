@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/24/19 2:13 PM.
+ * Last modified on 8/30/19 3:21 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -47,8 +47,8 @@ mod bin_macro {
 
 impl Parser {
     /// Parses the tokens and returns a full AST.
-    /// Returns Some on success, None if any part of the source is invalid syntax.
-    pub fn parse(mut self) -> Option<DeclarationList> {
+    /// Returns a list of errors on failure.
+    pub fn parse(mut self) -> Result<DeclarationList, Vec<String>> {
         let mut list = DeclarationList::new();
 
         while !self.is_at_end() {
@@ -58,11 +58,11 @@ impl Parser {
             }
         }
 
-        if self.had_error {
-            None
+        if self.errors.is_empty() {
+            Ok(list)
         } else {
-            Some(list)
-    }
+            Err(self.errors)
+        }
     }
 
     /// The entry point for generating a declaration.

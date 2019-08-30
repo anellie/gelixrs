@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 3:14 PM.
+ * Last modified on 8/30/19 3:26 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -32,10 +32,10 @@ pub struct MIRGenerator {
 }
 
 impl MIRGenerator {
-    pub fn generate(self, list: DeclarationList) -> Option<MIR> {
+    pub fn generate(self, list: DeclarationList) -> Result<MIR, String> {
         self.run(list)
             .or_else(|err| {
-                eprintln!(
+                Err(format!(
                     "[MIRGenerator] {}:
 {} |
 {} | {}
@@ -49,10 +49,8 @@ impl MIRGenerator {
                     err.line
                         .map(|l| (l + 1).to_string())
                         .unwrap_or_else(|| "?".to_string()),
-                );
-                Err(())
+                ))
             })
-            .ok()
     }
 
     fn run(mut self, mut list: DeclarationList) -> Res<MIR> {
