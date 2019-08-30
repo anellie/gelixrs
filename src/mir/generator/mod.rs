@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 1:41 PM.
+ * Last modified on 8/30/19 2:52 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -28,6 +28,7 @@ pub struct MIRGenerator {
 
     is_in_loop: bool,
     current_loop_ret_type: Option<MIRType>,
+    current_loop_cont_block: Option<Rc<String>>
 }
 
 impl MIRGenerator {
@@ -174,7 +175,19 @@ impl MIRGenerator {
                 last
             }
 
-            Expression::Break(_) => unimplemented!(),
+            Expression::Break(expr) => {
+                if let Some(expression) = expr {
+                    let expression = self.generate_expression(*expression)?;
+                    let body_alloca = self.find_or_create_var(
+                        expression.get_type(),
+                        Token::generic_identifier("for-body".to_string())
+                    )?;
+                    self.builder.build_store(body_alloca, expression);
+                }
+
+                self.builder.set_return(MIRFlow::Jump(Rc::clone(self.current_loop_cont_block.as_ref().unwrap())));
+                Self::none_const()
+            },
 
             Expression::Call { callee, arguments } => {
                 match &*callee {
@@ -197,19 +210,47 @@ impl MIRGenerator {
                     let args = self.generate_func_args(func, arguments)?;
                     self.builder.build_call(callee, args)
                 } else {
-                    // TODO: useless error
-                    return Err(Error::new(
-                        None,
-                        "Only functions or classes are allowed to be called",
-                        "".to_string(),
-                    ));
+                    return Err(Error::useless("Only functions or classes are allowed to be called"));
                 }
             }
 
-            Expression::For {
-                condition: _,
-                body: _,
-            } => unimplemented!(),
+            Expression::For { condition, body, } => {
+                let cur_fn_rc = self.builder.cur_fn();
+                let mut cur_fn = cur_fn_rc.borrow_mut();
+                let cond_block = cur_fn.append_block("forcond".to_string());
+                let loop_block = cur_fn.append_block("forloop".to_string());
+                let cont_block = cur_fn.append_block("forcont".to_string());
+                let prev_cont_block = std::mem::replace(&mut self.current_loop_cont_block, Some(Rc::clone(&cond_block)));
+                drop(cur_fn);
+
+                self.builder.set_return(MIRFlow::Jump(Rc::clone(&cond_block)));
+                self.builder.set_block(&cond_block);
+                let condition = self.generate_expression(*condition)?;
+                if condition.get_type() != MIRType::Bool {
+                    return Err(Error::useless("For condition must be a boolean."))
+                }
+
+                self.builder.set_return(MIRFlow::Branch {
+                    condition,
+                    then_b: Rc::clone(&loop_block),
+                    else_b: Rc::clone(&cont_block)
+                });
+
+                self.builder.set_block(&loop_block);
+                let body = self.generate_expression(*body)?;
+                let body_alloca = self.find_or_create_var(
+                    body.get_type(),
+                    Token::generic_identifier("for-body".to_string())
+                )?;
+
+                let store = self.builder.build_store(Rc::clone(&body_alloca), body);
+                self.builder.insert_at_ptr(store);
+                self.builder.set_return(MIRFlow::Jump(Rc::clone(&cond_block)));
+
+                self.builder.set_block(&cont_block);
+                self.current_loop_cont_block = prev_cont_block;
+                self.builder.build_load(body_alloca)
+            },
 
             Expression::Get { object, name } => {
                 let (object, field) = self.get_class_field(*object, name)?;
@@ -299,9 +340,9 @@ impl MIRGenerator {
                 }
 
                 self.builder.set_return(MIRFlow::Return(
-                    value.unwrap_or_else(MIRGenerator::none_const),
+                    value.unwrap_or_else(Self::none_const),
                 ));
-                MIRGenerator::none_const()
+                Self::none_const()
             }
 
             Expression::Set {
@@ -344,12 +385,12 @@ impl MIRGenerator {
                 value: _,
                 branches: _,
                 else_branch: _,
-            } => unimplemented!(),
+            } => return Err(Error::useless("Unimplemented: when")),
 
             Expression::VarDef(var) => {
                 let init = self.generate_expression(var.initializer)?;
                 let _type = init.get_type();
-                let var = self.define_variable(&var.name, !var.is_val, _type)?;
+                let var = self.define_variable(&var.name, !var.is_val, _type);
                 self.builder.build_store(var, init)
             }
         })
@@ -360,11 +401,11 @@ impl MIRGenerator {
         token: &Token,
         mutable: bool,
         _type: MIRType,
-    ) -> Res<Rc<MIRVariable>> {
+    ) -> Rc<MIRVariable> {
         let def = Rc::new(MIRVariable::new(Rc::clone(&token.lexeme), _type, mutable));
         self.builder.add_function_variable(Rc::clone(&def));
-        self.insert_variable(Rc::clone(&def), true, token.line)?;
-        Ok(def)
+        self.insert_variable(Rc::clone(&def), true, token.line);
+        def
     }
 
     fn insert_variable(
@@ -403,6 +444,18 @@ impl MIRGenerator {
             message: format!("Variable '{}' is not defined", token.lexeme),
             code: (*token.lexeme).clone(),
         })
+    }
+
+    fn find_or_create_var(&mut self, type_: MIRType, name: Token) -> Res<Rc<MIRVariable>> {
+        let var = self
+            .find_var(&name)
+            .unwrap_or_else(|_| self.define_variable(&name, true, type_.clone()));
+
+        if var._type != type_ {
+            Err(Error::useless("Break expressions + for body must have same type"))
+        } else {
+            Ok(var)
+        }
     }
 
     fn get_class_field(
@@ -486,6 +539,7 @@ impl MIRGenerator {
 
             is_in_loop: false,
             current_loop_ret_type: None,
+            current_loop_cont_block: None,
         };
 
         // Global scope
