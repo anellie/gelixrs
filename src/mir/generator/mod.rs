@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 11:24 PM.
+ * Last modified on 8/31/19 1:04 AM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -182,7 +182,7 @@ impl MIRGenerator {
                 if let Some(expression) = expr {
                     let expression = self.generate_expression(&**expression)?;
                     let body_alloca = self.find_or_create_var(
-                        expression.get_type(),
+                        &expression.get_type(),
                         Token::generic_identifier("for-body".to_string()),
                     )?;
                     self.builder.build_store(body_alloca, expression);
@@ -222,25 +222,22 @@ impl MIRGenerator {
                 }
             }
 
-            Expression::For { condition, body } => {
+            Expression::For { condition, body, else_b } => {
                 let cur_fn_rc = self.builder.cur_fn();
                 let mut cur_fn = cur_fn_rc.borrow_mut();
-                let cond_block = cur_fn.append_block("forcond".to_string());
-                let loop_block = cur_fn.append_block("forloop".to_string());
-                let cont_block = cur_fn.append_block("forcont".to_string());
+                let loop_block = cur_fn.append_block("for-loop".to_string());
+                let else_block = cur_fn.append_block("for-else".to_string());
+                let cont_block = cur_fn.append_block("for-cont".to_string());
 
                 let prev_ret_type = std::mem::replace(&mut self.current_loop_ret_type, None);
                 let prev_cont_block = std::mem::replace(
                     &mut self.current_loop_cont_block,
-                    Some(Rc::clone(&cond_block)),
+                    Some(Rc::clone(&cont_block)),
                 );
                 let was_in_loop = std::mem::replace(&mut self.is_in_loop, true);
 
                 drop(cur_fn);
 
-                self.builder
-                    .set_return(MIRFlow::Jump(Rc::clone(&cond_block)));
-                self.builder.set_block(&cond_block);
                 let cond = self.generate_expression(&**condition)?;
                 if cond.get_type() != MIRType::Bool {
                     return Err(Self::anon_err(
@@ -250,29 +247,50 @@ impl MIRGenerator {
                 }
 
                 self.builder.set_return(MIRFlow::Branch {
-                    condition: cond,
+                    condition: cond.clone(),
                     then_b: Rc::clone(&loop_block),
-                    else_b: Rc::clone(&cont_block),
+                    else_b: Rc::clone(&else_block)
                 });
 
                 self.builder.set_block(&loop_block);
                 let body = self.generate_expression(&**body)?;
+                let body_type = body.get_type();
                 let body_alloca = self.find_or_create_var(
-                    body.get_type(),
+                    &body_type,
                     Token::generic_identifier("for-body".to_string()),
                 )?;
 
                 let store = self.builder.build_store(Rc::clone(&body_alloca), body);
                 self.builder.insert_at_ptr(store);
-                self.builder
-                    .set_return(MIRFlow::Jump(Rc::clone(&cond_block)));
+                self.builder.set_return(MIRFlow::Branch {
+                    condition: cond,
+                    then_b: Rc::clone(&loop_block),
+                    else_b: Rc::clone(&cont_block)
+                });
 
+                self.builder.set_block(&else_block);
+                self.builder.set_return(MIRFlow::Jump(Rc::clone(&cont_block)));
+                let ret = if let Some(else_b) = else_b {
+                    let else_b = self.generate_expression(&**else_b)?;
+                    if else_b.get_type() == body_type {
+                        self.builder.set_block(&cont_block);
+                        self.builder.build_phi(vec![
+                            (else_b, else_block),
+                            (self.builder.build_load(body_alloca), loop_block)
+                        ])
+                    } else {
+                        Self::none_const()
+                    }
+                } else {
+                    Self::none_const()
+                };
+
+                self.builder.set_block(&cont_block);
                 self.current_loop_ret_type = prev_ret_type;
                 self.current_loop_cont_block = prev_cont_block;
                 self.is_in_loop = was_in_loop;
 
-                self.builder.set_block(&cont_block);
-                self.builder.build_load(body_alloca)
+                ret
             }
 
             Expression::Get { object, name } => {
@@ -535,12 +553,12 @@ impl MIRGenerator {
     }
 
     /// Will search for a variable and create it in the topmost scope if it does not exist.
-    fn find_or_create_var(&mut self, type_: MIRType, name: Token) -> Res<Rc<MIRVariable>> {
+    fn find_or_create_var(&mut self, type_: &MIRType, name: Token) -> Res<Rc<MIRVariable>> {
         let var = self
             .find_var(&name)
             .unwrap_or_else(|_| self.define_variable(&name, true, type_.clone()));
 
-        if var._type != type_ {
+        if &var._type != type_ {
             Err(Self::error(
                 &name,
                 &name,
@@ -602,7 +620,7 @@ impl MIRGenerator {
             if arg.get_type() != parameter._type {
                 return Err(Self::anon_err(
                     argument.get_token(),
-                    "Call argument is the wrong type",
+                    &format!("Call argument is the wrong type (was {}; expected {})", arg.get_type(), parameter._type),
                 ));
             }
             result.push(arg)

@@ -3,12 +3,8 @@ exfn print(String a)
 exfn printnum(i64 a)
 
 func main() {
-    val s = Super()
-    print(s.sub.a)
-
-    return
-
-    print("bad")
+    val a = for (false) "bad"
+    print(a)
 }
 
 class Super {

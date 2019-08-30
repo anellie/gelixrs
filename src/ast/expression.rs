@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 6:39 PM.
+ * Last modified on 8/31/19 12:40 AM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -49,10 +49,11 @@ pub enum Expression {
     },
 
     /// A for loop. Only conditional loops are in the AST; iteration loops are unrolled.
-    /// The value produced is the value of the body on the last iteration.
+    /// The value produced is the value of the body on the last iteration, or the else branch if the condition was never true.
     For {
         condition: Box<Expression>,
         body: Box<Expression>,
+        else_b: Option<Box<Expression>>
     },
 
     /// A getter (x.y)

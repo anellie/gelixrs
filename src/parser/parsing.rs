@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 4:35 PM.
+ * Last modified on 8/31/19 12:40 AM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -244,11 +244,12 @@ impl Parser {
 
         if self.check_next(Type::From) {
             // for (var from x to y)
+            // The range is reduced by one since the variable increment happens before the loop body runs.
             let variable_name = self.consume(Type::Identifier, "Expected identifier after '('")?;
             self.consume(Type::From, "Expected 'from' after identifier.")?;
-            let initial_value = self.integer()?;
+            let initial_value = Expression::Literal(Literal::Int(self.integer_int()? - 1));
             self.consume(Type::To, "Expected 'to' after integer.")?;
-            let last_value = self.integer()?;
+            let last_value = Expression::Literal(Literal::Int(self.integer_int()? - 1));
             self.consume(Type::RightParen, "Expected ')' after for condition.");
 
             let variable = Expression::VarDef(Box::new(Variable {
@@ -266,13 +267,21 @@ impl Parser {
                 }),
             };
 
+            let body = self.expression()?;
+            let else_b = if self.match_token(Type::Else) {
+                Some(Box::new(self.expression()?))
+            } else {
+                None
+            };
+
             let for_loop = Expression::For {
                 condition: Box::new(Expression::Binary {
                     left: Box::new(Expression::Variable(variable_name.clone())),
                     operator: Token::generic_token(Type::LessEqual),
                     right: Box::new(last_value),
                 }),
-                body: Box::new(Expression::Block(vec![self.expression()?, var_increment])),
+                body: Box::new(Expression::Block(vec![var_increment, body])),
+                else_b
             };
 
             Some(Expression::Block(vec![variable, for_loop]))
@@ -281,7 +290,14 @@ impl Parser {
             let condition = Box::new(self.expression()?);
             self.consume(Type::RightParen, "Expected ')' after for condition.");
             let body = Box::new(self.expression()?);
-            Some(Expression::For { condition, body })
+
+            let else_b = if self.match_token(Type::Else) {
+                Some(Box::new(self.expression()?))
+            } else {
+                None
+            };
+
+            Some(Expression::For { condition, body, else_b })
         }
     }
 
@@ -441,9 +457,13 @@ impl Parser {
     }
 
     fn integer(&mut self) -> Option<Expression> {
+        Some(Expression::Literal(Literal::Int(self.integer_int()?)))
+    }
+
+    fn integer_int(&mut self) -> Option<i64> {
         let token = self.advance();
         if let Ok(int) = token.lexeme.parse() {
-            Some(Expression::Literal(Literal::Int(int)))
+            Some(int)
         } else {
             self.error_at_current("Expected integer.")?;
             None
