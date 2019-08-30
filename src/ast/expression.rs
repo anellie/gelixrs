@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/22/19 8:19 PM.
+ * Last modified on 8/30/19 6:18 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -111,26 +111,26 @@ pub enum Expression {
 }
 
 impl Expression {
-    /// Returns the line the expression is on.
-    /// Can also return None if the expression does not contain information on its line.
-    pub fn get_line(&self) -> Option<usize> {
+    /// Returns a token that is part of the expression to be used for error display.
+    /// Can also return None if the expression does not contain any tokens.
+    pub fn get_token(&self) -> Option<&Token> {
         Some(match self {
-            Expression::Assignment { name, .. } => name.line,
-            Expression::Binary { operator, .. } => operator.line,
-            Expression::Block(vec) => vec.first()?.get_line()?,
-            Expression::Break(expr) => (*expr).as_ref()?.get_line()?,
-            Expression::Call { callee, .. } => callee.get_line()?,
-            Expression::For { condition, .. } => condition.get_line()?,
-            Expression::Get { name, .. } => name.line,
-            Expression::Grouping(expr) => expr.get_line()?,
-            Expression::If { condition, .. } => condition.get_line()?,
+            Expression::Assignment { name, .. } => name,
+            Expression::Binary { operator, .. } => operator,
+            Expression::Block(vec) => vec.first()?.get_token()?,
+            Expression::Break(expr) => (*expr).as_ref()?.get_token()?,
+            Expression::Call { callee, .. } => callee.get_token()?,
+            Expression::For { condition, .. } => condition.get_token()?,
+            Expression::Get { name, .. } => name,
+            Expression::Grouping(expr) => expr.get_token()?,
+            Expression::If { condition, .. } => condition.get_token()?,
             Expression::Literal(_) => None?,
-            Expression::Return(expr) => (*expr).as_ref()?.get_line()?,
-            Expression::Set { name, .. } => name.line,
-            Expression::Unary { operator, .. } => operator.line,
-            Expression::Variable(name) => name.line,
-            Expression::When { value, .. } => value.get_line()?,
-            Expression::VarDef(var) => var.name.line,
+            Expression::Return(expr) => (*expr).as_ref()?.get_token()?,
+            Expression::Set { name, .. } => name,
+            Expression::Unary { operator, .. } => operator,
+            Expression::Variable(name) => name,
+            Expression::When { value, .. } => value.get_token()?,
+            Expression::VarDef(var) => &var.name,
         })
     }
 }

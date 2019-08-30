@@ -1,14 +1,14 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 3:26 PM.
+ * Last modified on 8/30/19 6:24 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
 mod builder;
 mod passes;
 
-use crate::ast::declaration::{DeclarationList, FuncSignature, Function};
-use crate::ast::expression::{display_slice, Expression};
+use crate::ast::declaration::{DeclarationList, Function};
+use crate::ast::expression::Expression;
 use crate::ast::literal::Literal;
 use crate::lexer::token::{Token, Type};
 use crate::mir::generator::passes::declare::DeclarePass;
@@ -16,11 +16,10 @@ use crate::mir::generator::passes::fill_struct::FillStructPass;
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::nodes::{MIRExpression, MIRFlow, MIRFunction, MIRStructMem, MIRType, MIRVariable};
 use crate::mir::{MutRc, MIR};
+use crate::{Error, Res};
 use builder::MIRBuilder;
 use std::collections::HashMap;
 use std::rc::Rc;
-
-type Res<T> = Result<T, Error>;
 
 pub struct MIRGenerator {
     builder: MIRBuilder,
@@ -28,32 +27,11 @@ pub struct MIRGenerator {
 
     is_in_loop: bool,
     current_loop_ret_type: Option<MIRType>,
-    current_loop_cont_block: Option<Rc<String>>
+    current_loop_cont_block: Option<Rc<String>>,
 }
 
 impl MIRGenerator {
-    pub fn generate(self, list: DeclarationList) -> Result<MIR, String> {
-        self.run(list)
-            .or_else(|err| {
-                Err(format!(
-                    "[MIRGenerator] {}:
-{} |
-{} | {}
-{} |",
-                    err.message,
-                    err.line
-                        .map(|l| (l - 1).to_string())
-                        .unwrap_or_else(|| "?".to_string()),
-                    err.line.map(|l| l.to_string()).unwrap_or_else(|| "?".to_string()),
-                    err.code,
-                    err.line
-                        .map(|l| (l + 1).to_string())
-                        .unwrap_or_else(|| "?".to_string()),
-                ))
-            })
-    }
-
-    fn run(mut self, mut list: DeclarationList) -> Res<MIR> {
+    pub fn generate(mut self, mut list: DeclarationList) -> Res<MIR> {
         // Run all pre-MIR passes
         DeclarePass::new(&mut self).run(&mut list)?;
         FillStructPass::new(&mut self).run(&mut list)?;
@@ -68,7 +46,7 @@ impl MIRGenerator {
         })
     }
 
-    fn generate_mir(&mut self, list: DeclarationList) -> Result<(), Error> {
+    fn generate_mir(&mut self, list: DeclarationList) -> Res<()> {
         for func in list.functions.into_iter().chain(
             list.classes
                 .into_iter()
@@ -95,14 +73,19 @@ impl MIRGenerator {
             self.insert_variable(Rc::clone(param), false, func.sig.name.line)?;
         }
 
-        let body = self.generate_expression(func.body)?;
+        let body = self.generate_expression(&func.body)?;
         if func_type != MIRType::None {
             if func_type == body.get_type() {
                 self.builder.set_return(MIRFlow::Return(body));
             } else {
-                return Err(Error::new_fn(
-                    "Function return type does not match body type",
-                    &func.sig,
+                return Err(Self::error(
+                    &func.sig.name,
+                    func.sig.return_type.as_ref().unwrap_or(&func.sig.name),
+                    &format!(
+                        "Function return type ({}) does not match body type ({}).",
+                        func_type,
+                        body.get_type()
+                    ),
                 ));
             }
         } else {
@@ -113,27 +96,27 @@ impl MIRGenerator {
         Ok(())
     }
 
-    fn generate_expression(&mut self, expression: Expression) -> Res<MIRExpression> {
+    fn generate_expression(&mut self, expression: &Expression) -> Res<MIRExpression> {
         Ok(match expression {
             Expression::Assignment { name, value } => {
                 let var = self.find_var(&name)?;
                 if var.mutable {
-                    let value = self.generate_expression(*value)?;
+                    let value = self.generate_expression(&**value)?;
                     if value.get_type() == var._type {
                         self.builder.build_store(var, value)
                     } else {
-                        return Err(Error::new(
-                            Some(name.line),
+                        return Err(Self::error(
+                            &name,
+                            &name,
                             &format!("Variable {} is a different type", name.lexeme),
-                            name.lexeme.to_string(),
-                        ))
+                        ));
                     }
                 } else {
-                    return Err(Error::new(
-                        Some(name.line),
+                    return Err(Self::error(
+                        &name,
+                        &name,
                         &format!("Variable {} is not assignable (val)", name.lexeme),
-                        name.lexeme.to_string(),
-                    ))
+                    ));
                 }
             }
 
@@ -142,32 +125,32 @@ impl MIRGenerator {
                 operator,
                 right,
             } => {
-                let left = self.generate_expression(*left)?;
-                let right = self.generate_expression(*right)?;
+                let left = self.generate_expression(&**left)?;
+                let right = self.generate_expression(&**right)?;
 
                 if (left.get_type() == MIRType::Int) && (right.get_type() == MIRType::Int) {
-                    self.builder.build_binary(left, operator, right)
+                    self.builder.build_binary(left, operator.t_type, right)
                 } else {
-                    return Err(Error::new(
-                        Some(operator.line),
+                    return Err(Self::error(
+                        &operator,
+                        &operator,
                         "Binary operations are only allowed on i64.",
-                        format!("{:?}", operator.t_type),
-                    ))
+                    ));
                 }
             }
 
-            Expression::Block(mut expressions) => {
-                self.begin_scope();
-
-                let last = expressions.pop();
-                for expression in expressions {
-                    let expression = self.generate_expression(expression)?;
-                    self.builder.insert_at_ptr(expression);
+            Expression::Block(expressions) => {
+                if expressions.len() == 0 {
+                    return Ok(Self::none_const());
                 }
 
-                let last = last
-                    .map(|e| self.generate_expression(e))
-                    .unwrap_or_else(|| Ok(MIRGenerator::none_const()))?;
+                self.begin_scope();
+
+                for expression in expressions.iter().take(expressions.len() - 1) {
+                    let expression = self.generate_expression(&expression)?;
+                    self.builder.insert_at_ptr(expression);
+                }
+                let last = self.generate_expression(expressions.last().unwrap())?;
 
                 self.end_scope();
                 last
@@ -175,24 +158,29 @@ impl MIRGenerator {
 
             Expression::Break(expr) => {
                 if !self.is_in_loop {
-                    return Err(Error::useless("Break is only valid in loops."));
+                    return Err(Self::anon_err(
+                        expr.as_ref().map(|e| e.get_token()).flatten(),
+                        "Break is only allowed in loops.",
+                    ));
                 }
 
                 if let Some(expression) = expr {
-                    let expression = self.generate_expression(*expression)?;
+                    let expression = self.generate_expression(&**expression)?;
                     let body_alloca = self.find_or_create_var(
                         expression.get_type(),
-                        Token::generic_identifier("for-body".to_string())
+                        Token::generic_identifier("for-body".to_string()),
                     )?;
                     self.builder.build_store(body_alloca, expression);
                 }
 
-                self.builder.set_return(MIRFlow::Jump(Rc::clone(self.current_loop_cont_block.as_ref().unwrap())));
+                self.builder.set_return(MIRFlow::Jump(Rc::clone(
+                    self.current_loop_cont_block.as_ref().unwrap(),
+                )));
                 Self::none_const()
-            },
+            }
 
             Expression::Call { callee, arguments } => {
-                match &*callee {
+                match &**callee {
                     // Method call
                     Expression::Get { object: _, name: _ } => unimplemented!(),
 
@@ -207,16 +195,19 @@ impl MIRGenerator {
                 }
 
                 // match above fell through, its either a function call or invalid
-                let callee = self.generate_expression(*callee)?;
-                if let MIRType::Function(func) = callee.get_type() {
+                let callee_mir = self.generate_expression(&**callee)?;
+                if let MIRType::Function(func) = callee_mir.get_type() {
                     let args = self.generate_func_args(func, arguments)?;
-                    self.builder.build_call(callee, args)
+                    self.builder.build_call(callee_mir, args)
                 } else {
-                    return Err(Error::useless("Only functions or classes are allowed to be called"));
+                    return Err(Self::anon_err(
+                        callee.get_token(),
+                        "Only functions are allowed to be called",
+                    ));
                 }
             }
 
-            Expression::For { condition, body, } => {
+            Expression::For { condition, body } => {
                 let cur_fn_rc = self.builder.cur_fn();
                 let mut cur_fn = cur_fn_rc.borrow_mut();
                 let cond_block = cur_fn.append_block("forcond".to_string());
@@ -224,34 +215,42 @@ impl MIRGenerator {
                 let cont_block = cur_fn.append_block("forcont".to_string());
 
                 let prev_ret_type = std::mem::replace(&mut self.current_loop_ret_type, None);
-                let prev_cont_block = std::mem::replace(&mut self.current_loop_cont_block, Some(Rc::clone(&cond_block)));
+                let prev_cont_block = std::mem::replace(
+                    &mut self.current_loop_cont_block,
+                    Some(Rc::clone(&cond_block)),
+                );
                 let was_in_loop = std::mem::replace(&mut self.is_in_loop, true);
 
                 drop(cur_fn);
 
-                self.builder.set_return(MIRFlow::Jump(Rc::clone(&cond_block)));
+                self.builder
+                    .set_return(MIRFlow::Jump(Rc::clone(&cond_block)));
                 self.builder.set_block(&cond_block);
-                let condition = self.generate_expression(*condition)?;
-                if condition.get_type() != MIRType::Bool {
-                    return Err(Error::useless("For condition must be a boolean."))
+                let cond = self.generate_expression(&**condition)?;
+                if cond.get_type() != MIRType::Bool {
+                    return Err(Self::anon_err(
+                        condition.get_token(),
+                        "For condition must be a boolean.",
+                    ));
                 }
 
                 self.builder.set_return(MIRFlow::Branch {
-                    condition,
+                    condition: cond,
                     then_b: Rc::clone(&loop_block),
-                    else_b: Rc::clone(&cont_block)
+                    else_b: Rc::clone(&cont_block),
                 });
 
                 self.builder.set_block(&loop_block);
-                let body = self.generate_expression(*body)?;
+                let body = self.generate_expression(&**body)?;
                 let body_alloca = self.find_or_create_var(
                     body.get_type(),
-                    Token::generic_identifier("for-body".to_string())
+                    Token::generic_identifier("for-body".to_string()),
                 )?;
 
                 let store = self.builder.build_store(Rc::clone(&body_alloca), body);
                 self.builder.insert_at_ptr(store);
-                self.builder.set_return(MIRFlow::Jump(Rc::clone(&cond_block)));
+                self.builder
+                    .set_return(MIRFlow::Jump(Rc::clone(&cond_block)));
 
                 self.current_loop_ret_type = prev_ret_type;
                 self.current_loop_cont_block = prev_cont_block;
@@ -259,27 +258,26 @@ impl MIRGenerator {
 
                 self.builder.set_block(&cont_block);
                 self.builder.build_load(body_alloca)
-            },
+            }
 
             Expression::Get { object, name } => {
-                let (object, field) = self.get_class_field(*object, name)?;
+                let (object, field) = self.get_class_field(&**object, name)?;
                 self.builder.build_struct_get(object, field)
             }
 
-            Expression::Grouping(expr) => self.generate_expression(*expr)?,
+            Expression::Grouping(expr) => self.generate_expression(&**expr)?,
 
             Expression::If {
                 condition,
                 then_branch,
                 else_branch,
             } => {
-                let condition = self.generate_expression(*condition)?;
-                if let MIRType::Bool = condition.get_type() {
+                let cond = self.generate_expression(&**condition)?;
+                if let MIRType::Bool = cond.get_type() {
                 } else {
-                    return Err(Error::new(
-                        then_branch.get_line(),
+                    return Err(Self::anon_err(
+                        condition.get_token().or_else(|| then_branch.get_token()),
                         "If condition must be a boolean",
-                        "if (...)".to_string(),
                     ));
                 };
 
@@ -292,19 +290,19 @@ impl MIRGenerator {
                 drop(func);
 
                 self.builder.set_return(MIRFlow::Branch {
-                    condition,
+                    condition: cond,
                     then_b: Rc::clone(&then_b),
                     else_b: Rc::clone(&else_b),
                 });
 
                 self.builder.set_block(&then_b);
-                let then_val = self.generate_expression(*then_branch)?;
+                let then_val = self.generate_expression(&**then_branch)?;
                 then_b = self.builder.cur_block_name();
                 self.builder.set_return(MIRFlow::Jump(Rc::clone(&cont_b)));
 
                 self.builder.set_block(&else_b);
                 if let Some(else_branch) = else_branch {
-                    let else_val = self.generate_expression(*else_branch)?;
+                    let else_val = self.generate_expression(&**else_branch)?;
                     else_b = self.builder.cur_block_name();
                     self.builder.set_return(MIRFlow::Jump(Rc::clone(&cont_b)));
                     self.builder.set_block(&cont_b);
@@ -330,27 +328,27 @@ impl MIRGenerator {
                 MIRGenerator::none_const()
             }
 
-            Expression::Literal(literal) => self.builder.build_literal(literal),
+            Expression::Literal(literal) => self.builder.build_literal(literal.clone()),
 
-            Expression::Return(value) => {
-                let value = value.map(|v| self.generate_expression(*v)).transpose()?;
-                let _type = value
+            Expression::Return(val) => {
+                let value = val
+                    .as_ref()
+                    .map(|v| self.generate_expression(&*v))
+                    .transpose()?;
+                let type_ = value
                     .as_ref()
                     .map(|v| v.get_type())
                     .unwrap_or(MIRType::None);
 
-                if _type != self.builder.cur_fn().borrow().ret_type {
-                    // TODO: useless error
-                    return Err(Error::new(
-                        None,
-                        "Return expression has wrong type",
-                        "".to_string(),
+                if type_ != self.builder.cur_fn().borrow().ret_type {
+                    return Err(Self::anon_err(
+                        val.as_ref().map(|v| v.get_token()).flatten(),
+                        "Return expression in function has wrong type",
                     ));
                 }
 
-                self.builder.set_return(MIRFlow::Return(
-                    value.unwrap_or_else(Self::none_const),
-                ));
+                self.builder
+                    .set_return(MIRFlow::Return(value.unwrap_or_else(Self::none_const)));
                 Self::none_const()
             }
 
@@ -359,34 +357,38 @@ impl MIRGenerator {
                 name,
                 value,
             } => {
-                let (object, field) = self.get_class_field(*object, name)?;
-                let value = self.generate_expression(*value)?;
+                let (object, field) = self.get_class_field(&**object, name)?;
+                let value = self.generate_expression(&**value)?;
 
                 if value.get_type() != field._type {
-                    return Err(Error::useless("Cannot set class member to different type."));
+                    return Err(Self::error(name, name, "Struct member is a different type"));
                 }
                 if !field.mutable {
-                    return Err(Error::useless("Cannot set immutable class member"));
+                    return Err(Self::error(name, name, "Cannot set immutable class member"));
                 }
 
                 self.builder.build_struct_set(object, field, value)
             }
 
-            Expression::Unary { operator, right, } => {
-                let right = self.generate_expression(*right)?;
+            Expression::Unary { operator, right } => {
+                let right = self.generate_expression(&**right)?;
 
                 match operator.t_type {
-                    Type::Minus => self.builder.build_unary(right, operator),
+                    Type::Minus => self.builder.build_unary(right, operator.t_type),
                     Type::Bang => {
                         if right.get_type() == MIRType::Bool {
-                            self.builder.build_unary(right, operator)
+                            self.builder.build_unary(right, operator.t_type)
                         } else {
-                            return Err(Error::useless("'!' can only be used on boolean values"))
+                            return Err(Self::error(
+                                operator,
+                                operator,
+                                "'!' can only be used on boolean values",
+                            ));
                         }
                     }
                     _ => panic!("Invalid unary expression"),
                 }
-            },
+            }
 
             Expression::Variable(var) => {
                 let var = self.find_var(&var)?;
@@ -397,10 +399,10 @@ impl MIRGenerator {
                 value: _,
                 branches: _,
                 else_branch: _,
-            } => return Err(Error::useless("Unimplemented: when")),
+            } => return Err(Self::anon_err(None, "Unimplemented: when")),
 
             Expression::VarDef(var) => {
-                let init = self.generate_expression(var.initializer)?;
+                let init = self.generate_expression(&var.initializer)?;
                 let _type = init.get_type();
                 let var = self.define_variable(&var.name, !var.is_val, _type);
                 self.builder.build_store(var, init)
@@ -408,12 +410,7 @@ impl MIRGenerator {
         })
     }
 
-    fn define_variable(
-        &mut self,
-        token: &Token,
-        mutable: bool,
-        _type: MIRType,
-    ) -> Rc<MIRVariable> {
+    fn define_variable(&mut self, token: &Token, mutable: bool, _type: MIRType) -> Rc<MIRVariable> {
         let def = Rc::new(MIRVariable::new(Rc::clone(&token.lexeme), _type, mutable));
         self.builder.add_function_variable(Rc::clone(&def));
         self.insert_variable(Rc::clone(&def), true, token.line);
@@ -431,14 +428,16 @@ impl MIRGenerator {
             .insert(Rc::clone(&var.name), Rc::clone(&var))
             .is_some();
         if was_defined && !allow_redefine {
-            return Err(Error {
-                line: Some(line),
-                message: format!(
+            let mut tok = Token::generic_identifier((*var.name).clone());
+            tok.line = line;
+            return Err(Self::error(
+                &tok,
+                &tok,
+                &format!(
                     "Cannot redefine variable '{}' in the same scope.",
                     &var.name
                 ),
-                code: (*var.name).clone(),
-            });
+            ));
         }
 
         Ok(())
@@ -451,11 +450,11 @@ impl MIRGenerator {
             }
         }
 
-        Err(Error {
-            line: Some(token.line),
-            message: format!("Variable '{}' is not defined", token.lexeme),
-            code: (*token.lexeme).clone(),
-        })
+        Err(Self::error(
+            token,
+            token,
+            &format!("Variable '{}' is not defined", token.lexeme),
+        ))
     }
 
     fn find_or_create_var(&mut self, type_: MIRType, name: Token) -> Res<Rc<MIRVariable>> {
@@ -464,7 +463,11 @@ impl MIRGenerator {
             .unwrap_or_else(|_| self.define_variable(&name, true, type_.clone()));
 
         if var._type != type_ {
-            Err(Error::useless("Break expressions + for body must have same type"))
+            Err(Self::error(
+                &name,
+                &name,
+                "Break expressions + for body must have same type",
+            ))
         } else {
             Ok(var)
         }
@@ -472,8 +475,8 @@ impl MIRGenerator {
 
     fn get_class_field(
         &mut self,
-        object: Expression,
-        name: Token,
+        object: &Expression,
+        name: &Token,
     ) -> Res<(MIRExpression, Rc<MIRStructMem>)> {
         let object = self.generate_expression(object)?;
 
@@ -485,13 +488,13 @@ impl MIRGenerator {
                         .borrow()
                         .members
                         .get(&name.lexeme)
-                        .ok_or_else(|| Error::useless(
-                            "Unknown class member",
-                        ))?,
+                        .ok_or_else(|| Self::error(name, name, "Unknown class member"))?,
                 ),
             ))
         } else {
-            Err(Error::useless(
+            Err(Self::error(
+                name,
+                name,
                 "Get syntax is only supported on class instances",
             ))
         }
@@ -500,33 +503,31 @@ impl MIRGenerator {
     fn generate_func_args(
         &mut self,
         func_ref: MutRc<MIRFunction>,
-        arguments: Vec<Expression>,
+        arguments: &Vec<Expression>,
     ) -> Res<Vec<MIRExpression>> {
         let func = func_ref.borrow();
 
         if func.parameters.len() != arguments.len() {
-            return Err(Error {
-                line: arguments.first().map(|e| e.get_line()).flatten(),
-                message: format!(
+            return Err(Self::anon_err(
+                arguments.first().map(|e| e.get_token()).flatten(),
+                &format!(
                     "Incorrect amount of function arguments. (Expected {}; got {})",
                     func.parameters.len(),
                     arguments.len()
                 ),
-                code: display_slice(&arguments),
-            });
+            ));
         }
 
         let mut result = Vec::with_capacity(arguments.len());
         for (argument, parameter) in arguments.into_iter().zip(func.parameters.iter()) {
-            let argument = self.generate_expression(argument)?;
-            if argument.get_type() != parameter._type {
-                return Err(Error::new(
-                    None,
+            let arg = self.generate_expression(&argument)?;
+            if arg.get_type() != parameter._type {
+                return Err(Self::anon_err(
+                    argument.get_token(),
                     "Call argument is the wrong type",
-                    "".to_string(),
                 ));
             }
-            result.push(argument)
+            result.push(arg)
         }
 
         Ok(result)
@@ -544,6 +545,16 @@ impl MIRGenerator {
         MIRExpression::Literal(Literal::None)
     }
 
+    fn error(start: &Token, end: &Token, message: &str) -> Error {
+        Error::new(start, end, "MIRGenerator", message.to_string())
+    }
+
+    fn anon_err(tok: Option<&Token>, message: &str) -> Error {
+        let generic = Token::generic_token(Type::Identifier);
+        let tok = tok.unwrap_or_else(|| &generic);
+        Error::new(tok, tok, "MIRGenerator", message.to_string())
+    }
+
     pub fn new() -> Self {
         let mut generator = MIRGenerator {
             builder: MIRBuilder::new(),
@@ -558,46 +569,5 @@ impl MIRGenerator {
         generator.begin_scope();
 
         generator
-    }
-}
-
-pub struct Error {
-    pub line: Option<usize>,
-    pub message: String,
-    pub code: String,
-}
-
-impl Error {
-    pub fn new_expr(message: String, expr: &Expression) -> Error {
-        Error {
-            line: expr.get_line(),
-            message,
-            code: expr.to_string(),
-        }
-    }
-
-    pub fn new_fn(message: &str, func_sig: &FuncSignature) -> Error {
-        Error {
-            line: Some(func_sig.name.line),
-            message: message.to_string(),
-            code: format!("func {}(...)", func_sig.name.lexeme),
-        }
-    }
-
-    // TODO: Should redo error handling entirely, to be honest...
-    pub fn useless(message: &str) -> Error {
-        Error {
-            line: None,
-            message: message.to_string(),
-            code: "".to_string(),
-        }
-    }
-
-    pub fn new(line: Option<usize>, message: &str, code: String) -> Error {
-        Error {
-            line,
-            message: message.to_owned(),
-            code,
-        }
     }
 }

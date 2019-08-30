@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/19/19 10:32 PM.
+ * Last modified on 8/30/19 5:01 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -19,6 +19,8 @@ pub struct Lexer {
     current: usize,
     /// The line of the current position
     line: usize,
+    /// The index of the current position on the current line
+    line_index: usize,
 }
 
 impl Lexer {
@@ -146,7 +148,11 @@ impl Lexer {
     /// Helper function for [identifier_type], checks if rest of keyword matches
     fn check_identifier_keyword(&self, start: usize, pattern: &[char], t_type: Type) -> Type {
         // Check all chars in the pattern; if one does not match it isn't the keyword
-        if pattern.iter().enumerate().any(|(i, ch)| self.char_at(self.start + start + i) != *ch) {
+        if pattern
+            .iter()
+            .enumerate()
+            .any(|(i, ch)| self.char_at(self.start + start + i) != *ch)
+        {
             return Type::Identifier;
         }
 
@@ -185,6 +191,7 @@ impl Lexer {
         while !self.check('"') && !self.is_at_end() {
             if self.check('\n') {
                 self.line += 1;
+                self.line_index = 0;
             }
             self.advance();
         }
@@ -217,11 +224,8 @@ impl Lexer {
     fn make_token(&mut self, t_type: Type) -> Token {
         Token {
             t_type,
-            lexeme: Rc::new(
-                self.chars[(self.start)..(self.current)]
-                    .iter()
-                    .collect(),
-            ),
+            lexeme: Rc::new(self.chars[(self.start)..(self.current)].iter().collect()),
+            index: self.line_index,
             line: self.line,
         }
     }
@@ -231,6 +235,7 @@ impl Lexer {
         Token {
             t_type: Type::ScanError,
             lexeme: Rc::new(message.to_string()),
+            index: self.line_index,
             line: self.line,
         }
     }
@@ -245,6 +250,7 @@ impl Lexer {
 
                 '\n' => {
                     self.line += 1;
+                    self.line_index = 0;
                     self.advance();
                 }
 
@@ -311,6 +317,7 @@ impl Lexer {
             None
         } else {
             self.current += 1;
+            self.line_index += 1;
             Some(self.char_at(self.current - 1))
         }
     }
@@ -338,6 +345,7 @@ impl Lexer {
             start: 0,
             current: 0,
             line: 1,
+            line_index: 0,
         }
     }
 }

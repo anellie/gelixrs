@@ -1,12 +1,12 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 3:12 PM.
+ * Last modified on 8/30/19 6:21 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
 use super::super::nodes::{MIRFunction, MIRType};
 use crate::ast::literal::Literal;
-use crate::lexer::token::Token;
+use crate::lexer::token::Type;
 use crate::mir::nodes::{MIRExpression, MIRFlow, MIRStruct, MIRStructMem, MIRVariable};
 use crate::mir::{mutrc_new, MutRc};
 use std::collections::HashMap;
@@ -73,7 +73,7 @@ impl MIRBuilder {
     pub fn build_binary(
         &self,
         left: MIRExpression,
-        operator: Token,
+        operator: Type,
         right: MIRExpression,
     ) -> MIRExpression {
         MIRExpression::Binary {
@@ -83,17 +83,17 @@ impl MIRBuilder {
         }
     }
 
-    pub fn build_unary(&self, right: MIRExpression, op: Token) -> MIRExpression {
+    pub fn build_unary(&self, right: MIRExpression, op: Type) -> MIRExpression {
         MIRExpression::Unary {
             operator: op,
-            right: Box::new(right)
+            right: Box::new(right),
         }
     }
 
     pub fn build_bitcast(&self, obj: MIRExpression, goal: &MutRc<MIRStruct>) -> MIRExpression {
         MIRExpression::Bitcast {
             object: Box::new(obj),
-            goal: Rc::clone(&goal)
+            goal: Rc::clone(&goal),
         }
     }
 

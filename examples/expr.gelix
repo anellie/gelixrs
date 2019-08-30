@@ -8,4 +8,7 @@ func main() {
     }
 
     printnum(result + 42)
+
+    var a = "oh no"
+    if (true) a else 2345
 }

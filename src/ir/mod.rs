@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/29/19 11:02 PM.
+ * Last modified on 8/30/19 3:41 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -133,7 +133,9 @@ impl IRGenerator {
             if let BasicValueEnum::PointerValue(ptr) = arg_val {
                 self.variables.insert(PtrEqRc::new(arg), ptr);
             } else {
-                let alloca = self.builder.build_alloca(self.unwrap_ptr(arg_val.get_type()), &arg.name);
+                let alloca = self
+                    .builder
+                    .build_alloca(self.unwrap_ptr(arg_val.get_type()), &arg.name);
                 self.builder.build_store(alloca, arg_val);
                 self.variables.insert(PtrEqRc::new(arg), alloca);
             }
@@ -243,7 +245,7 @@ impl IRGenerator {
                 let left = if let BasicValueEnum::IntValue(int) = left { int } else { panic!("Only int are supported for math operations") };
                 let right = if let BasicValueEnum::IntValue(int) = right { int } else { panic!("Only int are supported for math operations") };
 
-                BasicValueEnum::IntValue(match operator.t_type {
+                BasicValueEnum::IntValue(match operator {
                     Type::Plus => self.builder.build_int_add(left, right, "add"),
                     Type::Minus => self.builder.build_int_sub(left, right, "sub"),
                     Type::Star => self.builder.build_int_mul(left, right, "mul"),
@@ -373,7 +375,7 @@ impl IRGenerator {
             // TODO: This is stupidly verbose
             MIRExpression::Unary { operator, right } => {
                 let expr = self.generate_expression(right);
-                match operator.t_type {
+                match operator {
                     Type::Minus => match expr {
                         BasicValueEnum::IntValue(int) => BasicValueEnum::IntValue(
                             self.builder.build_int_neg(int, "unaryneg"),

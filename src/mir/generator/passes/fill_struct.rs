@@ -1,13 +1,13 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/29/19 10:44 PM.
+ * Last modified on 8/30/19 6:06 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
 use crate::ast::declaration::{Class, DeclarationList};
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::generator::{Error, MIRGenerator, Res};
-use crate::mir::nodes::{MIRStructMem, MIRExpression};
+use crate::mir::nodes::{MIRExpression, MIRStructMem};
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -44,14 +44,11 @@ impl<'p> PreMIRPass for FillStructPass<'p> {
                     super_tok = None;
                 } else {
                     // Superclass doesn't exist.
-                    return Err(Error {
-                        line: Some(super_name.line),
-                        message: format!("Unknown class '{}'", super_name.lexeme),
-                        code: format!(
-                            "class {} ext {} {{ ... }}",
-                            class.name.lexeme, super_name.lexeme
-                        ),
-                    });
+                    return Err(MIRGenerator::error(
+                        &super_name,
+                        &super_name,
+                        &format!("Unknown class '{}'", super_name.lexeme),
+                    ));
                 }
             }
 
@@ -75,16 +72,7 @@ impl<'p> FillStructPass<'p> {
                 .gen
                 .builder
                 .find_struct(&super_name.lexeme)
-                .ok_or_else(|| {
-                    Error::new(
-                        Some(super_name.line),
-                        "Unknown class",
-                        format!(
-                            "class {} ext {} {{ ... }}",
-                            class.name.lexeme, super_name.lexeme
-                        ),
-                    )
-                })?;
+                .ok_or_else(|| MIRGenerator::error(super_name, super_name, "Unknown class"))?;
 
             for member in super_struct.borrow().members.iter() {
                 fields.insert(Rc::clone(member.0), Rc::clone(member.1));
@@ -126,7 +114,7 @@ impl<'p> FillStructPass<'p> {
 
         let offset = fields.len();
         for (i, field) in class.variables.drain(..).enumerate() {
-            let value = self.gen.generate_expression(field.initializer)?;
+            let value = self.gen.generate_expression(&field.initializer)?;
             let member = Rc::new(MIRStructMem {
                 mutable: !field.is_val,
                 _type: value.get_type(),
@@ -155,12 +143,10 @@ impl<'p> FillStructPass<'p> {
 
             let super_init_call = self.gen.builder.build_call(
                 MIRExpression::Function(function_rc),
-                vec![
-                    self.gen.builder.build_bitcast(
-                        MIRExpression::VarGet(Rc::clone(&struct_var)),
-                        &sclass_def
-                    )
-                ]
+                vec![self
+                    .gen
+                    .builder
+                    .build_bitcast(MIRExpression::VarGet(Rc::clone(&struct_var)), &sclass_def)],
             );
 
             self.gen.builder.insert_at_ptr(super_init_call);

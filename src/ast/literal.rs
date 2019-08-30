@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/12/19 8:35 PM.
+ * Last modified on 8/30/19 3:39 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -8,7 +8,7 @@ use std::fmt::{Display, Error, Formatter};
 use std::rc::Rc;
 
 /// An enum containing all literals possible in Gelix.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Literal {
     None,
     Bool(bool),

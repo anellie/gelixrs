@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 3:27 PM.
+ * Last modified on 8/30/19 6:11 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -44,7 +44,7 @@ fn main() -> Result<(), &'static str> {
 
     let code = gelixrs::parse_source(&source).or_else(|errors| {
         for error in errors {
-            println!("{}", error);
+            println!("{}\n", error.to_string(&source));
         }
         Err("Parser encountered errors. Exiting.")
     })?;
@@ -55,7 +55,7 @@ fn main() -> Result<(), &'static str> {
     }
 
     let module = gelixrs::compile_ir(code).or_else(|error| {
-        println!("{}", error);
+        println!("{}", error.to_string(&source));
         Err("MIR generator encountered errors. Exiting.")
     })?;
 

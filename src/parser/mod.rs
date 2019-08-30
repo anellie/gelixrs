@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 3:17 PM.
+ * Last modified on 8/30/19 5:07 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -10,6 +10,7 @@ use super::lexer::{
     token::{Token, Type},
     Lexer,
 };
+use crate::Error;
 use std::{iter::Peekable, mem};
 
 /// A parser that turns a stream of [Token]s into an AST.
@@ -24,7 +25,7 @@ pub struct Parser {
 
     /// If an error occurred while creating a declaration, it will be put in this Vec.
     /// If it is empty, parsing was successful.
-    errors: Vec<String>,
+    errors: Vec<Error>,
 }
 
 /// This impl block contains all 'helper' functions of the parser.
@@ -115,21 +116,27 @@ impl Parser {
     /// Will set appropriate state.
     /// Returns None; allows returning from calling function with ?
     fn error_at_current(&mut self, message: &str) -> Option<()> {
-        let msg = format!(
-            "[Line {}][Token '{}' / {:?}] {}",
-            self.current.line, self.current.lexeme, self.current.t_type, message
-        );
-        self.errors.push(msg);
+        let mut error = Error::new(&self.current, &self.current, "Parser", message.to_string());
+
+        // Display the last line as well if the error happened right after a newline;
+        // most errors after newline would be meaningless otherwise
+        if self.previous_line != self.current.line && self.current.t_type != Type::EndOfFile {
+            error.lines.0 -= 1;
+        }
+
+        self.errors.push(error);
         None
     }
 
     /// Reports an error produced by the lexer.
     fn lexer_error(&mut self) {
-        let msg = format!(
-            "[Line {}] Lexer error: {}",
-            self.current.line, self.current.lexeme
+        let error = Error::new(
+            &self.current,
+            &self.current,
+            "Lexer",
+            (*self.current.lexeme).clone(),
         );
-        self.errors.push(msg);
+        self.errors.push(error);
     }
 
     /// Will attempt to sync after an error to allow compilation to continue.

@@ -1,14 +1,15 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/26/19 6:45 PM.
+ * Last modified on 8/30/19 6:10 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
 use crate::ast::declaration::{Class, DeclarationList, FuncSignature, FunctionArg};
 use crate::lexer::token::Token;
 use crate::mir::generator::passes::PreMIRPass;
-use crate::mir::generator::{Error, MIRGenerator, Res};
+use crate::mir::generator::MIRGenerator;
 use crate::mir::nodes::{MIRType, MIRVariable};
+use crate::Res;
 use std::rc::Rc;
 
 pub struct DeclarePass<'p> {
@@ -39,11 +40,7 @@ impl<'p> DeclarePass<'p> {
             .builder
             .create_struct(Rc::clone(&class.name.lexeme))
             .ok_or_else(|| {
-                Error::new(
-                    Some(class.name.line),
-                    "Class was already defined!",
-                    format!("class {} {{ ... }}", &class.name.lexeme),
-                )
+                MIRGenerator::error(&class.name, &class.name, "Class was already defined!")
             })?;
 
         // Create init function
@@ -91,7 +88,13 @@ impl<'p> DeclarePass<'p> {
                     .map(|t| &t.lexeme)
                     .unwrap_or(&self.none_const),
             )
-            .ok_or_else(|| Error::new_fn("Unknown function return type", &func_sig))?;
+            .ok_or_else(|| {
+                MIRGenerator::error(
+                    func_sig.return_type.as_ref().unwrap(),
+                    func_sig.return_type.as_ref().unwrap(),
+                    "Unknown function return type",
+                )
+            })?;
 
         let mut parameters = Vec::with_capacity(func_sig.parameters.len());
         for param in func_sig.parameters.iter() {
@@ -103,7 +106,11 @@ impl<'p> DeclarePass<'p> {
                     .builder
                     .find_type(&param._type.lexeme)
                     .ok_or_else(|| {
-                        Error::new_fn("Function parameter has unknown type", &func_sig)
+                        MIRGenerator::error(
+                            &func_sig.name,
+                            func_sig.return_type.as_ref().unwrap_or(&func_sig.name),
+                            "Function parameter has unknown type",
+                        )
                     })?,
             }))
         }
@@ -116,7 +123,13 @@ impl<'p> DeclarePass<'p> {
                 ret_type.clone(),
                 parameters,
             )
-            .ok_or_else(|| Error::new_fn("Function was declared twice", &func_sig))?;
+            .ok_or_else(|| {
+                MIRGenerator::error(
+                    &func_sig.name,
+                    &func_sig.name,
+                    "Function was declared twice",
+                )
+            })?;
 
         self.gen.environments.first_mut().unwrap().insert(
             Rc::clone(&func_sig.name.lexeme),

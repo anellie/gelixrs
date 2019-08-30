@@ -1,15 +1,16 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/29/19 10:05 PM.
+ * Last modified on 8/30/19 6:21 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
 use crate::ast::expression::LOGICAL_BINARY;
 use crate::ast::literal::Literal;
-use crate::lexer::token::{Token, Type};
+use crate::lexer::token::Type;
 use crate::mir::MutRc;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::fmt::{Display, Error, Formatter};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
@@ -23,6 +24,21 @@ pub enum MIRType {
     String,
     Function(MutRc<MIRFunction>),
     Struct(MutRc<MIRStruct>),
+}
+
+impl Display for MIRType {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+        match self {
+            MIRType::None => write!(f, "None"),
+            MIRType::Bool => write!(f, "bool"),
+            MIRType::Int => write!(f, "i64"),
+            MIRType::Float => write!(f, "f32"),
+            MIRType::Double => write!(f, "f64"),
+            MIRType::String => write!(f, "String"),
+            MIRType::Function(_) => write!(f, "<func>"),
+            MIRType::Struct(struc) => write!(f, "{}", struc.borrow().name),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -135,13 +151,13 @@ pub enum MIRExpression {
     // Maybe turn this into a function call? » left.add(right) «
     Binary {
         left: Box<MIRExpression>,
-        operator: Token,
+        operator: Type,
         right: Box<MIRExpression>,
     },
 
     Bitcast {
         object: Box<MIRExpression>,
-        goal: MutRc<MIRStruct>
+        goal: MutRc<MIRStruct>,
     },
 
     Call {
@@ -167,7 +183,7 @@ pub enum MIRExpression {
     Literal(Literal),
 
     Unary {
-        operator: Token,
+        operator: Type,
         right: Box<MIRExpression>,
     },
 
@@ -186,7 +202,7 @@ impl MIRExpression {
     pub(super) fn get_type(&self) -> MIRType {
         match self {
             MIRExpression::Binary { left, operator, .. } => {
-                if LOGICAL_BINARY.contains(&operator.t_type) {
+                if LOGICAL_BINARY.contains(&operator) {
                     MIRType::Bool
                 } else {
                     left.get_type()
@@ -225,7 +241,7 @@ impl MIRExpression {
                 _ => panic!("unknown literal"),
             },
 
-            MIRExpression::Unary { operator, right } => match operator.t_type {
+            MIRExpression::Unary { operator, right } => match operator {
                 Type::Bang => MIRType::Bool,
                 Type::Minus => right.get_type(),
                 _ => panic!("invalid unary"),

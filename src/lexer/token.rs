@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/24/19 2:12 PM.
+ * Last modified on 8/30/19 6:20 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -14,7 +14,10 @@ pub struct Token {
     pub t_type: Type,
     /// The lexeme of the token. Does not include escape chars (ex. String lexeme is <i>I'm a string!</i>)
     pub lexeme: Rc<String>,
-    /// The line the token is on.
+    /// The index of the last char on the line of the token inside the source.
+    /// This is used for error reporting.
+    pub index: usize,
+    /// The line of the token.
     pub line: usize,
 }
 
@@ -23,14 +26,17 @@ impl Token {
         Token {
             t_type: Type::EndOfFile,
             lexeme: Rc::new("\0".to_string()),
+            index: 1,
             line,
         }
     }
 
     pub fn generic_identifier(lexeme: String) -> Token {
+        let index = lexeme.len();
         Token {
             t_type: Type::Identifier,
             lexeme: Rc::new(lexeme),
+            index,
             line: 0,
         }
     }
@@ -39,6 +45,7 @@ impl Token {
         Token {
             t_type: token,
             lexeme: Rc::new("".to_string()),
+            index: 0,
             line: 0,
         }
     }
