@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 2:52 PM.
+ * Last modified on 8/30/19 3:14 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -176,6 +176,10 @@ impl MIRGenerator {
             }
 
             Expression::Break(expr) => {
+                if !self.is_in_loop {
+                    return Err(Error::useless("Break is only valid in loops."));
+                }
+
                 if let Some(expression) = expr {
                     let expression = self.generate_expression(*expression)?;
                     let body_alloca = self.find_or_create_var(
@@ -220,7 +224,11 @@ impl MIRGenerator {
                 let cond_block = cur_fn.append_block("forcond".to_string());
                 let loop_block = cur_fn.append_block("forloop".to_string());
                 let cont_block = cur_fn.append_block("forcont".to_string());
+
+                let prev_ret_type = std::mem::replace(&mut self.current_loop_ret_type, None);
                 let prev_cont_block = std::mem::replace(&mut self.current_loop_cont_block, Some(Rc::clone(&cond_block)));
+                let was_in_loop = std::mem::replace(&mut self.is_in_loop, true);
+
                 drop(cur_fn);
 
                 self.builder.set_return(MIRFlow::Jump(Rc::clone(&cond_block)));
@@ -247,8 +255,11 @@ impl MIRGenerator {
                 self.builder.insert_at_ptr(store);
                 self.builder.set_return(MIRFlow::Jump(Rc::clone(&cond_block)));
 
-                self.builder.set_block(&cont_block);
+                self.current_loop_ret_type = prev_ret_type;
                 self.current_loop_cont_block = prev_cont_block;
+                self.is_in_loop = was_in_loop;
+
+                self.builder.set_block(&cont_block);
                 self.builder.build_load(body_alloca)
             },
 
@@ -355,6 +366,9 @@ impl MIRGenerator {
 
                 if value.get_type() != field._type {
                     return Err(Error::useless("Cannot set class member to different type."));
+                }
+                if !field.mutable {
+                    return Err(Error::useless("Cannot set immutable class member"));
                 }
 
                 self.builder.build_struct_set(object, field, value)

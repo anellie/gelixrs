@@ -1,12 +1,12 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 1:39 PM.
+ * Last modified on 8/30/19 3:12 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
 use super::super::nodes::{MIRFunction, MIRType};
 use crate::ast::literal::Literal;
-use crate::lexer::token::{Token, Type};
+use crate::lexer::token::Token;
 use crate::mir::nodes::{MIRExpression, MIRFlow, MIRStruct, MIRStructMem, MIRVariable};
 use crate::mir::{mutrc_new, MutRc};
 use std::collections::HashMap;
