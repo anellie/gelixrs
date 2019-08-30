@@ -3,19 +3,26 @@ exfn print(String a)
 exfn printnum(i64 a)
 
 func main() {
-    val sub = Sub()
-    printnum(sub.a)
-    print(sub.t)
-    printnum(sub.ok())
-    print(sub.nice())
+    printnum(1)
+    val a = when (123) {
+        30 -> 331
+        23 -> 111
+        123 -> {
+            print("ok!")
+            var a = 345
+            a
+        }
+        else -> {
+            print("oh no!")
+            0
+        }
+    }
+    printnum(a)
 }
 
 class Super {
     val a = 5
     val b = "okay"
-
-    func ok() -> i64 6
-    func nice() -> String this.b
 }
 
 class Sub ext Super {

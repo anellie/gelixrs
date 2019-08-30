@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 7:34 PM.
+ * Last modified on 8/30/19 10:56 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -323,10 +323,10 @@ impl MIRGenerator {
                     self.builder.set_block(&cont_b);
 
                     if then_val.get_type() == else_val.get_type() {
-                        return Ok(self.builder.build_phi(
+                        return Ok(self.builder.build_phi(vec![
                             (then_val, Rc::clone(&then_b)),
                             (else_val, Rc::clone(&else_b)),
-                        ));
+                        ]));
                     } else {
                         self.builder.set_block(&else_b);
                         self.builder.insert_at_ptr(else_val);
@@ -411,10 +411,66 @@ impl MIRGenerator {
             }
 
             Expression::When {
-                value: _,
-                branches: _,
-                else_branch: _,
-            } => return Err(Self::anon_err(None, "Unimplemented: when")),
+                value,
+                branches,
+                else_branch,
+            } => {
+                let start_b = self.builder.cur_block_name();
+
+                let value = self.generate_expression(value)?;
+                let val_type = value.get_type();
+
+                let function_rc = self.builder.cur_fn();
+                let mut function = function_rc.borrow_mut();
+                let else_b = function.append_block("when-else".to_string());
+                let cont_b = function.append_block("when-cont".to_string());
+                println!("{:#?}", function);
+                drop(function);
+
+                self.builder.set_block(&else_b);
+                let else_val = self.generate_expression(else_branch)?;
+                let branch_type = else_val.get_type();
+                self.builder.set_return(MIRFlow::Jump(Rc::clone(&cont_b)));
+
+                let mut cases = Vec::with_capacity(branches.len());
+                let mut phi_nodes = Vec::with_capacity(branches.len());
+                for (b_val, branch) in branches.iter() {
+                    self.builder.set_block(&start_b);
+                    let val = self.generate_expression(b_val)?;
+                    if val.get_type() != val_type {
+                        return Err(Self::anon_err(
+                            b_val.get_token(), "Branches of when must be of same type as the value compared."
+                        ))
+                    }
+                    let val = self.builder.build_binary(val, Type::EqualEqual, value.clone());
+
+                    let mut function = function_rc.borrow_mut();
+                    let branch_b = function.append_block("when-br".to_string());
+                    drop(function);
+                    self.builder.set_block(&branch_b);
+                    let branch_val = self.generate_expression(branch)?;
+                    if branch_val.get_type() != branch_type {
+                        return Err(Self::anon_err(
+                            branch.get_token(), "Branch results must be of same type."
+                        ))
+                    }
+                    self.builder.set_return(MIRFlow::Jump(Rc::clone(&cont_b)));
+
+                    cases.push((val, Rc::clone(&branch_b)));
+                    phi_nodes.push((branch_val, branch_b))
+                }
+
+                phi_nodes.push((else_val, Rc::clone(&else_b)));
+
+                self.builder.set_block(&start_b);
+                self.builder.set_return(MIRFlow::Switch {
+                    cases,
+                    default: else_b
+                });
+
+                self.builder.set_block(&cont_b);
+                self.builder.build_phi(phi_nodes)
+            },
 
             Expression::VarDef(var) => {
                 let init = self.generate_expression(&var.initializer)?;

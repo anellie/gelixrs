@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 7:17 PM.
+ * Last modified on 8/30/19 10:44 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -138,12 +138,8 @@ impl MIRBuilder {
         MIRExpression::VarGet(var)
     }
 
-    pub fn build_phi(
-        &self,
-        first: (MIRExpression, Rc<String>),
-        second: (MIRExpression, Rc<String>),
-    ) -> MIRExpression {
-        MIRExpression::Phi(vec![first, second])
+    pub fn build_phi(&self, nodes: Vec<(MIRExpression, Rc<String>)>, ) -> MIRExpression {
+        MIRExpression::Phi(nodes)
     }
 
     pub fn build_literal(&self, literal: Literal) -> MIRExpression {

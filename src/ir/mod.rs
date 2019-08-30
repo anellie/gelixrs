@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 6:57 PM.
+ * Last modified on 8/30/19 11:14 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -29,6 +29,7 @@ use std::{
     hash::{Hash, Hasher},
     rc::Rc,
 };
+use inkwell::values::IntValue;
 
 /// A generator that creates LLVM IR out of Gelix mid-level IR (MIR).
 ///
@@ -209,6 +210,22 @@ impl IRGenerator {
                 } else {
                     panic!("br condition wasn't a boolean");
                 }
+            }
+
+            MIRFlow::Switch { cases, default } => {
+                // TODO: meh
+                let cases: Vec<(IntValue, BasicBlock)> = cases.iter().map(|(expr, block)| {
+                    (*self.generate_expression(expr).as_int_value(), self.get_block(block))
+                }).collect();
+                let cases: Vec<(IntValue, &BasicBlock)> = cases.iter().map(|(expr, block)| {
+                    (*expr, block)
+                }).collect();
+
+                self.builder.build_switch(
+                    self.context.bool_type().const_int(1, false),
+                    &self.get_block(default),
+                    cases.as_slice()
+                )
             }
 
             MIRFlow::Return(value) => {

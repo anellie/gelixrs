@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 7:17 PM.
+ * Last modified on 8/30/19 10:41 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -110,7 +110,7 @@ impl MIRFunction {
 }
 
 /// A variable inside a function.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MIRVariable {
     pub mutable: bool,
     pub _type: MIRType,
@@ -156,12 +156,19 @@ pub enum MIRFlow {
         else_b: Rc<String>,
     },
 
+    /// Same as branch, but with a list of conditions.
+    /// Jumps to the first that matches.
+    Switch {
+        cases: Vec<(MIRExpression, Rc<String>)>,
+        default: Rc<String>
+    },
+
     /// Return a value
     Return(MIRExpression),
 }
 
 /// All expressions in MIR. All of them produce a value.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum MIRExpression {
     /// Simply a binary operation between numbers.
     Binary {
