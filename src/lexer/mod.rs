@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/31/19 1:10 PM.
+ * Last modified on 9/1/19 9:24 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -27,7 +27,7 @@ impl Lexer {
     /// Returns the next token, or None if at EOF.
     fn next_token(&mut self) -> Option<Token> {
         if let Err(tok) = self.skip_whitespace() {
-            return Some(tok)
+            return Some(tok);
         }
 
         self.start = self.current;

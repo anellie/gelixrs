@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/1/19 6:32 PM.
+ * Last modified on 9/1/19 9:24 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -8,10 +8,10 @@ use crate::ast::declaration::{Class, DeclarationList, FuncSignature, FunctionArg
 use crate::lexer::token::Token;
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::generator::MIRGenerator;
-use crate::mir::nodes::{MIRType, MIRVariable, MIRFunction};
+use crate::mir::nodes::{MIRFunction, MIRType, MIRVariable};
+use crate::mir::MutRc;
 use crate::Res;
 use std::rc::Rc;
-use crate::mir::MutRc;
 
 /// This pass declares all structs and functions in the AST.
 /// It does not fill structs; they are kept empty.
@@ -39,7 +39,8 @@ impl<'p> DeclarePass<'p> {
 
     fn create_class(&mut self, class: &mut Class) -> Res<()> {
         // Create struct (filled in another pass)
-        let mir_class = self.gen
+        let mir_class = self
+            .gen
             .builder
             .create_struct(Rc::clone(&class.name.lexeme))
             .ok_or_else(|| {

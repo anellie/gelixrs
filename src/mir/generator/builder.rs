@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/1/19 8:57 PM.
+ * Last modified on 9/1/19 9:24 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -139,7 +139,7 @@ impl MIRBuilder {
         MIRExpression::VarGet(var)
     }
 
-    pub fn build_phi(&self, nodes: Vec<(MIRExpression, Rc<String>)>, ) -> MIRExpression {
+    pub fn build_phi(&self, nodes: Vec<(MIRExpression, Rc<String>)>) -> MIRExpression {
         MIRExpression::Phi(nodes)
     }
 
@@ -186,7 +186,7 @@ impl MIRBuilder {
         self.set_return(MIRFlow::Branch {
             condition: cond,
             then_b: Rc::clone(&then),
-            else_b: Rc::clone(&else_)
+            else_b: Rc::clone(&else_),
         });
     }
 

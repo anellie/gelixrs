@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/1/19 6:58 PM.
+ * Last modified on 9/1/19 9:24 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -164,7 +164,7 @@ pub enum MIRFlow {
     /// Jumps to the first that matches.
     Switch {
         cases: Vec<(MIRExpression, Rc<String>)>,
-        default: Rc<String>
+        default: Rc<String>,
     },
 
     /// Return a value

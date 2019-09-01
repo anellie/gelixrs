@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/31/19 12:40 AM.
+ * Last modified on 9/1/19 9:25 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -53,7 +53,7 @@ pub enum Expression {
     For {
         condition: Box<Expression>,
         body: Box<Expression>,
-        else_b: Option<Box<Expression>>
+        else_b: Option<Box<Expression>>,
     },
 
     /// A getter (x.y)
@@ -106,7 +106,7 @@ pub enum Expression {
     // Below are all 'higher expressions'. These are differentiated in the parser.
     // They are only allowed to appear as top-level inside a block.
     // All of them always produce None as a value.
-
+    
     /// A variable definition.
     VarDef(Box<Variable>),
 }

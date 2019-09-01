@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/31/19 12:40 AM.
+ * Last modified on 9/1/19 9:28 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -281,7 +281,7 @@ impl Parser {
                     right: Box::new(last_value),
                 }),
                 body: Box::new(Expression::Block(vec![var_increment, body])),
-                else_b
+                else_b,
             };
 
             Some(Expression::Block(vec![variable, for_loop]))
@@ -297,7 +297,11 @@ impl Parser {
                 None
             };
 
-            Some(Expression::For { condition, body, else_b })
+            Some(Expression::For {
+                condition,
+                body,
+                else_b,
+            })
         }
     }
 

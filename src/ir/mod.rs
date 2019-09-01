@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/1/19 7:23 PM.
+ * Last modified on 9/1/19 9:25 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -212,17 +212,22 @@ impl IRGenerator {
 
             MIRFlow::Switch { cases, default } => {
                 // TODO: meh
-                let cases: Vec<(IntValue, BasicBlock)> = cases.iter().map(|(expr, block)| {
-                    (*self.generate_expression(expr).as_int_value(), self.get_block(block))
-                }).collect();
-                let cases: Vec<(IntValue, &BasicBlock)> = cases.iter().map(|(expr, block)| {
-                    (*expr, block)
-                }).collect();
+                let cases: Vec<(IntValue, BasicBlock)> = cases
+                    .iter()
+                    .map(|(expr, block)| {
+                        (
+                            *self.generate_expression(expr).as_int_value(),
+                            self.get_block(block),
+                        )
+                    })
+                    .collect();
+                let cases: Vec<(IntValue, &BasicBlock)> =
+                    cases.iter().map(|(expr, block)| (*expr, block)).collect();
 
                 self.builder.build_switch(
                     self.context.bool_type().const_int(1, false),
                     &self.get_block(default),
-                    cases.as_slice()
+                    cases.as_slice(),
                 )
             }
 
@@ -312,7 +317,7 @@ impl IRGenerator {
                 // Insert block might be None if block return was hit
                 let cur_block = match self.builder.get_insert_block() {
                     Some(b) => b,
-                    None => return self.none_const
+                    None => return self.none_const,
                 };
 
                 let branches: Vec<(BasicValueEnum, BasicBlock)> = branches
@@ -321,7 +326,7 @@ impl IRGenerator {
                         let block = self.get_block(br);
                         match block.get_terminator() {
                             Some(inst) => self.builder.position_before(&inst),
-                            None => self.builder.position_at_end(&block)
+                            None => self.builder.position_at_end(&block),
                         }
                         (self.generate_expression(expr), block)
                     })
@@ -388,7 +393,8 @@ impl IRGenerator {
                         if self.builder.get_insert_block().is_none() {
                             self.none_const
                         } else {
-                            let const_str = self.builder.build_global_string_ptr(&string, "literal-str");
+                        let const_str =
+                            self.builder.build_global_string_ptr(&string, "literal-str");
                             BasicValueEnum::PointerValue(const_str.as_pointer_value())
                         }
                     }
@@ -400,13 +406,13 @@ impl IRGenerator {
 
                 // Both ! and - always just negate their value, so this is safe.
                 match expr {
-                    BasicValueEnum::IntValue(int) => BasicValueEnum::IntValue(
-                        self.builder.build_int_neg(int, "unaryneg"),
-                    ),
+                    BasicValueEnum::IntValue(int) => {
+                        BasicValueEnum::IntValue(self.builder.build_int_neg(int, "unaryneg"))
+                    }
 
-                    BasicValueEnum::FloatValue(float) => BasicValueEnum::FloatValue(
-                        self.builder.build_float_neg(float, "unaryneg"),
-                    ),
+                    BasicValueEnum::FloatValue(float) => {
+                        BasicValueEnum::FloatValue(self.builder.build_float_neg(float, "unaryneg"))
+                    }
 
                     _ => panic!("Invalid unary operator"),
                 }
@@ -446,7 +452,7 @@ impl IRGenerator {
     fn unwrap_ptr(&self, ty: BasicTypeEnum) -> BasicTypeEnum {
         if let BasicTypeEnum::PointerType(ptr) = ty {
             if let AnyTypeEnum::StructType(struc) = ptr.get_element_type() {
-                return struc.as_basic_type_enum()
+                return struc.as_basic_type_enum();
             }
         }
         ty
@@ -456,7 +462,7 @@ impl IRGenerator {
     fn unwrap_value_ptr(&self, val: BasicValueEnum) -> BasicValueEnum {
         if let BasicValueEnum::PointerValue(ptr) = val {
             if let AnyTypeEnum::StructType(_) = ptr.get_type().get_element_type() {
-                return self.builder.build_load(ptr, "ptr-load")
+                return self.builder.build_load(ptr, "ptr-load");
             }
         }
         val
@@ -591,6 +597,6 @@ fn get_predicate(tok: &Type) -> IntPredicate {
         Type::LessEqual => IntPredicate::SLE,
         Type::EqualEqual => IntPredicate::EQ,
         Type::BangEqual => IntPredicate::NE,
-        _ => panic!("invalid tok")
+        _ => panic!("invalid tok"),
     }
 }

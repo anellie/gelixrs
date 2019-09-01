@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/22/19 7:44 PM.
+ * Last modified on 9/1/19 9:24 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -10,23 +10,12 @@ use super::expression::Expression;
 /// A struct produced by the parser. It contains all types of declarations
 /// that can be emitted during compilation.
 /// A declaration is a language construct that can only appear in top-level and does not produce a value.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct DeclarationList {
     pub classes: Vec<Class>,
     pub enums: Vec<Enum>,
     pub ext_functions: Vec<FuncSignature>,
     pub functions: Vec<Function>,
-}
-
-impl DeclarationList {
-    pub fn new() -> DeclarationList {
-        DeclarationList {
-            classes: Vec::new(),
-            enums: Vec::new(),
-            ext_functions: Vec::new(),
-            functions: Vec::new(),
-        }
-    }
 }
 
 /// A class definition.

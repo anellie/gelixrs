@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/1/19 9:17 PM.
+ * Last modified on 9/1/19 9:27 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -18,9 +18,9 @@ use crate::mir::nodes::{MIRExpression, MIRFlow, MIRFunction, MIRStructMem, MIRTy
 use crate::mir::{MutRc, MIR};
 use crate::{Error, Res};
 use builder::MIRBuilder;
+use either::Either;
 use std::collections::HashMap;
 use std::rc::Rc;
-use either::Either;
 
 /// The MIRGenerator turns a list of declarations produced by the parser
 /// into their MIR representation.
@@ -77,7 +77,8 @@ impl MIRGenerator {
         let func_type = function.ret_type.clone();
         let entry = function.append_block("entry".to_string());
         drop(function);
-        self.builder.set_pointer(Rc::clone(&function_rc), Rc::clone(&entry));
+        self.builder
+            .set_pointer(Rc::clone(&function_rc), Rc::clone(&entry));
 
         self.begin_scope();
         for param in function_rc.borrow().parameters.iter() {
@@ -192,10 +193,13 @@ impl MIRGenerator {
                     // Method call
                     Expression::Get { object, name } => {
                         let (object, field) = self.get_class_field(object, name)?;
-                        let func = field.right().ok_or_else(|| Self::error(name, name, "Class members cannot be called."))?;
-                        let args = self.generate_func_args(Rc::clone(&func), arguments, Some(object))?;
-                        return Ok(self.builder.build_call(MIRExpression::Function(func), args))
-                    },
+                        let func = field.right().ok_or_else(|| {
+                            Self::error(name, name, "Class members cannot be called.")
+                        })?;
+                        let args =
+                            self.generate_func_args(Rc::clone(&func), arguments, Some(object))?;
+                        return Ok(self.builder.build_call(MIRExpression::Function(func), args));
+                    }
 
                     // Might be class constructor
                     Expression::Variable(name) => {
@@ -220,12 +224,17 @@ impl MIRGenerator {
                 }
             }
 
-            Expression::For { condition, body, else_b } => {
+            Expression::For {
+                condition,
+                body,
+                else_b,
+            } => {
                 let loop_block = self.builder.append_block("for-loop");
                 let mut else_block = self.builder.append_block("for-else");
                 let cont_block = self.builder.append_block("for-cont");
 
-                let prev_loop = std::mem::replace(&mut self.current_loop, Some(ForLoop::new(&cont_block)));
+                let prev_loop =
+                    std::mem::replace(&mut self.current_loop, Some(ForLoop::new(&cont_block)));
 
                 let cond = self.generate_expression(&**condition)?;
                 if cond.get_type() != MIRType::Bool {
@@ -235,7 +244,8 @@ impl MIRGenerator {
                     ));
                 }
 
-                self.builder.build_branch(cond.clone(), &loop_block, &else_block);
+                self.builder
+                    .build_branch(cond.clone(), &loop_block, &else_block);
 
                 self.builder.set_block(&loop_block);
                 let body = self.generate_expression(&**body)?;
@@ -258,10 +268,16 @@ impl MIRGenerator {
                         self.builder.set_block(&cont_block);
 
                         let load = self.builder.build_load(body_alloca);
-                        self.cur_loop().phi_nodes.push((load, Rc::clone(&loop_end_block)));
-                        self.cur_loop().phi_nodes.push((else_val, Rc::clone(&else_block)));
+                        self.cur_loop()
+                            .phi_nodes
+                            .push((load, Rc::clone(&loop_end_block)));
+                        self.cur_loop()
+                            .phi_nodes
+                            .push((else_val, Rc::clone(&else_block)));
 
-                        ret = self.builder.build_phi(self.current_loop.take().unwrap().phi_nodes)
+                        ret = self
+                            .builder
+                            .build_phi(self.current_loop.take().unwrap().phi_nodes)
                     }
                 }
 
@@ -275,7 +291,9 @@ impl MIRGenerator {
 
             Expression::Get { object, name } => {
                 let (object, field) = self.get_class_field(&**object, name)?;
-                let field = field.left().ok_or_else(|| Self::error(name, name, "Cannot get class method (must be called)"))?;
+                let field = field.left().ok_or_else(|| {
+                    Self::error(name, name, "Cannot get class method (must be called)")
+                })?;
                 self.builder.build_struct_get(object, field)
             }
 
@@ -315,10 +333,9 @@ impl MIRGenerator {
                         self.builder.build_jump(&cont_block);
 
                         self.builder.set_block(&cont_block);
-                        return Ok(self.builder.build_phi(vec![
-                            (then_val, then_block),
-                            (else_val, else_block),
-                        ]));
+                        return Ok(self
+                            .builder
+                            .build_phi(vec![(then_val, then_block), (else_val, else_block)]));
                     } else {
                         self.builder.insert_at_ptr(else_val);
                         self.builder.build_jump(&cont_block);
@@ -362,7 +379,9 @@ impl MIRGenerator {
                 value,
             } => {
                 let (object, field) = self.get_class_field(&**object, name)?;
-                let field = field.left().ok_or_else(|| Self::error(name, name, "Cannot set class method"))?;
+                let field = field
+                    .left()
+                    .ok_or_else(|| Self::error(name, name, "Cannot set class method"))?;
                 let value = self.generate_expression(&**value)?;
 
                 if value.get_type() != field._type {
@@ -379,15 +398,13 @@ impl MIRGenerator {
                 let right = self.generate_expression(&**right)?;
 
                 match operator.t_type {
-                    Type::Bang if right.get_type() != MIRType::Bool => {
-                        Err(Self::error(
-                            operator,
-                            operator,
-                            "'!' can only be used on boolean values",
-                        ))
-                    }
+                    Type::Bang if right.get_type() != MIRType::Bool => Err(Self::error(
+                        operator,
+                        operator,
+                        "'!' can only be used on boolean values",
+                    )),
 
-                    _ => Ok(())
+                    _ => Ok(()),
                 }?;
 
                 self.builder.build_unary(right, operator.t_type)
@@ -423,18 +440,22 @@ impl MIRGenerator {
                     let val = self.generate_expression(b_val)?;
                     if val.get_type() != val_type {
                         return Err(Self::anon_err(
-                            b_val.get_token(), "Branches of when must be of same type as the value compared."
-                        ))
+                            b_val.get_token(),
+                            "Branches of when must be of same type as the value compared.",
+                        ));
                     }
-                    let val = self.builder.build_binary(val, Type::EqualEqual, value.clone());
+                    let val = self
+                        .builder
+                        .build_binary(val, Type::EqualEqual, value.clone());
 
                     let branch_b = self.builder.append_block("when-br");
                     self.builder.set_block(&branch_b);
                     let branch_val = self.generate_expression(branch)?;
                     if branch_val.get_type() != branch_type {
                         return Err(Self::anon_err(
-                            branch.get_token(), "Branch results must be of same type."
-                        ))
+                            branch.get_token(),
+                            "Branch results must be of same type.",
+                        ));
                     }
                     self.builder.build_jump(&cont_b);
 
@@ -448,12 +469,12 @@ impl MIRGenerator {
                 self.builder.set_block(&start_b);
                 self.builder.set_return(MIRFlow::Switch {
                     cases,
-                    default: else_b
+                    default: else_b,
                 });
 
                 self.builder.set_block(&cont_b);
                 self.builder.build_phi(phi_nodes)
-            },
+            }
 
             Expression::VarDef(var) => {
                 let init = self.generate_expression(&var.initializer)?;
@@ -518,14 +539,20 @@ impl MIRGenerator {
 
     /// Returns the variable of the current loop or creates it if it does not exist yet
     fn get_or_create_loop_var(&mut self, type_: &MIRType) -> Res<Rc<MIRVariable>> {
-        let var = self.cur_loop()
-            .result_var
-            .clone()
-            .unwrap_or_else(|| self.define_variable(&Token::generic_identifier("for-body".to_string()), true, type_.clone()));
+        let var = self.cur_loop().result_var.clone().unwrap_or_else(|| {
+            self.define_variable(
+                &Token::generic_identifier("for-body".to_string()),
+                true,
+                type_.clone(),
+            )
+        });
         self.cur_loop().result_var = Some(Rc::clone(&var));
 
         if &var._type != type_ {
-            Err(Self::anon_err(None, "Break expressions + for body must have same type"))
+            Err(Self::anon_err(
+                None,
+                "Break expressions + for body must have same type",
+            ))
         } else {
             Ok(var)
         }
@@ -544,13 +571,13 @@ impl MIRGenerator {
             // Class fields
             let field = struc.members.get(&name.lexeme);
             if let Some(field) = field {
-                return Ok((object, Either::Left(Rc::clone(field))))
+                return Ok((object, Either::Left(Rc::clone(field))));
             }
 
             // Class methods
             let method = struc.methods.get(&name.lexeme);
             if let Some(method) = method {
-                return Ok((object, Either::Right(Rc::clone(method))))
+                return Ok((object, Either::Right(Rc::clone(method))));
             }
 
             // Superclass methods
@@ -559,17 +586,13 @@ impl MIRGenerator {
                 let struc = struc.borrow();
                 let method = struc.methods.get(&name.lexeme);
                 if let Some(method) = method {
-                    return Ok((object, Either::Right(Rc::clone(method))))
+                    return Ok((object, Either::Right(Rc::clone(method))));
                 }
                 sclass = struc.super_struct.clone();
             }
 
             // Nothing found...
-            Err(Self::error(
-                name,
-                name,
-                "Unknown class field",
-            ))
+            Err(Self::error(name, name, "Unknown class field"))
         } else {
             Err(Self::error(
                 name,
@@ -583,7 +606,7 @@ impl MIRGenerator {
         &mut self,
         func_ref: MutRc<MIRFunction>,
         arguments: &Vec<Expression>,
-        first_arg: Option<MIRExpression>
+        first_arg: Option<MIRExpression>,
     ) -> Res<Vec<MIRExpression>> {
         let func = func_ref.borrow();
 
@@ -603,17 +626,27 @@ impl MIRGenerator {
         let first_arg_is_some = first_arg.is_some();
         first_arg.map(|arg| {
             let ty = &func.parameters[0]._type;
-            let arg = self.check_call_arg_type(arg, ty).expect("internal error: method call");
+            let arg = self
+                .check_call_arg_type(arg, ty)
+                .expect("internal error: method call");
             result.push(arg)
         });
-        for (argument, parameter) in arguments.iter().zip(func.parameters.iter().skip(first_arg_is_some as usize)) {
+        for (argument, parameter) in arguments
+            .iter()
+            .zip(func.parameters.iter().skip(first_arg_is_some as usize))
+        {
             let arg = self.generate_expression(argument)?;
-            let arg = self.check_call_arg_type(arg, &parameter._type).ok_or_else(||
-                Self::anon_err(
-                    argument.get_token(),
-                    &format!("Call argument is the wrong type (expected {})", parameter._type),
-                )
-            )?;
+            let arg = self
+                .check_call_arg_type(arg, &parameter._type)
+                .ok_or_else(|| {
+                    Self::anon_err(
+                        argument.get_token(),
+                        &format!(
+                            "Call argument is the wrong type (expected {})",
+                            parameter._type
+                        ),
+                    )
+                })?;
             result.push(arg)
         }
 
@@ -632,7 +665,7 @@ impl MIRGenerator {
             while let Some(struc) = sclass {
                 arg = self.builder.build_bitcast(arg, &struc);
                 if ty == &MIRType::Struct(Rc::clone(&struc)) {
-                    return Some(arg)
+                    return Some(arg);
                 }
                 sclass = struc.borrow().super_struct.clone();
             }
@@ -686,7 +719,7 @@ impl MIRGenerator {
         let mut generator = MIRGenerator {
             builder: MIRBuilder::new(),
             environments: Vec::with_capacity(5),
-            current_loop: None
+            current_loop: None,
         };
 
         // Global scope
@@ -703,7 +736,7 @@ struct ForLoop {
     /// The block to jump to when the current loop finishes.
     cont_block: Rc<String>,
     /// The phi nodes of the loop (loops are expressions).
-    phi_nodes: Vec<(MIRExpression, Rc<String>)>
+    phi_nodes: Vec<(MIRExpression, Rc<String>)>,
 }
 
 impl ForLoop {
@@ -711,7 +744,7 @@ impl ForLoop {
         ForLoop {
             result_var: None,
             cont_block: Rc::clone(cont_block),
-            phi_nodes: vec![]
+            phi_nodes: vec![],
         }
     }
 }
