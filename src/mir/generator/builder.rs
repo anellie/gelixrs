@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 11:41 PM.
+ * Last modified on 8/31/19 12:51 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -179,6 +179,10 @@ impl MIRBuilder {
 
     pub fn build_load(&self, var: Rc<MIRVariable>) -> MIRExpression {
         MIRExpression::VarGet(var)
+    }
+
+    pub fn append_block(&mut self, name: &str) -> Rc<String> {
+        self.cur_fn().borrow_mut().append_block(name.to_string())
     }
 
     pub fn set_return(&mut self, ret: MIRFlow) {

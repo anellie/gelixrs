@@ -3,15 +3,18 @@ exfn print(String a)
 exfn printnum(i64 a)
 
 func main() {
-    val a = for (false) "bad"
-    print(a)
+    val a = A()
+    print(t(a))
 }
 
-class Super {
+func t(B b) -> String {
+    b.a
+}
+
+class A {
     val a = 5
-    val sub = Sub()
 }
 
-class Sub {
+class B {
     val a = "ok"
 }

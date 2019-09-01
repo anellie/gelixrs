@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 11:39 PM.
+ * Last modified on 9/1/19 4:13 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -46,7 +46,9 @@ impl Display for MIRType {
 #[derive(Debug)]
 pub struct MIRStruct {
     pub name: Rc<String>,
+    /// All struct members by name.
     pub members: HashMap<Rc<String>, Rc<MIRStructMem>>,
+    /// All struct members by index.
     pub member_order: Vec<Rc<MIRStructMem>>,
     pub super_struct: Option<MutRc<MIRStruct>>,
 }

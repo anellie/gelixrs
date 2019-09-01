@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/31/19 1:04 AM.
+ * Last modified on 8/31/19 1:04 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -78,10 +78,9 @@ impl MIRGenerator {
         let function_rc = self.builder.find_function(&func.sig.name.lexeme).unwrap();
         let mut function = function_rc.borrow_mut();
         let func_type = function.ret_type.clone();
-        function.append_block("entry".to_string());
+        let entry = function.append_block("entry".to_string());
         drop(function);
-        self.builder
-            .set_pointer(Rc::clone(&function_rc), Rc::new("entry".to_string()));
+        self.builder.set_pointer(Rc::clone(&function_rc), Rc::clone(&entry));
 
         self.begin_scope();
         for param in function_rc.borrow().parameters.iter() {
@@ -223,11 +222,9 @@ impl MIRGenerator {
             }
 
             Expression::For { condition, body, else_b } => {
-                let cur_fn_rc = self.builder.cur_fn();
-                let mut cur_fn = cur_fn_rc.borrow_mut();
-                let loop_block = cur_fn.append_block("for-loop".to_string());
-                let else_block = cur_fn.append_block("for-else".to_string());
-                let cont_block = cur_fn.append_block("for-cont".to_string());
+                let loop_block = self.builder.append_block("for-loop");
+                let else_block = self.builder.append_block("for-else");
+                let cont_block = self.builder.append_block("for-cont");
 
                 let prev_ret_type = std::mem::replace(&mut self.current_loop_ret_type, None);
                 let prev_cont_block = std::mem::replace(
@@ -235,8 +232,6 @@ impl MIRGenerator {
                     Some(Rc::clone(&cont_block)),
                 );
                 let was_in_loop = std::mem::replace(&mut self.is_in_loop, true);
-
-                drop(cur_fn);
 
                 let cond = self.generate_expression(&**condition)?;
                 if cond.get_type() != MIRType::Bool {
@@ -314,13 +309,9 @@ impl MIRGenerator {
                     ));
                 };
 
-                let func = self.builder.cur_fn();
-                let mut func = func.borrow_mut();
-                let mut then_b = func.append_block("then".to_string());
-                let mut else_b = func.append_block("else".to_string());
-                let cont_b = func.append_block("cont".to_string());
-                // Setting return will mutably borrow the func; drop this one to prevent panic
-                drop(func);
+                let mut then_b = self.builder.append_block("then");
+                let mut else_b = self.builder.append_block("else");
+                let cont_b = self.builder.append_block("cont");
 
                 self.builder.set_return(MIRFlow::Branch {
                     condition: cond,
@@ -438,12 +429,8 @@ impl MIRGenerator {
                 let value = self.generate_expression(value)?;
                 let val_type = value.get_type();
 
-                let function_rc = self.builder.cur_fn();
-                let mut function = function_rc.borrow_mut();
-                let else_b = function.append_block("when-else".to_string());
-                let cont_b = function.append_block("when-cont".to_string());
-                println!("{:#?}", function);
-                drop(function);
+                let else_b = self.builder.append_block("when-else");
+                let cont_b = self.builder.append_block("when-cont");
 
                 self.builder.set_block(&else_b);
                 let else_val = self.generate_expression(else_branch)?;
@@ -462,9 +449,7 @@ impl MIRGenerator {
                     }
                     let val = self.builder.build_binary(val, Type::EqualEqual, value.clone());
 
-                    let mut function = function_rc.borrow_mut();
-                    let branch_b = function.append_block("when-br".to_string());
-                    drop(function);
+                    let branch_b = self.builder.append_block("when-br");
                     self.builder.set_block(&branch_b);
                     let branch_val = self.generate_expression(branch)?;
                     if branch_val.get_type() != branch_type {

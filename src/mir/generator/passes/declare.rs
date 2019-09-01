@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 6:57 PM.
+ * Last modified on 9/1/19 4:05 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -27,7 +27,7 @@ impl<'p> PreMIRPass for DeclarePass<'p> {
 }
 
 impl<'p> DeclarePass<'p> {
-    /// This part of the pass declares all classes.
+    /// Declare all classes.
     fn classes(&mut self, list: &DeclarationList) -> Res<()> {
         for class in &list.classes {
             self.create_class(&class)?;
@@ -37,7 +37,7 @@ impl<'p> DeclarePass<'p> {
     }
 
     fn create_class(&mut self, class: &Class) -> Res<()> {
-        // Create struct (filled later)
+        // Create struct (filled in another pass)
         self.gen
             .builder
             .create_struct(Rc::clone(&class.name.lexeme))
@@ -58,7 +58,7 @@ impl<'p> DeclarePass<'p> {
         Ok(())
     }
 
-    /// This part declares all functions (their signatures).
+    /// Declare all functions / create their signatures
     fn functions(&mut self, list: &mut DeclarationList) -> Res<()> {
         for function in list
             .ext_functions
