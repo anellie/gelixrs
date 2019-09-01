@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/1/19 6:02 PM.
+ * Last modified on 9/1/19 8:57 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -180,6 +180,18 @@ impl MIRBuilder {
 
     pub fn build_load(&self, var: Rc<MIRVariable>) -> MIRExpression {
         MIRExpression::VarGet(var)
+    }
+
+    pub fn build_branch(&mut self, cond: MIRExpression, then: &Rc<String>, else_: &Rc<String>) {
+        self.set_return(MIRFlow::Branch {
+            condition: cond,
+            then_b: Rc::clone(&then),
+            else_b: Rc::clone(&else_)
+        });
+    }
+
+    pub fn build_jump(&mut self, to: &Rc<String>) {
+        self.set_return(MIRFlow::Jump(Rc::clone(to)))
     }
 
     pub fn append_block(&mut self, name: &str) -> Rc<String> {

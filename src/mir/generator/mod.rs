@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/1/19 7:29 PM.
+ * Last modified on 9/1/19 9:17 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -37,14 +37,8 @@ pub struct MIRGenerator {
     /// See the begin_scope and end_scope functions for more info.
     environments: Vec<HashMap<Rc<String>, Rc<MIRVariable>>>,
 
-    /// If the current position is inside a loop.
-    is_in_loop: bool,
-    /// The current return type of the loop, determined by break expressions.
-    current_loop_ret_type: Option<MIRType>,
-    /// The block to jump to when the current loop finishes.
-    current_loop_cont_block: Option<Rc<String>>,
-    /// The phi nodes of the current loop.
-    current_loop_phi: Vec<(MIRExpression, Rc<String>)>
+    /// The current loop, if in one.
+    current_loop: Option<ForLoop>,
 }
 
 impl MIRGenerator {
@@ -174,7 +168,7 @@ impl MIRGenerator {
             }
 
             Expression::Break(expr) => {
-                if !self.is_in_loop {
+                if self.current_loop.is_none() {
                     return Err(Self::anon_err(
                         expr.as_ref().map(|e| e.get_token()).flatten(),
                         "Break is only allowed in loops.",
@@ -183,16 +177,13 @@ impl MIRGenerator {
 
                 if let Some(expression) = expr {
                     let expression = self.generate_expression(&**expression)?;
-                    self.find_or_create_var(
-                        &expression.get_type(),
-                        Token::generic_identifier("for-body".to_string()),
-                    )?;
-                    self.current_loop_phi.push((expression, self.builder.cur_block_name()));
+                    self.get_or_create_loop_var(&expression.get_type())?;
+                    let cur_block = self.builder.cur_block_name();
+                    self.cur_loop().phi_nodes.push((expression, cur_block));
                 }
 
-                self.builder.set_return(MIRFlow::Jump(Rc::clone(
-                    self.current_loop_cont_block.as_ref().unwrap(),
-                )));
+                let cont_block = Rc::clone(&self.cur_loop().cont_block);
+                self.builder.build_jump(&cont_block);
                 Self::none_const()
             }
 
@@ -231,16 +222,10 @@ impl MIRGenerator {
 
             Expression::For { condition, body, else_b } => {
                 let loop_block = self.builder.append_block("for-loop");
-                let else_block = self.builder.append_block("for-else");
+                let mut else_block = self.builder.append_block("for-else");
                 let cont_block = self.builder.append_block("for-cont");
 
-                let prev_ret_type = std::mem::replace(&mut self.current_loop_ret_type, None);
-                let prev_cont_block = std::mem::replace(
-                    &mut self.current_loop_cont_block,
-                    Some(Rc::clone(&cont_block)),
-                );
-                let prev_phi = std::mem::replace(&mut self.current_loop_phi, Vec::new());
-                let was_in_loop = std::mem::replace(&mut self.is_in_loop, true);
+                let prev_loop = std::mem::replace(&mut self.current_loop, Some(ForLoop::new(&cont_block)));
 
                 let cond = self.generate_expression(&**condition)?;
                 if cond.get_type() != MIRType::Bool {
@@ -250,56 +235,40 @@ impl MIRGenerator {
                     ));
                 }
 
-                self.builder.set_return(MIRFlow::Branch {
-                    condition: cond.clone(),
-                    then_b: Rc::clone(&loop_block),
-                    else_b: Rc::clone(&else_block)
-                });
+                self.builder.build_branch(cond.clone(), &loop_block, &else_block);
 
                 self.builder.set_block(&loop_block);
                 let body = self.generate_expression(&**body)?;
-                let loop_end_block = self.builder.cur_block_name();
                 let body_type = body.get_type();
-                let body_alloca = self.find_or_create_var(
-                    &body_type,
-                    Token::generic_identifier("for-body".to_string()),
-                )?;
+
+                let loop_end_block = self.builder.cur_block_name();
+                let body_alloca = self.get_or_create_loop_var(&body_type)?;
 
                 let store = self.builder.build_store(Rc::clone(&body_alloca), body);
                 self.builder.insert_at_ptr(store);
-                self.builder.set_return(MIRFlow::Branch {
-                    condition: cond,
-                    then_b: Rc::clone(&loop_block),
-                    else_b: Rc::clone(&cont_block)
-                });
+                self.builder.build_branch(cond, &loop_block, &cont_block);
 
-                let ret = if let Some(else_b) = else_b {
+                let mut ret = Self::none_const();
+                if let Some(else_b) = else_b {
                     self.builder.set_block(&else_block);
-                    let else_b = self.generate_expression(&**else_b)?;
-                    if else_b.get_type() == body_type {
-                        let else_end_block = self.builder.cur_block_name();
+                    let else_val = self.generate_expression(&**else_b)?;
+                    else_block = self.builder.cur_block_name();
+
+                    if else_val.get_type() == body_type {
                         self.builder.set_block(&cont_block);
 
-                        let mut loop_phi = std::mem::replace(&mut self.current_loop_phi, Vec::new());
-                        loop_phi.push((self.builder.build_load(body_alloca), Rc::clone(&loop_end_block)));
-                        loop_phi.push((else_b, Rc::clone(&else_end_block)));
+                        let load = self.builder.build_load(body_alloca);
+                        self.cur_loop().phi_nodes.push((load, Rc::clone(&loop_end_block)));
+                        self.cur_loop().phi_nodes.push((else_val, Rc::clone(&else_block)));
 
-                        self.builder.build_phi(loop_phi)
-                    } else {
-                        Self::none_const()
+                        ret = self.builder.build_phi(self.current_loop.take().unwrap().phi_nodes)
                     }
-                } else {
-                    Self::none_const()
-                };
+                }
 
                 self.builder.set_block(&else_block);
-                self.builder.set_return(MIRFlow::Jump(Rc::clone(&cont_block)));
-
+                self.builder.build_jump(&cont_block);
                 self.builder.set_block(&cont_block);
-                self.current_loop_ret_type = prev_ret_type;
-                self.current_loop_cont_block = prev_cont_block;
-                self.current_loop_phi = prev_phi;
-                self.is_in_loop = was_in_loop;
+                self.current_loop = prev_loop;
 
                 ret
             }
@@ -318,58 +287,52 @@ impl MIRGenerator {
                 else_branch,
             } => {
                 let cond = self.generate_expression(&**condition)?;
-                if let MIRType::Bool = cond.get_type() {
-                } else {
+                if cond.get_type() != MIRType::Bool {
                     return Err(Self::anon_err(
                         condition.get_token().or_else(|| then_branch.get_token()),
                         "If condition must be a boolean",
                     ));
-                };
+                }
 
-                let mut then_b = self.builder.append_block("then");
-                let mut else_b = self.builder.append_block("else");
-                let cont_b = self.builder.append_block("cont");
+                let mut then_block = self.builder.append_block("then");
+                let mut else_block = self.builder.append_block("else");
+                let cont_block = self.builder.append_block("cont");
 
-                self.builder.set_return(MIRFlow::Branch {
-                    condition: cond,
-                    then_b: Rc::clone(&then_b),
-                    else_b: Rc::clone(&else_b),
-                });
+                self.builder.build_branch(cond, &then_block, &else_block);
 
-                self.builder.set_block(&then_b);
+                self.builder.set_block(&then_block);
                 let then_val = self.generate_expression(&**then_branch)?;
-                then_b = self.builder.cur_block_name();
+                then_block = self.builder.cur_block_name();
 
-                self.builder.set_block(&else_b);
+                self.builder.set_block(&else_block);
                 if let Some(else_branch) = else_branch {
                     let else_val = self.generate_expression(&**else_branch)?;
-                    else_b = self.builder.cur_block_name();
+                    else_block = self.builder.cur_block_name();
 
                     if then_val.get_type() == else_val.get_type() {
-                        self.builder.set_return(MIRFlow::Jump(Rc::clone(&cont_b)));
-                        self.builder.set_block(&then_b);
-                        self.builder.set_return(MIRFlow::Jump(Rc::clone(&cont_b)));
+                        self.builder.build_jump(&cont_block);
+                        self.builder.set_block(&then_block);
+                        self.builder.build_jump(&cont_block);
 
-
-                        self.builder.set_block(&cont_b);
+                        self.builder.set_block(&cont_block);
                         return Ok(self.builder.build_phi(vec![
-                            (then_val, Rc::clone(&then_b)),
-                            (else_val, Rc::clone(&else_b)),
+                            (then_val, then_block),
+                            (else_val, else_block),
                         ]));
                     } else {
                         self.builder.insert_at_ptr(else_val);
-                        self.builder.set_return(MIRFlow::Jump(Rc::clone(&cont_b)));
+                        self.builder.build_jump(&cont_block);
                     }
+                } else {
+                    self.builder.set_block(&else_block);
+                    self.builder.build_jump(&cont_block);
                 }
 
-                self.builder.set_block(&then_b);
+                self.builder.set_block(&then_block);
                 self.builder.insert_at_ptr(then_val);
-                self.builder.set_return(MIRFlow::Jump(Rc::clone(&cont_b)));
+                self.builder.build_jump(&cont_block);
 
-                self.builder.set_block(&else_b);
-                self.builder.set_return(MIRFlow::Jump(Rc::clone(&cont_b)));
-
-                self.builder.set_block(&cont_b);
+                self.builder.set_block(&cont_block);
                 MIRGenerator::none_const()
             }
 
@@ -379,21 +342,17 @@ impl MIRGenerator {
                 let value = val
                     .as_ref()
                     .map(|v| self.generate_expression(&*v))
-                    .transpose()?;
-                let type_ = value
-                    .as_ref()
-                    .map(|v| v.get_type())
-                    .unwrap_or(MIRType::None);
+                    .transpose()?
+                    .unwrap_or_else(Self::none_const);
 
-                if type_ != self.builder.cur_fn().borrow().ret_type {
+                if value.get_type() != self.builder.cur_fn().borrow().ret_type {
                     return Err(Self::anon_err(
                         val.as_ref().map(|v| v.get_token()).flatten(),
                         "Return expression in function has wrong type",
                     ));
                 }
 
-                self.builder
-                    .set_return(MIRFlow::Return(value.unwrap_or_else(Self::none_const)));
+                self.builder.set_return(MIRFlow::Return(value));
                 Self::none_const()
             }
 
@@ -420,20 +379,18 @@ impl MIRGenerator {
                 let right = self.generate_expression(&**right)?;
 
                 match operator.t_type {
-                    Type::Minus => self.builder.build_unary(right, operator.t_type),
-                    Type::Bang => {
-                        if right.get_type() == MIRType::Bool {
-                            self.builder.build_unary(right, operator.t_type)
-                        } else {
-                            return Err(Self::error(
-                                operator,
-                                operator,
-                                "'!' can only be used on boolean values",
-                            ));
-                        }
+                    Type::Bang if right.get_type() != MIRType::Bool => {
+                        Err(Self::error(
+                            operator,
+                            operator,
+                            "'!' can only be used on boolean values",
+                        ))
                     }
-                    _ => panic!("Invalid unary expression"),
-                }
+
+                    _ => Ok(())
+                }?;
+
+                self.builder.build_unary(right, operator.t_type)
             }
 
             Expression::Variable(var) => {
@@ -457,7 +414,7 @@ impl MIRGenerator {
                 self.builder.set_block(&else_b);
                 let else_val = self.generate_expression(else_branch)?;
                 let branch_type = else_val.get_type();
-                self.builder.set_return(MIRFlow::Jump(Rc::clone(&cont_b)));
+                self.builder.build_jump(&cont_b);
 
                 let mut cases = Vec::with_capacity(branches.len());
                 let mut phi_nodes = Vec::with_capacity(branches.len());
@@ -479,7 +436,7 @@ impl MIRGenerator {
                             branch.get_token(), "Branch results must be of same type."
                         ))
                     }
-                    self.builder.set_return(MIRFlow::Jump(Rc::clone(&cont_b)));
+                    self.builder.build_jump(&cont_b);
 
                     let branch_b = self.builder.cur_block_name();
                     cases.push((val, Rc::clone(&branch_b)));
@@ -559,18 +516,16 @@ impl MIRGenerator {
         ))
     }
 
-    /// Will search for a variable and create it in the topmost scope if it does not exist.
-    fn find_or_create_var(&mut self, type_: &MIRType, name: Token) -> Res<Rc<MIRVariable>> {
-        let var = self
-            .find_var(&name)
-            .unwrap_or_else(|_| self.define_variable(&name, true, type_.clone()));
+    /// Returns the variable of the current loop or creates it if it does not exist yet
+    fn get_or_create_loop_var(&mut self, type_: &MIRType) -> Res<Rc<MIRVariable>> {
+        let var = self.cur_loop()
+            .result_var
+            .clone()
+            .unwrap_or_else(|| self.define_variable(&Token::generic_identifier("for-body".to_string()), true, type_.clone()));
+        self.cur_loop().result_var = Some(Rc::clone(&var));
 
         if &var._type != type_ {
-            Err(Self::error(
-                &name,
-                &name,
-                "Break expressions + for body must have same type",
-            ))
+            Err(Self::anon_err(None, "Break expressions + for body must have same type"))
         } else {
             Ok(var)
         }
@@ -707,6 +662,10 @@ impl MIRGenerator {
         self.environments.pop();
     }
 
+    fn cur_loop(&mut self) -> &mut ForLoop {
+        self.current_loop.as_mut().unwrap()
+    }
+
     fn none_const() -> MIRExpression {
         MIRExpression::Literal(Literal::None)
     }
@@ -727,16 +686,32 @@ impl MIRGenerator {
         let mut generator = MIRGenerator {
             builder: MIRBuilder::new(),
             environments: Vec::with_capacity(5),
-
-            is_in_loop: false,
-            current_loop_ret_type: None,
-            current_loop_cont_block: None,
-            current_loop_phi: Vec::new()
+            current_loop: None
         };
 
         // Global scope
         generator.begin_scope();
 
         generator
+    }
+}
+
+/// All data of a loop.
+struct ForLoop {
+    /// The alloca of the for loop. Can be None for loops that return None type.
+    result_var: Option<Rc<MIRVariable>>,
+    /// The block to jump to when the current loop finishes.
+    cont_block: Rc<String>,
+    /// The phi nodes of the loop (loops are expressions).
+    phi_nodes: Vec<(MIRExpression, Rc<String>)>
+}
+
+impl ForLoop {
+    fn new(cont_block: &Rc<String>) -> ForLoop {
+        ForLoop {
+            result_var: None,
+            cont_block: Rc::clone(cont_block),
+            phi_nodes: vec![]
+        }
     }
 }

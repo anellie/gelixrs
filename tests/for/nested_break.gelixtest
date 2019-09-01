@@ -13,8 +13,8 @@ func test() -> i64 {
         for (j < 10) {
             if (j == 4) break j * 4
             j = j + 1
-        }
+        } else 0
         if (i == 2) break i
         i = i + 1
-    }
+    } else 0
 }
