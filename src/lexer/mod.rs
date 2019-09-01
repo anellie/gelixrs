@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 5:01 PM.
+ * Last modified on 8/31/19 1:10 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -26,9 +26,11 @@ pub struct Lexer {
 impl Lexer {
     /// Returns the next token, or None if at EOF.
     fn next_token(&mut self) -> Option<Token> {
-        self.skip_whitespace();
-        self.start = self.current;
+        if let Err(tok) = self.skip_whitespace() {
+            return Some(tok)
+        }
 
+        self.start = self.current;
         let ch = self.advance()?;
 
         Some(match ch {
@@ -235,13 +237,13 @@ impl Lexer {
         Token {
             t_type: Type::ScanError,
             lexeme: Rc::new(message.to_string()),
-            index: self.line_index,
+            index: self.line_index + message.len(),
             line: self.line,
         }
     }
 
     /// Skips all whitespace and comments
-    fn skip_whitespace(&mut self) {
+    fn skip_whitespace(&mut self) -> Result<(), Token> {
         loop {
             match self.peek() {
                 ' ' | '\r' | '\t' => {
@@ -265,7 +267,7 @@ impl Lexer {
                         self.advance();
                         let mut nest_level = 1;
 
-                        while nest_level > 0 {
+                        while nest_level > 0 && !self.is_at_end() {
                             if self.check_two('*', '/') {
                                 nest_level -= 1;
                             } else if self.check_two('/', '*') {
@@ -276,13 +278,17 @@ impl Lexer {
                             self.advance();
                         }
 
+                        if self.is_at_end() {
+                            return Err(self.error_token("Unterminated comment"));
+                        }
+
                         self.advance();
                     }
 
-                    _ => return,
+                    _ => return Ok(()),
                 },
 
-                _ => return,
+                _ => return Ok(()),
             }
         }
     }

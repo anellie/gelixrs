@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 6:11 PM.
+ * Last modified on 9/1/19 4:15 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -107,6 +107,6 @@ fn main() -> Result<(), &'static str> {
         println!("Compilation successful!");
         Ok(())
     } else {
-        Err("Compiling to native binary failed. Please try compiling with clang manually using --ir.")
+        Err("Compiling to native binary failed. Please file a bug report.")
     }
 }

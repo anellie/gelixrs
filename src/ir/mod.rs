@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 11:43 PM.
+ * Last modified on 8/31/19 1:30 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -19,7 +19,7 @@ use inkwell::{
     module::Module,
     passes::PassManager,
     types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType, StructType},
-    values::{BasicValue, BasicValueEnum, FunctionValue, PointerValue},
+    values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
     AddressSpace, IntPredicate,
 };
 use std::{
@@ -29,7 +29,6 @@ use std::{
     hash::{Hash, Hasher},
     rc::Rc,
 };
-use inkwell::values::IntValue;
 
 /// A generator that creates LLVM IR out of Gelix mid-level IR (MIR).
 ///
@@ -128,7 +127,6 @@ impl IRGenerator {
 
         // First, build all function alloca
         self.builder.position_at_end(&entry_bb);
-
         for (arg, arg_val) in func.parameters.iter().zip(func_val.get_param_iter()) {
             // If the type of the function parameter is a pointer (aka a struct or function),
             // creating an alloca isn't needed; the pointer can be used directly.
@@ -200,16 +198,12 @@ impl IRGenerator {
                 then_b,
                 else_b,
             } => {
-                let condition = self.generate_expression(condition);
-                if let BasicValueEnum::IntValue(condition) = condition {
-                    self.builder.build_conditional_branch(
-                        condition,
-                        &self.get_block(then_b),
-                        &self.get_block(else_b),
-                    )
-                } else {
-                    panic!("br condition wasn't a boolean");
-                }
+                let condition = *self.generate_expression(condition).as_int_value();
+                self.builder.build_conditional_branch(
+                    condition,
+                    &self.get_block(then_b),
+                    &self.get_block(else_b),
+                )
             }
 
             MIRFlow::Switch { cases, default } => {
@@ -250,18 +244,13 @@ impl IRGenerator {
 
     fn generate_expression(&mut self, expression: &MIRExpression) -> BasicValueEnum {
         match expression {
-            // TODO: This is verbose and not very flexible.
-            // Should really be replaced with operator overloading in gelix or similar
             MIRExpression::Binary {
                 left,
                 operator,
                 right,
             } => {
-                let left = self.generate_expression(left);
-                let right = self.generate_expression(right);
-
-                let left = if let BasicValueEnum::IntValue(int) = left { int } else { panic!("Only int are supported for math operations") };
-                let right = if let BasicValueEnum::IntValue(int) = right { int } else { panic!("Only int are supported for math operations") };
+                let left = *self.generate_expression(left).as_int_value();
+                let right = *self.generate_expression(right).as_int_value();
 
                 BasicValueEnum::IntValue(match operator {
                     Type::Plus => self.builder.build_int_add(left, right, "add"),
@@ -274,15 +263,7 @@ impl IRGenerator {
                         self.builder.build_float_to_signed_int(float_div, self.context.i64_type(), "divconv")
                     },
 
-                    Type::Greater => self.builder.build_int_compare(IntPredicate::SGT, left, right, "cmp"),
-                    Type::GreaterEqual => self.builder.build_int_compare(IntPredicate::SGE, left, right, "cmp"),
-                    Type::Less => self.builder.build_int_compare(IntPredicate::SLT, left, right, "cmp"),
-                    Type::LessEqual => self.builder.build_int_compare(IntPredicate::SLE, left, right, "cmp"),
-
-                    Type::EqualEqual => self.builder.build_int_compare(IntPredicate::EQ, left, right, "cmp"),
-                    Type::BangEqual => self.builder.build_int_compare(IntPredicate::NE, left, right, "cmp"),
-
-                    _ => panic!("Unsupported binary operand"),
+                    _ => self.builder.build_int_compare(get_predicate(operator), left, right, "cmp"),
                 })
             }
 
@@ -293,21 +274,17 @@ impl IRGenerator {
             }
 
             MIRExpression::Call { callee, arguments } => {
-                let callee = self.generate_expression(callee);
-                if let BasicValueEnum::PointerValue(ptr) = callee {
-                    let arguments: Vec<BasicValueEnum> = arguments
-                        .iter()
-                        .map(|arg| self.generate_expression(arg))
-                        .collect();
+                let callee = *self.generate_expression(callee).as_pointer_value();
+                let arguments: Vec<BasicValueEnum> = arguments
+                    .iter()
+                    .map(|arg| self.generate_expression(arg))
+                    .collect();
 
-                    let ret = self
-                        .builder
-                        .build_call(ptr, arguments.as_slice(), "call")
-                        .try_as_basic_value();
-                    ret.left().unwrap_or(self.none_const)
-                } else {
-                    panic!("Call target wasn't a function pointer");
-                }
+                let ret = self
+                    .builder
+                    .build_call(callee, arguments.as_slice(), "call")
+                    .try_as_basic_value();
+                ret.left().unwrap_or(self.none_const)
             }
 
             MIRExpression::DoRet => {
@@ -347,13 +324,9 @@ impl IRGenerator {
             }
 
             MIRExpression::StructGet { object, index } => {
-                let struc = self.generate_expression(object);
-                if let BasicValueEnum::PointerValue(ptr) = struc {
-                    let ptr = unsafe { self.builder.build_struct_gep(ptr, *index, "classgep") };
-                    self.load_ptr(ptr)
-                } else {
-                    panic!("Get target wasn't a struct")
-                }
+                let struc = *self.generate_expression(object).as_pointer_value();
+                let ptr = unsafe { self.builder.build_struct_gep(struc, *index, "classgep") };
+                self.load_ptr(struc)
             }
 
             MIRExpression::StructSet {
@@ -361,16 +334,12 @@ impl IRGenerator {
                 index,
                 value,
             } => {
-                let struc = self.generate_expression(object);
-                if let BasicValueEnum::PointerValue(ptr) = struc {
-                    let ptr = unsafe { self.builder.build_struct_gep(ptr, *index, "classgep") };
-                    let value = self.generate_expression(value);
-                    let value = self.unwrap_value_ptr(value);
-                    self.builder.build_store(ptr, value);
-                    value
-                } else {
-                    panic!("Get target wasn't a struct")
-                }
+                let struc = *self.generate_expression(object).as_pointer_value();
+                let ptr = unsafe { self.builder.build_struct_gep(struc, *index, "classgep") };
+                let value = self.generate_expression(value);
+                let value = self.unwrap_value_ptr(value);
+                self.builder.build_store(struc, value);
+                value
             }
 
             MIRExpression::Literal(literal) => match literal {
@@ -399,32 +368,21 @@ impl IRGenerator {
                             BasicValueEnum::PointerValue(const_str.as_pointer_value())
                         }
                     }
-                    _ => panic!("What is that?"),
+                    _ => panic!("unknown literal"),
             },
 
-            // TODO: This is stupidly verbose
             MIRExpression::Unary { operator, right } => {
                 let expr = self.generate_expression(right);
-                match operator {
-                    Type::Minus => match expr {
-                        BasicValueEnum::IntValue(int) => BasicValueEnum::IntValue(
-                            self.builder.build_int_neg(int, "unaryneg"),
-                        ),
 
-                        BasicValueEnum::FloatValue(float) => BasicValueEnum::FloatValue(
-                            self.builder.build_float_neg(float, "unaryneg"),
-                        ),
+                // Both ! and - always just negate their value, so this is safe.
+                match expr {
+                    BasicValueEnum::IntValue(int) => BasicValueEnum::IntValue(
+                        self.builder.build_int_neg(int, "unaryneg"),
+                    ),
 
-                        _ => panic!("Invalid unary negation"),
-                    },
-
-                    Type::Bang => {
-                        if let BasicValueEnum::IntValue(int) = expr {
-                            BasicValueEnum::IntValue(self.builder.build_int_neg(int, "unaryinv"))
-                        } else {
-                            panic!("Invalid unary binary negation")
-                        }
-                    }
+                    BasicValueEnum::FloatValue(float) => BasicValueEnum::FloatValue(
+                        self.builder.build_float_neg(float, "unaryneg"),
+                    ),
 
                     _ => panic!("Invalid unary operator"),
                 }
@@ -598,5 +556,17 @@ impl<T: Hash> Eq for PtrEqRc<T> {}
 impl<T: Hash> Hash for PtrEqRc<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.hash(state)
+    }
+}
+
+fn get_predicate(tok: &Type) -> IntPredicate {
+    match tok {
+        Type::Greater => IntPredicate::SGT,
+        Type::GreaterEqual => IntPredicate::SGE,
+        Type::Less => IntPredicate::SLT,
+        Type::LessEqual => IntPredicate::SLE,
+        Type::EqualEqual => IntPredicate::EQ,
+        Type::BangEqual => IntPredicate::NE,
+        _ => panic!("invalid tok")
     }
 }
