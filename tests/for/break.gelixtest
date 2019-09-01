@@ -11,5 +11,5 @@ func test() -> i64 {
     for (i < 10) {
         if (i == 4) break i * 4
         i = i + 1
-    }
+    } else 0
 }

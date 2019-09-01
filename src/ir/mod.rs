@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/1/19 6:36 PM.
+ * Last modified on 9/1/19 7:23 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -309,12 +309,20 @@ impl IRGenerator {
             ),
 
             MIRExpression::Phi(branches) => {
-                let cur_block = self.builder.get_insert_block().unwrap();
+                // Insert block might be None if block return was hit
+                let cur_block = match self.builder.get_insert_block() {
+                    Some(b) => b,
+                    None => return self.none_const
+                };
+
                 let branches: Vec<(BasicValueEnum, BasicBlock)> = branches
                     .iter()
                     .map(|(expr, br)| {
                         let block = self.get_block(br);
-                        self.builder.position_at_end(&block);
+                        match block.get_terminator() {
+                            Some(inst) => self.builder.position_before(&inst),
+                            None => self.builder.position_at_end(&block)
+                        }
                         (self.generate_expression(expr), block)
                     })
                     .collect();

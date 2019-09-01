@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 3:27 PM.
+ * Last modified on 9/1/19 7:33 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -50,7 +50,7 @@ fn for_file(file: PathBuf) -> Result<(), ()> {
 
         if result != expected {
             println!(
-                "Test failed!\nResult: {:?}\nExpected: {:?}\n",
+                "Test failed!\nResult:   {:?}\nExpected: {:?}\n",
                 result, expected
             );
         }

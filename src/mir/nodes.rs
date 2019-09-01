@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/1/19 6:28 PM.
+ * Last modified on 9/1/19 6:58 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -262,7 +262,7 @@ impl MIRExpression {
 
             MIRExpression::DoRet => MIRType::None,
 
-            MIRExpression::Function(func) => func.borrow().ret_type.clone(),
+            MIRExpression::Function(func) => MIRType::Function(func.clone()),
 
             MIRExpression::Phi(branches) => branches.first().unwrap().0.get_type(),
 
