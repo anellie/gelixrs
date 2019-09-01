@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/31/19 1:04 PM.
+ * Last modified on 9/1/19 6:29 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -20,6 +20,7 @@ use crate::{Error, Res};
 use builder::MIRBuilder;
 use std::collections::HashMap;
 use std::rc::Rc;
+use either::Either;
 
 /// The MIRGenerator turns a list of declarations produced by the parser
 /// into their MIR representation.
@@ -196,7 +197,12 @@ impl MIRGenerator {
             Expression::Call { callee, arguments } => {
                 match &**callee {
                     // Method call
-                    Expression::Get { object: _, name: _ } => unimplemented!(),
+                    Expression::Get { object, name } => {
+                        let (object, field) = self.get_class_field(object, name)?;
+                        let func = field.right().ok_or_else(|| Self::error(name, name, "Class members cannot be called."))?;
+                        let args = self.generate_func_args(Rc::clone(&func), arguments, Some(object))?;
+                        return Ok(self.builder.build_call(MIRExpression::Function(func), args))
+                    },
 
                     // Might be class constructor
                     Expression::Variable(name) => {
@@ -211,7 +217,7 @@ impl MIRGenerator {
                 // match above fell through, its either a function call or invalid
                 let callee_mir = self.generate_expression(&**callee)?;
                 if let MIRType::Function(func) = callee_mir.get_type() {
-                    let args = self.generate_func_args(func, arguments)?;
+                    let args = self.generate_func_args(func, arguments, None)?;
                     self.builder.build_call(callee_mir, args)
                 } else {
                     return Err(Self::anon_err(
@@ -290,6 +296,7 @@ impl MIRGenerator {
 
             Expression::Get { object, name } => {
                 let (object, field) = self.get_class_field(&**object, name)?;
+                let field = field.left().ok_or_else(|| Self::error(name, name, "Cannot get class method (must be called)"))?;
                 self.builder.build_struct_get(object, field)
             }
 
@@ -382,10 +389,11 @@ impl MIRGenerator {
                 value,
             } => {
                 let (object, field) = self.get_class_field(&**object, name)?;
+                let field = field.left().ok_or_else(|| Self::error(name, name, "Cannot set class method"))?;
                 let value = self.generate_expression(&**value)?;
 
                 if value.get_type() != field._type {
-                    return Err(Self::error(name, name, "Struct member is a different type"));
+                    return Err(Self::error(name, name, "Class member is a different type"));
                 }
                 if !field.mutable {
                     return Err(Self::error(name, name, "Cannot set immutable class member"));
@@ -558,19 +566,40 @@ impl MIRGenerator {
         &mut self,
         object: &Expression,
         name: &Token,
-    ) -> Res<(MIRExpression, Rc<MIRStructMem>)> {
+    ) -> Res<(MIRExpression, Either<Rc<MIRStructMem>, MutRc<MIRFunction>>)> {
         let object = self.generate_expression(object)?;
 
         if let MIRType::Struct(struc) = object.get_type() {
-            Ok((
-                object,
-                Rc::clone(
-                    struc
-                        .borrow()
-                        .members
-                        .get(&name.lexeme)
-                        .ok_or_else(|| Self::error(name, name, "Unknown class member"))?,
-                ),
+            let struc = struc.borrow();
+
+            // Class fields
+            let field = struc.members.get(&name.lexeme);
+            if let Some(field) = field {
+                return Ok((object, Either::Left(Rc::clone(field))))
+            }
+
+            // Class methods
+            let method = struc.methods.get(&name.lexeme);
+            if let Some(method) = method {
+                return Ok((object, Either::Right(Rc::clone(method))))
+            }
+
+            // Superclass methods
+            let mut sclass = struc.super_struct.clone();
+            while let Some(struc) = sclass {
+                let struc = struc.borrow();
+                let method = struc.methods.get(&name.lexeme);
+                if let Some(method) = method {
+                    return Ok((object, Either::Right(Rc::clone(method))))
+                }
+                sclass = struc.super_struct.clone();
+            }
+
+            // Nothing found...
+            Err(Self::error(
+                name,
+                name,
+                "Unknown class field",
             ))
         } else {
             Err(Self::error(
@@ -585,10 +614,12 @@ impl MIRGenerator {
         &mut self,
         func_ref: MutRc<MIRFunction>,
         arguments: &Vec<Expression>,
+        first_arg: Option<MIRExpression>
     ) -> Res<Vec<MIRExpression>> {
         let func = func_ref.borrow();
 
-        if func.parameters.len() != arguments.len() {
+        let args_len = arguments.len() + (first_arg.is_some() as usize);
+        if func.parameters.len() != args_len {
             return Err(Self::anon_err(
                 arguments.first().map(|e| e.get_token()).flatten(),
                 &format!(
@@ -599,19 +630,47 @@ impl MIRGenerator {
             ));
         }
 
-        let mut result = Vec::with_capacity(arguments.len());
-        for (argument, parameter) in arguments.iter().zip(func.parameters.iter()) {
+        let mut result = Vec::with_capacity(args_len);
+        let first_arg_is_some = first_arg.is_some();
+        first_arg.map(|arg| {
+            let ty = &func.parameters[0]._type;
+            let arg = self.check_call_arg_type(arg, ty).expect("internal error: method call");
+            result.push(arg)
+        });
+        for (argument, parameter) in arguments.iter().zip(func.parameters.iter().skip(first_arg_is_some as usize)) {
             let arg = self.generate_expression(argument)?;
-            if arg.get_type() != parameter._type {
-                return Err(Self::anon_err(
+            let arg = self.check_call_arg_type(arg, &parameter._type).ok_or_else(||
+                Self::anon_err(
                     argument.get_token(),
-                    &format!("Call argument is the wrong type (was {}; expected {})", arg.get_type(), parameter._type),
-                ));
-            }
+                    &format!("Call argument is the wrong type (expected {})", parameter._type),
+                )
+            )?;
             result.push(arg)
         }
 
         Ok(result)
+    }
+
+    /// Checks if the arg parameter is of the given type ty.
+    /// Will do class casts if needed to make the types match;
+    /// returns the new expression that should be used in case a cast happened.
+    fn check_call_arg_type(&self, mut arg: MIRExpression, ty: &MIRType) -> Option<MIRExpression> {
+        let arg_type = arg.get_type();
+        if &arg_type == ty {
+            Some(arg)
+        } else if let MIRType::Struct(struc) = arg_type {
+            let mut sclass = struc.borrow().super_struct.clone();
+            while let Some(struc) = sclass {
+                arg = self.builder.build_bitcast(arg, &struc);
+                if ty == &MIRType::Struct(Rc::clone(&struc)) {
+                    return Some(arg)
+                }
+                sclass = struc.borrow().super_struct.clone();
+            }
+            None
+        } else {
+            None
+        }
     }
 
     /// Creates a new scope. A new scope is created for every function and block,

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/1/19 4:05 PM.
+ * Last modified on 9/1/19 6:32 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -8,9 +8,10 @@ use crate::ast::declaration::{Class, DeclarationList, FuncSignature, FunctionArg
 use crate::lexer::token::Token;
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::generator::MIRGenerator;
-use crate::mir::nodes::{MIRType, MIRVariable};
+use crate::mir::nodes::{MIRType, MIRVariable, MIRFunction};
 use crate::Res;
 use std::rc::Rc;
+use crate::mir::MutRc;
 
 /// This pass declares all structs and functions in the AST.
 /// It does not fill structs; they are kept empty.
@@ -28,32 +29,46 @@ impl<'p> PreMIRPass for DeclarePass<'p> {
 
 impl<'p> DeclarePass<'p> {
     /// Declare all classes.
-    fn classes(&mut self, list: &DeclarationList) -> Res<()> {
-        for class in &list.classes {
-            self.create_class(&class)?;
+    fn classes(&mut self, list: &mut DeclarationList) -> Res<()> {
+        for class in list.classes.iter_mut() {
+            self.create_class(class)?;
         }
 
         Ok(())
     }
 
-    fn create_class(&mut self, class: &Class) -> Res<()> {
+    fn create_class(&mut self, class: &mut Class) -> Res<()> {
         // Create struct (filled in another pass)
-        self.gen
+        let mir_class = self.gen
             .builder
             .create_struct(Rc::clone(&class.name.lexeme))
             .ok_or_else(|| {
                 MIRGenerator::error(&class.name, &class.name, "Class was already defined!")
             })?;
 
+        let this_arg = FunctionArg {
+            name: Token::generic_identifier("this".to_string()),
+            _type: class.name.clone(),
+        };
+
         // Create init function
         self.create_function(&FuncSignature {
             name: Token::generic_identifier(format!("{}-internal-init", &class.name.lexeme)),
             return_type: None,
-            parameters: vec![FunctionArg {
-                name: Token::generic_identifier("this".to_string()),
-                _type: class.name.clone(),
-            }],
+            parameters: vec![this_arg.clone()],
         })?;
+
+        // Declare all class methods
+        let name = &class.name.lexeme;
+        let mut mir_class = mir_class.borrow_mut();
+        for method in class.methods.iter_mut() {
+            let old_name = Rc::clone(&method.sig.name.lexeme);
+            method.sig.name.lexeme = Rc::new(format!("{}-{}", name, method.sig.name.lexeme));
+            method.sig.parameters.insert(0, this_arg.clone());
+
+            let mir_method = self.create_function(&method.sig)?;
+            mir_class.methods.insert(old_name, mir_method);
+        }
 
         Ok(())
     }
@@ -68,18 +83,10 @@ impl<'p> DeclarePass<'p> {
             self.create_function(&function)?;
         }
 
-        for class in list.classes.iter_mut() {
-            let name = &class.name.lexeme;
-            for method in class.methods.iter_mut() {
-                method.sig.name.lexeme = Rc::new(format!("{}-{}", name, method.sig.name.lexeme));
-                self.create_function(&method.sig)?;
-            }
-        }
-
         Ok(())
     }
 
-    fn create_function(&mut self, func_sig: &FuncSignature) -> Res<()> {
+    fn create_function(&mut self, func_sig: &FuncSignature) -> Res<MutRc<MIRFunction>> {
         let ret_type = &self
             .gen
             .builder
@@ -137,12 +144,12 @@ impl<'p> DeclarePass<'p> {
             Rc::clone(&func_sig.name.lexeme),
             Rc::new(MIRVariable::new(
                 Rc::clone(&func_sig.name.lexeme),
-                MIRType::Function(function),
+                MIRType::Function(Rc::clone(&function)),
                 false,
             )),
         );
 
-        Ok(())
+        Ok(function)
     }
 
     pub fn new(gen: &'p mut MIRGenerator) -> DeclarePass<'p> {

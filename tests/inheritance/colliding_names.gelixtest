@@ -1,0 +1,11 @@
+// ERR
+
+func main() {}
+
+class Class {
+    var a = 0
+}
+
+class Subclass ext Class {
+    var a = 1
+}

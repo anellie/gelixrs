@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/1/19 4:13 PM.
+ * Last modified on 9/1/19 6:28 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -50,6 +50,8 @@ pub struct MIRStruct {
     pub members: HashMap<Rc<String>, Rc<MIRStructMem>>,
     /// All struct members by index.
     pub member_order: Vec<Rc<MIRStructMem>>,
+    /// All class methods. Inserted as "doThing", not "StructName-doThing".
+    pub methods: HashMap<Rc<String>, MutRc<MIRFunction>>,
     pub super_struct: Option<MutRc<MIRStruct>>,
 }
 

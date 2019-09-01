@@ -4,17 +4,29 @@ exfn printnum(i64 a)
 
 func main() {
     val a = A()
-    print(t(a))
+    a.hello()
+    a.test()
 }
 
-func t(B b) -> String {
-    b.a
+func test(B ok) -> i64 {
+    ok.b
 }
 
-class A {
-    val a = 5
+class A ext B {
+    val ab = 5
+
+    func hello() {
+        print("Hello from A!")
+    }
 }
 
 class B {
     val a = "ok"
+    val b = 24
+
+    func hello() {
+        print("hello from B!")
+    }
+
+    func test() this.hello()
 }

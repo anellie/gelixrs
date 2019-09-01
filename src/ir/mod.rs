@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/31/19 1:30 PM.
+ * Last modified on 9/1/19 6:36 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -198,12 +198,16 @@ impl IRGenerator {
                 then_b,
                 else_b,
             } => {
-                let condition = *self.generate_expression(condition).as_int_value();
+                let condition = self.generate_expression(condition);
+                if let BasicValueEnum::IntValue(condition) = condition {
                 self.builder.build_conditional_branch(
                     condition,
                     &self.get_block(then_b),
                     &self.get_block(else_b),
                 )
+                } else {
+                    panic!("br condition wasn't a boolean");
+            }
             }
 
             MIRFlow::Switch { cases, default } => {
@@ -274,7 +278,8 @@ impl IRGenerator {
             }
 
             MIRExpression::Call { callee, arguments } => {
-                let callee = *self.generate_expression(callee).as_pointer_value();
+                let callee = self.generate_expression(callee);
+                if let BasicValueEnum::PointerValue(ptr) = callee {
                 let arguments: Vec<BasicValueEnum> = arguments
                     .iter()
                     .map(|arg| self.generate_expression(arg))
@@ -282,9 +287,12 @@ impl IRGenerator {
 
                 let ret = self
                     .builder
-                    .build_call(callee, arguments.as_slice(), "call")
+                        .build_call(ptr, arguments.as_slice(), "call")
                     .try_as_basic_value();
                 ret.left().unwrap_or(self.none_const)
+                } else {
+                    panic!("Call target wasn't a function pointer");
+            }
             }
 
             MIRExpression::DoRet => {
@@ -324,9 +332,13 @@ impl IRGenerator {
             }
 
             MIRExpression::StructGet { object, index } => {
-                let struc = *self.generate_expression(object).as_pointer_value();
-                let ptr = unsafe { self.builder.build_struct_gep(struc, *index, "classgep") };
-                self.load_ptr(struc)
+                let struc = self.generate_expression(object);
+                if let BasicValueEnum::PointerValue(ptr) = struc {
+                    let ptr = unsafe { self.builder.build_struct_gep(ptr, *index, "classgep") };
+                    self.load_ptr(ptr)
+                } else {
+                    panic!("Get target wasn't a struct")
+            }
             }
 
             MIRExpression::StructSet {
@@ -334,12 +346,16 @@ impl IRGenerator {
                 index,
                 value,
             } => {
-                let struc = *self.generate_expression(object).as_pointer_value();
-                let ptr = unsafe { self.builder.build_struct_gep(struc, *index, "classgep") };
+                let struc = self.generate_expression(object);
+                if let BasicValueEnum::PointerValue(ptr) = struc {
+                    let ptr = unsafe { self.builder.build_struct_gep(ptr, *index, "classgep") };
                 let value = self.generate_expression(value);
                 let value = self.unwrap_value_ptr(value);
-                self.builder.build_store(struc, value);
+                    self.builder.build_store(ptr, value);
                 value
+                } else {
+                    panic!("Get target wasn't a struct")
+                }
             }
 
             MIRExpression::Literal(literal) => match literal {
@@ -371,7 +387,7 @@ impl IRGenerator {
                     _ => panic!("unknown literal"),
             },
 
-            MIRExpression::Unary { operator, right } => {
+            MIRExpression::Unary { right, .. } => {
                 let expr = self.generate_expression(right);
 
                 // Both ! and - always just negate their value, so this is safe.

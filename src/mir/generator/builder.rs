@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/31/19 12:51 PM.
+ * Last modified on 9/1/19 6:02 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -30,6 +30,7 @@ impl MIRBuilder {
             name: Rc::clone(&name),
             members: HashMap::new(),
             member_order: Vec::new(),
+            methods: HashMap::new(),
             super_struct: None,
         });
 
