@@ -50,7 +50,7 @@ impl Parser {
     /// Parses the tokens and returns a full AST.
     /// Returns a list of errors on failure.
     pub fn parse(mut self) -> Result<DeclarationList, Vec<Error>> {
-        let mut list = DeclarationList::new();
+        let mut list = DeclarationList::default();
 
         while !self.is_at_end() {
             // Only true on error

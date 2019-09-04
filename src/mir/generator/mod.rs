@@ -490,7 +490,8 @@ impl MIRGenerator {
     fn define_variable(&mut self, token: &Token, mutable: bool, _type: MIRType) -> Rc<MIRVariable> {
         let def = Rc::new(MIRVariable::new(Rc::clone(&token.lexeme), _type, mutable));
         self.builder.add_function_variable(Rc::clone(&def));
-        self.insert_variable(Rc::clone(&def), true, token.line).unwrap_or(());
+        self.insert_variable(Rc::clone(&def), true, token.line)
+            .unwrap_or(());
         def
     }
 
@@ -605,7 +606,7 @@ impl MIRGenerator {
     fn generate_func_args(
         &mut self,
         func_ref: MutRc<MIRFunction>,
-        arguments: &Vec<Expression>,
+        arguments: &[Expression],
         first_arg: Option<MIRExpression>,
     ) -> Res<Vec<MIRExpression>> {
         let func = func_ref.borrow();
@@ -624,13 +625,13 @@ impl MIRGenerator {
 
         let mut result = Vec::with_capacity(args_len);
         let first_arg_is_some = first_arg.is_some();
-        first_arg.map(|arg| {
+        if let Some(arg) = first_arg {
             let ty = &func.parameters[0]._type;
             let arg = self
                 .check_call_arg_type(arg, ty)
                 .expect("internal error: method call");
             result.push(arg)
-        });
+        }
         for (argument, parameter) in arguments
             .iter()
             .zip(func.parameters.iter().skip(first_arg_is_some as usize))

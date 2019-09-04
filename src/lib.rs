@@ -53,7 +53,7 @@ impl Error {
     }
 
     /// Produces a nice looking string representation to be shown to the user.
-    pub fn to_string(&self, source: &String) -> String {
+    pub fn to_string(&self, source: &str) -> String {
         let (start_line, end_line) = self.lines;
         let mut result = format!("[{}] {}", self.producer, self.message);
 

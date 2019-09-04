@@ -20,9 +20,6 @@ class Class {
 }
 
 class Subclass ext Class {
-
-    var _test = "sub"
-
-    func test2() -> String this._test
+    func test2() -> String "sub"
     func ok() -> i64 1
 }

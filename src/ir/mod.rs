@@ -272,7 +272,7 @@ impl IRGenerator {
                         self.builder.build_float_to_signed_int(float_div, self.context.i64_type(), "divconv")
                     },
 
-                    _ => self.builder.build_int_compare(get_predicate(operator), left, right, "cmp"),
+                    _ => self.builder.build_int_compare(get_predicate(*operator), left, right, "cmp"),
                 })
             }
 
@@ -589,7 +589,7 @@ impl<T: Hash> Hash for PtrEqRc<T> {
     }
 }
 
-fn get_predicate(tok: &Type) -> IntPredicate {
+fn get_predicate(tok: Type) -> IntPredicate {
     match tok {
         Type::Greater => IntPredicate::SGT,
         Type::GreaterEqual => IntPredicate::SGE,

@@ -5,9 +5,11 @@
  */
 
 use crate::ast::declaration::{Class, DeclarationList};
+use crate::lexer::token::Token;
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::generator::{Error, MIRGenerator, Res};
-use crate::mir::nodes::{MIRExpression, MIRStructMem};
+use crate::mir::nodes::{MIRExpression, MIRFunction, MIRStructMem};
+use crate::mir::MutRc;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -88,10 +90,31 @@ impl<'p> FillStructPass<'p> {
 
         let class_rc = self.gen.builder.find_struct(&class.name.lexeme).unwrap();
         let mut class_def = class_rc.borrow_mut();
+        self.check_duplicate(&class.name, &fields, &class_def.methods)?;
         class_def.members = fields;
         class_def.member_order = fields_vec;
         class_def.super_struct = superclass;
+        Ok(())
+    }
 
+    fn check_duplicate(
+        &self,
+        tok: &Token,
+        members: &HashMap<Rc<String>, Rc<MIRStructMem>>,
+        methods: &HashMap<Rc<String>, MutRc<MIRFunction>>,
+    ) -> Res<()> {
+        for (mem_name, _) in members.iter() {
+            if methods.contains_key(mem_name) {
+                return Err(MIRGenerator::error(
+                    tok,
+                    tok,
+                    &format!(
+                        "Cannot have class member and method '{}' with same name ",
+                        mem_name
+                    ),
+                ));
+            }
+        }
         Ok(())
     }
 
@@ -123,8 +146,16 @@ impl<'p> FillStructPass<'p> {
                 index: (i + offset) as u32,
             });
 
-            fields.insert(Rc::clone(&field.name.lexeme), Rc::clone(&member));
+            let existing_entry = fields.insert(Rc::clone(&field.name.lexeme), Rc::clone(&member));
             fields_vec.push(Rc::clone(&member));
+
+            if existing_entry.is_some() {
+                return Err(MIRGenerator::error(
+                    &field.name,
+                    &field.name,
+                    "Class member cannot be defined twice",
+                ));
+            }
 
             self.gen
                 .builder
