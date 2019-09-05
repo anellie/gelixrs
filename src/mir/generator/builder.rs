@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/1/19 9:24 PM.
+ * Last modified on 9/5/19, 9:16 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -140,7 +140,15 @@ impl MIRBuilder {
     }
 
     pub fn build_phi(&self, nodes: Vec<(MIRExpression, Rc<String>)>) -> MIRExpression {
-        MIRExpression::Phi(nodes)
+        // Filter all nodes that return Any.
+        // A node might return Any if it does not produce a value;
+        // but instead branches away from the phi.
+        let filtered_nodes = nodes.into_iter().filter(|node| {
+            let type_ = node.0.get_type();
+            if let MIRType::Any = type_ { false } else { true }
+        }).collect();
+
+        MIRExpression::Phi(filtered_nodes)
     }
 
     pub fn build_literal(&self, literal: Literal) -> MIRExpression {

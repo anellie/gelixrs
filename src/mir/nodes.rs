@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/1/19 9:24 PM.
+ * Last modified on 9/5/19, 9:14 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -15,8 +15,9 @@ use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
 /// All types in Gelix.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum MIRType {
+    Any,
     None,
     Bool,
     Int,
@@ -27,9 +28,33 @@ pub enum MIRType {
     Struct(MutRc<MIRStruct>),
 }
 
+impl PartialEq for MIRType {
+    fn eq(&self, other: &Self) -> bool {
+        if let MIRType::Any = other { return true }
+        match self {
+            MIRType::Function(func) => {
+                if let MIRType::Function(other) = other {
+                    func == other
+                } else { false }
+            }
+
+            MIRType::Struct(struc) => {
+                if let MIRType::Struct(other) = other {
+                    struc == other
+                } else { false }
+            },
+
+            MIRType::Any => true,
+
+            _ => std::mem::discriminant(self) == std::mem::discriminant(other)
+        }
+    }
+}
+
 impl Display for MIRType {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         match self {
+            MIRType::Any => write!(f, "Any"),
             MIRType::None => write!(f, "None"),
             MIRType::Bool => write!(f, "bool"),
             MIRType::Int => write!(f, "i64"),
@@ -275,6 +300,7 @@ impl MIRExpression {
             }
 
             MIRExpression::Literal(literal) => match literal {
+                Literal::Any => MIRType::Any,
                 Literal::None => MIRType::None,
                 Literal::Bool(_) => MIRType::Bool,
                 Literal::Int(_) => MIRType::Int,

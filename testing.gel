@@ -6,8 +6,8 @@ func main() {
     val a = A()
     a.hello()
     a.test()
-    print(a.hello)
-    print(a.hello())
+
+    print(if (true) a.a else return None)
 }
 
 func test(B ok) -> i64 {
@@ -16,7 +16,6 @@ func test(B ok) -> i64 {
 
 class A ext B {
     val ab = 5
-    val hello = "Hello class member!"
 
     func hello() {
         print("Hello from A!")

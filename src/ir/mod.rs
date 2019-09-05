@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/1/19 9:25 PM.
+ * Last modified on 9/4/19, 9:02 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -372,6 +372,7 @@ impl IRGenerator {
             }
 
             MIRExpression::Literal(literal) => match literal {
+                    Literal::Any => self.none_const,
                     Literal::None => self.none_const,
                     Literal::Bool(value) => self
                         .context
@@ -393,8 +394,8 @@ impl IRGenerator {
                         if self.builder.get_insert_block().is_none() {
                             self.none_const
                         } else {
-                        let const_str =
-                            self.builder.build_global_string_ptr(&string, "literal-str");
+                            let const_str =
+                                self.builder.build_global_string_ptr(&string, "literal-str");
                             BasicValueEnum::PointerValue(const_str.as_pointer_value())
                         }
                     }
@@ -483,6 +484,7 @@ impl IRGenerator {
     /// Converts a MIRType to the corresponding LLVM type. Structs are returned as StructType.
     fn to_ir_type_no_ptr(&self, mir: &MIRType) -> BasicTypeEnum {
         match mir {
+            MIRType::Any => self.none_const.get_type(),
             MIRType::None => self.none_const.get_type(),
             MIRType::Bool => self.context.bool_type().as_basic_type_enum(),
             MIRType::Int => self.context.i64_type().as_basic_type_enum(),

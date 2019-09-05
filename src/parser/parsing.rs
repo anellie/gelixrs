@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/1/19 9:28 PM.
+ * Last modified on 9/5/19, 8:58 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -312,7 +312,6 @@ impl Parser {
             None
         };
 
-        self.consume_semi_or_nl("Expected newline or ';' after 'return'.");
         Some(Expression::Return(value))
     }
 
@@ -323,7 +322,6 @@ impl Parser {
             None
         };
 
-        self.consume_semi_or_nl("Expected newline or ';' after 'break'.");
         Some(Expression::Break(value))
     }
 

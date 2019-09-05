@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/1/19 9:24 PM.
+ * Last modified on 9/5/19, 8:59 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -91,7 +91,7 @@ impl Lexer {
     fn identifier_type(&self) -> Type {
         match self.char_at(self.start) {
             'a' => self.check_identifier_keyword(1, &['n', 'd'], Type::And),
-            'n' => self.check_identifier_keyword(1, &['o', 'n', 'e'], Type::None),
+            'N' => self.check_identifier_keyword(1, &['o', 'n', 'e'], Type::None),
             'o' => self.check_identifier_keyword(1, &['r'], Type::Or),
             'r' => self.check_identifier_keyword(1, &['e', 't', 'u', 'r', 'n'], Type::Return),
             's' => self.check_identifier_keyword(1, &['u', 'p', 'e', 'r'], Type::Super),

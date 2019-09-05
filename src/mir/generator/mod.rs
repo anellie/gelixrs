@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/1/19 9:27 PM.
+ * Last modified on 9/5/19, 9:02 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -185,7 +185,7 @@ impl MIRGenerator {
 
                 let cont_block = Rc::clone(&self.cur_loop().cont_block);
                 self.builder.build_jump(&cont_block);
-                Self::none_const()
+                Self::any_const()
             }
 
             Expression::Call { callee, arguments } => {
@@ -350,7 +350,7 @@ impl MIRGenerator {
                 self.builder.build_jump(&cont_block);
 
                 self.builder.set_block(&cont_block);
-                MIRGenerator::none_const()
+                Self::none_const()
             }
 
             Expression::Literal(literal) => self.builder.build_literal(literal.clone()),
@@ -370,7 +370,7 @@ impl MIRGenerator {
                 }
 
                 self.builder.set_return(MIRFlow::Return(value));
-                Self::none_const()
+                Self::any_const()
             }
 
             Expression::Set {
@@ -637,13 +637,15 @@ impl MIRGenerator {
             .zip(func.parameters.iter().skip(first_arg_is_some as usize))
         {
             let arg = self.generate_expression(argument)?;
+            let arg_type = arg.get_type();
             let arg = self
                 .check_call_arg_type(arg, &parameter._type)
                 .ok_or_else(|| {
                     Self::anon_err(
                         argument.get_token(),
                         &format!(
-                            "Call argument is the wrong type (expected {})",
+                            "Call argument is the wrong type (was {}, expected {})",
+                            arg_type,
                             parameter._type
                         ),
                     )
@@ -698,6 +700,10 @@ impl MIRGenerator {
 
     fn cur_loop(&mut self) -> &mut ForLoop {
         self.current_loop.as_mut().unwrap()
+    }
+
+    fn any_const() -> MIRExpression {
+        MIRExpression::Literal(Literal::Any)
     }
 
     fn none_const() -> MIRExpression {
