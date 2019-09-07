@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/5/19, 8:58 PM.
+ * Last modified on 9/7/19, 2:37 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -19,6 +19,7 @@ use super::super::{
 };
 use super::Parser;
 use crate::Error;
+use std::rc::Rc;
 
 // All expressions that require no semicolon when used as a higher expression.
 static NO_SEMICOLON: [Type; 3] = [Type::If, Type::LeftBrace, Type::When];
@@ -86,22 +87,9 @@ impl Parser {
         let name = self.consume(Type::Identifier, "Expected an external function name.")?;
         self.consume(Type::LeftParen, "Expected '(' after function name.");
 
-        let mut parameters: Vec<FunctionArg> = Vec::new();
-        if !self.check(Type::RightParen) {
-            loop {
-                parameters.push(FunctionArg {
-                    _type: self.consume(Type::Identifier, "Expected parameter type.")?,
-                    name: self.consume(Type::Identifier, "Expected parameter name.")?,
-                });
-                if !self.match_token(Type::Comma) {
-                    break;
-                }
-            }
-        }
-        self.consume(Type::RightParen, "Expected ')' after parameters.");
-
+        let parameters = self.func_parameters()?;
         let return_type = if self.match_token(Type::Arrow) {
-            Some(self.consume(Type::Identifier, "Expected return type after '->'.")?)
+            Some(self.type_("Expected return type after '->'.")?)
         } else {
             None
         };
@@ -111,6 +99,23 @@ impl Parser {
             return_type,
             parameters,
         })
+    }
+
+    fn func_parameters(&mut self) -> Option<Vec<FunctionArg>> {
+        let mut parameters: Vec<FunctionArg> = Vec::new();
+        if !self.check(Type::RightParen) {
+            loop {
+                parameters.push(FunctionArg {
+                    _type: self.type_("Expected parameter type.")?,
+                    name: self.consume(Type::Identifier, "Expected parameter name.")?,
+                });
+                if !self.match_token(Type::Comma) {
+                    break;
+                }
+            }
+        }
+        self.consume(Type::RightParen, "Expected ')' after parameters.");
+        Some(parameters)
     }
 
     fn class_declaration(&mut self) -> Option<Class> {
@@ -358,6 +363,28 @@ impl Parser {
         })
     }
 
+    fn closure(&mut self) -> Option<Expression> {
+        self.consume(Type::LeftParen, "Expected '(' after closure.");
+
+        let parameters = self.func_parameters()?;
+        let return_type = if self.match_token(Type::Arrow) {
+            Some(self.type_("Expected return type after '->'.")?)
+        } else {
+            None
+        };
+
+        let body = self.expression()?;
+
+        Some(Expression::Literal(Literal::Closure(Rc::new(Function {
+            sig: FuncSignature {
+                name: Token::generic_identifier("closure".to_string()),
+                return_type,
+                parameters
+            },
+            body
+        }))))
+    }
+
     fn assignment(&mut self) -> Option<Expression> {
         let expression = self.logic_or()?;
 
@@ -445,6 +472,7 @@ impl Parser {
             _ if self.check(Type::Int) => self.integer()?,
             _ if self.check(Type::Float) => self.float()?,
             _ if self.check(Type::String) => self.string(),
+            _ if self.match_token(Type::Func) => self.closure()?,
             _ => {
                 self.error_at_current("Expected expression.");
                 None?
@@ -483,5 +511,50 @@ impl Parser {
     fn string(&mut self) -> Expression {
         let token = self.advance();
         Expression::Literal(Literal::String(token.lexeme))
+    }
+
+    /// Reads a type name
+    fn type_(&mut self, msg: &str) -> Option<Token> {
+        Some(match self.current.t_type {
+            Type::Identifier => self.advance(),
+
+            // Closure
+            // This hacky serving of spaghetti turns a stream of closure type tokens into
+            // a single token with a lexeme like this:
+            // (String, i64, ()) -> f64
+            Type::LeftParen => {
+                let mut tokens = Vec::new();
+                tokens.push(self.advance());
+
+                if !self.check(Type::RightParen) {
+                    loop {
+                        tokens.push(self.type_("Expected closure parameter type.")?);
+                        if !self.match_token(Type::Comma) {
+                            break;
+                        }
+                    }
+                }
+                tokens.push(self.consume(Type::RightParen, "Expected ')' after closure parameters.")?);
+
+                if self.match_token(Type::Arrow) {
+                    tokens.push(self.consume(Type::Identifier, "Expected return type after '->'.")?)
+                }
+
+                let combined = tokens.iter().map(|t| &**t.lexeme).collect::<Vec<&str>>().join(" ");
+                let combined_len = combined.len();
+
+                Token {
+                    t_type: Type::Identifier,
+                    lexeme: Rc::new(combined),
+                    index: tokens.first().unwrap().index + combined_len,
+                    line: tokens.first().unwrap().line,
+                }
+            }
+
+            _ => {
+                self.error_at_current(msg)?;
+                None?
+            }
+        })
     }
 }

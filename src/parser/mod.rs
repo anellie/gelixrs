@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 5:07 PM.
+ * Last modified on 9/7/19, 2:05 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -92,7 +92,7 @@ impl Parser {
     }
 
     /// Is the current token the given token?
-    fn check(&mut self, t_type: Type) -> bool {
+    fn check(&self, t_type: Type) -> bool {
         self.current.t_type == t_type
     }
 
@@ -148,7 +148,9 @@ impl Parser {
 
         while !self.is_at_end() {
             match self.current.t_type {
-                Type::ExFn | Type::Class | Type::Func | Type::Enum => return,
+                Type::ExFn | Type::Class | Type::Enum => return,
+                // If the next token is a left paren, then its a closure.
+                Type::Func => if !self.check_next(Type::LeftParen) { return },
                 _ => (),
             }
             self.advance();

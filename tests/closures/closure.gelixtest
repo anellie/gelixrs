@@ -1,0 +1,14 @@
+/*
+40
+*/
+
+exfn printnum(i64 a)
+
+func main() {
+    printnum(test())
+}
+
+func test() -> i64 {
+    val fn = func(i64 a, i64 b) -> i64 a * b
+    fn(5, 8)
+}

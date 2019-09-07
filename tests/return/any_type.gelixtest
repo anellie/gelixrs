@@ -1,0 +1,12 @@
+/*
+good
+*/
+
+func test() -> String {
+    val string = if (false) return "bad" else "good"
+    string
+}
+
+func main() {
+    print(test())
+}
