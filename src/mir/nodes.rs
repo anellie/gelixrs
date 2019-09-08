@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/5/19, 9:14 PM.
+ * Last modified on 9/8/19, 6:12 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -46,7 +46,7 @@ impl PartialEq for MIRType {
 
             MIRType::Any => true,
 
-            _ => std::mem::discriminant(self) == std::mem::discriminant(other)
+            _ => std::mem::discriminant(self) == std::mem::discriminant(other),
         }
     }
 }

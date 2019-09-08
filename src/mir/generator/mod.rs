@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/8/19, 3:47 PM.
+ * Last modified on 9/8/19, 6:09 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -10,6 +10,7 @@ mod passes;
 use crate::ast::declaration::Function;
 use crate::ast::expression::Expression;
 use crate::ast::literal::Literal;
+use crate::ast::module::FileModule;
 use crate::lexer::token::{Token, Type};
 use crate::mir::generator::passes::declare::DeclarePass;
 use crate::mir::generator::passes::fill_struct::FillStructPass;
@@ -21,7 +22,6 @@ use builder::MIRBuilder;
 use either::Either;
 use std::collections::HashMap;
 use std::rc::Rc;
-use crate::ast::module::FileModule;
 
 /// The MIRGenerator turns a list of declarations produced by the parser
 /// into their MIR representation.
@@ -646,8 +646,7 @@ impl MIRGenerator {
                         argument.get_token(),
                         &format!(
                             "Call argument is the wrong type (was {}, expected {})",
-                            arg_type,
-                            parameter._type
+                            arg_type, parameter._type
                         ),
                     )
                 })?;

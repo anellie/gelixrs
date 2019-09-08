@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/8/19, 5:44 PM.
+ * Last modified on 9/8/19, 6:09 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -10,7 +10,7 @@ use crate::lexer::token::Token;
 pub struct FileErrors {
     pub errors: Vec<Error>,
     pub source: String,
-    pub file_name: String
+    pub file_name: String,
 }
 
 impl FileErrors {
@@ -18,7 +18,7 @@ impl FileErrors {
         FileErrors {
             errors,
             source: source.to_string(),
-            file_name
+            file_name,
         }
     }
 }
@@ -75,9 +75,9 @@ impl Error {
                 .skip(start_line - 1)
                 .take((end_line - start_line) + 1)
                 .enumerate()
-                {
-                    result = format!("{}\n{:04} | {}", result, (i + start_line), line);
-                }
+            {
+                result = format!("{}\n{:04} | {}", result, (i + start_line), line);
+            }
         }
 
         result

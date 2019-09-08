@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/8/19, 3:47 PM.
+ * Last modified on 9/8/19, 6:14 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -9,9 +9,7 @@
 
 use super::super::{
     ast::{
-        declaration::{
-            Class, Enum, FuncSignature, Function, FunctionArg, Variable,
-        },
+        declaration::{Class, Enum, FuncSignature, Function, FunctionArg, Variable},
         expression::Expression,
         literal::Literal,
         module::FileModule,
@@ -378,9 +376,9 @@ impl Parser {
             sig: FuncSignature {
                 name: Token::generic_identifier("closure".to_string()),
                 return_type,
-                parameters
+                parameters,
             },
-            body
+            body,
         }))))
     }
 
@@ -533,13 +531,19 @@ impl Parser {
                         }
                     }
                 }
-                tokens.push(self.consume(Type::RightParen, "Expected ')' after closure parameters.")?);
+                tokens.push(
+                    self.consume(Type::RightParen, "Expected ')' after closure parameters.")?,
+                );
 
                 if self.match_token(Type::Arrow) {
                     tokens.push(self.consume(Type::Identifier, "Expected return type after '->'.")?)
                 }
 
-                let combined = tokens.iter().map(|t| &**t.lexeme).collect::<Vec<&str>>().join(" ");
+                let combined = tokens
+                    .iter()
+                    .map(|t| &**t.lexeme)
+                    .collect::<Vec<&str>>()
+                    .join(" ");
                 let combined_len = combined.len();
 
                 Token {

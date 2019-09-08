@@ -1,10 +1,11 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/8/19, 3:47 PM.
+ * Last modified on 9/8/19, 6:09 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
 use crate::ast::declaration::{Class, FuncSignature, FunctionArg};
+use crate::ast::module::FileModule;
 use crate::lexer::token::Token;
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::generator::MIRGenerator;
@@ -12,7 +13,6 @@ use crate::mir::nodes::{MIRFunction, MIRType, MIRVariable};
 use crate::mir::MutRc;
 use crate::Res;
 use std::rc::Rc;
-use crate::ast::module::FileModule;
 
 /// This pass declares all structs and functions in the AST.
 /// It does not fill structs; they are kept empty.

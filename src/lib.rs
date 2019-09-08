@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/8/19, 6:06 PM.
+ * Last modified on 9/8/19, 6:09 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -22,14 +22,14 @@ pub mod parser;
 #[cfg(test)]
 pub mod tests;
 
+use crate::ast::module::{FileModule, ModuleContent};
 use ast::module::Module;
 use error::Error;
-use crate::ast::module::{FileModule, ModuleContent};
+use error::FileErrors;
+use std::collections::HashMap;
+use std::fs;
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::fs;
-use std::collections::HashMap;
-use error::FileErrors;
 
 type Res<T> = Result<T, Error>;
 type ModuleErrors = Vec<FileErrors>;
@@ -51,12 +51,16 @@ fn make_module(input: PathBuf) -> Result<Module, ModuleErrors> {
                 let module = make_module(file);
 
                 match module {
-                    Ok(module) => { content.insert(Rc::new(name), module); },
-                    Err(mut errs) => errors.append(&mut errs)
+                    Ok(module) => {
+                        content.insert(Rc::new(name), module);
+                    }
+                    Err(mut errs) => errors.append(&mut errs),
                 }
             }
 
-            if !errors.is_empty() { return Err(errors) }
+            if !errors.is_empty() {
+                return Err(errors);
+            }
             ModuleContent::Submodules(content)
         }
 
@@ -64,30 +68,29 @@ fn make_module(input: PathBuf) -> Result<Module, ModuleErrors> {
             let mut file_mod = FileModule::default();
             let code = fs::read_to_string(&input).expect("Failed to read file.");
 
-            fill_module(&code, &mut file_mod)
-                .map_err(|err| {
-                    let file_name = input.file_name().unwrap().to_str().unwrap().to_string();
-                    vec![FileErrors::new(err, &code, file_name)]
-                })?;
+            fill_module(&code, &mut file_mod).map_err(|err| {
+                let file_name = input.file_name().unwrap().to_str().unwrap().to_string();
+                vec![FileErrors::new(err, &code, file_name)]
+            })?;
 
             ModuleContent::File(file_mod)
         }
     };
 
-    let mut module = Module {
+    let module = Module {
         name: Rc::new(input.file_stem().unwrap().to_str().unwrap().to_string()),
-        content
+        content,
     };
     Ok(module)
 }
 
-fn fill_module(code: &str, mut module: &mut FileModule) -> Result<(), Vec<Error>> {
+fn fill_module(code: &str, module: &mut FileModule) -> Result<(), Vec<Error>> {
     let lexer = lexer::Lexer::new(code);
     let parser = parser::Parser::new(lexer);
     parser.parse(module)
 }
 
-pub fn compile_ir(ast_modules: Vec<Module>) -> Res<inkwell::module::Module> {
+pub fn compile_ir(_ast_modules: Vec<Module>) -> Res<inkwell::module::Module> {
     unimplemented!()
     /*
     let mir = mir::generator::MIRGenerator::new().generate(declarations)?;

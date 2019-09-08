@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/8/19, 5:57 PM.
+ * Last modified on 9/8/19, 6:09 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -35,12 +35,16 @@ fn main() -> Result<(), &'static str> {
     let args = Opt::from_args();
 
     if !args.file.exists() {
-        return Err("Given path does not exist.")
+        return Err("Given path does not exist.");
     }
 
     let code = gelixrs::parse_source(args.file).or_else(|errors| {
         for file in errors {
-            println!("{} error(s) in file {}:\n", file.errors.len(), file.file_name);
+            println!(
+                "{} error(s) in file {}:\n",
+                file.errors.len(),
+                file.file_name
+            );
             for error in file.errors {
                 println!("{}\n", error.to_string(&file.source));
             }
