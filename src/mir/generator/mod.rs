@@ -1,13 +1,13 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/5/19, 9:02 PM.
+ * Last modified on 9/8/19, 3:47 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
 mod builder;
 mod passes;
 
-use crate::ast::declaration::{DeclarationList, Function};
+use crate::ast::declaration::Function;
 use crate::ast::expression::Expression;
 use crate::ast::literal::Literal;
 use crate::lexer::token::{Token, Type};
@@ -21,6 +21,7 @@ use builder::MIRBuilder;
 use either::Either;
 use std::collections::HashMap;
 use std::rc::Rc;
+use crate::ast::module::FileModule;
 
 /// The MIRGenerator turns a list of declarations produced by the parser
 /// into their MIR representation.
@@ -43,7 +44,7 @@ pub struct MIRGenerator {
 
 impl MIRGenerator {
     /// Will do everything needed to generate MIR from the AST.
-    pub fn generate(mut self, mut list: DeclarationList) -> Res<MIR> {
+    pub fn generate(mut self, mut list: FileModule) -> Res<MIR> {
         // Run all pre-MIR passes
         DeclarePass::new(&mut self).run(&mut list)?;
         FillStructPass::new(&mut self).run(&mut list)?;
@@ -58,7 +59,7 @@ impl MIRGenerator {
         })
     }
 
-    fn generate_mir(&mut self, list: DeclarationList) -> Res<()> {
+    fn generate_mir(&mut self, list: FileModule) -> Res<()> {
         for func in list.functions.into_iter().chain(
             list.classes
                 .into_iter()

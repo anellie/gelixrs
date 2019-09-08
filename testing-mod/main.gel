@@ -1,0 +1,4 @@
+func main() {
+    printnum(sub(321, 123))
+    testing()
+}

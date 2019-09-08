@@ -1,10 +1,10 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/1/19 9:24 PM.
+ * Last modified on 9/8/19, 3:47 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
-use crate::ast::declaration::{Class, DeclarationList, FuncSignature, FunctionArg};
+use crate::ast::declaration::{Class, FuncSignature, FunctionArg};
 use crate::lexer::token::Token;
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::generator::MIRGenerator;
@@ -12,6 +12,7 @@ use crate::mir::nodes::{MIRFunction, MIRType, MIRVariable};
 use crate::mir::MutRc;
 use crate::Res;
 use std::rc::Rc;
+use crate::ast::module::FileModule;
 
 /// This pass declares all structs and functions in the AST.
 /// It does not fill structs; they are kept empty.
@@ -21,7 +22,7 @@ pub struct DeclarePass<'p> {
 }
 
 impl<'p> PreMIRPass for DeclarePass<'p> {
-    fn run(mut self, list: &mut DeclarationList) -> Res<()> {
+    fn run(mut self, list: &mut FileModule) -> Res<()> {
         self.classes(list)?;
         self.functions(list)
     }
@@ -29,7 +30,7 @@ impl<'p> PreMIRPass for DeclarePass<'p> {
 
 impl<'p> DeclarePass<'p> {
     /// Declare all classes.
-    fn classes(&mut self, list: &mut DeclarationList) -> Res<()> {
+    fn classes(&mut self, list: &mut FileModule) -> Res<()> {
         for class in list.classes.iter_mut() {
             self.create_class(class)?;
         }
@@ -75,7 +76,7 @@ impl<'p> DeclarePass<'p> {
     }
 
     /// Declare all functions / create their signatures
-    fn functions(&mut self, list: &mut DeclarationList) -> Res<()> {
+    fn functions(&mut self, list: &mut FileModule) -> Res<()> {
         for function in list
             .ext_functions
             .iter()

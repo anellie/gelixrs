@@ -1,10 +1,10 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 6:57 PM.
+ * Last modified on 9/8/19, 3:46 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
-use crate::ast::declaration::{Class, DeclarationList};
+use crate::ast::declaration::Class;
 use crate::lexer::token::Token;
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::generator::{Error, MIRGenerator, Res};
@@ -12,6 +12,7 @@ use crate::mir::nodes::{MIRExpression, MIRFunction, MIRStructMem};
 use crate::mir::MutRc;
 use std::collections::HashMap;
 use std::rc::Rc;
+use crate::ast::module::FileModule;
 
 /// This pass fills all structs with their members
 /// and creates their internal init function.
@@ -20,7 +21,7 @@ pub struct FillStructPass<'p> {
 }
 
 impl<'p> PreMIRPass for FillStructPass<'p> {
-    fn run(mut self, list: &mut DeclarationList) -> Res<()> {
+    fn run(mut self, list: &mut FileModule) -> Res<()> {
         let mut done_classes = Vec::with_capacity(list.classes.len());
 
         while !list.classes.is_empty() {

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 7:18 PM.
+ * Last modified on 9/8/19, 6:06 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -14,6 +14,7 @@
 extern crate lazy_static;
 
 pub mod ast;
+pub mod error;
 pub mod ir;
 pub mod lexer;
 pub mod mir;
@@ -21,80 +22,75 @@ pub mod parser;
 #[cfg(test)]
 pub mod tests;
 
-use ast::declaration::DeclarationList;
-use inkwell::module::Module;
-use lexer::token::Token;
+use ast::module::Module;
+use error::Error;
+use crate::ast::module::{FileModule, ModuleContent};
+use std::path::PathBuf;
+use std::rc::Rc;
+use std::fs;
+use std::collections::HashMap;
+use error::FileErrors;
 
 type Res<T> = Result<T, Error>;
+type ModuleErrors = Vec<FileErrors>;
 
-/// An error produced by all parts of the compiler.
-pub struct Error {
-    pub lines: (usize, usize),
-    pub start: usize,
-    pub len: usize,
-    pub producer: &'static str,
-    pub message: String,
+pub fn parse_source(input: PathBuf) -> Result<Vec<Module>, ModuleErrors> {
+    let mut modules = Vec::new();
+    modules.push(make_module(input)?);
+    Ok(modules)
 }
 
-impl Error {
-    pub fn new(
-        start_tok: &Token,
-        end_tok: &Token,
-        producer: &'static str,
-        message: String,
-    ) -> Error {
-        Error {
-            lines: (start_tok.line, end_tok.line),
-            start: start_tok.index - start_tok.lexeme.len(),
-            len: end_tok.index - (start_tok.index - start_tok.lexeme.len()),
-            producer,
-            message,
-        }
-    }
+fn make_module(input: PathBuf) -> Result<Module, ModuleErrors> {
+    let content = match input.read_dir() {
+        Ok(dir) => {
+            let mut errors = Vec::new();
+            let mut content = HashMap::with_capacity(dir.size_hint().0);
+            for file in dir {
+                let file = file.expect("Failed to read file").path();
+                let name = file.file_stem().unwrap().to_str().unwrap().to_string();
+                let module = make_module(file);
 
-    /// Produces a nice looking string representation to be shown to the user.
-    pub fn to_string(&self, source: &str) -> String {
-        let (start_line, end_line) = self.lines;
-        let mut result = format!("[{}] {}", self.producer, self.message);
-
-        if start_line == 0 {
-            // Line 0 means there is nothing relevant to show
-            result = format!("{}\n  ?? | <unknown>", result);
-        } else if start_line == end_line {
-            let line = source
-                .lines()
-                .nth(start_line - 1)
-                .unwrap_or("<end of file>");
-            result = format!(
-                "{}\n     |\n{:04} | {}\n     |{}{}",
-                result,
-                start_line,
-                line,
-                std::iter::repeat(' ').take(self.start).collect::<String>(),
-                std::iter::repeat('^').take(self.len).collect::<String>(),
-            )
-        } else {
-            for (i, line) in source
-                .lines()
-                .skip(start_line - 1)
-                .take((end_line - start_line) + 1)
-                .enumerate()
-            {
-                result = format!("{}\n{:04} | {}", result, (i + start_line), line);
+                match module {
+                    Ok(module) => { content.insert(Rc::new(name), module); },
+                    Err(mut errs) => errors.append(&mut errs)
+                }
             }
+
+            if !errors.is_empty() { return Err(errors) }
+            ModuleContent::Submodules(content)
         }
 
-        result
-    }
+        Err(_) => {
+            let mut file_mod = FileModule::default();
+            let code = fs::read_to_string(&input).expect("Failed to read file.");
+
+            fill_module(&code, &mut file_mod)
+                .map_err(|err| {
+                    let file_name = input.file_name().unwrap().to_str().unwrap().to_string();
+                    vec![FileErrors::new(err, &code, file_name)]
+                })?;
+
+            ModuleContent::File(file_mod)
+        }
+    };
+
+    let mut module = Module {
+        name: Rc::new(input.file_stem().unwrap().to_str().unwrap().to_string()),
+        content
+    };
+    Ok(module)
 }
 
-pub fn parse_source(code: &str) -> Result<DeclarationList, Vec<Error>> {
+fn fill_module(code: &str, mut module: &mut FileModule) -> Result<(), Vec<Error>> {
     let lexer = lexer::Lexer::new(code);
     let parser = parser::Parser::new(lexer);
-    parser.parse()
+    parser.parse(module)
 }
 
-pub fn compile_ir(declarations: DeclarationList) -> Res<Module> {
+pub fn compile_ir(ast_modules: Vec<Module>) -> Res<inkwell::module::Module> {
+    unimplemented!()
+    /*
     let mir = mir::generator::MIRGenerator::new().generate(declarations)?;
     Ok(ir::IRGenerator::new().generate(mir))
+    */
 }

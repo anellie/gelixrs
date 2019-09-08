@@ -1,22 +1,11 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/1/19 9:24 PM.
+ * Last modified on 9/8/19, 3:19 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
 use super::super::lexer::token::Token;
 use super::expression::Expression;
-
-/// A struct produced by the parser. It contains all types of declarations
-/// that can be emitted during compilation.
-/// A declaration is a language construct that can only appear in top-level and does not produce a value.
-#[derive(Debug, Default)]
-pub struct DeclarationList {
-    pub classes: Vec<Class>,
-    pub enums: Vec<Enum>,
-    pub ext_functions: Vec<FuncSignature>,
-    pub functions: Vec<Function>,
-}
 
 /// A class definition.
 #[derive(Debug)]

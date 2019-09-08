@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/1/19 4:15 PM.
+ * Last modified on 9/8/19, 5:57 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -34,17 +34,17 @@ struct Opt {
 fn main() -> Result<(), &'static str> {
     let args = Opt::from_args();
 
-    let source = match fs::read_to_string(args.file) {
-        Ok(src) => src,
-        Err(_) => {
-            eprintln!("Failed to read file.");
-            process::exit(74);
-        }
-    };
+    if !args.file.exists() {
+        return Err("Given path does not exist.")
+    }
 
-    let code = gelixrs::parse_source(&source).or_else(|errors| {
-        for error in errors {
-            println!("{}\n", error.to_string(&source));
+    let code = gelixrs::parse_source(args.file).or_else(|errors| {
+        for file in errors {
+            println!("{} error(s) in file {}:\n", file.errors.len(), file.file_name);
+            for error in file.errors {
+                println!("{}\n", error.to_string(&file.source));
+            }
+            println!();
         }
         Err("Parser encountered errors. Exiting.")
     })?;
@@ -54,8 +54,8 @@ fn main() -> Result<(), &'static str> {
         return Ok(());
     }
 
-    let module = gelixrs::compile_ir(code).or_else(|error| {
-        println!("{}", error.to_string(&source));
+    let module = gelixrs::compile_ir(code).or_else(|_error| {
+        // println!("{}", error.to_string(&source)); todo
         Err("MIR generator encountered errors. Exiting.")
     })?;
 
