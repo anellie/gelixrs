@@ -1,4 +1,5 @@
+exfn printnum(i64 a)
+
 func main() {
-    printnum(sub(321, 123))
-    testing()
+    printnum(64)
 }

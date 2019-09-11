@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/8/19, 6:14 PM.
+ * Last modified on 9/10/19, 6:37 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -12,7 +12,7 @@ use super::super::{
         declaration::{Class, Enum, FuncSignature, Function, FunctionArg, Variable},
         expression::Expression,
         literal::Literal,
-        module::FileModule,
+        module::Module,
     },
     lexer::token::{Token, Type},
 };
@@ -49,7 +49,7 @@ mod bin_macro {
 impl Parser {
     /// Parses the tokens and returns a full module.
     /// Returns a list of errors on failure.
-    pub fn parse(mut self, module: &mut FileModule) -> Result<(), Vec<Error>> {
+    pub fn parse(mut self, module: &mut Module) -> Result<(), Vec<Error>> {
         while !self.is_at_end() {
             // Only true on error
             if self.declaration(module).is_none() {
@@ -68,7 +68,7 @@ impl Parser {
     /// The reason for returning Option is that the parser will error out and abort the current
     /// declaration when illegal syntax is encountered.
     /// Note that synchronization is not done on error, and is done by the caller.
-    pub fn declaration(&mut self, module: &mut FileModule) -> Option<()> {
+    pub fn declaration(&mut self, module: &mut Module) -> Option<()> {
         match self.advance().t_type {
             Type::Class => module.classes.push(self.class_declaration()?),
             Type::Enum => module.enums.push(self.enum_declaration()?),

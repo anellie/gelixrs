@@ -1,14 +1,14 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/8/19, 6:09 PM.
+ * Last modified on 9/11/19, 7:14 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
 use crate::ast::declaration::Class;
-use crate::ast::module::FileModule;
+use crate::ast::module::Module;
 use crate::lexer::token::Token;
 use crate::mir::generator::passes::PreMIRPass;
-use crate::mir::generator::{Error, MIRGenerator, Res};
+use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::nodes::{MIRExpression, MIRFunction, MIRStructMem};
 use crate::mir::MutRc;
 use std::collections::HashMap;
@@ -21,7 +21,7 @@ pub struct FillStructPass<'p> {
 }
 
 impl<'p> PreMIRPass for FillStructPass<'p> {
-    fn run(mut self, list: &mut FileModule) -> Res<()> {
+    fn run(mut self, list: &mut Module) -> Res<()> {
         let mut done_classes = Vec::with_capacity(list.classes.len());
 
         while !list.classes.is_empty() {
@@ -50,6 +50,7 @@ impl<'p> PreMIRPass for FillStructPass<'p> {
                 } else {
                     // Superclass doesn't exist.
                     return Err(MIRGenerator::error(
+                        self.gen.builder.module_path(), 
                         &super_name,
                         &super_name,
                         &format!("Unknown class '{}'", super_name.lexeme),
@@ -67,7 +68,7 @@ impl<'p> PreMIRPass for FillStructPass<'p> {
 }
 
 impl<'p> FillStructPass<'p> {
-    fn fill_class_struct(&mut self, class: &mut Class) -> Result<(), Error> {
+    fn fill_class_struct(&mut self, class: &mut Class) -> Res<()> {
         let mut fields = HashMap::with_capacity(class.variables.len());
         let mut fields_vec = Vec::with_capacity(class.variables.len());
 
@@ -77,7 +78,7 @@ impl<'p> FillStructPass<'p> {
                 .gen
                 .builder
                 .find_struct(&super_name.lexeme)
-                .ok_or_else(|| MIRGenerator::error(super_name, super_name, "Unknown class"))?;
+                .ok_or_else(|| MIRGenerator::error(self.gen.builder.module_path(), super_name, super_name, "Unknown class"))?;
 
             for member in super_struct.borrow().members.iter() {
                 fields.insert(Rc::clone(member.0), Rc::clone(member.1));
@@ -107,6 +108,7 @@ impl<'p> FillStructPass<'p> {
         for (mem_name, _) in members.iter() {
             if methods.contains_key(mem_name) {
                 return Err(MIRGenerator::error(
+                    self.gen.builder.module_path(), 
                     tok,
                     tok,
                     &format!(
@@ -152,6 +154,7 @@ impl<'p> FillStructPass<'p> {
 
             if existing_entry.is_some() {
                 return Err(MIRGenerator::error(
+                    self.gen.builder.module_path(),
                     &field.name,
                     &field.name,
                     "Class member cannot be defined twice",

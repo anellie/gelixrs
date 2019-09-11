@@ -1,27 +1,10 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/8/19, 6:09 PM.
+ * Last modified on 9/11/19, 7:13 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
 use crate::lexer::token::Token;
-
-/// A collection of errors inside a file.
-pub struct FileErrors {
-    pub errors: Vec<Error>,
-    pub source: String,
-    pub file_name: String,
-}
-
-impl FileErrors {
-    pub fn new(errors: Vec<Error>, source: &str, file_name: String) -> FileErrors {
-        FileErrors {
-            errors,
-            source: source.to_string(),
-            file_name,
-        }
-    }
-}
 
 /// An error produced by all parts of the compiler.
 pub struct Error {

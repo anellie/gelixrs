@@ -1,11 +1,5 @@
 exfn print(String a)
 
-exfn printnum(i64 a)
-
 func testing() {
-    val a = A()
-    a.hello()
-    a.test()
-
-    print(if (true) a.a else return None)
+    print(if (true) "good~" else return None)
 }

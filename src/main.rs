@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/8/19, 6:09 PM.
+ * Last modified on 9/11/19, 7:12 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -38,7 +38,7 @@ fn main() -> Result<(), &'static str> {
         return Err("Given path does not exist.");
     }
 
-    let code = gelixrs::parse_source(args.file).or_else(|errors| {
+    let code = gelixrs::parse_source(args.file.clone()).or_else(|errors| {
         for file in errors {
             println!(
                 "{} error(s) in file {}:\n",
@@ -58,8 +58,10 @@ fn main() -> Result<(), &'static str> {
         return Ok(());
     }
 
-    let module = gelixrs::compile_ir(code).or_else(|_error| {
-        // println!("{}", error.to_string(&source)); todo
+    let module = gelixrs::compile_ir(code).or_else(|errors| {
+        for error in errors {
+            println!("{}", error.into_string(args.file.clone()));
+        }
         Err("MIR generator encountered errors. Exiting.")
     })?;
 

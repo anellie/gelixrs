@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/4/19, 9:02 PM.
+ * Last modified on 9/10/19, 10:40 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -9,7 +9,7 @@ use super::{
     lexer::token::Type,
     mir::{
         nodes::{MIRBlock, MIRExpression, MIRFlow, MIRFunction, MIRStruct, MIRType, MIRVariable},
-        MIR,
+        MIRModule,
     },
 };
 use inkwell::{
@@ -60,10 +60,10 @@ pub struct IRGenerator {
 
 impl IRGenerator {
     /// Generates IR. Will process MIR given.
-    pub fn generate(mut self, mir: MIR) -> Module {
+    pub fn generate(mut self, mir: MIRModule) -> Module {
         // Create structs for all classes
         for struc in mir.types.iter() {
-            let struc = struc.borrow();
+            let struc = struc.1.borrow();
             let val = self.context.opaque_struct_type(&struc.name);
             self.types.insert(Rc::clone(&struc.name), val);
         }
@@ -86,7 +86,7 @@ impl IRGenerator {
 
         mir.types
             .into_iter()
-            .for_each(|struc| self.struc(struc.borrow()));
+            .for_each(|struc| self.struc(struc.1.borrow()));
         mir.functions
             .into_iter()
             .for_each(|(name, func)| self.function(name, func));

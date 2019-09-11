@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/7/19, 2:05 PM.
+ * Last modified on 9/11/19, 7:13 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -10,7 +10,7 @@ use super::lexer::{
     token::{Token, Type},
     Lexer,
 };
-use crate::Error;
+use crate::{Error, ModulePath};
 use std::{iter::Peekable, mem};
 
 /// A parser that turns a stream of [Token]s into an AST.
@@ -171,5 +171,22 @@ impl Parser {
         // Set state correctly.
         parser.advance();
         parser
+    }
+}
+
+/// A collection of errors inside a file.
+pub struct ParserErrors {
+    pub errors: Vec<Error>,
+    pub source: String,
+    pub file_name: String,
+}
+
+impl ParserErrors {
+    pub fn new(errors: Vec<Error>, source: &str, module: &ModulePath) -> ParserErrors {
+        ParserErrors {
+            errors,
+            source: source.to_string(),
+            file_name: module.iter().map(|rc| String::clone(&**rc)).collect::<Vec<String>>().join("/"),
+        }
     }
 }
