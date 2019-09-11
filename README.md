@@ -10,7 +10,7 @@ For more information on gelix, check out the docs directory for examples.
 
 The code is an alpha state. The compiler can output native code with LLVM.
 
-Most of gelix's features are implmemted. However, the compiler is not stable,
+Most of gelix's features are implemented. However, the compiler is not stable,
 and the resulting binary should not be used outside of testing.
 
 ### Build/Run

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/11/19, 7:49 PM.
+ * Last modified on 9/11/19, 8:59 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -22,15 +22,14 @@ pub mod parser;
 #[cfg(test)]
 pub mod tests;
 
+use crate::mir::generator::module::MIRModuleGenerator;
+use crate::mir::generator::MIRError;
+use crate::parser::ParserErrors;
 use ast::module::Module;
 use error::Error;
 use std::fs;
 use std::path::PathBuf;
 use std::rc::Rc;
-use crate::mir::generator::module::MIRModuleGenerator;
-use std::ffi::OsStr;
-use crate::parser::ParserErrors;
-use crate::mir::generator::MIRError;
 
 type ModulePath = Vec<Rc<String>>;
 type SrcParseErrors = Vec<ParserErrors>;
@@ -41,49 +40,43 @@ pub fn parse_source(input: PathBuf) -> Result<Vec<Module>, SrcParseErrors> {
     Ok(modules)
 }
 
-fn make_modules(input: PathBuf, path: &mut ModulePath, modules: &mut Vec<Module>) -> Result<(), SrcParseErrors> {
-    path.push(to_rc_str(input.file_stem().unwrap()));
+fn make_modules(
+    input: PathBuf,
+    path: &mut ModulePath,
+    modules: &mut Vec<Module>,
+) -> Result<(), SrcParseErrors> {
+    path.push(stem_to_rc_str(&input));
 
-    let ret = match input.read_dir() {
-        Ok(dir) => {
-            let mut errors = Vec::new();
-            for file in dir {
-                let file = file.expect("Failed to read file").path();
-                let submodule = make_modules(file, path, modules);
+    if let Ok(dir) = input.read_dir() {
+        let mut errors = Vec::new();
+        for file in dir {
+            let file = file.expect("Failed to read file").path();
+            let submodule = make_modules(file, path, modules);
 
-                if let Err(mut errs) = submodule {
-                    errors.append(&mut errs);
-                }
-            }
-
-            if errors.is_empty() {
-                Ok(())
-            } else {
-                Err(errors)
+            if let Err(mut errs) = submodule {
+                errors.append(&mut errs);
             }
         }
 
-        Err(_) => {
-            if *input.extension().map(|ext| ext == "gel").get_or_insert(false) {
-                // Its a .gel file; parse it
-                let code = fs::read_to_string(&input).expect("Failed to read file.");
-                let mut module = Module::new(path);
-
-                fill_module(&code, &mut module).map_err(|err| {
-                    vec![ParserErrors::new(err, &code, path)]
-                })?;
-
-                modules.push(module);
-                Ok(())
-            } else {
-                // Not a .gel file; ignore
-                Ok(())
-            }
+        if !errors.is_empty() {
+            return Err(errors);
         }
-    };
+    } else if *input
+        .extension()
+        .map(|ext| ext == "gel")
+        .get_or_insert(false)
+    {
+        // If 'input' is a .gel file; parse it if true
+        let code = fs::read_to_string(&input).expect("Failed to read file.");
+        let mut module = Module::new(path);
+
+        fill_module(&code, &mut module).map_err(|err| vec![ParserErrors::new(err, &code, path)])?;
+
+        modules.push(module);
+    }
 
     path.pop();
-    ret
+    Ok(())
 }
 
 fn fill_module(code: &str, module: &mut Module) -> Result<(), Vec<Error>> {
@@ -98,6 +91,6 @@ pub fn compile_ir(modules: Vec<Module>) -> Result<inkwell::module::Module, Vec<M
     unimplemented!()
 }
 
-fn to_rc_str(os_str: &OsStr) -> Rc<String> {
-    Rc::new(os_str.to_str().unwrap().to_string())
+fn stem_to_rc_str(path: &PathBuf) -> Rc<String> {
+    Rc::new(path.file_stem().unwrap().to_str().unwrap().to_string())
 }

@@ -8,10 +8,10 @@ use super::super::nodes::{MIRFunction, MIRType};
 use crate::ast::literal::Literal;
 use crate::lexer::token::Type;
 use crate::mir::nodes::{MIRExpression, MIRFlow, MIRStruct, MIRStructMem, MIRVariable};
-use crate::mir::{mutrc_new, MutRc, MIRModule};
+use crate::mir::{mutrc_new, MIRModule, MutRc};
+use crate::ModulePath;
 use std::collections::HashMap;
 use std::rc::Rc;
-use crate::ModulePath;
 
 /// A builder for assisting in creating MIR.
 pub struct MIRBuilder {
@@ -37,7 +37,9 @@ impl MIRBuilder {
         });
 
         if !self.module.types.contains_key(&name) {
-            self.module.types.insert(Rc::clone(&name), Rc::clone(&class));
+            self.module
+                .types
+                .insert(Rc::clone(&name), Rc::clone(&class));
             Some(class)
         } else {
             // Struct already exists
@@ -254,7 +256,13 @@ impl MIRBuilder {
     }
 
     pub fn find_function(&self, name: &String) -> Option<MutRc<MIRFunction>> {
-        Some(Rc::clone(self.module.functions.get(name).map(|f| if let MIRType::Function(f) = &f._type { f } else { panic!("Not a function!") })?))
+        Some(Rc::clone(self.module.functions.get(name).map(|f| {
+            if let MIRType::Function(f) = &f._type {
+                f
+            } else {
+                panic!("Not a function!")
+            }
+        })?))
     }
 
     pub fn set_pointer(&mut self, function: MutRc<MIRFunction>, block: Rc<String>) {

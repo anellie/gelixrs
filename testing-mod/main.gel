@@ -1,5 +1,28 @@
+exfn print(String a)
 exfn printnum(i64 a)
 
 func main() {
     printnum(64)
+
+    val x = 43
+    var z = 0
+    if (x == 5) {
+        z = z + 1
+    } else {
+        z = z - 1
+    }
+
+    print(if (2 > 3) "Math is weird!" else "All good.")
+
+    val isNumberTen = when (10) {
+        10 -> true
+        20 -> {
+            print("But it was 20 instead!")
+            false
+        }
+        else -> {
+            print("It was neither.")
+            false
+        }
+    }
 }

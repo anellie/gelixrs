@@ -4,11 +4,11 @@
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
+use crate::ModulePath;
 use nodes::{MIRStruct, MIRVariable};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use crate::ModulePath;
 
 pub mod generator;
 pub mod nodes;

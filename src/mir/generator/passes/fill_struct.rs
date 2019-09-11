@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/11/19, 7:14 PM.
+ * Last modified on 9/11/19, 7:57 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -50,7 +50,7 @@ impl<'p> PreMIRPass for FillStructPass<'p> {
                 } else {
                     // Superclass doesn't exist.
                     return Err(MIRGenerator::error(
-                        self.gen.builder.module_path(), 
+                        self.gen,
                         &super_name,
                         &super_name,
                         &format!("Unknown class '{}'", super_name.lexeme),
@@ -78,7 +78,9 @@ impl<'p> FillStructPass<'p> {
                 .gen
                 .builder
                 .find_struct(&super_name.lexeme)
-                .ok_or_else(|| MIRGenerator::error(self.gen.builder.module_path(), super_name, super_name, "Unknown class"))?;
+                .ok_or_else(|| {
+                    MIRGenerator::error(self.gen, super_name, super_name, "Unknown class")
+                })?;
 
             for member in super_struct.borrow().members.iter() {
                 fields.insert(Rc::clone(member.0), Rc::clone(member.1));
@@ -108,7 +110,7 @@ impl<'p> FillStructPass<'p> {
         for (mem_name, _) in members.iter() {
             if methods.contains_key(mem_name) {
                 return Err(MIRGenerator::error(
-                    self.gen.builder.module_path(), 
+                    self.gen,
                     tok,
                     tok,
                     &format!(
@@ -154,7 +156,7 @@ impl<'p> FillStructPass<'p> {
 
             if existing_entry.is_some() {
                 return Err(MIRGenerator::error(
-                    self.gen.builder.module_path(),
+                    self.gen,
                     &field.name,
                     &field.name,
                     "Class member cannot be defined twice",

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/11/19, 7:13 PM.
+ * Last modified on 9/11/19, 8:50 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -186,7 +186,11 @@ impl ParserErrors {
         ParserErrors {
             errors,
             source: source.to_string(),
-            file_name: module.iter().map(|rc| String::clone(&**rc)).collect::<Vec<String>>().join("/"),
+            file_name: module
+                .iter()
+                .map(|rc| (&**rc).clone())
+                .collect::<Vec<String>>()
+                .join("/"),
         }
     }
 }

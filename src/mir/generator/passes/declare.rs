@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/11/19, 7:14 PM.
+ * Last modified on 9/11/19, 8:59 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -9,11 +9,15 @@ use crate::ast::module::Module;
 use crate::lexer::token::Token;
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::generator::{MIRGenerator, Res};
-use crate::mir::nodes::{MIRType, MIRVariable, MIRFunction};
-use std::rc::Rc;
+use crate::mir::nodes::{MIRFunction, MIRType, MIRVariable};
 use crate::mir::MutRc;
+use std::rc::Rc;
 
-fn create_function(gen: &mut MIRGenerator, func_sig: &FuncSignature, none_const: &Rc<String>) -> Res<MutRc<MIRFunction>> {
+fn create_function(
+    gen: &mut MIRGenerator,
+    func_sig: &FuncSignature,
+    none_const: &Rc<String>,
+) -> Res<MutRc<MIRFunction>> {
     let ret_type = gen
         .builder
         .find_type(
@@ -25,7 +29,7 @@ fn create_function(gen: &mut MIRGenerator, func_sig: &FuncSignature, none_const:
         )
         .ok_or_else(|| {
             MIRGenerator::error(
-                gen.builder.module_path(),
+                gen,
                 func_sig.return_type.as_ref().unwrap(),
                 func_sig.return_type.as_ref().unwrap(),
                 "Unknown function return type",
@@ -37,17 +41,14 @@ fn create_function(gen: &mut MIRGenerator, func_sig: &FuncSignature, none_const:
         parameters.push(Rc::new(MIRVariable {
             mutable: false,
             name: Rc::clone(&param.name.lexeme),
-            _type: gen
-                .builder
-                .find_type(&param._type.lexeme)
-                .ok_or_else(|| {
-                    MIRGenerator::error(
-                        gen.builder.module_path(),
-                        &func_sig.name,
-                        func_sig.return_type.as_ref().unwrap_or(&func_sig.name),
-                        "Function parameter has unknown type",
-                    )
-                })?,
+            _type: gen.builder.find_type(&param._type.lexeme).ok_or_else(|| {
+                MIRGenerator::error(
+                    gen,
+                    &func_sig.name,
+                    func_sig.return_type.as_ref().unwrap_or(&func_sig.name),
+                    "Function parameter has unknown type",
+                )
+            })?,
         }))
     }
 
@@ -60,7 +61,7 @@ fn create_function(gen: &mut MIRGenerator, func_sig: &FuncSignature, none_const:
         )
         .ok_or_else(|| {
             MIRGenerator::error(
-                gen.builder.module_path(),
+                gen,
                 &func_sig.name,
                 &func_sig.name,
                 "Function was declared twice",
@@ -104,7 +105,12 @@ impl<'p> DeclareClassPass<'p> {
             .builder
             .create_struct(Rc::clone(&class.name.lexeme))
             .ok_or_else(|| {
-                MIRGenerator::error(self.gen.builder.module_path(), &class.name, &class.name, "Class was already defined!")
+                MIRGenerator::error(
+                    self.gen,
+                    &class.name,
+                    &class.name,
+                    "Class was already defined!",
+                )
             })?;
 
         let this_arg = FunctionArg {
@@ -113,11 +119,15 @@ impl<'p> DeclareClassPass<'p> {
         };
 
         // Create init function
-        create_function(self.gen, &FuncSignature {
-            name: Token::generic_identifier(format!("{}-internal-init", &class.name.lexeme)),
-            return_type: None,
-            parameters: vec![this_arg.clone()],
-        }, &self.none_const)?;
+        create_function(
+            self.gen,
+            &FuncSignature {
+                name: Token::generic_identifier(format!("{}-internal-init", &class.name.lexeme)),
+                return_type: None,
+                parameters: vec![this_arg.clone()],
+            },
+            &self.none_const,
+        )?;
 
         // Declare all class methods
         let name = &class.name.lexeme;
@@ -142,7 +152,6 @@ impl<'p> DeclareClassPass<'p> {
     }
 }
 
-
 /// This pass declares all functions.
 pub struct DeclareFuncPass<'p> {
     gen: &'p mut MIRGenerator,
@@ -155,12 +164,11 @@ impl<'p> PreMIRPass for DeclareFuncPass<'p> {
             .ext_functions
             .iter()
             .chain(module.functions.iter().map(|f| &f.sig))
-            {
-                create_function(self.gen, &function, &self.none_const)?;
-            }
+        {
+            create_function(self.gen, &function, &self.none_const)?;
+        }
 
         Ok(())
-
     }
 }
 
@@ -172,4 +180,3 @@ impl<'p> DeclareFuncPass<'p> {
         }
     }
 }
-
