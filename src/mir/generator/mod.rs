@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/11/19, 7:59 PM.
+ * Last modified on 9/12/19, 3:18 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -749,8 +749,13 @@ impl MIRError {
         for path in self.module.iter().skip(1) {
             root.push(&*path.clone());
         }
-
+        if root.is_dir() {
+            // Can be a dir if the module is named module.gel, in which case its path
+            // will be its containing directory.
+            root.push("module.gel")
+        }
         root.set_extension("gel");
+
         let code = std::fs::read_to_string(root.clone());
 
         format!(

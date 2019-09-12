@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/12/19, 2:19 PM.
+ * Last modified on 9/12/19, 3:16 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -52,9 +52,16 @@ fn make_modules(
         let mut errors = Vec::new();
         for file in dir {
             let file = file.expect("Failed to read file").path();
-            let submodule = make_modules(file, path, modules);
 
-            if let Err(mut errs) = submodule {
+            // If the file is named 'module.gel', it should have the
+            // containing directory as its module path.
+            let result = if file.file_name().unwrap() == "module.gel" {
+                parse_module(file, path).map(|m| modules.push(m))
+            } else {
+                make_modules(file, path, modules)
+            };
+
+            if let Err(mut errs) = result {
                 errors.append(&mut errs);
             }
         }
@@ -68,16 +75,19 @@ fn make_modules(
         .get_or_insert(false)
     {
         // If 'input' is a .gel file; parse it if true
-        let code = fs::read_to_string(&input).expect("Failed to read file.");
-        let mut module = Module::new(path);
-
-        fill_module(&code, &mut module).map_err(|err| vec![ParserErrors::new(err, &code, path)])?;
-
-        modules.push(module);
+        modules.push(parse_module(input, path)?);
     }
 
     path.pop();
     Ok(())
+}
+
+fn parse_module(input: PathBuf, path: &mut ModulePath) -> Result<Module, SrcParseErrors> {
+    let code = fs::read_to_string(&input).expect("Failed to read file.");
+    let mut module = Module::new(path);
+
+    fill_module(&code, &mut module).map_err(|err| vec![ParserErrors::new(err, &code, path)])?;
+    Ok(module)
 }
 
 fn fill_module(code: &str, module: &mut Module) -> Result<(), Vec<Error>> {
