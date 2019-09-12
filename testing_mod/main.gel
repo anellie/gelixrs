@@ -1,3 +1,5 @@
+import testing_mod/test/testing
+
 exfn print(String a)
 exfn printnum(i64 a)
 

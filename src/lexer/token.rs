@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 8/30/19 7:10 PM.
+ * Last modified on 9/12/19, 5:37 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -100,6 +100,7 @@ pub enum Type {
     From,
     Func,
     If,
+    Import,
     In,
     None,
     Or,

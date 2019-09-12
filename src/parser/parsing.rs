@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/10/19, 6:37 PM.
+ * Last modified on 9/12/19, 5:53 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -19,6 +19,7 @@ use super::super::{
 use super::Parser;
 use crate::Error;
 use std::rc::Rc;
+use crate::ast::module::Import;
 
 // All expressions that require no semicolon when used as a higher expression.
 static NO_SEMICOLON: [Type; 3] = [Type::If, Type::LeftBrace, Type::When];
@@ -74,6 +75,7 @@ impl Parser {
             Type::Enum => module.enums.push(self.enum_declaration()?),
             Type::ExFn => module.ext_functions.push(self.ex_func_declaration()?),
             Type::Func => module.functions.push(self.function()?),
+            Type::Import => module.imports.push(self.import_declaration()?),
             _ => self.error_at_current("Encountered invalid top-level declaration.")?,
         }
 
@@ -161,6 +163,28 @@ impl Parser {
         self.consume(Type::RightBrace, "Expected '}' after enum body.");
 
         Some(Enum { name, variants })
+    }
+
+    fn import_declaration(&mut self) -> Option<Import> {
+        let mut path = Vec::new();
+        if !self.check(Type::Identifier) {
+            self.error_at_current("Expected path after 'import'.")?
+        }
+
+        let mut consumed_slash = false;
+        while self.check(Type::Identifier) || self.check(Type::Star) {
+            path.push(self.advance().lexeme);
+            consumed_slash = self.match_token(Type::Slash);
+        }
+        if consumed_slash {
+            self.error_at_current("Trailing '/' in import.")?
+        }
+
+        let symbol = path.pop().unwrap();
+        Some(Import {
+            path,
+            symbol
+        })
     }
 
     fn function(&mut self) -> Option<Function> {

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/11/19, 7:42 PM.
+ * Last modified on 9/12/19, 5:45 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -16,6 +16,7 @@ pub struct Module {
     pub enums: Vec<Enum>,
     pub ext_functions: Vec<FuncSignature>,
     pub functions: Vec<Function>,
+    pub imports: Vec<Import>
 }
 
 impl Module {
@@ -25,4 +26,10 @@ impl Module {
             ..Default::default()
         }
     }
+}
+
+#[derive(Debug)]
+pub struct Import {
+    pub path: ModulePath,
+    pub symbol: Rc<String>
 }

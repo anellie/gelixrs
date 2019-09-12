@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/5/19, 8:59 PM.
+ * Last modified on 9/12/19, 5:45 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -86,8 +86,6 @@ impl Lexer {
     }
 
     /// Returns the correct token type for the current token. Can be a keyword or identifier.
-    /// TODO: This is really ugly and hard to read.
-    /// Just using a map or similar should be much easier to read with little performance impact.
     fn identifier_type(&self) -> Type {
         match self.char_at(self.start) {
             'a' => self.check_identifier_keyword(1, &['n', 'd'], Type::And),
@@ -101,6 +99,7 @@ impl Lexer {
 
             'i' => match self.char_at(self.start + 1) {
                 'f' => self.check_identifier_keyword(2, &[], Type::If),
+                'm' => self.check_identifier_keyword(2, &['p', 'o', 'r', 't'], Type::Import),
                 'n' => self.check_identifier_keyword(2, &[], Type::In),
                 _ => Type::Identifier,
             },
