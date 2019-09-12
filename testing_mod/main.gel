@@ -1,4 +1,5 @@
 import testing_mod/sub/+
+import testing_mod/test/+
 
 exfn print(String a)
 exfn printnum(i64 a)
@@ -8,4 +9,5 @@ func main() {
     printnum(sub(12, 12))
     val s = Sub()
     s.sup()
+    testing()
 }

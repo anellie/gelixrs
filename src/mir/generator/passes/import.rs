@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/12/19, 9:54 PM.
+ * Last modified on 9/12/19, 10:24 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -24,7 +24,8 @@ impl<'p> ImportClassPass<'p> {
         // To allow for mutating it while accessing other modules immutably,
         // the module is temporarily removed.
         // This is done using swap_remove to prevent any array shifting or allocations.
-        for i in 0..self.modules.len() {
+        for i in 0..(self.modules.len() + 1) {
+            let i = if i == self.modules.len() { 0 } else { i };
             let (mut module, mut gen) = self.modules.swap_remove(i);
 
             module
@@ -88,7 +89,8 @@ impl<'p> ImportFuncPass<'p> {
         let mut errors = Vec::new();
 
         // See ImportClassPass::run for explanation on this magic.
-        for i in 0..self.modules.len() {
+        for i in 0..(self.modules.len() + 1) {
+            let i = if i == self.modules.len() { 0 } else { i };
             let (mut module, mut gen) = self.modules.swap_remove(i);
 
             module

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/12/19, 8:59 PM.
+ * Last modified on 9/12/19, 10:24 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -62,6 +62,15 @@ pub struct IRGenerator {
 impl IRGenerator {
     /// Generates IR. Will process all MIR modules given.
     pub fn generate(mut self, mir: Vec<MIRModule>) -> Module {
+        // Create structs for all classes first
+        for module in mir.iter() {
+            for struc in module.types.iter() {
+                let struc = struc.1.borrow();
+                let val = self.context.opaque_struct_type(&struc.name);
+                self.types.insert(Rc::clone(&struc.name), val);
+            }
+        }
+
         let mut finished_modules = Vec::with_capacity(mir.len());
         for module in mir {
             finished_modules.push(std::mem::replace(
@@ -88,13 +97,6 @@ impl IRGenerator {
     }
 
     fn generate_module(&mut self, mir: MIRModule) {
-        // Create structs for all classes
-        for struc in mir.types.iter() {
-            let struc = struc.1.borrow();
-            let val = self.context.opaque_struct_type(&struc.name);
-            self.types.insert(Rc::clone(&struc.name), val);
-        }
-
         // Put all functions into the variables map first
         for (name, func) in mir.functions.iter().chain(mir.imported_func.iter()) {
             let func_val = if let MIRType::Function(func) = &func._type {
