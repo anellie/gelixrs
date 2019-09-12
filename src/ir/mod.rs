@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/10/19, 10:40 PM.
+ * Last modified on 9/12/19, 5:17 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -29,6 +29,7 @@ use std::{
     hash::{Hash, Hasher},
     rc::Rc,
 };
+use crate::module_path_to_string;
 
 /// A generator that creates LLVM IR out of Gelix mid-level IR (MIR).
 ///
@@ -59,8 +60,26 @@ pub struct IRGenerator {
 }
 
 impl IRGenerator {
-    /// Generates IR. Will process MIR given.
-    pub fn generate(mut self, mir: MIRModule) -> Module {
+    /// Generates IR. Will process all MIR modules given.
+    pub fn generate(mut self, mir: Vec<MIRModule>) -> Module {
+        let mut finished_modules = Vec::with_capacity(mir.len());
+        for module in mir {
+            finished_modules.push(std::mem::replace(&mut self.module, self.context.create_module(&module_path_to_string(&module.path))));
+            self.generate_module(module);
+        }
+        finished_modules.push(self.module);
+
+        let finished_module = finished_modules.pop().unwrap();
+        for module in finished_modules.into_iter() {
+            if let Err(msg) = finished_module.link_in_module(module) {
+                panic!(format!("LLVM linking error: {}", msg.to_string()))
+            }
+        }
+        self.mpm.run_on(&finished_module);
+        finished_module
+    }
+
+    fn generate_module(&mut self, mir: MIRModule) {
         // Create structs for all classes
         for struc in mir.types.iter() {
             let struc = struc.1.borrow();
@@ -92,7 +111,6 @@ impl IRGenerator {
             .for_each(|(name, func)| self.function(name, func));
 
         self.mpm.run_on(&self.module);
-        self.module
     }
 
     /// Generates a struct and its body
@@ -285,19 +303,19 @@ impl IRGenerator {
             MIRExpression::Call { callee, arguments } => {
                 let callee = self.generate_expression(callee);
                 if let BasicValueEnum::PointerValue(ptr) = callee {
-                let arguments: Vec<BasicValueEnum> = arguments
-                    .iter()
-                    .map(|arg| self.generate_expression(arg))
-                    .collect();
+                    let arguments: Vec<BasicValueEnum> = arguments
+                        .iter()
+                        .map(|arg| self.generate_expression(arg))
+                        .collect();
 
-                let ret = self
-                    .builder
+                    let ret = self
+                        .builder
                         .build_call(ptr, arguments.as_slice(), "call")
-                    .try_as_basic_value();
-                ret.left().unwrap_or(self.none_const)
+                        .try_as_basic_value();
+                    ret.left().unwrap_or(self.none_const)
                 } else {
                     panic!("Call target wasn't a function pointer");
-            }
+                }
             }
 
             MIRExpression::DoRet => {

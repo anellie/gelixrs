@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/12/19, 3:16 PM.
+ * Last modified on 9/12/19, 5:14 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -22,18 +22,27 @@ pub mod parser;
 #[cfg(test)]
 pub mod tests;
 
-use crate::mir::generator::module::MIRModuleGenerator;
-use crate::mir::generator::MIRError;
-use crate::parser::ParserErrors;
+use mir::generator::module::MIRModuleGenerator;
+use mir::generator::MIRError;
+use parser::ParserErrors;
 use ast::module::Module;
 use error::Error;
 use std::fs;
 use std::path::PathBuf;
 use std::rc::Rc;
-use crate::mir::MIRModule;
+use mir::MIRModule;
+use ir::IRGenerator;
 
 type ModulePath = Vec<Rc<String>>;
 type SrcParseErrors = Vec<ParserErrors>;
+
+pub fn module_path_to_string(path: &ModulePath) -> String {
+    path
+        .iter()
+        .map(|rc| (&**rc).clone())
+        .collect::<Vec<String>>()
+        .join("/")
+}
 
 pub fn parse_source(input: PathBuf) -> Result<Vec<Module>, SrcParseErrors> {
     let mut modules = Vec::new();
@@ -102,7 +111,8 @@ pub fn compile_mir(modules: Vec<Module>) -> Result<Vec<MIRModule>, Vec<MIRError>
 }
 
 pub fn compile_ir(modules: Vec<MIRModule>) -> inkwell::module::Module {
-    unimplemented!()
+    let gen = IRGenerator::new();
+    gen.generate(modules)
 }
 
 fn stem_to_rc_str(path: &PathBuf) -> Rc<String> {
