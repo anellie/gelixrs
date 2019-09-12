@@ -7,8 +7,6 @@ inner
 outer
 */
 
-exfn print(String a)
-
 func main() {
     var a = "outer"
     print(a)

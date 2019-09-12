@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/12/19, 9:13 PM.
+ * Last modified on 9/12/19, 10:52 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -26,6 +26,10 @@ struct Opt {
     #[structopt(long)]
     ir: bool,
 
+    /// Don't auto-import 'std/prelude' into every module
+    #[structopt(long = "no-prelude")]
+    no_prelude: bool,
+
     /// Path of the resulting executable
     #[structopt(short, long)]
     output: Option<PathBuf>,
@@ -42,7 +46,15 @@ fn main() -> Result<(), &'static str> {
         return Err("Given path does not exist.");
     }
 
-    let code = gelixrs::parse_source(vec![args.file.clone()]).or_else(|errors| {
+    let mut std_mod = env::current_dir().expect("Failed to get current directory!");
+    std_mod.push("stdlib");
+    std_mod.push("std");
+    let modules = vec![
+        args.file.clone(),
+        std_mod
+    ];
+
+    let mut code = gelixrs::parse_source(modules).or_else(|errors| {
         for file in errors {
             println!(
                 "{} error(s) in file {}:\n",
@@ -60,6 +72,10 @@ fn main() -> Result<(), &'static str> {
     if args.parse_only {
         println!("{:#?}", code);
         return Ok(());
+    }
+
+    if !args.no_prelude {
+        gelixrs::auto_import_prelude(&mut code)
     }
 
     let mir = gelixrs::compile_mir(code).or_else(|errors| {

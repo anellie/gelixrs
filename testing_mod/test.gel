@@ -1,4 +1,3 @@
-import testing_mod/main/print
 import testing_mod/sub/+
 
 func testing() {

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/12/19, 8:58 PM.
+ * Last modified on 9/12/19, 10:51 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -34,6 +34,7 @@ use parser::ParserErrors;
 use std::fs;
 use std::path::PathBuf;
 use std::rc::Rc;
+use crate::ast::module::Import;
 
 type ModulePath = Vec<Rc<String>>;
 type SrcParseErrors = Vec<ParserErrors>;
@@ -106,6 +107,17 @@ fn fill_module(code: &str, module: &mut Module) -> Result<(), Vec<Error>> {
     let lexer = lexer::Lexer::new(code);
     let parser = parser::Parser::new(lexer);
     parser.parse(module)
+}
+
+pub fn auto_import_prelude(modules: &mut Vec<Module>) {
+    let prelude_import = Import {
+        path: vec![Rc::new("std".to_string()), Rc::new("prelude".to_string())],
+        symbol: Rc::new("+".to_string())
+    };
+
+    for module in modules.iter_mut().filter(|module| &*module.path != &prelude_import.path) {
+        module.imports.push(prelude_import.clone())
+    }
 }
 
 pub fn compile_mir(modules: Vec<Module>) -> Result<Vec<MIRModule>, Vec<MIRError>> {

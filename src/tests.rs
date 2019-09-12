@@ -1,18 +1,24 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/1/19 7:33 PM.
+ * Last modified on 9/12/19, 10:51 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
 use inkwell::{execution_engine::JitFunction, OptimizationLevel};
 use std::{
-    env::current_dir, ffi::CStr, fs::read_to_string, os::raw::c_char, path::PathBuf, sync::Mutex,
+    env, ffi::CStr, fs::read_to_string, os::raw::c_char, path::PathBuf, sync::Mutex,
 };
 
 type MainFn = unsafe extern "C" fn();
 
 lazy_static! {
     static ref RESULT: Mutex<String> = Mutex::new(String::from(""));
+    static ref STD_LIB: Mutex<PathBuf> = {
+        let mut std_mod = env::current_dir().expect("Failed to get current directory!");
+        std_mod.push("stdlib");
+        std_mod.push("std");
+        Mutex::new(std_mod)
+    };
 }
 
 #[no_mangle]
@@ -30,7 +36,7 @@ extern "C" fn test_printnum(num: i64) {
 
 #[test]
 fn run_all() -> Result<(), ()> {
-    let mut test_path = current_dir().expect("Couldn't get current dir.");
+    let mut test_path = env::current_dir().expect("Couldn't get current dir.");
     test_path.push("tests");
     for_file(test_path)?;
     Ok(())
@@ -43,10 +49,9 @@ fn for_file(file: PathBuf) -> Result<(), ()> {
         }
     } else {
         println!("Running test: {}", file.to_str().unwrap());
-        let source = read_to_string(file).expect("Couldn't get file.");
+        let source = read_to_string(file.clone()).expect("Couldn't get file.");
         let expected = get_expected_result(&source);
-        let source = format!("exfn print(String a)\nexfn printnum(i64 a)\n{}", source);
-        let result = exec_jit(source);
+        let result = exec_jit(file);
 
         if result != expected {
             println!(
@@ -59,9 +64,11 @@ fn for_file(file: PathBuf) -> Result<(), ()> {
     Ok(())
 }
 
-fn exec_jit(source: String) -> Result<String, ()> {
-    let code = super::parse_source(&source).ok().ok_or(())?;
-    let module = super::compile_ir(code).ok().ok_or(())?;
+fn exec_jit(file: PathBuf) -> Result<String, ()> {
+    let mut code = super::parse_source(vec![file, STD_LIB.lock().unwrap().clone()]).ok().ok_or(())?;
+    super::auto_import_prelude(&mut code);
+    let mir = super::compile_mir(code).ok().ok_or(())?;
+    let module = super::compile_ir(mir);
 
     let engine = module
         .create_jit_execution_engine(OptimizationLevel::None)

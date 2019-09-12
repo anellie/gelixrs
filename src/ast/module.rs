@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/12/19, 8:58 PM.
+ * Last modified on 9/12/19, 10:33 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -28,7 +28,7 @@ impl Module {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Import {
     pub path: ModulePath,
     pub symbol: Rc<String>,

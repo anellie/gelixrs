@@ -1,9 +1,6 @@
 import testing_mod/sub/+
 import testing_mod/test/+
 
-exfn print(String a)
-exfn printnum(i64 a)
-
 func main() {
     printnum(64)
     printnum(sub(12, 12))
