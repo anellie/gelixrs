@@ -560,7 +560,7 @@ impl MIRGenerator {
             // Class methods
             let method = struc.methods.get(&name.lexeme);
             if let Some(method) = method {
-                return Ok((object, Either::Right(Rc::clone(method))));
+                return Ok((object, Either::Right(Self::var_to_function(method))));
             }
 
             // Superclass methods
@@ -569,7 +569,7 @@ impl MIRGenerator {
                 let struc = struc.borrow();
                 let method = struc.methods.get(&name.lexeme);
                 if let Some(method) = method {
-                    return Ok((object, Either::Right(Rc::clone(method))));
+                    return Ok((object, Either::Right(Self::var_to_function(method))));
                 }
                 sclass = struc.super_struct.clone();
             }
@@ -583,6 +583,10 @@ impl MIRGenerator {
                 "Get syntax is only supported on class instances",
             ))
         }
+    }
+
+    fn var_to_function(var: &Rc<MIRVariable>) -> MutRc<MIRFunction> {
+        if let MIRType::Function(f) = &var._type { Rc::clone(&f) } else { panic!() }
     }
 
     fn generate_func_args(

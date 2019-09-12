@@ -9,6 +9,7 @@ use crate::mir::generator::Res;
 
 pub(super) mod declare;
 pub(super) mod fill_struct;
+pub(super) mod import;
 
 /// A trait for passes that modify the AST or the generator before MIR creation.
 pub(super) trait PreMIRPass {

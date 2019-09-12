@@ -76,7 +76,7 @@ pub struct MIRStruct {
     /// All struct members by index.
     pub member_order: Vec<Rc<MIRStructMem>>,
     /// All class methods. Inserted as "doThing", not "StructName-doThing".
-    pub methods: HashMap<Rc<String>, MutRc<MIRFunction>>,
+    pub methods: HashMap<Rc<String>, Rc<MIRVariable>>,
     pub super_struct: Option<MutRc<MIRStruct>>,
 }
 

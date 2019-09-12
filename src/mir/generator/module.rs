@@ -11,6 +11,7 @@ use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::generator::{MIRError, MIRGenerator, Res};
 use crate::mir::MIRModule;
 use std::rc::Rc;
+use crate::mir::generator::passes::import::{ImportClassPass, ImportFuncPass};
 
 /// A set of [MIRGenerator]s.
 /// Takes a list of module ASTs and transforms them into
@@ -24,9 +25,11 @@ impl MIRModuleGenerator {
         self.run_for_all(Box::new(|(module, gen)| {
             DeclareClassPass::new(gen).run(module)
         }))?;
+        ImportClassPass::new(&mut self.modules).run();
         self.run_for_all(Box::new(|(module, gen)| {
             DeclareFuncPass::new(gen).run(module)
         }))?;
+        ImportFuncPass::new(&mut self.modules).run().map_err(|e| vec![e])?;
         self.run_for_all(Box::new(|(module, gen)| {
             FillStructPass::new(gen).run(module)
         }))?;

@@ -9,8 +9,7 @@ use crate::ast::module::Module;
 use crate::lexer::token::Token;
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::generator::{MIRGenerator, Res};
-use crate::mir::nodes::{MIRExpression, MIRFunction, MIRStructMem};
-use crate::mir::MutRc;
+use crate::mir::nodes::{MIRExpression, MIRStructMem, MIRVariable};
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -105,7 +104,7 @@ impl<'p> FillStructPass<'p> {
         &self,
         tok: &Token,
         members: &HashMap<Rc<String>, Rc<MIRStructMem>>,
-        methods: &HashMap<Rc<String>, MutRc<MIRFunction>>,
+        methods: &HashMap<Rc<String>, Rc<MIRVariable>>,
     ) -> Res<()> {
         for (mem_name, _) in members.iter() {
             if methods.contains_key(mem_name) {

@@ -1,3 +1,13 @@
+import testing_mod/main/print
+
 func sub(i64 a, i64 b) -> i64 {
     a * b
+}
+
+class Sub {
+    var a = 5
+
+    func sup() {
+        print("sup!")
+    }
 }

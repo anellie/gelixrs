@@ -8,6 +8,8 @@
 #![feature(bind_by_move_pattern_guards)]
 // https://github.com/rust-lang/rust/pull/60256
 #![feature(option_flattening)]
+// https://github.com/rust-lang/rust/issues/43244
+#![feature(drain_filter)]
 
 #[macro_use]
 #[cfg(test)]

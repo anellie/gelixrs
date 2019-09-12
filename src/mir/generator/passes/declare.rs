@@ -9,15 +9,14 @@ use crate::ast::module::Module;
 use crate::lexer::token::Token;
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::generator::{MIRGenerator, Res};
-use crate::mir::nodes::{MIRFunction, MIRType, MIRVariable};
-use crate::mir::MutRc;
+use crate::mir::nodes::{MIRType, MIRVariable};
 use std::rc::Rc;
 
 fn create_function(
     gen: &mut MIRGenerator,
     func_sig: &FuncSignature,
     none_const: &Rc<String>,
-) -> Res<MutRc<MIRFunction>> {
+) -> Res<Rc<MIRVariable>> {
     let ret_type = gen
         .builder
         .find_type(
@@ -68,16 +67,17 @@ fn create_function(
             )
         })?;
 
+    let global = Rc::new(MIRVariable::new(
+        Rc::clone(&func_sig.name.lexeme),
+        MIRType::Function(Rc::clone(&function)),
+        false,
+    ));
     gen.builder.add_global(
         Rc::clone(&func_sig.name.lexeme),
-        Rc::new(MIRVariable::new(
-            Rc::clone(&func_sig.name.lexeme),
-            MIRType::Function(Rc::clone(&function)),
-            false,
-        )),
+        Rc::clone(&global),
     );
 
-    Ok(function)
+    Ok(global)
 }
 
 /// This pass declares all classes.
@@ -118,20 +118,24 @@ impl<'p> DeclareClassPass<'p> {
             _type: class.name.clone(),
         };
 
+        // Declare all class methods
+        let name = &class.name.lexeme;
+        let mut mir_class = mir_class.borrow_mut();
+
         // Create init function
-        create_function(
+        let init_fn_name_tok = Token::generic_identifier(format!("{}-internal-init", &class.name.lexeme));
+        let init_fn = create_function(
             self.gen,
             &FuncSignature {
-                name: Token::generic_identifier(format!("{}-internal-init", &class.name.lexeme)),
+                name: init_fn_name_tok.clone(),
                 return_type: None,
                 parameters: vec![this_arg.clone()],
             },
             &self.none_const,
         )?;
+        mir_class.methods.insert(init_fn_name_tok.lexeme, init_fn);
 
-        // Declare all class methods
-        let name = &class.name.lexeme;
-        let mut mir_class = mir_class.borrow_mut();
+        // Do all user-defined methods
         for method in class.methods.iter_mut() {
             let old_name = Rc::clone(&method.sig.name.lexeme);
             method.sig.name.lexeme = Rc::new(format!("{}-{}", name, method.sig.name.lexeme));

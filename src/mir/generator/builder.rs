@@ -21,6 +21,9 @@ pub struct MIRBuilder {
     /// The module the builder is inserting into.
     module: MIRModule,
 
+    /// Types and functions imported into this module by 'import' declarations
+    imported_types: HashMap<Rc<String>, MutRc<MIRStruct>>,
+
     /// Simply a const of the string "tmp".
     /// Used for temporary variables needed for class init.
     tmp_const: Rc<String>,
@@ -36,11 +39,25 @@ impl MIRBuilder {
             super_struct: None,
         });
 
-        if !self.module.types.contains_key(&name) {
+        if self.find_struct(&name).is_none() {
             self.module
                 .types
                 .insert(Rc::clone(&name), Rc::clone(&class));
             Some(class)
+        } else {
+            // Struct already exists
+            None
+        }
+    }
+
+    pub fn add_imported_struct(&mut self, class: MutRc<MIRStruct>) -> Option<()> {
+        let name = Rc::clone(&class.borrow().name);
+        if self.find_struct(&name).is_none() {
+            self.imported_types.insert(Rc::clone(&name), Rc::clone(&class));
+            for (_, method) in class.borrow().methods.iter() {
+                self.add_imported_function(Rc::clone(method));
+            }
+            Some(())
         } else {
             // Struct already exists
             None
@@ -61,9 +78,20 @@ impl MIRBuilder {
             ret_type,
         });
 
-        if !self.module.functions.contains_key(&name) {
+        if self.find_function(&name).is_none() {
             Some(function)
         } else {
+            None
+        }
+    }
+
+    pub fn add_imported_function(&mut self, func: Rc<MIRVariable>) -> Option<()> {
+        let name = &func.name;
+        if self.find_function(&name).is_none() {
+            self.module.imported_func.insert(Rc::clone(&name), Rc::clone(&func));
+            Some(())
+        } else {
+            // Function already exists
             None
         }
     }
@@ -76,8 +104,8 @@ impl MIRBuilder {
         }
     }
 
-    pub fn find_global(&mut self, name: &Rc<String>) -> Option<Rc<MIRVariable>> {
-        self.module.functions.get(name).map(Rc::clone)
+    pub fn find_global(&self, name: &String) -> Option<Rc<MIRVariable>> {
+        self.module.functions.get(name).or_else(|| self.module.imported_func.get(name)).map(Rc::clone)
     }
 
     /// Will create the variable in the current function.
@@ -252,11 +280,11 @@ impl MIRBuilder {
     }
 
     pub fn find_struct(&self, name: &String) -> Option<MutRc<MIRStruct>> {
-        Some(Rc::clone(self.module.types.get(name)?))
+        Some(Rc::clone(self.module.types.get(name).or_else(|| self.imported_types.get(name))?))
     }
 
     pub fn find_function(&self, name: &String) -> Option<MutRc<MIRFunction>> {
-        Some(Rc::clone(self.module.functions.get(name).map(|f| {
+        Some(Rc::clone(self.module.functions.get(name).or_else(|| self.module.imported_func.get(name)).map(|f| {
             if let MIRType::Function(f) = &f._type {
                 f
             } else {
@@ -305,6 +333,7 @@ impl MIRBuilder {
         MIRBuilder {
             position: None,
             module,
+            imported_types: HashMap::new(),
             tmp_const: Rc::new("tmp".to_string()),
         }
     }

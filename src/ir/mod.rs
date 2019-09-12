@@ -75,6 +75,7 @@ impl IRGenerator {
                 panic!(format!("LLVM linking error: {}", msg.to_string()))
             }
         }
+        finished_module.verify().map_err(|e| println!("{}", e.to_string())).unwrap();
         self.mpm.run_on(&finished_module);
         finished_module
     }
@@ -88,7 +89,7 @@ impl IRGenerator {
         }
 
         // Put all functions into the variables map first
-        for (name, func) in mir.functions.iter() {
+        for (name, func) in mir.functions.iter().chain(mir.imported_func.iter()) {
             let func_val = if let MIRType::Function(func) = &func._type {
                 let func = func.borrow();
                 self.module
@@ -133,7 +134,6 @@ impl IRGenerator {
                 self.function_body(func, func_val)
             }
         }
-        func_val.verify(true);
     }
 
     /// Generates a function's body.

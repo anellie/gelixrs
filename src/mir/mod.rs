@@ -25,6 +25,9 @@ pub struct MIRModule {
     pub path: Rc<ModulePath>,
     pub types: HashMap<Rc<String>, MutRc<MIRStruct>>,
     pub functions: HashMap<Rc<String>, Rc<MIRVariable>>,
+    /// Imported functions will only be declared; not defined.
+    /// They are defined when modules are linked/combined at the end of IR generation.
+    pub imported_func: HashMap<Rc<String>, Rc<MIRVariable>>
 }
 
 impl MIRModule {
