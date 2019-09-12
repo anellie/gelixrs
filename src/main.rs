@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/12/19, 2:24 PM.
+ * Last modified on 9/12/19, 5:22 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -42,7 +42,7 @@ fn main() -> Result<(), &'static str> {
         return Err("Given path does not exist.");
     }
 
-    let code = gelixrs::parse_source(args.file.clone()).or_else(|errors| {
+    let code = gelixrs::parse_source(vec![args.file.clone()]).or_else(|errors| {
         for file in errors {
             println!(
                 "{} error(s) in file {}:\n",

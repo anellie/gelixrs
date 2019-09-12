@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/12/19, 5:14 PM.
+ * Last modified on 9/12/19, 5:22 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -44,9 +44,11 @@ pub fn module_path_to_string(path: &ModulePath) -> String {
         .join("/")
 }
 
-pub fn parse_source(input: PathBuf) -> Result<Vec<Module>, SrcParseErrors> {
+pub fn parse_source(input: Vec<PathBuf>) -> Result<Vec<Module>, SrcParseErrors> {
     let mut modules = Vec::new();
-    make_modules(input, &mut vec![], &mut modules)?;
+    for path in input {
+        make_modules(path, &mut vec![], &mut modules)?;
+    }
     Ok(modules)
 }
 
