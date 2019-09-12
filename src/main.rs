@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/11/19, 7:58 PM.
+ * Last modified on 9/12/19, 2:24 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -17,6 +17,10 @@ struct Opt {
     /// Parse to AST and exit
     #[structopt(long = "parse-only")]
     parse_only: bool,
+
+    /// Compile to MIR, print, and exit
+    #[structopt(long)]
+    mir: bool,
 
     /// Compile to LLVM IR, print, and exit
     #[structopt(long)]
@@ -58,12 +62,21 @@ fn main() -> Result<(), &'static str> {
         return Ok(());
     }
 
-    let module = gelixrs::compile_ir(code).or_else(|errors| {
+    let mir = gelixrs::compile_mir(code).or_else(|errors| {
         for error in errors {
             println!("{}", error.to_string(args.file.clone()));
         }
         Err("MIR generator encountered errors. Exiting.")
     })?;
+
+    if args.mir {
+        for module in mir {
+            println!("{:?}\n{:#?}\n\n", module.path, module);
+        }
+        return Ok(());
+    }
+
+    let module = gelixrs::compile_ir(mir);
 
     if args.ir {
         module.print_to_stderr();

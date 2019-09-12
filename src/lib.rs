@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/11/19, 8:59 PM.
+ * Last modified on 9/12/19, 2:19 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -30,6 +30,7 @@ use error::Error;
 use std::fs;
 use std::path::PathBuf;
 use std::rc::Rc;
+use crate::mir::MIRModule;
 
 type ModulePath = Vec<Rc<String>>;
 type SrcParseErrors = Vec<ParserErrors>;
@@ -85,9 +86,12 @@ fn fill_module(code: &str, module: &mut Module) -> Result<(), Vec<Error>> {
     parser.parse(module)
 }
 
-pub fn compile_ir(modules: Vec<Module>) -> Result<inkwell::module::Module, Vec<MIRError>> {
+pub fn compile_mir(modules: Vec<Module>) -> Result<Vec<MIRModule>, Vec<MIRError>> {
     let pool = MIRModuleGenerator::new(modules);
-    let modules = pool.execute()?;
+    pool.execute()
+}
+
+pub fn compile_ir(modules: Vec<MIRModule>) -> inkwell::module::Module {
     unimplemented!()
 }
 
