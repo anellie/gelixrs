@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/12/19, 9:06 PM.
+ * Last modified on 9/12/19, 9:46 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -172,7 +172,7 @@ impl Parser {
         }
 
         let mut consumed_slash = false;
-        while self.check(Type::Identifier) || self.check(Type::Star) {
+        while self.check(Type::Identifier) || self.check(Type::Plus) {
             path.push(self.advance().lexeme);
             consumed_slash = self.match_token(Type::Slash);
         }

@@ -1,5 +1,4 @@
-import testing_mod/sub/sub
-import testing_mod/sub/Sub
+import testing_mod/sub/+
 
 exfn print(String a)
 exfn printnum(i64 a)

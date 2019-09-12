@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/12/19, 9:05 PM.
+ * Last modified on 9/12/19, 9:52 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -11,8 +11,8 @@ use crate::mir::nodes::{MIRExpression, MIRFlow, MIRStruct, MIRStructMem, MIRVari
 use crate::mir::{mutrc_new, MIRModule, MutRc};
 use crate::ModulePath;
 use std::collections::HashMap;
-use std::rc::Rc;
 use std::mem::discriminant;
+use std::rc::Rc;
 
 /// A builder for assisting in creating MIR.
 pub struct MIRBuilder {
@@ -20,7 +20,7 @@ pub struct MIRBuilder {
     position: Option<Pointer>,
 
     /// The module the builder is inserting into.
-    module: MIRModule,
+    pub module: MIRModule,
 
     /// Types and functions imported into this module by 'import' declarations
     imported_types: HashMap<Rc<String>, MutRc<MIRStruct>>,
@@ -51,13 +51,19 @@ impl MIRBuilder {
         }
     }
 
-    pub fn add_imported_struct(&mut self, class: MutRc<MIRStruct>) -> Option<()> {
+    pub fn add_imported_struct(
+        &mut self,
+        class: MutRc<MIRStruct>,
+        import_methods: bool,
+    ) -> Option<()> {
         let name = Rc::clone(&class.borrow().name);
         if self.find_struct(&name).is_none() {
             self.imported_types
                 .insert(Rc::clone(&name), Rc::clone(&class));
-            for (_, method) in class.borrow().methods.iter() {
-                self.add_imported_function(Rc::clone(method));
+            if import_methods {
+                for (_, method) in class.borrow().methods.iter() {
+                    self.add_imported_function(Rc::clone(method))?;
+                }
             }
             Some(())
         } else {

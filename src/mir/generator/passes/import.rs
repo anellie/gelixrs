@@ -1,14 +1,16 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/12/19, 9:16 PM.
+ * Last modified on 9/12/19, 9:54 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
 use crate::ast::module::Module;
-use crate::mir::generator::{MIRGenerator, MIRError};
+use crate::mir::generator::{MIRError, MIRGenerator};
 use crate::mir::nodes::{MIRStruct, MIRVariable};
 use crate::mir::MutRc;
-use crate::{ModulePath, module_path_to_string};
+use crate::{module_path_to_string, ModulePath};
+use either::Either;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 /// This pass tries to resolve all imports to a class.
@@ -28,9 +30,22 @@ impl<'p> ImportClassPass<'p> {
             module
                 .imports
                 .drain_filter(|import| {
-                    self.find_class(&import.path, &import.symbol)
-                        .and_then(|class| gen.builder.add_imported_struct(class))
-                        .is_some()
+                    match self.find_class(&import.path, &import.symbol) {
+                        Either::Left(class) => {
+                            class.and_then(|class| gen.builder.add_imported_struct(class, true))
+                        }
+
+                        Either::Right(classes) => {
+                            // Do not import class methods.
+                            // They are imported later in ImportFuncPass, as they appear
+                            // as regular functions in the module
+                            classes.iter().try_for_each(|(_, class)| {
+                                gen.builder.add_imported_struct(Rc::clone(class), false)
+                            });
+                            None // Functions still need to be imported!
+                        }
+                    }
+                    .is_some()
                 })
                 .count();
 
@@ -38,12 +53,24 @@ impl<'p> ImportClassPass<'p> {
         }
     }
 
-    fn find_class(&mut self, path: &ModulePath, name: &String) -> Option<MutRc<MIRStruct>> {
+    fn find_class(
+        &mut self,
+        path: &ModulePath,
+        name: &String,
+    ) -> Either<Option<MutRc<MIRStruct>>, &HashMap<Rc<String>, MutRc<MIRStruct>>> {
         let module = self
             .modules
             .iter()
-            .find(|(module, _)| &*module.path == path)?;
-        module.1.builder.find_struct(name)
+            .find(|(module, _)| &*module.path == path);
+
+        if let Some(module) = module {
+            match &name[..] {
+                "+" => Either::Right(&module.1.builder.module.types),
+                _ => Either::Left(module.1.builder.find_struct(name)),
+            }
+        } else {
+            Either::Left(None)
+        }
     }
 
     pub fn new(modules: &'p mut Vec<(Module, MIRGenerator)>) -> ImportClassPass<'p> {
@@ -67,9 +94,16 @@ impl<'p> ImportFuncPass<'p> {
             module
                 .imports
                 .drain_filter(|import| {
-                    self.find_func(&import.path, &import.symbol)
-                        .and_then(|func| gen.builder.add_imported_function(func))
-                        .is_some()
+                    match self.find_func(&import.path, &import.symbol) {
+                        Either::Left(func) => {
+                            func.and_then(|func| gen.builder.add_imported_function(func))
+                        }
+
+                        Either::Right(funcs) => funcs.iter().try_for_each(|(_, func)| {
+                            gen.builder.add_imported_function(Rc::clone(func))
+                        }),
+                        }
+                    .is_some()
                 })
                 .count();
 
@@ -92,12 +126,24 @@ impl<'p> ImportFuncPass<'p> {
         if errors.is_empty() { Ok(()) } else { Err(errors) }
     }
 
-    fn find_func(&mut self, path: &ModulePath, name: &String) -> Option<Rc<MIRVariable>> {
+    fn find_func(
+        &mut self,
+        path: &ModulePath,
+        name: &String,
+    ) -> Either<Option<Rc<MIRVariable>>, &HashMap<Rc<String>, Rc<MIRVariable>>> {
         let module = self
             .modules
             .iter()
-            .find(|(module, _)| &*module.path == path)?;
-        module.1.builder.find_global(name)
+            .find(|(module, _)| &*module.path == path);
+
+        if let Some(module) = module {
+            match &name[..] {
+                "+" => Either::Right(&module.1.builder.module.functions),
+                _ => Either::Left(module.1.builder.find_global(name)),
+            }
+        } else {
+            Either::Left(None)
+        }
     }
 
     pub fn new(modules: &'p mut Vec<(Module, MIRGenerator)>) -> ImportFuncPass<'p> {
