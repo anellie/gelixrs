@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/12/19, 5:22 PM.
+ * Last modified on 9/12/19, 8:58 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -24,23 +24,22 @@ pub mod parser;
 #[cfg(test)]
 pub mod tests;
 
-use mir::generator::module::MIRModuleGenerator;
-use mir::generator::MIRError;
-use parser::ParserErrors;
 use ast::module::Module;
 use error::Error;
+use ir::IRGenerator;
+use mir::generator::module::MIRModuleGenerator;
+use mir::generator::MIRError;
+use mir::MIRModule;
+use parser::ParserErrors;
 use std::fs;
 use std::path::PathBuf;
 use std::rc::Rc;
-use mir::MIRModule;
-use ir::IRGenerator;
 
 type ModulePath = Vec<Rc<String>>;
 type SrcParseErrors = Vec<ParserErrors>;
 
 pub fn module_path_to_string(path: &ModulePath) -> String {
-    path
-        .iter()
+    path.iter()
         .map(|rc| (&**rc).clone())
         .collect::<Vec<String>>()
         .join("/")

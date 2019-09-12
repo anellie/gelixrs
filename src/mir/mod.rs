@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/11/19, 7:43 PM.
+ * Last modified on 9/12/19, 8:58 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -27,7 +27,7 @@ pub struct MIRModule {
     pub functions: HashMap<Rc<String>, Rc<MIRVariable>>,
     /// Imported functions will only be declared; not defined.
     /// They are defined when modules are linked/combined at the end of IR generation.
-    pub imported_func: HashMap<Rc<String>, Rc<MIRVariable>>
+    pub imported_func: HashMap<Rc<String>, Rc<MIRVariable>>,
 }
 
 impl MIRModule {

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/11/19, 8:59 PM.
+ * Last modified on 9/12/19, 8:58 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -72,10 +72,8 @@ fn create_function(
         MIRType::Function(Rc::clone(&function)),
         false,
     ));
-    gen.builder.add_global(
-        Rc::clone(&func_sig.name.lexeme),
-        Rc::clone(&global),
-    );
+    gen.builder
+        .add_global(Rc::clone(&func_sig.name.lexeme), Rc::clone(&global));
 
     Ok(global)
 }
@@ -123,7 +121,8 @@ impl<'p> DeclareClassPass<'p> {
         let mut mir_class = mir_class.borrow_mut();
 
         // Create init function
-        let init_fn_name_tok = Token::generic_identifier(format!("{}-internal-init", &class.name.lexeme));
+        let init_fn_name_tok =
+            Token::generic_identifier(format!("{}-internal-init", &class.name.lexeme));
         let init_fn = create_function(
             self.gen,
             &FuncSignature {

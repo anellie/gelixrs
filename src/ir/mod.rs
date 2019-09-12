@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/12/19, 5:17 PM.
+ * Last modified on 9/12/19, 8:59 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -12,6 +12,7 @@ use super::{
         MIRModule,
     },
 };
+use crate::module_path_to_string;
 use inkwell::{
     basic_block::BasicBlock,
     builder::Builder,
@@ -29,7 +30,6 @@ use std::{
     hash::{Hash, Hasher},
     rc::Rc,
 };
-use crate::module_path_to_string;
 
 /// A generator that creates LLVM IR out of Gelix mid-level IR (MIR).
 ///
@@ -64,7 +64,11 @@ impl IRGenerator {
     pub fn generate(mut self, mir: Vec<MIRModule>) -> Module {
         let mut finished_modules = Vec::with_capacity(mir.len());
         for module in mir {
-            finished_modules.push(std::mem::replace(&mut self.module, self.context.create_module(&module_path_to_string(&module.path))));
+            finished_modules.push(std::mem::replace(
+                &mut self.module,
+                self.context
+                    .create_module(&module_path_to_string(&module.path)),
+            ));
             self.generate_module(module);
         }
         finished_modules.push(self.module);
@@ -75,7 +79,10 @@ impl IRGenerator {
                 panic!(format!("LLVM linking error: {}", msg.to_string()))
             }
         }
-        finished_module.verify().map_err(|e| println!("{}", e.to_string())).unwrap();
+        finished_module
+            .verify()
+            .map_err(|e| println!("{}", e.to_string()))
+            .unwrap();
         self.mpm.run_on(&finished_module);
         finished_module
     }

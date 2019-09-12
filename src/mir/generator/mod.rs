@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/12/19, 3:18 PM.
+ * Last modified on 9/12/19, 8:58 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -586,7 +586,11 @@ impl MIRGenerator {
     }
 
     fn var_to_function(var: &Rc<MIRVariable>) -> MutRc<MIRFunction> {
-        if let MIRType::Function(f) = &var._type { Rc::clone(&f) } else { panic!() }
+        if let MIRType::Function(f) = &var._type {
+            Rc::clone(&f)
+        } else {
+            panic!()
+        }
     }
 
     fn generate_func_args(

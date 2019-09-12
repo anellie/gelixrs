@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/11/19, 7:45 PM.
+ * Last modified on 9/12/19, 9:05 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -12,6 +12,7 @@ use crate::mir::{mutrc_new, MIRModule, MutRc};
 use crate::ModulePath;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::mem::discriminant;
 
 /// A builder for assisting in creating MIR.
 pub struct MIRBuilder {
@@ -53,7 +54,8 @@ impl MIRBuilder {
     pub fn add_imported_struct(&mut self, class: MutRc<MIRStruct>) -> Option<()> {
         let name = Rc::clone(&class.borrow().name);
         if self.find_struct(&name).is_none() {
-            self.imported_types.insert(Rc::clone(&name), Rc::clone(&class));
+            self.imported_types
+                .insert(Rc::clone(&name), Rc::clone(&class));
             for (_, method) in class.borrow().methods.iter() {
                 self.add_imported_function(Rc::clone(method));
             }
@@ -88,7 +90,9 @@ impl MIRBuilder {
     pub fn add_imported_function(&mut self, func: Rc<MIRVariable>) -> Option<()> {
         let name = &func.name;
         if self.find_function(&name).is_none() {
-            self.module.imported_func.insert(Rc::clone(&name), Rc::clone(&func));
+            self.module
+                .imported_func
+                .insert(Rc::clone(&name), Rc::clone(&func));
             Some(())
         } else {
             // Function already exists
@@ -105,7 +109,11 @@ impl MIRBuilder {
     }
 
     pub fn find_global(&self, name: &String) -> Option<Rc<MIRVariable>> {
-        self.module.functions.get(name).or_else(|| self.module.imported_func.get(name)).map(Rc::clone)
+        self.module
+            .functions
+            .get(name)
+            .or_else(|| self.module.imported_func.get(name))
+            .map(Rc::clone)
     }
 
     /// Will create the variable in the current function.
@@ -189,7 +197,7 @@ impl MIRBuilder {
             .into_iter()
             .filter(|node| {
                 let type_ = node.0.get_type();
-                if let MIRType::Any = type_ { false } else { true }
+                discriminant(&MIRType::Any) != discriminant(&type_)
             })
             .collect();
 
@@ -280,17 +288,25 @@ impl MIRBuilder {
     }
 
     pub fn find_struct(&self, name: &String) -> Option<MutRc<MIRStruct>> {
-        Some(Rc::clone(self.module.types.get(name).or_else(|| self.imported_types.get(name))?))
+        Some(Rc::clone(
+            self.module
+                .types
+                .get(name)
+                .or_else(|| self.imported_types.get(name))?,
+        ))
     }
 
     pub fn find_function(&self, name: &String) -> Option<MutRc<MIRFunction>> {
-        Some(Rc::clone(self.module.functions.get(name).or_else(|| self.module.imported_func.get(name)).map(|f| {
-            if let MIRType::Function(f) = &f._type {
-                f
-            } else {
-                panic!("Not a function!")
-            }
-        })?))
+        Some(Rc::clone(
+            self.module
+                .functions
+                .get(name)
+                .or_else(|| self.module.imported_func.get(name))
+                .map(|f| {
+                    if let MIRType::Function(f) = &f._type { f }
+                    else { panic!("Not a function!") }
+                })?,
+        ))
     }
 
     pub fn set_pointer(&mut self, function: MutRc<MIRFunction>, block: Rc<String>) {

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/12/19, 5:53 PM.
+ * Last modified on 9/12/19, 9:06 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -17,9 +17,9 @@ use super::super::{
     lexer::token::{Token, Type},
 };
 use super::Parser;
+use crate::ast::module::Import;
 use crate::Error;
 use std::rc::Rc;
-use crate::ast::module::Import;
 
 // All expressions that require no semicolon when used as a higher expression.
 static NO_SEMICOLON: [Type; 3] = [Type::If, Type::LeftBrace, Type::When];
@@ -181,10 +181,7 @@ impl Parser {
         }
 
         let symbol = path.pop().unwrap();
-        Some(Import {
-            path,
-            symbol
-        })
+        Some(Import { path, symbol })
     }
 
     fn function(&mut self) -> Option<Function> {

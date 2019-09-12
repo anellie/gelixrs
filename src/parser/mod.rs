@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/12/19, 4:11 PM.
+ * Last modified on 9/12/19, 9:06 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -10,7 +10,7 @@ use super::lexer::{
     token::{Token, Type},
     Lexer,
 };
-use crate::{Error, ModulePath, module_path_to_string};
+use crate::{module_path_to_string, Error, ModulePath};
 use std::{iter::Peekable, mem};
 
 /// A parser that turns a stream of [Token]s into an AST.
