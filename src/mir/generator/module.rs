@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/12/19, 9:05 PM.
+ * Last modified on 9/12/19, 9:11 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -29,9 +29,7 @@ impl MIRModuleGenerator {
         self.run_for_all(Box::new(|(module, gen)| {
             DeclareFuncPass::new(gen).run(module)
         }))?;
-        ImportFuncPass::new(&mut self.modules)
-            .run()
-            .map_err(|e| vec![e])?;
+        ImportFuncPass::new(&mut self.modules).run()?;
         self.run_for_all(Box::new(|(module, gen)| {
             FillStructPass::new(gen).run(module)
         }))?;

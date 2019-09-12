@@ -1,14 +1,14 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/12/19, 9:06 PM.
+ * Last modified on 9/12/19, 9:16 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
 use crate::ast::module::Module;
-use crate::mir::generator::{MIRGenerator, Res};
+use crate::mir::generator::{MIRGenerator, MIRError};
 use crate::mir::nodes::{MIRStruct, MIRVariable};
 use crate::mir::MutRc;
-use crate::ModulePath;
+use crate::{ModulePath, module_path_to_string};
 use std::rc::Rc;
 
 /// This pass tries to resolve all imports to a class.
@@ -57,7 +57,9 @@ pub struct ImportFuncPass<'p> {
 }
 
 impl<'p> ImportFuncPass<'p> {
-    pub fn run(mut self) -> Res<()> {
+    pub fn run(mut self) -> Result<(), Vec<MIRError>> {
+        let mut errors = Vec::new();
+
         // See ImportClassPass::run for explanation on this magic.
         for i in 0..self.modules.len() {
             let (mut module, mut gen) = self.modules.swap_remove(i);
@@ -71,11 +73,23 @@ impl<'p> ImportFuncPass<'p> {
                 })
                 .count();
 
+            // Imports should be all resolved; if not, they were invalid and an error
+            for import in &module.imports {
+                let mut full_path = import.path.clone();
+                full_path.push(import.symbol.clone());
+
+                errors.push(gen.anon_err(
+                    None,
+                    &format!(
+                        "Invalid import: {:?}\n(Either the specified symbol was not found, or the name already exists in the current module.)",
+                        module_path_to_string(&full_path)
+                    )))
+            }
+
             self.modules.push((module, gen))
         }
 
-        // TODO: Yell at the user for invalid imports
-        Ok(())
+        if errors.is_empty() { Ok(()) } else { Err(errors) }
     }
 
     fn find_func(&mut self, path: &ModulePath, name: &String) -> Option<Rc<MIRVariable>> {

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/12/19, 5:22 PM.
+ * Last modified on 9/12/19, 9:13 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -64,7 +64,7 @@ fn main() -> Result<(), &'static str> {
 
     let mir = gelixrs::compile_mir(code).or_else(|errors| {
         for error in errors {
-            println!("{}", error.to_string(args.file.clone()));
+            println!("{}\n", error.to_string(args.file.clone()));
         }
         Err("MIR generator encountered errors. Exiting.")
     })?;
