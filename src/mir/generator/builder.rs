@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/12/19, 9:52 PM.
+ * Last modified on 9/13/19, 3:22 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -286,8 +286,15 @@ impl MIRBuilder {
         Some(match &name[..] {
             "None" => MIRType::None,
             "bool" => MIRType::Bool,
-            "i64" => MIRType::Int,
-            "f64" => MIRType::Double,
+
+            "i8" => MIRType::I8,
+            "i16" => MIRType::I16,
+            "i32" => MIRType::I32,
+            "i64" => MIRType::I64,
+
+            "f32" => MIRType::F32,
+            "f64" => MIRType::F64,
+
             "String" => MIRType::String,
             _ => MIRType::Struct(self.find_struct(name)?),
         })

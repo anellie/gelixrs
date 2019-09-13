@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/12/19, 9:46 PM.
+ * Last modified on 9/13/19, 3:43 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -267,12 +267,13 @@ impl Parser {
 
         if self.check_next(Type::From) {
             // for (var from x to y)
+            // TODO: Fix this.
             // The range is reduced by one since the variable increment happens before the loop body runs.
             let variable_name = self.consume(Type::Identifier, "Expected identifier after '('")?;
             self.consume(Type::From, "Expected 'from' after identifier.")?;
-            let initial_value = Expression::Literal(Literal::Int(self.integer_int()? - 1));
+            let initial_value = Expression::Literal(Literal::I64(1));
             self.consume(Type::To, "Expected 'to' after integer.")?;
-            let last_value = Expression::Literal(Literal::Int(self.integer_int()? - 1));
+            let last_value = Expression::Literal(Literal::I64(1));
             self.consume(Type::RightParen, "Expected ')' after for condition.");
 
             let variable = Expression::VarDef(Box::new(Variable {
@@ -286,7 +287,7 @@ impl Parser {
                 value: Box::new(Expression::Binary {
                     left: Box::new(Expression::Variable(variable_name.clone())),
                     operator: Token::generic_token(Type::Plus),
-                    right: Box::new(Expression::Literal(Literal::Int(1))),
+                    right: Box::new(Expression::Literal(Literal::I64(1))),
                 }),
             };
 
@@ -505,25 +506,36 @@ impl Parser {
     }
 
     fn integer(&mut self) -> Option<Expression> {
-        Some(Expression::Literal(Literal::Int(self.integer_int()?)))
-    }
-
-    fn integer_int(&mut self) -> Option<i64> {
         let token = self.advance();
-        if let Ok(int) = token.lexeme.parse() {
-            Some(int)
-        } else {
-            self.error_at_current("Expected integer.")?;
-            None
+        let mut split = token.lexeme.split('i');
+
+        let literal = self.make_int_literal(split.next().unwrap(), split.next().unwrap_or("64"));
+        if literal.is_none() {
+            self.error_at_current("Invalid value for integer literal (Too big?).");
         }
+
+        literal
     }
 
-    // TODO: Support for single-prec float
+    fn make_int_literal(&mut self, num: &str, type_: &str) -> Option<Expression> {
+        Some(Expression::Literal(match &type_[..] {
+            "8" => Literal::I8(num.parse().ok()?),
+            "16" => Literal::I16(num.parse().ok()?),
+            "32" => Literal::I32(num.parse().ok()?),
+            "64" => Literal::I64(num.parse().ok()?),
+            _ => {
+                self.error_at_current("Invalid integer size.")?;
+                return None
+            }
+        }))
+    }
+
     fn float(&mut self) -> Option<Expression> {
         let token = self.advance();
-        Some(Expression::Literal(Literal::Double(
-            token.lexeme.parse().ok()?,
-        )))
+        Some(Expression::Literal(match &token.lexeme[..1] {
+            "f" => Literal::F32(token.lexeme.parse().ok()?),
+            _ => Literal::F64(token.lexeme.parse().ok()?)
+        }))
     }
 
     fn string(&mut self) -> Expression {

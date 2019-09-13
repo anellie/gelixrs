@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/12/19, 8:58 PM.
+ * Last modified on 9/13/19, 3:22 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -126,7 +126,7 @@ impl MIRGenerator {
                 let left = self.generate_expression(&**left)?;
                 let right = self.generate_expression(&**right)?;
 
-                if (left.get_type() == MIRType::Int) && (right.get_type() == MIRType::Int) {
+                if (left.get_type() == MIRType::I64) && (right.get_type() == MIRType::I64) {
                     self.builder.build_binary(left, operator.t_type, right)
                 } else {
                     return Err(self.error(

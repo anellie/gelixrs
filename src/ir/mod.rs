@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/12/19, 10:24 PM.
+ * Last modified on 9/13/19, 3:47 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -399,34 +399,37 @@ impl IRGenerator {
             }
 
             MIRExpression::Literal(literal) => match literal {
-                    Literal::Any => self.none_const,
-                    Literal::None => self.none_const,
-                    Literal::Bool(value) => self
-                        .context
-                        .bool_type()
-                        .const_int(*value as u64, false)
-                        .into(),
-                    Literal::Int(num) => self
-                        .context
-                        .i64_type()
-                        .const_int((*num).try_into().unwrap(), false)
-                        .into(),
-                    Literal::Float(num) => self.context.f32_type().const_float((*num).into()).into(),
-                    Literal::Double(num) => self.context.f64_type().const_float(*num).into(),
-                    Literal::String(string) => {
-                        // If the builder's insert position is not set, creating a global string pointer
-                        // will segfault (https://github.com/TheDan64/inkwell/issues/32)
-                        // This is usually only the case when a return expression unset the position
-                        // earlier, in which case the actual value doesn't matter anyway.
-                        if self.builder.get_insert_block().is_none() {
-                            self.none_const
-                        } else {
-                            let const_str =
-                                self.builder.build_global_string_ptr(&string, "literal-str");
-                            BasicValueEnum::PointerValue(const_str.as_pointer_value())
-                        }
+                Literal::Any => self.none_const,
+                Literal::None => self.none_const,
+                Literal::Bool(value) => self
+                    .context
+                    .bool_type()
+                    .const_int(*value as u64, false)
+                    .into(),
+
+                Literal::I8(num) => self.context.i8_type().const_int(*num as u64, false).into(),
+                Literal::I16(num) => self.context.i16_type().const_int(*num as u64, false).into(),
+                Literal::I32(num) => self.context.i32_type().const_int(*num as u64, false).into(),
+                Literal::I64(num) => self.context.i64_type().const_int(*num as u64, false).into(),
+
+                Literal::F32(num) => self.context.f32_type().const_float((*num).into()).into(),
+                Literal::F64(num) => self.context.f64_type().const_float(*num).into(),
+
+                Literal::String(string) => {
+                    // If the builder's insert position is not set, creating a global string pointer
+                    // will segfault (https://github.com/TheDan64/inkwell/issues/32)
+                    // This is usually only the case when a return expression unset the position
+                    // earlier, in which case the actual value doesn't matter anyway.
+                    if self.builder.get_insert_block().is_none() {
+                        self.none_const
+                    } else {
+                        let const_str =
+                            self.builder.build_global_string_ptr(&string, "literal-str");
+                        BasicValueEnum::PointerValue(const_str.as_pointer_value())
                     }
-                    _ => panic!("unknown literal"),
+                }
+
+                _ => panic!("unknown literal"),
             },
 
             MIRExpression::Unary { right, .. } => {
@@ -514,9 +517,15 @@ impl IRGenerator {
             MIRType::Any => self.none_const.get_type(),
             MIRType::None => self.none_const.get_type(),
             MIRType::Bool => self.context.bool_type().as_basic_type_enum(),
-            MIRType::Int => self.context.i64_type().as_basic_type_enum(),
-            MIRType::Float => self.context.f32_type().as_basic_type_enum(),
-            MIRType::Double => self.context.f64_type().as_basic_type_enum(),
+
+            MIRType::I8 => self.context.i8_type().as_basic_type_enum(),
+            MIRType::I16 => self.context.i16_type().as_basic_type_enum(),
+            MIRType::I32 => self.context.i32_type().as_basic_type_enum(),
+            MIRType::I64 => self.context.i64_type().as_basic_type_enum(),
+
+            MIRType::F32 => self.context.f32_type().as_basic_type_enum(),
+            MIRType::F64 => self.context.f64_type().as_basic_type_enum(),
+
             MIRType::String => self
                 .context
                 .i8_type()

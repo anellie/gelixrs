@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/8/19, 6:12 PM.
+ * Last modified on 9/13/19, 3:23 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -20,9 +20,15 @@ pub enum MIRType {
     Any,
     None,
     Bool,
-    Int,
-    Float,
-    Double,
+
+    I8,
+    I16,
+    I32,
+    I64,
+
+    F32,
+    F64,
+
     String,
     Function(MutRc<MIRFunction>),
     Struct(MutRc<MIRStruct>),
@@ -54,15 +60,9 @@ impl PartialEq for MIRType {
 impl Display for MIRType {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         match self {
-            MIRType::Any => write!(f, "Any"),
-            MIRType::None => write!(f, "None"),
-            MIRType::Bool => write!(f, "bool"),
-            MIRType::Int => write!(f, "i64"),
-            MIRType::Float => write!(f, "f32"),
-            MIRType::Double => write!(f, "f64"),
-            MIRType::String => write!(f, "String"),
             MIRType::Function(_) => write!(f, "<func>"),
             MIRType::Struct(struc) => write!(f, "{}", struc.borrow().name),
+            _ => write!(f, "{:?}", self)
         }
     }
 }
@@ -303,9 +303,12 @@ impl MIRExpression {
                 Literal::Any => MIRType::Any,
                 Literal::None => MIRType::None,
                 Literal::Bool(_) => MIRType::Bool,
-                Literal::Int(_) => MIRType::Int,
-                Literal::Float(_) => MIRType::Float,
-                Literal::Double(_) => MIRType::Double,
+                Literal::I8(_) => MIRType::I8,
+                Literal::I16(_) => MIRType::I16,
+                Literal::I32(_) => MIRType::I32,
+                Literal::I64(_) => MIRType::I64,
+                Literal::F32(_) => MIRType::F32,
+                Literal::F64(_) => MIRType::F64,
                 Literal::String(_) => MIRType::String,
                 _ => panic!("unknown literal"),
             },

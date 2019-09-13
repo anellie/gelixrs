@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/12/19, 5:45 PM.
+ * Last modified on 9/13/19, 3:18 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -180,8 +180,14 @@ impl Lexer {
             while self.peek().is_ascii_digit() {
                 self.advance();
             }
+            self.match_next('f');
             self.make_token(Type::Float)
         } else {
+            if self.match_next('i') {
+                while self.peek().is_ascii_digit() {
+                    self.advance();
+                }
+            }
             self.make_token(Type::Int)
         }
     }

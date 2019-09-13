@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/12/19, 5:37 PM.
+ * Last modified on 9/13/19, 3:02 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -14,7 +14,7 @@ pub struct Token {
     pub t_type: Type,
     /// The lexeme of the token. Does not include escape chars (ex. String lexeme is <i>I'm a string!</i>)
     pub lexeme: Rc<String>,
-    /// The index of the last char on the line of the token inside the source.
+    /// The index of the last char of the token inside the source.
     /// This is used for error reporting.
     pub index: usize,
     /// The line of the token.
