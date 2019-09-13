@@ -2,8 +2,6 @@
 40
 */
 
-exfn printnum(i64 a)
-
 func main() {
     printnum(test())
 }

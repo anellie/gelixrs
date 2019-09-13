@@ -2,15 +2,15 @@ import testing_mod/sub/+
 import testing_mod/test/+
 
 func main() {
-    printnum(64)
-    printnum(sub(12, 12))
-    val s = Sub()
-    s.sup()
-    testing()
-    test()
+    val a = for (i from 0 to 12) {
+        printnum(i)
+        i
+    } else 0123
+
+    printnum(a)
 }
 
 func test() -> i8 {
     print("hello?")
-    -74i8
+    74i8
 }

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/13/19, 3:47 PM.
+ * Last modified on 9/13/19, 4:29 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -26,7 +26,6 @@ use inkwell::{
 use std::{
     cell::{Ref, RefMut},
     collections::HashMap, 
-    convert::TryInto,
     hash::{Hash, Hasher},
     rc::Rc,
 };

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/13/19, 3:43 PM.
+ * Last modified on 9/13/19, 4:24 PM.
  * This file is under the GPL3 license. See LICENSE in the root directory of this repository for details.
  */
 
@@ -267,19 +267,29 @@ impl Parser {
 
         if self.check_next(Type::From) {
             // for (var from x to y)
-            // TODO: Fix this.
-            // The range is reduced by one since the variable increment happens before the loop body runs.
             let variable_name = self.consume(Type::Identifier, "Expected identifier after '('")?;
             self.consume(Type::From, "Expected 'from' after identifier.")?;
-            let initial_value = Expression::Literal(Literal::I64(1));
-            self.consume(Type::To, "Expected 'to' after integer.")?;
-            let last_value = Expression::Literal(Literal::I64(1));
+
+            let initial_value = self.expression()?;
+            self.consume(Type::To, "Expected 'to' after starting value.")?;
+
+            let last_value = self.expression()?;
             self.consume(Type::RightParen, "Expected ')' after for condition.");
+
+            let last_value = Expression::Binary {
+                left: Box::new(last_value),
+                operator: Token::generic_token(Type::Minus),
+                right: Box::new(Expression::Literal(Literal::I64(1)))
+            };
 
             let variable = Expression::VarDef(Box::new(Variable {
                 name: variable_name.clone(),
                 is_val: false,
-                initializer: initial_value,
+                initializer: Expression::Binary {
+                    left: Box::new(initial_value),
+                    operator: Token::generic_token(Type::Minus),
+                    right: Box::new(Expression::Literal(Literal::I64(1)))
+                },
             }));
 
             let var_increment = Expression::Assignment {
@@ -301,7 +311,7 @@ impl Parser {
             let for_loop = Expression::For {
                 condition: Box::new(Expression::Binary {
                     left: Box::new(Expression::Variable(variable_name.clone())),
-                    operator: Token::generic_token(Type::LessEqual),
+                    operator: Token::generic_token(Type::BangEqual),
                     right: Box::new(last_value),
                 }),
                 body: Box::new(Expression::Block(vec![var_increment, body])),
