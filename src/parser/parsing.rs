@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/17/19 5:01 PM.
+ * Last modified on 9/17/19 5:15 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -282,7 +282,7 @@ impl Parser {
             let last_value = Expression::Binary {
                 left: Box::new(last_value),
                 operator: Token::generic_token(Type::Minus),
-                right: Box::new(Expression::Literal(Literal::I64(1)))
+                right: Box::new(Expression::Literal(Literal::I64(1))),
             };
 
             let variable = Expression::VarDef(Box::new(Variable {
@@ -291,7 +291,7 @@ impl Parser {
                 initializer: Expression::Binary {
                     left: Box::new(initial_value),
                     operator: Token::generic_token(Type::Minus),
-                    right: Box::new(Expression::Literal(Literal::I64(1)))
+                    right: Box::new(Expression::Literal(Literal::I64(1))),
                 },
             }));
 
@@ -443,7 +443,16 @@ impl Parser {
     binary_op!(logic_or, logic_and, [Type::Or]);
     binary_op!(logic_and, equality, [Type::And]);
     binary_op!(equality, comparison, [Type::BangEqual, Type::EqualEqual]);
-    binary_op!(comparison, addition, [Type::Less, Type::LessEqual, Type::Greater, Type::GreaterEqual]);
+    binary_op!(
+        comparison,
+        addition,
+        [
+            Type::Less,
+            Type::LessEqual,
+            Type::Greater,
+            Type::GreaterEqual
+        ]
+    );
     binary_op!(addition, multiplication, [Type::Plus, Type::Minus]);
     binary_op!(multiplication, unary, [Type::Star, Type::Slash]);
 
@@ -538,7 +547,7 @@ impl Parser {
             "64" => Literal::I64(num.parse().ok()?),
             _ => {
                 self.error_at_current("Invalid integer size.")?;
-                return None
+                return None;
             }
         }))
     }
@@ -547,7 +556,7 @@ impl Parser {
         let token = self.advance();
         Some(Expression::Literal(match &token.lexeme[..1] {
             "f" => Literal::F32(token.lexeme.parse().ok()?),
-            _ => Literal::F64(token.lexeme.parse().ok()?)
+            _ => Literal::F64(token.lexeme.parse().ok()?),
         }))
     }
 

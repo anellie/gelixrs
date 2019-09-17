@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/17/19 3:38 PM.
+ * Last modified on 9/17/19 5:15 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -13,6 +13,20 @@
 #[cfg(test)]
 extern crate lazy_static;
 
+use std::fs;
+use std::path::PathBuf;
+use std::rc::Rc;
+
+use ast::module::Module;
+use error::Error;
+use ir::IRGenerator;
+use mir::generator::MIRError;
+use mir::generator::module::MIRModuleGenerator;
+use mir::MIRModule;
+use parser::ParserErrors;
+
+use crate::ast::module::Import;
+
 pub mod ast;
 pub mod error;
 pub mod ir;
@@ -21,18 +35,6 @@ pub mod mir;
 pub mod parser;
 #[cfg(test)]
 pub mod tests;
-
-use ast::module::Module;
-use error::Error;
-use ir::IRGenerator;
-use mir::generator::module::MIRModuleGenerator;
-use mir::generator::MIRError;
-use mir::MIRModule;
-use parser::ParserErrors;
-use std::fs;
-use std::path::PathBuf;
-use std::rc::Rc;
-use crate::ast::module::Import;
 
 type ModulePath = Vec<Rc<String>>;
 type SrcParseErrors = Vec<ParserErrors>;
@@ -110,10 +112,13 @@ fn fill_module(code: &str, module: &mut Module) -> Result<(), Vec<Error>> {
 pub fn auto_import_prelude(modules: &mut Vec<Module>) {
     let prelude_import = Import {
         path: vec![Rc::new("std".to_string()), Rc::new("prelude".to_string())],
-        symbol: Rc::new("+".to_string())
+        symbol: Rc::new("+".to_string()),
     };
 
-    for module in modules.iter_mut().filter(|module| &*module.path != &prelude_import.path) {
+    for module in modules
+        .iter_mut()
+        .filter(|module| &*module.path != &prelude_import.path)
+    {
         module.imports.push(prelude_import.clone())
     }
 }

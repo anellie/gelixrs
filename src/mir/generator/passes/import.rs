@@ -1,17 +1,19 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/12/19 10:51 PM.
+ * Last modified on 9/17/19 5:15 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use crate::ast::module::Module;
-use crate::mir::generator::{MIRError, MIRGenerator};
-use crate::mir::nodes::{MIRStruct, MIRVariable};
-use crate::mir::MutRc;
-use crate::{module_path_to_string, ModulePath};
-use either::Either;
 use std::collections::HashMap;
 use std::rc::Rc;
+
+use either::Either;
+
+use crate::{module_path_to_string, ModulePath};
+use crate::ast::module::Module;
+use crate::mir::generator::{MIRError, MIRGenerator};
+use crate::mir::MutRc;
+use crate::mir::nodes::{MIRStruct, MIRVariable};
 
 /// This pass tries to resolve all imports to a class.
 pub struct ImportClassPass<'p> {
@@ -104,7 +106,7 @@ impl<'p> ImportFuncPass<'p> {
                         Either::Right(funcs) => funcs.iter().try_for_each(|(_, func)| {
                             gen.builder.add_imported_function(Rc::clone(func))
                         }),
-                        }
+                    }
                     .is_some()
                 })
                 .count();
@@ -125,7 +127,11 @@ impl<'p> ImportFuncPass<'p> {
             self.modules.push((module, gen))
         }
 
-        if errors.is_empty() { Ok(()) } else { Err(errors) }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
     }
 
     fn find_func(

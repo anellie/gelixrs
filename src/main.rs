@@ -1,10 +1,11 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/17/19 3:38 PM.
+ * Last modified on 9/17/19 5:15 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::{env, fs, path::PathBuf, process};
+
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
@@ -49,10 +50,7 @@ fn main() -> Result<(), &'static str> {
     let mut std_mod = env::current_dir().expect("Failed to get current directory!");
     std_mod.push("stdlib");
     std_mod.push("std");
-    let modules = vec![
-        args.file.clone(),
-        std_mod
-    ];
+    let modules = vec![args.file.clone(), std_mod];
 
     let mut code = gelixrs::parse_source(modules).or_else(|errors| {
         for file in errors {

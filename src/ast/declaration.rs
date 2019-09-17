@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/17/19 5:01 PM.
+ * Last modified on 9/17/19 5:15 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -63,8 +63,8 @@ pub enum ASTType {
     Array(Box<ASTType>),
     Closure {
         params: Vec<ASTType>,
-        ret_type: Option<Box<ASTType>>
-    }
+        ret_type: Option<Box<ASTType>>,
+    },
 }
 
 impl ASTType {
@@ -72,7 +72,12 @@ impl ASTType {
         match self {
             ASTType::Token(tok) => Some(tok),
             ASTType::Array(type_) => type_.get_token(),
-            ASTType::Closure { params, ret_type } => ret_type.as_ref().map(|box_| &**box_).or(params.first()).map(|t| t.get_token()).flatten(),
+            ASTType::Closure { params, ret_type } => ret_type
+                .as_ref()
+                .map(|box_| &**box_)
+                .or(params.first())
+                .map(|t| t.get_token())
+                .flatten(),
         }
     }
 }
@@ -83,7 +88,7 @@ impl fmt::Display for ASTType {
             ASTType::Token(tok) => write!(f, "{}", tok.lexeme)?,
 
             ASTType::Array(type_) => write!(f, "[{}]", type_)?,
-            
+
             ASTType::Closure { params, ret_type } => {
                 write!(f, "(")?;
                 let mut iter = params.iter();
@@ -98,7 +103,7 @@ impl fmt::Display for ASTType {
                     write!(f, "-> {}", ret_type)?;
                 }
                 Ok(())
-            },
+            }
         }
     }
 }

@@ -1,18 +1,19 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/13/19 3:48 PM.
+ * Last modified on 9/17/19 5:15 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use crate::ast::expression::LOGICAL_BINARY;
-use crate::ast::literal::Literal;
-use crate::lexer::token::Type;
-use crate::mir::MutRc;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::{Display, Error, Formatter};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
+
+use crate::ast::expression::LOGICAL_BINARY;
+use crate::ast::literal::Literal;
+use crate::lexer::token::Type;
+use crate::mir::MutRc;
 
 /// All types in Gelix.
 #[derive(Debug, Clone)]
@@ -36,19 +37,26 @@ pub enum MIRType {
 
 impl PartialEq for MIRType {
     fn eq(&self, other: &Self) -> bool {
-        if let MIRType::Any = other { return true }
+        if let MIRType::Any = other {
+            return true;
+        }
+        
         match self {
             MIRType::Function(func) => {
                 if let MIRType::Function(other) = other {
                     func == other
-                } else { false }
+                } else {
+                    false
+                }
             }
 
             MIRType::Struct(struc) => {
                 if let MIRType::Struct(other) = other {
                     struc == other
-                } else { false }
-            },
+                } else {
+                    false
+                }
+            }
 
             MIRType::Any => true,
 
@@ -62,7 +70,7 @@ impl Display for MIRType {
         match self {
             MIRType::Function(_) => write!(f, "<func>"),
             MIRType::Struct(struc) => write!(f, "{}", struc.borrow().name),
-            _ => write!(f, "{:?}", self)
+            _ => write!(f, "{:?}", self),
         }
     }
 }

@@ -1,13 +1,12 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/12/19 10:53 PM.
+ * Last modified on 9/17/19 5:15 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
+use std::{env, ffi::CStr, fs::read_to_string, os::raw::c_char, path::PathBuf, sync::Mutex};
+
 use inkwell::{execution_engine::JitFunction, OptimizationLevel};
-use std::{
-    env, ffi::CStr, fs::read_to_string, os::raw::c_char, path::PathBuf, sync::Mutex,
-};
 
 type MainFn = unsafe extern "C" fn();
 
@@ -65,7 +64,9 @@ fn for_file(file: PathBuf) -> Result<(), ()> {
 }
 
 fn exec_jit(file: PathBuf) -> Result<String, ()> {
-    let mut code = super::parse_source(vec![file, STD_LIB.lock().unwrap().clone()]).ok().ok_or(())?;
+    let mut code = super::parse_source(vec![file, STD_LIB.lock().unwrap().clone()])
+        .ok()
+        .ok_or(())?;
     super::auto_import_prelude(&mut code);
     let mir = super::compile_mir(code).ok().ok_or(())?;
     let module = super::compile_ir(mir);

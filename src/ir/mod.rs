@@ -1,33 +1,36 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/13/19 4:35 PM.
+ * Last modified on 9/17/19 5:15 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
+
+use std::{
+    cell::{Ref, RefMut},
+    collections::HashMap,
+    hash::{Hash, Hasher},
+    rc::Rc,
+};
+
+use inkwell::{
+    AddressSpace,
+    basic_block::BasicBlock,
+    builder::Builder,
+    context::Context,
+    IntPredicate,
+    module::Module,
+    passes::PassManager,
+    types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType, StructType}, values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
+};
+
+use crate::module_path_to_string;
 
 use super::{
     ast::literal::Literal,
     lexer::token::Type,
     mir::{
-        nodes::{MIRBlock, MIRExpression, MIRFlow, MIRFunction, MIRStruct, MIRType, MIRVariable},
         MIRModule,
+        nodes::{MIRBlock, MIRExpression, MIRFlow, MIRFunction, MIRStruct, MIRType, MIRVariable},
     },
-};
-use crate::module_path_to_string;
-use inkwell::{
-    basic_block::BasicBlock,
-    builder::Builder,
-    context::Context,
-    module::Module,
-    passes::PassManager,
-    types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType, StructType},
-    values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
-    AddressSpace, IntPredicate,
-};
-use std::{
-    cell::{Ref, RefMut},
-    collections::HashMap, 
-    hash::{Hash, Hasher},
-    rc::Rc,
 };
 
 /// A generator that creates LLVM IR out of Gelix mid-level IR (MIR).
@@ -226,14 +229,14 @@ impl IRGenerator {
             } => {
                 let condition = self.generate_expression(condition);
                 if let BasicValueEnum::IntValue(condition) = condition {
-                self.builder.build_conditional_branch(
-                    condition,
-                    &self.get_block(then_b),
-                    &self.get_block(else_b),
-                )
+                    self.builder.build_conditional_branch(
+                        condition,
+                        &self.get_block(then_b),
+                        &self.get_block(else_b),
+                    )
                 } else {
                     panic!("br condition wasn't a boolean");
-            }
+                }
             }
 
             MIRFlow::Switch { cases, default } => {
@@ -292,13 +295,28 @@ impl IRGenerator {
                     Type::Minus => self.builder.build_int_sub(left, right, "sub"),
                     Type::Star => self.builder.build_int_mul(left, right, "mul"),
                     Type::Slash => {
-                        let left = self.builder.build_signed_int_to_float(left, self.context.f64_type(), "divconv");
-                        let right = self.builder.build_signed_int_to_float(right, self.context.f64_type(), "divconv");
+                        let left = self.builder.build_signed_int_to_float(
+                            left,
+                            self.context.f64_type(),
+                            "divconv",
+                        );
+                        let right = self.builder.build_signed_int_to_float(
+                            right,
+                            self.context.f64_type(),
+                            "divconv",
+                        );
                         let float_div = self.builder.build_float_div(left, right, "div");
-                        self.builder.build_float_to_signed_int(float_div, self.context.i64_type(), "divconv")
-                    },
+                        self.builder.build_float_to_signed_int(
+                            float_div,
+                            self.context.i64_type(),
+                            "divconv",
+                        )
+                    }
 
-                    _ => self.builder.build_int_compare(get_predicate(*operator), left, right, "cmp"),
+                    _ => {
+                        self.builder
+                            .build_int_compare(get_predicate(*operator), left, right, "cmp")
+                    }
                 })
             }
 
@@ -332,10 +350,10 @@ impl IRGenerator {
             }
 
             MIRExpression::Function(func) => BasicValueEnum::PointerValue(
-                    self.module
-                        .get_function(&func.borrow().name)
-                        .unwrap()
-                        .as_global_value()
+                self.module
+                    .get_function(&func.borrow().name)
+                    .unwrap()
+                    .as_global_value()
                     .as_pointer_value(),
             ),
 
@@ -377,7 +395,7 @@ impl IRGenerator {
                     self.load_ptr(ptr)
                 } else {
                     panic!("Get target wasn't a struct")
-            }
+                }
             }
 
             MIRExpression::StructSet {
@@ -388,10 +406,10 @@ impl IRGenerator {
                 let struc = self.generate_expression(object);
                 if let BasicValueEnum::PointerValue(ptr) = struc {
                     let ptr = unsafe { self.builder.build_struct_gep(ptr, *index, "classgep") };
-                let value = self.generate_expression(value);
-                let value = self.unwrap_value_ptr(value);
+                    let value = self.generate_expression(value);
+                    let value = self.unwrap_value_ptr(value);
                     self.builder.build_store(ptr, value);
-                value
+                    value
                 } else {
                     panic!("Get target wasn't a struct")
                 }

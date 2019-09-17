@@ -1,17 +1,19 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/12/19 9:56 PM.
+ * Last modified on 9/17/19 5:15 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-mod parsing;
+use std::{iter::Peekable, mem};
+
+use crate::{Error, module_path_to_string, ModulePath};
 
 use super::lexer::{
-    token::{Token, Type},
     Lexer,
+    token::{Token, Type},
 };
-use crate::{module_path_to_string, Error, ModulePath};
-use std::{iter::Peekable, mem};
+
+mod parsing;
 
 /// A parser that turns a stream of [Token]s into an AST.
 pub struct Parser {
@@ -148,9 +150,7 @@ impl Parser {
 
         while !self.is_at_end() {
             match self.current.t_type {
-                Type::ExFn | Type::Class | Type::Enum => return,
-                // If the next token is a left paren, then its a closure.
-                Type::Func => if !self.check_next(Type::LeftParen) { return },
+                Type::ExFn | Type::Class | Type::Enum | Type::Funx => return,
                 _ => (),
             }
             self.advance();

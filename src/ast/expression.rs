@@ -1,12 +1,12 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/12/19 9:56 PM.
+ * Last modified on 9/17/19 5:15 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use super::super::lexer::token::{Token, Type};
 use super::declaration::Variable;
 use super::literal::Literal;
+use super::super::lexer::token::{Token, Type};
 
 /// All binary operand types that return a bool instead of the types of their values.
 pub static LOGICAL_BINARY: [Type; 6] = [
@@ -106,7 +106,6 @@ pub enum Expression {
     // Below are all 'higher expressions'. These are differentiated in the parser.
     // They are only allowed to appear as top-level inside a block.
     // All of them always produce None as a value.
-    
     /// A variable definition.
     VarDef(Box<Variable>),
 }

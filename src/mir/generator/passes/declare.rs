@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/17/19 5:01 PM.
+ * Last modified on 9/17/19 5:15 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -20,17 +20,10 @@ fn create_function(
 ) -> Res<Rc<MIRVariable>> {
     let ret_type = gen
         .builder
-        .find_type(
-            func_sig
-                .return_type
-                .as_ref()
-                .unwrap_or(none_const),
-        )
+        .find_type(func_sig.return_type.as_ref().unwrap_or(none_const))
         .ok_or_else(|| {
             let tok = func_sig.return_type.as_ref().unwrap().get_token();
-            MIRGenerator::anon_err(
-                gen, tok, "Unknown function return type",
-            )
+            MIRGenerator::anon_err(gen, tok, "Unknown function return type")
         })?;
 
     let mut parameters = Vec::with_capacity(func_sig.parameters.len());

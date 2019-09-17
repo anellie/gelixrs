@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/17/19 5:01 PM.
+ * Last modified on 9/17/19 5:15 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -81,7 +81,12 @@ impl MIRGenerator {
             } else {
                 return Err(self.error(
                     &func.sig.name,
-                    func.sig.return_type.as_ref().map(|t| t.get_token()).flatten().unwrap_or(&func.sig.name),
+                    func.sig
+                        .return_type
+                        .as_ref()
+                        .map(|t| t.get_token())
+                        .flatten()
+                        .unwrap_or(&func.sig.name),
                     &format!(
                         "Function return type ({}) does not match body type ({}).",
                         func_type,
