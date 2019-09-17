@@ -1,12 +1,19 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/13/19 4:35 PM.
+ * Last modified on 9/17/19 5:01 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 //! This module contains all functions directly responsible for parsing the tokens
 //! and creating the AST from them.
 
+use std::rc::Rc;
+
+use crate::ast::declaration::ASTType;
+use crate::ast::module::Import;
+use crate::Error;
+
+use super::Parser;
 use super::super::{
     ast::{
         declaration::{Class, Enum, FuncSignature, Function, FunctionArg, Variable},
@@ -16,10 +23,6 @@ use super::super::{
     },
     lexer::token::{Token, Type},
 };
-use super::Parser;
-use crate::ast::module::Import;
-use crate::Error;
-use std::rc::Rc;
 
 // All expressions that require no semicolon when used as a higher expression.
 static NO_SEMICOLON: [Type; 3] = [Type::If, Type::LeftBrace, Type::When];
@@ -554,47 +557,32 @@ impl Parser {
     }
 
     /// Reads a type name
-    fn type_(&mut self, msg: &str) -> Option<Token> {
+    fn type_(&mut self, msg: &str) -> Option<ASTType> {
         Some(match self.current.t_type {
-            Type::Identifier => self.advance(),
+            Type::Identifier => ASTType::Token(self.advance()),
 
-            // Closure
-            // This hacky serving of spaghetti turns a stream of closure type tokens into
-            // a single token with a lexeme like this:
-            // (String, i64, ()) -> f64
+            Type::LeftBracket => {
+                let arr_type = self.type_("Expected type after '[' in array type.")?;
+                self.consume(Type::RightBracket, "Expected '[' after array type.");
+                ASTType::Array(Box::new(arr_type))
+            }
+
             Type::LeftParen => {
-                let mut tokens = Vec::new();
-                tokens.push(self.advance());
-
-                if !self.check(Type::RightParen) {
-                    loop {
-                        tokens.push(self.type_("Expected closure parameter type.")?);
-                        if !self.match_token(Type::Comma) {
-                            break;
-                        }
-                    }
-                }
-                tokens.push(
-                    self.consume(Type::RightParen, "Expected ')' after closure parameters.")?,
-                );
-
-                if self.match_token(Type::Arrow) {
-                    tokens.push(self.consume(Type::Identifier, "Expected return type after '->'.")?)
+                let mut params = Vec::new();
+                while let Some(param) = self.type_("") {
+                    params.push(param);
+                    self.match_token(Type::Comma);
                 }
 
-                let combined = tokens
-                    .iter()
-                    .map(|t| &**t.lexeme)
-                    .collect::<Vec<&str>>()
-                    .join(" ");
-                let combined_len = combined.len();
+                self.consume(Type::RightParen, "Expected ')' after closure parameters.")?;
 
-                Token {
-                    t_type: Type::Identifier,
-                    lexeme: Rc::new(combined),
-                    index: tokens.first().unwrap().index + combined_len,
-                    line: tokens.first().unwrap().line,
-                }
+                let ret_type = if self.match_token(Type::Arrow) {
+                    Some(Box::new(self.type_("Expected return type after '->'.")?))
+                } else {
+                    None
+                };
+
+                ASTType::Closure { params, ret_type }
             }
 
             _ => {

@@ -1,26 +1,29 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/13/19 3:48 PM.
+ * Last modified on 9/17/19 5:01 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-mod builder;
-pub mod module;
-mod passes;
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::rc::Rc;
 
+use either::Either;
+
+use builder::MIRBuilder;
+
+use crate::{Error, ModulePath};
 use crate::ast::declaration::Function;
 use crate::ast::expression::Expression;
 use crate::ast::literal::Literal;
 use crate::ast::module::Module;
 use crate::lexer::token::{Token, Type};
-use crate::mir::nodes::{MIRExpression, MIRFlow, MIRFunction, MIRStructMem, MIRType, MIRVariable};
 use crate::mir::{MIRModule, MutRc};
-use crate::{Error, ModulePath};
-use builder::MIRBuilder;
-use either::Either;
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::rc::Rc;
+use crate::mir::nodes::{MIRExpression, MIRFlow, MIRFunction, MIRStructMem, MIRType, MIRVariable};
+
+mod builder;
+pub mod module;
+mod passes;
 
 type Res<T> = Result<T, MIRError>;
 
@@ -78,7 +81,7 @@ impl MIRGenerator {
             } else {
                 return Err(self.error(
                     &func.sig.name,
-                    func.sig.return_type.as_ref().unwrap_or(&func.sig.name),
+                    func.sig.return_type.as_ref().map(|t| t.get_token()).flatten().unwrap_or(&func.sig.name),
                     &format!(
                         "Function return type ({}) does not match body type ({}).",
                         func_type,

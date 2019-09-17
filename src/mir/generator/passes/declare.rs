@@ -1,21 +1,22 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/13/19 3:35 PM.
+ * Last modified on 9/17/19 5:01 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use crate::ast::declaration::{Class, FuncSignature, FunctionArg};
+use std::rc::Rc;
+
+use crate::ast::declaration::{ASTType, Class, FuncSignature, FunctionArg};
 use crate::ast::module::Module;
 use crate::lexer::token::Token;
-use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::generator::{MIRGenerator, Res};
+use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::nodes::{MIRType, MIRVariable};
-use std::rc::Rc;
 
 fn create_function(
     gen: &mut MIRGenerator,
     func_sig: &FuncSignature,
-    none_const: &Rc<String>,
+    none_const: &ASTType,
 ) -> Res<Rc<MIRVariable>> {
     let ret_type = gen
         .builder
@@ -23,15 +24,12 @@ fn create_function(
             func_sig
                 .return_type
                 .as_ref()
-                .map(|t| &t.lexeme)
                 .unwrap_or(none_const),
         )
         .ok_or_else(|| {
-            MIRGenerator::error(
-                gen,
-                func_sig.return_type.as_ref().unwrap(),
-                func_sig.return_type.as_ref().unwrap(),
-                "Unknown function return type",
+            let tok = func_sig.return_type.as_ref().unwrap().get_token();
+            MIRGenerator::anon_err(
+                gen, tok, "Unknown function return type",
             )
         })?;
 
@@ -40,11 +38,11 @@ fn create_function(
         parameters.push(Rc::new(MIRVariable {
             mutable: false,
             name: Rc::clone(&param.name.lexeme),
-            _type: gen.builder.find_type(&param._type.lexeme).ok_or_else(|| {
+            _type: gen.builder.find_type(&param._type).ok_or_else(|| {
                 MIRGenerator::error(
                     gen,
                     &func_sig.name,
-                    func_sig.return_type.as_ref().unwrap_or(&func_sig.name),
+                    &func_sig.name,
                     "Function parameter has unknown type",
                 )
             })?,
@@ -82,7 +80,7 @@ fn create_function(
 /// It does not fill them; they are kept empty.
 pub struct DeclareClassPass<'p> {
     gen: &'p mut MIRGenerator,
-    none_const: Rc<String>,
+    none_const: ASTType,
 }
 
 impl<'p> PreMIRPass for DeclareClassPass<'p> {
@@ -113,7 +111,7 @@ impl<'p> DeclareClassPass<'p> {
 
         let this_arg = FunctionArg {
             name: Token::generic_identifier("this".to_string()),
-            _type: class.name.clone(),
+            _type: ASTType::Token(class.name.clone()),
         };
 
         // Declare all class methods
@@ -150,7 +148,7 @@ impl<'p> DeclareClassPass<'p> {
     pub fn new(gen: &'p mut MIRGenerator) -> DeclareClassPass<'p> {
         Self {
             gen,
-            none_const: Rc::new("None".to_string()),
+            none_const: ASTType::Token(Token::generic_identifier("None".to_string())),
         }
     }
 }
@@ -158,7 +156,7 @@ impl<'p> DeclareClassPass<'p> {
 /// This pass declares all functions.
 pub struct DeclareFuncPass<'p> {
     gen: &'p mut MIRGenerator,
-    none_const: Rc<String>,
+    none_const: ASTType,
 }
 
 impl<'p> PreMIRPass for DeclareFuncPass<'p> {
@@ -179,7 +177,7 @@ impl<'p> DeclareFuncPass<'p> {
     pub fn new(gen: &'p mut MIRGenerator) -> DeclareFuncPass<'p> {
         Self {
             gen,
-            none_const: Rc::new("None".to_string()),
+            none_const: ASTType::Token(Token::generic_identifier("None".to_string())),
         }
     }
 }

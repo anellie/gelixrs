@@ -1,18 +1,21 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/13/19 3:48 PM.
+ * Last modified on 9/17/19 5:01 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use super::super::nodes::{MIRFunction, MIRType};
-use crate::ast::literal::Literal;
-use crate::lexer::token::Type;
-use crate::mir::nodes::{MIRExpression, MIRFlow, MIRStruct, MIRStructMem, MIRVariable};
-use crate::mir::{mutrc_new, MIRModule, MutRc};
-use crate::ModulePath;
 use std::collections::HashMap;
 use std::mem::discriminant;
 use std::rc::Rc;
+
+use crate::ast::declaration::ASTType;
+use crate::ast::literal::Literal;
+use crate::lexer::token::Type;
+use crate::mir::{MIRModule, MutRc, mutrc_new};
+use crate::mir::nodes::{MIRExpression, MIRFlow, MIRStruct, MIRStructMem, MIRVariable};
+use crate::ModulePath;
+
+use super::super::nodes::{MIRFunction, MIRType};
 
 /// A builder for assisting in creating MIR.
 pub struct MIRBuilder {
@@ -282,22 +285,28 @@ impl MIRBuilder {
         }
     }
 
-    pub fn find_type(&self, name: &String) -> Option<MIRType> {
-        Some(match &name[..] {
-            "None" => MIRType::None,
-            "bool" => MIRType::Bool,
+    pub fn find_type(&self, ast: &ASTType) -> Option<MIRType> {
+        match ast {
+            ASTType::Token(tok) => Some(match &tok.lexeme[..] {
+                "None" => MIRType::None,
+                "bool" => MIRType::Bool,
 
-            "i8" => MIRType::I8,
-            "i16" => MIRType::I16,
-            "i32" => MIRType::I32,
-            "i64" => MIRType::I64,
+                "i8" => MIRType::I8,
+                "i16" => MIRType::I16,
+                "i32" => MIRType::I32,
+                "i64" => MIRType::I64,
 
-            "f32" => MIRType::F32,
-            "f64" => MIRType::F64,
+                "f32" => MIRType::F32,
+                "f64" => MIRType::F64,
 
-            "String" => MIRType::String,
-            _ => MIRType::Struct(self.find_struct(name)?),
-        })
+                "String" => MIRType::String,
+                _ => MIRType::Struct(self.find_struct(&tok.lexeme)?),
+            }),
+
+            ASTType::Array(_) => unimplemented!(),
+            
+            ASTType::Closure { .. } => unimplemented!(),
+        }
     }
 
     pub fn find_struct(&self, name: &String) -> Option<MutRc<MIRStruct>> {
