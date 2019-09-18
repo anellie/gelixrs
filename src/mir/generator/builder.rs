@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/17/19 5:15 PM.
+ * Last modified on 9/18/19 3:45 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -286,8 +286,8 @@ impl MIRBuilder {
     }
 
     pub fn find_type(&self, ast: &ASTType) -> Option<MIRType> {
-        match ast {
-            ASTType::Token(tok) => Some(match &tok.lexeme[..] {
+        Some(match ast {
+            ASTType::Token(tok) => match &tok.lexeme[..] {
                 "None" => MIRType::None,
                 "bool" => MIRType::Bool,
 
@@ -301,12 +301,12 @@ impl MIRBuilder {
 
                 "String" => MIRType::String,
                 _ => MIRType::Struct(self.find_struct(&tok.lexeme)?),
-            }),
+            },
 
-            ASTType::Array(_) => unimplemented!(),
+            ASTType::Array(type_) => MIRType::Array(Box::new(self.find_type(type_)?)),
 
             ASTType::Closure { .. } => unimplemented!(),
-        }
+        })
     }
 
     pub fn find_struct(&self, name: &String) -> Option<MutRc<MIRStruct>> {

@@ -1,0 +1,11 @@
+/*
+*/
+
+func main() {
+    var arr = [1, 2, 3, 4]
+    arr = test(arr)
+}
+
+func test([i64] a) -> [i64] {
+    a
+}

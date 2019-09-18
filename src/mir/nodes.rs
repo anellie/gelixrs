@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/17/19 5:15 PM.
+ * Last modified on 9/17/19 8:49 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -31,6 +31,9 @@ pub enum MIRType {
     F64,
 
     String,
+
+    Array(Box<MIRType>),
+
     Function(MutRc<MIRFunction>),
     Struct(MutRc<MIRStruct>),
 }

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/17/19 5:15 PM.
+ * Last modified on 9/18/19 3:44 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -150,7 +150,7 @@ impl Parser {
 
         while !self.is_at_end() {
             match self.current.t_type {
-                Type::ExFn | Type::Class | Type::Enum | Type::Funx => return,
+                Type::ExFn | Type::Class | Type::Enum | Type::Func => return,
                 _ => (),
             }
             self.advance();

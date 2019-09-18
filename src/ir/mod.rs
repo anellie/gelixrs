@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/17/19 5:15 PM.
+ * Last modified on 9/18/19 3:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -517,7 +517,7 @@ impl IRGenerator {
     }
 
     /// Converts a MIRType to the corresponding LLVM type.
-    /// Structs are returned as PointerType<StructType>.
+    /// Structs/Arrays are returned as PointerType<StructType/ArrayType>.
     fn to_ir_type(&self, mir: &MIRType) -> BasicTypeEnum {
         let ir = self.to_ir_type_no_ptr(mir);
         match ir {
@@ -542,6 +542,8 @@ impl IRGenerator {
 
             MIRType::F32 => self.context.f32_type().as_basic_type_enum(),
             MIRType::F64 => self.context.f64_type().as_basic_type_enum(),
+
+            MIRType::Array(type_) => self.to_ir_type(type_).ptr_type(AddressSpace::Generic).as_basic_type_enum(),
 
             MIRType::String => self
                 .context
