@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/17/19 8:49 PM.
+ * Last modified on 9/17/19 5:15 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -43,7 +43,7 @@ impl PartialEq for MIRType {
         if let MIRType::Any = other {
             return true;
         }
-        
+
         match self {
             MIRType::Function(func) => {
                 if let MIRType::Function(other) = other {
@@ -321,6 +321,9 @@ impl MIRExpression {
                 Literal::F32(_) => MIRType::F32,
                 Literal::F64(_) => MIRType::F64,
                 Literal::String(_) => MIRType::String,
+                Literal::Array(arr) => {
+                    MIRType::Array(Box::new(arr.as_ref().right().unwrap().type_.clone()))
+                }
                 _ => panic!("unknown literal"),
             },
 
@@ -352,4 +355,11 @@ impl MIRExpression {
             panic!("non-struct struct get")
         }
     }
+}
+
+/// An array literal in MIR. See ast/literal.rs for usage.
+#[derive(Debug, Clone)]
+pub struct MIRArray {
+    pub values: Vec<MIRExpression>,
+    pub type_: MIRType,
 }

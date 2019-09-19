@@ -23,6 +23,7 @@ use super::super::{
     },
     lexer::token::{Token, Type},
 };
+use either::Either;
 
 // All expressions that require no semicolon when used as a higher expression.
 static NO_SEMICOLON: [Type; 3] = [Type::If, Type::LeftBrace, Type::When];
@@ -514,6 +515,7 @@ impl Parser {
             _ if self.check(Type::Float) => self.float()?,
             _ if self.check(Type::String) => self.string(),
             _ if self.match_token(Type::Func) => self.closure()?,
+            _ if self.match_token(Type::LeftBracket) => self.array()?,
             _ => {
                 self.error_at_current("Expected expression.");
                 None?
@@ -525,6 +527,18 @@ impl Parser {
         let expression = self.expression()?;
         self.consume(Type::RightParen, "Expected ')' after expression.");
         Some(Expression::Grouping(Box::new(expression)))
+    }
+
+    fn array(&mut self) -> Option<Expression> {
+        let mut values: Vec<Expression> = Vec::new();
+        loop {
+            values.push(self.expression()?);
+            if self.match_token(Type::RightBracket) {
+                break;
+            }
+            self.consume(Type::Comma, "Expected ']' or ',' after array value.");
+        }
+        Some(Expression::Literal(Literal::Array(Either::Left(Rc::new(values)))))
     }
 
     fn integer(&mut self) -> Option<Expression> {
@@ -571,8 +585,9 @@ impl Parser {
             Type::Identifier => ASTType::Token(self.advance()),
 
             Type::LeftBracket => {
+                self.advance(); // consume '['
                 let arr_type = self.type_("Expected type after '[' in array type.")?;
-                self.consume(Type::RightBracket, "Expected '[' after array type.");
+                self.consume(Type::RightBracket, "Expected ']' after array type.");
                 ASTType::Array(Box::new(arr_type))
             }
 

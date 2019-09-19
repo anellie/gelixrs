@@ -19,7 +19,7 @@ use crate::ast::literal::Literal;
 use crate::ast::module::Module;
 use crate::lexer::token::{Token, Type};
 use crate::mir::{MIRModule, MutRc};
-use crate::mir::nodes::{MIRExpression, MIRFlow, MIRFunction, MIRStructMem, MIRType, MIRVariable};
+use crate::mir::nodes::{MIRExpression, MIRFlow, MIRFunction, MIRStructMem, MIRType, MIRVariable, MIRArray};
 
 mod builder;
 pub mod module;
@@ -346,7 +346,37 @@ impl MIRGenerator {
                 Self::none_const()
             }
 
-            Expression::Literal(literal) => self.builder.build_literal(literal.clone()),
+            Expression::Literal(literal) => {
+                if let Literal::Array(arr) = literal {
+                    let ast_values = arr.as_ref().left().unwrap();
+                    let mut values_mir = Vec::new();
+                    let mut ast_values = ast_values.iter();
+                    let first = self.generate_expression(ast_values.next().unwrap())?;
+                    let arr_type = first.get_type();
+
+                    values_mir.push(first);
+                    for value in ast_values {
+                        let mir_val = self.generate_expression(value)?;
+
+                        if mir_val.get_type() != arr_type {
+                            return Err(self.anon_err(value.get_token(), &format!(
+                                "Type of array value ({}) does not rest of array ({}).",
+                                mir_val.get_type(),
+                                arr_type
+                            )))
+                        }
+
+                        values_mir.push(mir_val);
+                    }
+
+                    self.builder.build_literal(Literal::Array(Either::Right(MIRArray {
+                        values: values_mir,
+                        type_: arr_type
+                    })))
+                } else {
+                    self.builder.build_literal(literal.clone())
+                }
+            },
 
             Expression::Return(val) => {
                 let value = val

@@ -6,6 +6,9 @@
 
 use crate::ast::declaration::Function;
 use std::rc::Rc;
+use crate::ast::expression::Expression;
+use crate::mir::nodes::{MIRType, MIRExpression, MIRArray};
+use either::Either;
 
 /// An enum containing all literals possible in Gelix.
 #[derive(Debug, Clone)]
@@ -28,6 +31,7 @@ pub enum Literal {
     Char(char),
     String(Rc<String>),
 
-    Array(Vec<Literal>),
+    Array(Either<Rc<Vec<Expression>>, MIRArray>),
+
     Closure(Rc<Function>),
 }
