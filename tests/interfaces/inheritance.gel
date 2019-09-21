@@ -1,0 +1,27 @@
+/*
+ok
+*/
+
+interface Test {
+    func test() -> String
+}
+
+interface Extend ext Test {
+    func test2() -> i64
+}
+
+class Implementor {
+    val a = "ok"
+    val b = 23
+}
+
+impl Extend for Implementor {
+    func test() -> String this.a
+    func test2() -> i64 this.b
+}
+
+func main() {
+    val a = Implementor()
+    print(a.test())
+    printnum(a.test2())
+}

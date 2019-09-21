@@ -1,0 +1,9 @@
+/*
+*/
+
+interface Test {
+    func test() -> String
+}
+
+func main() {
+}

@@ -1,6 +1,8 @@
 /*
 */
 
+this text prevents the test from panicking at IR stage by failing parsing.
+
 func main() {
     var arr = [1, 2, 3, 4]
     arr = test(arr)

@@ -1,3 +1,36 @@
 exfn print(String a)
 
 exfn printnum(i64 a)
+
+/*
+// A simple, fixed-size array type.
+// E is the type of values it can hold.
+//
+// To access array items, use the index operator: array[index]
+// Accessing an item above the index will cause a crash.
+//
+// To create a new array, use a literal:
+// val arr = [0, 1, 2, 3]
+// val text = ["Hello", "I'm", "A", "String", "Array!"]
+//
+// This is not valid since the type of elements cannot be inferred:
+// val a = []
+//
+// Retrieving elements works as you'd expect using indexing syntax:
+// print([2, 123, 312][1]) // prints 123
+//
+// Note on the internal implementation in LLVM IR:
+// The array's IR struct contains a hidden field, which is a
+// pointer to the beginning of the array (its first element).
+// Indexing is then implemented in IR directly by using the GEP instruction.
+class Array<E> {
+    val len = 0
+}
+
+// A UTF-8 String.
+class String {
+    val chars = [i8]
+
+    func len() -> i64 this.chars.len
+}
+*/
