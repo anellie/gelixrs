@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/21/19 2:16 PM.
+ * Last modified on 9/21/19 2:36 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -509,7 +509,9 @@ impl Parser {
                 }
 
                 // TODO deduplicate this
-                _ if self.match_token(Type::Less) => {
+                _ if self.match_token(Type::Bang) => {
+                    self.consume(Type::Less, "Expected '<' after '!'.")?;
+
                     let mut types = Vec::new();
                     loop {
                         types.push(self.type_("Expected generic type.")?);

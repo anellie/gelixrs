@@ -3,7 +3,7 @@ ok
 */
 
 func main() {
-    val generic_thing = Generic<String>()
+    val generic_thing = Generic!<String>()
     print(generic_thing.test("ok"))
 }
 

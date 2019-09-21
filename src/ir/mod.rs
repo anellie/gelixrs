@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/18/19 3:50 PM.
+ * Last modified on 9/21/19 2:47 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -449,17 +449,20 @@ impl IRGenerator {
                 _ => panic!("unknown literal"),
             },
 
-            MIRExpression::Unary { right, .. } => {
+            MIRExpression::Unary { right, operator } => {
                 let expr = self.generate_expression(right);
 
-                // Both ! and - always just negate their value, so this is safe.
                 match expr {
                     BasicValueEnum::IntValue(int) => {
-                        BasicValueEnum::IntValue(self.builder.build_int_neg(int, "unaryneg"))
+                        match operator {
+                            Type::Bang => self.builder.build_not(int, "unarynot"),
+                            Type::Minus => self.builder.build_int_neg(int, "unaryneg"),
+                            _ => panic!("Invalid unary operator")
+                        }.as_basic_value_enum()
                     }
 
                     BasicValueEnum::FloatValue(float) => {
-                        BasicValueEnum::FloatValue(self.builder.build_float_neg(float, "unaryneg"))
+                        self.builder.build_float_neg(float, "unaryneg").as_basic_value_enum()
                     }
 
                     _ => panic!("Invalid unary operator"),
