@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/21/19 4:30 PM.
+ * Last modified on 9/21/19 7:01 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -10,7 +10,7 @@ use either::Either;
 
 use crate::ast::declaration::Function;
 use crate::ast::expression::Expression;
-use crate::mir::nodes::{MIRArray, MIRExpression, MIRType};
+use crate::mir::nodes::MIRArray;
 
 /// An enum containing all literals possible in Gelix.
 #[derive(Debug, Clone)]

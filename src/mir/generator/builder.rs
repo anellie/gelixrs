@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/21/19 4:44 PM.
+ * Last modified on 9/21/19 7:06 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -40,7 +40,6 @@ impl MIRBuilder {
             members: HashMap::new(),
             member_order: Vec::new(),
             methods: HashMap::new(),
-            superclass: None,
         });
 
         if self.find_class(&name).is_none() {

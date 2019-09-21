@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/21/19 4:30 PM.
+ * Last modified on 9/21/19 6:54 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -133,12 +133,6 @@ impl Parser {
             self.consume(Type::Greater, "Expected '>' after type parameters.")?;
         }
 
-        let superclass = if self.match_token(Type::Ext) {
-            Some(self.consume(Type::Identifier, "Expected superclass name.")?)
-        } else {
-            None
-        };
-
         self.consume(Type::LeftBrace, "Expected '{' before class body.");
 
         let mut methods: Vec<Function> = Vec::new();
@@ -157,7 +151,6 @@ impl Parser {
         Some(Class {
             name,
             generics,
-            superclass,
             methods,
             variables,
         })

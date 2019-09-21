@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/21/19 4:41 PM.
+ * Last modified on 9/21/19 6:54 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -87,7 +87,6 @@ pub struct MIRClass {
     pub member_order: Vec<Rc<MIRClassMember>>,
     /// All class methods. Inserted as "doThing", not "Name-doThing".
     pub methods: HashMap<Rc<String>, Rc<MIRVariable>>,
-    pub superclass: Option<MutRc<MIRClass>>,
 }
 
 impl PartialEq for MIRClass {

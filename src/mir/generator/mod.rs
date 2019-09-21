@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/21/19 4:44 PM.
+ * Last modified on 9/21/19 7:06 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -609,17 +609,6 @@ impl MIRGenerator {
                 return Ok((object, Either::Right(Self::var_to_function(method))));
             }
 
-            // Superclass methods
-            let mut sclass = class.superclass.clone();
-            while let Some(superclass) = sclass {
-                let superclass = superclass.borrow();
-                let method = superclass.methods.get(&name.lexeme);
-                if let Some(method) = method {
-                    return Ok((object, Either::Right(Self::var_to_function(method))));
-                }
-                sclass = superclass.superclass.clone();
-            }
-
             // Nothing found...
             Err(self.error(name, name, "Unknown class field"))
         } else {
@@ -692,22 +681,12 @@ impl MIRGenerator {
     }
 
     /// Checks if the arg parameter is of the given type ty.
-    /// Will do class casts if needed to make the types match;
+    /// Will do casts if needed to make the types match;
     /// returns the new expression that should be used in case a cast happened.
     fn check_call_arg_type(&self, mut arg: MIRExpression, ty: &MIRType) -> Option<MIRExpression> {
         let arg_type = arg.get_type();
         if &arg_type == ty {
             Some(arg)
-        } else if let MIRType::Class(class) = arg_type {
-            let mut sclass = class.borrow().superclass.clone();
-            while let Some(superclass) = sclass {
-                arg = self.builder.build_bitcast(arg, &superclass);
-                if ty == &MIRType::Class(Rc::clone(&superclass)) {
-                    return Some(arg);
-                }
-                sclass = superclass.borrow().superclass.clone();
-            }
-            None
         } else {
             None
         }

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/21/19 4:30 PM.
+ * Last modified on 9/21/19 6:54 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -14,7 +14,6 @@ use super::super::lexer::token::Token;
 pub struct Class {
     pub name: Token,
     pub generics: Vec<Token>,
-    pub superclass: Option<Token>,
     pub variables: Vec<Variable>,
     pub methods: Vec<Function>,
 }
