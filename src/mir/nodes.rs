@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/17/19 5:15 PM.
+ * Last modified on 9/21/19 4:41 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -35,7 +35,7 @@ pub enum MIRType {
     Array(Box<MIRType>),
 
     Function(MutRc<MIRFunction>),
-    Struct(MutRc<MIRStruct>),
+    Class(MutRc<MIRClass>),
 }
 
 impl PartialEq for MIRType {
@@ -53,9 +53,9 @@ impl PartialEq for MIRType {
                 }
             }
 
-            MIRType::Struct(struc) => {
-                if let MIRType::Struct(other) = other {
-                    struc == other
+            MIRType::Class(class) => {
+                if let MIRType::Class(other) = other {
+                    class == other
                 } else {
                     false
                 }
@@ -72,34 +72,33 @@ impl Display for MIRType {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         match self {
             MIRType::Function(_) => write!(f, "<func>"),
-            MIRType::Struct(struc) => write!(f, "{}", struc.borrow().name),
+            MIRType::Class(class) => write!(f, "{}", class.borrow().name),
             _ => write!(f, "{:?}", self),
         }
     }
 }
 
-/// A struct that represents a class.
 #[derive(Debug)]
-pub struct MIRStruct {
+pub struct MIRClass {
     pub name: Rc<String>,
-    /// All struct members by name.
-    pub members: HashMap<Rc<String>, Rc<MIRStructMem>>,
-    /// All struct members by index.
-    pub member_order: Vec<Rc<MIRStructMem>>,
-    /// All class methods. Inserted as "doThing", not "StructName-doThing".
+    /// All class members by name.
+    pub members: HashMap<Rc<String>, Rc<MIRClassMember>>,
+    /// All class members by index.
+    pub member_order: Vec<Rc<MIRClassMember>>,
+    /// All class methods. Inserted as "doThing", not "Name-doThing".
     pub methods: HashMap<Rc<String>, Rc<MIRVariable>>,
-    pub super_struct: Option<MutRc<MIRStruct>>,
+    pub superclass: Option<MutRc<MIRClass>>,
 }
 
-impl PartialEq for MIRStruct {
+impl PartialEq for MIRClass {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name
     }
 }
 
-/// A member of a struct.
+/// A member of a class.
 #[derive(Debug)]
-pub struct MIRStructMem {
+pub struct MIRClassMember {
     pub mutable: bool,
     pub _type: MIRType,
     pub index: u32,
@@ -217,10 +216,10 @@ pub enum MIRExpression {
         right: Box<MIRExpression>,
     },
 
-    /// Casts a struct to another struct type.
+    /// Casts a class to another class type.
     Bitcast {
         object: Box<MIRExpression>,
-        goal: MutRc<MIRStruct>,
+        goal: MutRc<MIRClass>,
     },
 
     /// A function call.
@@ -240,13 +239,13 @@ pub enum MIRExpression {
     /// which block the current block was reached from.
     Phi(Vec<(MIRExpression, Rc<String>)>),
 
-    /// Gets a member of a struct.
+    /// Gets a member of a class struct.
     StructGet {
         object: Box<MIRExpression>,
         index: u32,
     },
 
-    /// Sets a member of a struct.
+    /// Sets a member of a class struct.
     StructSet {
         object: Box<MIRExpression>,
         index: u32,
@@ -286,7 +285,7 @@ impl MIRExpression {
                 }
             }
 
-            MIRExpression::Bitcast { goal, .. } => MIRType::Struct(Rc::clone(goal)),
+            MIRExpression::Bitcast { goal, .. } => MIRType::Class(Rc::clone(goal)),
 
             MIRExpression::Call { callee, .. } => {
                 if let MIRType::Function(func) = callee.get_type() {
@@ -342,8 +341,8 @@ impl MIRExpression {
     /// Returns the type of a struct member.
     fn type_from_struct_get(object: &MIRExpression, index: u32) -> MIRType {
         let object = object.get_type();
-        if let MIRType::Struct(struc) = object {
-            RefCell::borrow(&struc)
+        if let MIRType::Class(class) = object {
+            RefCell::borrow(&class)
                 .members
                 .iter()
                 .find(|(_, mem)| mem.index == index)
@@ -352,7 +351,7 @@ impl MIRExpression {
                 ._type
                 .clone()
         } else {
-            panic!("non-struct struct get")
+            panic!("non-class struct get")
         }
     }
 }

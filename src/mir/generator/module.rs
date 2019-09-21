@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/17/19 5:15 PM.
+ * Last modified on 9/21/19 4:33 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -9,7 +9,7 @@ use std::rc::Rc;
 use crate::ast::module::Module;
 use crate::mir::generator::{MIRError, MIRGenerator, Res};
 use crate::mir::generator::passes::declare::{DeclareClassPass, DeclareFuncPass};
-use crate::mir::generator::passes::fill_struct::FillStructPass;
+use crate::mir::generator::passes::fill_class::FillClassPass;
 use crate::mir::generator::passes::import::{ImportClassPass, ImportFuncPass};
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::MIRModule;
@@ -32,7 +32,7 @@ impl MIRModuleGenerator {
         }))?;
         ImportFuncPass::new(&mut self.modules).run()?;
         self.run_for_all(Box::new(|(module, gen)| {
-            FillStructPass::new(gen).run(module)
+            FillClassPass::new(gen).run(module)
         }))?;
 
         self.modules

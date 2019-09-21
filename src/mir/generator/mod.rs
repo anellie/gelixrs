@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/21/19 4:30 PM.
+ * Last modified on 9/21/19 4:44 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -20,7 +20,7 @@ use crate::ast::module::Module;
 use crate::lexer::token::{Token, Type};
 use crate::mir::{MIRModule, MutRc};
 use crate::mir::nodes::{
-    MIRArray, MIRExpression, MIRFlow, MIRFunction, MIRStructMem, MIRType, MIRVariable,
+    MIRArray, MIRClassMember, MIRExpression, MIRFlow, MIRFunction, MIRType, MIRVariable,
 };
 
 mod builder;
@@ -199,8 +199,8 @@ impl MIRGenerator {
 
                     // Might be class constructor
                     Expression::Variable(name) => {
-                        if let Some(struc) = self.builder.find_struct(&name.lexeme) {
-                            return Ok(self.builder.build_constructor(struc));
+                        if let Some(class) = self.builder.find_class(&name.lexeme) {
+                            return Ok(self.builder.build_constructor(class));
                         }
                     }
 
@@ -591,33 +591,33 @@ impl MIRGenerator {
         &mut self,
         object: &Expression,
         name: &Token,
-    ) -> Res<(MIRExpression, Either<Rc<MIRStructMem>, MutRc<MIRFunction>>)> {
+    ) -> Res<(MIRExpression, Either<Rc<MIRClassMember>, MutRc<MIRFunction>>)> {
         let object = self.generate_expression(object)?;
 
-        if let MIRType::Struct(struc) = object.get_type() {
-            let struc = struc.borrow();
+        if let MIRType::Class(class) = object.get_type() {
+            let class = class.borrow();
 
             // Class fields
-            let field = struc.members.get(&name.lexeme);
+            let field = class.members.get(&name.lexeme);
             if let Some(field) = field {
                 return Ok((object, Either::Left(Rc::clone(field))));
             }
 
             // Class methods
-            let method = struc.methods.get(&name.lexeme);
+            let method = class.methods.get(&name.lexeme);
             if let Some(method) = method {
                 return Ok((object, Either::Right(Self::var_to_function(method))));
             }
 
             // Superclass methods
-            let mut sclass = struc.super_struct.clone();
-            while let Some(struc) = sclass {
-                let struc = struc.borrow();
-                let method = struc.methods.get(&name.lexeme);
+            let mut sclass = class.superclass.clone();
+            while let Some(superclass) = sclass {
+                let superclass = superclass.borrow();
+                let method = superclass.methods.get(&name.lexeme);
                 if let Some(method) = method {
                     return Ok((object, Either::Right(Self::var_to_function(method))));
                 }
-                sclass = struc.super_struct.clone();
+                sclass = superclass.superclass.clone();
             }
 
             // Nothing found...
@@ -698,14 +698,14 @@ impl MIRGenerator {
         let arg_type = arg.get_type();
         if &arg_type == ty {
             Some(arg)
-        } else if let MIRType::Struct(struc) = arg_type {
-            let mut sclass = struc.borrow().super_struct.clone();
-            while let Some(struc) = sclass {
-                arg = self.builder.build_bitcast(arg, &struc);
-                if ty == &MIRType::Struct(Rc::clone(&struc)) {
+        } else if let MIRType::Class(class) = arg_type {
+            let mut sclass = class.borrow().superclass.clone();
+            while let Some(superclass) = sclass {
+                arg = self.builder.build_bitcast(arg, &superclass);
+                if ty == &MIRType::Class(Rc::clone(&superclass)) {
                     return Some(arg);
                 }
-                sclass = struc.borrow().super_struct.clone();
+                sclass = superclass.borrow().superclass.clone();
             }
             None
         } else {

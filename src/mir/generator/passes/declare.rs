@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/17/19 5:15 PM.
+ * Last modified on 9/21/19 4:40 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -88,11 +88,11 @@ impl<'p> PreMIRPass for DeclareClassPass<'p> {
 
 impl<'p> DeclareClassPass<'p> {
     fn create_class(&mut self, class: &mut Class) -> Res<()> {
-        // Create struct (filled in another pass)
+        // Create class (filled in another pass)
         let mir_class = self
             .gen
             .builder
-            .create_struct(Rc::clone(&class.name.lexeme))
+            .create_class(Rc::clone(&class.name.lexeme))
             .ok_or_else(|| {
                 MIRGenerator::error(
                     self.gen,

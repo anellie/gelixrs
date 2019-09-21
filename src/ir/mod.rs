@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/21/19 4:30 PM.
+ * Last modified on 9/21/19 4:44 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -29,7 +29,7 @@ use super::{
     lexer::token::Type,
     mir::{
         MIRModule,
-        nodes::{MIRBlock, MIRExpression, MIRFlow, MIRFunction, MIRStruct, MIRType, MIRVariable},
+        nodes::{MIRBlock, MIRClass, MIRExpression, MIRFlow, MIRFunction, MIRType, MIRVariable},
     },
 };
 
@@ -126,7 +126,7 @@ impl IRGenerator {
     }
 
     /// Generates a struct and its body
-    fn struc(&mut self, _struc: Ref<MIRStruct>) {
+    fn struc(&mut self, _struc: Ref<MIRClass>) {
         let struc_val = self.types[&_struc.name];
         let body: Vec<BasicTypeEnum> = _struc
             .member_order
@@ -322,7 +322,7 @@ impl IRGenerator {
 
             MIRExpression::Bitcast { object, goal } => {
                 let object = self.generate_expression(object);
-                let type_ = self.to_ir_type(&MIRType::Struct(Rc::clone(goal)));
+                let type_ = self.to_ir_type(&MIRType::Class(Rc::clone(goal)));
                 self.builder.build_bitcast(object, type_, "bitcast")
             }
 
@@ -560,7 +560,7 @@ impl IRGenerator {
                 .get_fn_type(&func.borrow())
                 .ptr_type(AddressSpace::Generic)
                 .as_basic_type_enum(),
-            MIRType::Struct(struc) => self.types[&struc.borrow().name].as_basic_type_enum(),
+            MIRType::Class(struc) => self.types[&struc.borrow().name].as_basic_type_enum(),
         }
     }
 

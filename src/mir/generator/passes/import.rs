@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/17/19 5:15 PM.
+ * Last modified on 9/21/19 4:37 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -13,7 +13,7 @@ use crate::{module_path_to_string, ModulePath};
 use crate::ast::module::Module;
 use crate::mir::generator::{MIRError, MIRGenerator};
 use crate::mir::MutRc;
-use crate::mir::nodes::{MIRStruct, MIRVariable};
+use crate::mir::nodes::{MIRClass, MIRVariable};
 
 /// This pass tries to resolve all imports to a class.
 pub struct ImportClassPass<'p> {
@@ -35,7 +35,7 @@ impl<'p> ImportClassPass<'p> {
                 .drain_filter(|import| {
                     match self.find_class(&import.path, &import.symbol) {
                         Either::Left(class) => {
-                            class.and_then(|class| gen.builder.add_imported_struct(class, true))
+                            class.and_then(|class| gen.builder.add_imported_class(class, true))
                         }
 
                         Either::Right(classes) => {
@@ -43,7 +43,7 @@ impl<'p> ImportClassPass<'p> {
                             // They are imported later in ImportFuncPass, as they appear
                             // as regular functions in the module
                             classes.iter().try_for_each(|(_, class)| {
-                                gen.builder.add_imported_struct(Rc::clone(class), false)
+                                gen.builder.add_imported_class(Rc::clone(class), false)
                             });
                             None // Functions still need to be imported!
                         }
@@ -60,7 +60,7 @@ impl<'p> ImportClassPass<'p> {
         &mut self,
         path: &ModulePath,
         name: &String,
-    ) -> Either<Option<MutRc<MIRStruct>>, &HashMap<Rc<String>, MutRc<MIRStruct>>> {
+    ) -> Either<Option<MutRc<MIRClass>>, &HashMap<Rc<String>, MutRc<MIRClass>>> {
         let module = self
             .modules
             .iter()
@@ -69,7 +69,7 @@ impl<'p> ImportClassPass<'p> {
         if let Some(module) = module {
             match &name[..] {
                 "+" => Either::Right(&module.1.builder.module.types),
-                _ => Either::Left(module.1.builder.find_struct(name)),
+                _ => Either::Left(module.1.builder.find_class(name)),
             }
         } else {
             Either::Left(None)

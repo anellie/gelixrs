@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/20/19 11:28 PM.
+ * Last modified on 9/21/19 4:44 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,7 +12,7 @@ use crate::ast::declaration::ASTType;
 use crate::ast::literal::Literal;
 use crate::lexer::token::Type;
 use crate::mir::{MIRModule, MutRc, mutrc_new};
-use crate::mir::nodes::{MIRExpression, MIRFlow, MIRStruct, MIRStructMem, MIRVariable};
+use crate::mir::nodes::{MIRClass, MIRClassMember, MIRExpression, MIRFlow, MIRVariable};
 use crate::ModulePath;
 
 use super::super::nodes::{MIRFunction, MIRType};
@@ -26,7 +26,7 @@ pub struct MIRBuilder {
     pub module: MIRModule,
 
     /// Types and functions imported into this module by 'import' declarations
-    imported_types: HashMap<Rc<String>, MutRc<MIRStruct>>,
+    imported_types: HashMap<Rc<String>, MutRc<MIRClass>>,
 
     /// Simply a const of the string "tmp".
     /// Used for temporary variables needed for class init.
@@ -34,33 +34,33 @@ pub struct MIRBuilder {
 }
 
 impl MIRBuilder {
-    pub fn create_struct(&mut self, name: Rc<String>) -> Option<MutRc<MIRStruct>> {
-        let class = mutrc_new(MIRStruct {
+    pub fn create_class(&mut self, name: Rc<String>) -> Option<MutRc<MIRClass>> {
+        let class = mutrc_new(MIRClass {
             name: Rc::clone(&name),
             members: HashMap::new(),
             member_order: Vec::new(),
             methods: HashMap::new(),
-            super_struct: None,
+            superclass: None,
         });
 
-        if self.find_struct(&name).is_none() {
+        if self.find_class(&name).is_none() {
             self.module
                 .types
                 .insert(Rc::clone(&name), Rc::clone(&class));
             Some(class)
         } else {
-            // Struct already exists
+            // Class already exists
             None
         }
     }
 
-    pub fn add_imported_struct(
+    pub fn add_imported_class(
         &mut self,
-        class: MutRc<MIRStruct>,
+        class: MutRc<MIRClass>,
         import_methods: bool,
     ) -> Option<()> {
         let name = Rc::clone(&class.borrow().name);
-        if self.find_struct(&name).is_none() {
+        if self.find_class(&name).is_none() {
             self.imported_types
                 .insert(Rc::clone(&name), Rc::clone(&class));
             if import_methods {
@@ -70,7 +70,7 @@ impl MIRBuilder {
             }
             Some(())
         } else {
-            // Struct already exists
+            // Class already exists
             None
         }
     }
@@ -152,7 +152,7 @@ impl MIRBuilder {
         }
     }
 
-    pub fn build_bitcast(&self, obj: MIRExpression, goal: &MutRc<MIRStruct>) -> MIRExpression {
+    pub fn build_bitcast(&self, obj: MIRExpression, goal: &MutRc<MIRClass>) -> MIRExpression {
         MIRExpression::Bitcast {
             object: Box::new(obj),
             goal: Rc::clone(&goal),
@@ -166,11 +166,11 @@ impl MIRBuilder {
         }
     }
 
-    pub fn build_constructor(&mut self, class_ref: MutRc<MIRStruct>) -> MIRExpression {
+    pub fn build_constructor(&mut self, class_ref: MutRc<MIRClass>) -> MIRExpression {
         let class = class_ref.borrow();
         let var = Rc::new(MIRVariable::new(
             Rc::clone(&self.tmp_const),
-            MIRType::Struct(Rc::clone(&class_ref)),
+            MIRType::Class(Rc::clone(&class_ref)),
             false,
         ));
         self.cur_fn()
@@ -220,7 +220,7 @@ impl MIRBuilder {
     pub fn build_struct_get(
         &self,
         object: MIRExpression,
-        field: Rc<MIRStructMem>,
+        field: Rc<MIRClassMember>,
     ) -> MIRExpression {
         MIRExpression::StructGet {
             object: Box::new(object),
@@ -231,7 +231,7 @@ impl MIRBuilder {
     pub fn build_struct_set(
         &self,
         object: MIRExpression,
-        field: Rc<MIRStructMem>,
+        field: Rc<MIRClassMember>,
         value: MIRExpression,
     ) -> MIRExpression {
         MIRExpression::StructSet {
@@ -300,7 +300,7 @@ impl MIRBuilder {
                 "f64" => MIRType::F64,
 
                 "String" => MIRType::String,
-                _ => MIRType::Struct(self.find_struct(&tok.lexeme)?),
+                _ => MIRType::Class(self.find_class(&tok.lexeme)?),
             },
 
             ASTType::Array(type_) => MIRType::Array(Box::new(self.find_type(type_)?)),
@@ -311,7 +311,7 @@ impl MIRBuilder {
         })
     }
 
-    pub fn find_struct(&self, name: &String) -> Option<MutRc<MIRStruct>> {
+    pub fn find_class(&self, name: &String) -> Option<MutRc<MIRClass>> {
         Some(Rc::clone(
             self.module
                 .types
