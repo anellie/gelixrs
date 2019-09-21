@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/21/19 2:47 PM.
+ * Last modified on 9/21/19 4:30 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -453,17 +453,17 @@ impl IRGenerator {
                 let expr = self.generate_expression(right);
 
                 match expr {
-                    BasicValueEnum::IntValue(int) => {
-                        match operator {
-                            Type::Bang => self.builder.build_not(int, "unarynot"),
-                            Type::Minus => self.builder.build_int_neg(int, "unaryneg"),
-                            _ => panic!("Invalid unary operator")
-                        }.as_basic_value_enum()
+                    BasicValueEnum::IntValue(int) => match operator {
+                        Type::Bang => self.builder.build_not(int, "unarynot"),
+                        Type::Minus => self.builder.build_int_neg(int, "unaryneg"),
+                        _ => panic!("Invalid unary operator"),
                     }
+                    .as_basic_value_enum(),
 
-                    BasicValueEnum::FloatValue(float) => {
-                        self.builder.build_float_neg(float, "unaryneg").as_basic_value_enum()
-                    }
+                    BasicValueEnum::FloatValue(float) => self
+                        .builder
+                        .build_float_neg(float, "unaryneg")
+                        .as_basic_value_enum(),
 
                     _ => panic!("Invalid unary operator"),
                 }
@@ -546,7 +546,10 @@ impl IRGenerator {
             MIRType::F32 => self.context.f32_type().as_basic_type_enum(),
             MIRType::F64 => self.context.f64_type().as_basic_type_enum(),
 
-            MIRType::Array(type_) => self.to_ir_type(type_).ptr_type(AddressSpace::Generic).as_basic_type_enum(),
+            MIRType::Array(type_) => self
+                .to_ir_type(type_)
+                .ptr_type(AddressSpace::Generic)
+                .as_basic_type_enum(),
 
             MIRType::String => self
                 .context

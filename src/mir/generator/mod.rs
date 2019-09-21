@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/21/19 2:16 PM.
+ * Last modified on 9/21/19 4:30 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -19,7 +19,9 @@ use crate::ast::literal::Literal;
 use crate::ast::module::Module;
 use crate::lexer::token::{Token, Type};
 use crate::mir::{MIRModule, MutRc};
-use crate::mir::nodes::{MIRArray, MIRExpression, MIRFlow, MIRFunction, MIRStructMem, MIRType, MIRVariable};
+use crate::mir::nodes::{
+    MIRArray, MIRExpression, MIRFlow, MIRFunction, MIRStructMem, MIRType, MIRVariable,
+};
 
 mod builder;
 pub mod module;
@@ -361,24 +363,28 @@ impl MIRGenerator {
                         let mir_val = self.generate_expression(value)?;
 
                         if mir_val.get_type() != arr_type {
-                            return Err(self.anon_err(value.get_token(), &format!(
-                                "Type of array value ({}) does not rest of array ({}).",
-                                mir_val.get_type(),
-                                arr_type
-                            )))
+                            return Err(self.anon_err(
+                                value.get_token(),
+                                &format!(
+                                    "Type of array value ({}) does not rest of array ({}).",
+                                    mir_val.get_type(),
+                                    arr_type
+                                ),
+                            ));
                         }
 
                         values_mir.push(mir_val);
                     }
 
-                    self.builder.build_literal(Literal::Array(Either::Right(MIRArray {
-                        values: values_mir,
-                        type_: arr_type
-                    })))
+                    self.builder
+                        .build_literal(Literal::Array(Either::Right(MIRArray {
+                            values: values_mir,
+                            type_: arr_type,
+                        })))
                 } else {
                     self.builder.build_literal(literal.clone())
                 }
-            },
+            }
 
             Expression::Return(val) => {
                 let value = val

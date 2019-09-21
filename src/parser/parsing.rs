@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/21/19 2:36 PM.
+ * Last modified on 9/21/19 4:30 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -515,7 +515,9 @@ impl Parser {
                     let mut types = Vec::new();
                     loop {
                         types.push(self.type_("Expected generic type.")?);
-                        if !self.match_token(Type::Comma) { break; }
+                        if !self.match_token(Type::Comma) {
+                            break;
+                        }
                     }
 
                     self.consume(Type::Greater, "Expected '>' after type parameters.")?;
@@ -537,7 +539,6 @@ impl Parser {
                         types,
                         arguments,
                     }
-
                 }
 
                 _ => break,
@@ -580,7 +581,9 @@ impl Parser {
             }
             self.consume(Type::Comma, "Expected ']' or ',' after array value.");
         }
-        Some(Expression::Literal(Literal::Array(Either::Left(Rc::new(values)))))
+        Some(Expression::Literal(Literal::Array(Either::Left(Rc::new(
+            values,
+        )))))
     }
 
     fn integer(&mut self) -> Option<Expression> {
@@ -631,18 +634,17 @@ impl Parser {
                     let mut types = Vec::new();
                     loop {
                         types.push(self.type_("Expected generic type.")?);
-                        if !self.match_token(Type::Comma) { break; }
+                        if !self.match_token(Type::Comma) {
+                            break;
+                        }
                     }
                     self.consume(Type::Greater, "Expected '>' after type parameters.")?;
 
-                    ASTType::Generic {
-                        token,
-                        types
-                    }
+                    ASTType::Generic { token, types }
                 } else {
                     ASTType::Token(token)
                 }
-            },
+            }
 
             Type::LeftBracket => {
                 self.advance(); // consume '['
@@ -655,7 +657,9 @@ impl Parser {
                 let mut params = Vec::new();
                 loop {
                     params.push(self.type_("Expected closure parameter type.")?);
-                    if !self.match_token(Type::Comma) { break; }
+                    if !self.match_token(Type::Comma) {
+                        break;
+                    }
                 }
 
                 self.consume(Type::RightParen, "Expected ')' after closure parameters.")?;

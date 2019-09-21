@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/17/19 5:15 PM.
+ * Last modified on 9/21/19 4:25 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -37,14 +37,14 @@ extern "C" fn test_printnum(num: i64) {
 fn run_all() -> Result<(), ()> {
     let mut test_path = env::current_dir().expect("Couldn't get current dir.");
     test_path.push("tests");
-    for_file(test_path)?;
+    for_file(test_path);
     Ok(())
 }
 
-fn for_file(file: PathBuf) -> Result<(), ()> {
+fn for_file(file: PathBuf) {
     if file.is_dir() {
         for file in file.read_dir().expect("Couldn't get current dir.") {
-            for_file(file.expect("Couldn't get file.").path())?;
+            for_file(file.expect("Couldn't get file.").path());
         }
     } else {
         println!("Running test: {}", file.to_str().unwrap());
@@ -59,8 +59,6 @@ fn for_file(file: PathBuf) -> Result<(), ()> {
             );
         }
     }
-
-    Ok(())
 }
 
 fn exec_jit(file: PathBuf) -> Result<String, ()> {

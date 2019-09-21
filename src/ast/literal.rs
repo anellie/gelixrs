@@ -1,14 +1,16 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/13/19 3:48 PM.
+ * Last modified on 9/21/19 4:30 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use crate::ast::declaration::Function;
 use std::rc::Rc;
-use crate::ast::expression::Expression;
-use crate::mir::nodes::{MIRType, MIRExpression, MIRArray};
+
 use either::Either;
+
+use crate::ast::declaration::Function;
+use crate::ast::expression::Expression;
+use crate::mir::nodes::{MIRArray, MIRExpression, MIRType};
 
 /// An enum containing all literals possible in Gelix.
 #[derive(Debug, Clone)]

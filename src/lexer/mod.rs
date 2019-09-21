@@ -1,13 +1,14 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/13/19 3:48 PM.
+ * Last modified on 9/21/19 4:30 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-pub mod token;
-
 use std::rc::Rc;
+
 use token::{Token, Type};
+
+pub mod token;
 
 /// A lexer is an iterator that turns gelix source code into [Token]s.
 pub struct Lexer {
@@ -58,10 +59,10 @@ impl Lexer {
             // Literals
             '"' => self.string(),
             '\'' => self.ch(),
-
-            // Other
-            _ if (ch.is_alphabetic() || ch == '_') => self.identifier(),
             _ if ch.is_ascii_digit() => self.number(),
+
+            // Identifiers/Keywords
+            _ if (ch.is_alphabetic() || ch == '_') => self.identifier(),
 
             _ => self.error_token("Unexpected symbol."),
         })
@@ -82,91 +83,38 @@ impl Lexer {
         while self.peek().is_alphanumeric() || self.check('_') {
             self.advance();
         }
-        self.make_token(self.identifier_type())
-    }
+        let mut token = self.make_token(Type::Identifier);
 
-    /// Returns the correct token type for the current token. Can be a keyword or identifier.
-    fn identifier_type(&self) -> Type {
-        match self.char_at(self.start) {
-            'a' => self.check_identifier_keyword(1, &['n', 'd'], Type::And),
-            'N' => self.check_identifier_keyword(1, &['o', 'n', 'e'], Type::None),
-            'o' => self.check_identifier_keyword(1, &['r'], Type::Or),
-            'r' => self.check_identifier_keyword(1, &['e', 't', 'u', 'r', 'n'], Type::Return),
-            's' => self.check_identifier_keyword(1, &['u', 'p', 'e', 'r'], Type::Super),
-            'w' => self.check_identifier_keyword(1, &['h', 'e', 'n'], Type::When),
-            'c' => self.check_identifier_keyword(1, &['l', 'a', 's', 's'], Type::Class),
-            'b' => self.check_identifier_keyword(1, &['r', 'e', 'a', 'k'], Type::Break),
-
-            'i' => match self.char_at(self.start + 1) {
-                'f' => self.check_identifier_keyword(2, &[], Type::If),
-                'm' => self.check_identifier_keyword(2, &['p', 'o', 'r', 't'], Type::Import),
-                'n' => self.check_identifier_keyword(2, &[], Type::In),
-                _ => Type::Identifier,
-            },
-
-            'e' => match self.char_at(self.start + 1) {
-                'l' => self.check_identifier_keyword(2, &['s', 'e'], Type::Else),
-                'n' => self.check_identifier_keyword(2, &['u', 'm'], Type::Enum),
-                'r' => self.check_identifier_keyword(2, &['r', 'o', 'r'], Type::Error),
-                'x' => match self.char_at(self.start + 2) {
-                    'f' => self.check_identifier_keyword(3, &['n'], Type::ExFn),
-                    't' => self.check_identifier_keyword(3, &[], Type::Ext),
-                    _ => Type::Identifier,
-                },
-                _ => Type::Identifier,
-            },
-
-            'v' => {
-                if self.char_at(self.start + 1) == 'a' {
-                    match self.char_at(self.start + 2) {
-                        'r' => self.check_identifier_keyword(3, &[], Type::Var),
-                        'l' => self.check_identifier_keyword(3, &[], Type::Val),
-                        _ => Type::Identifier,
-                    }
-                } else {
-                    Type::Identifier
-                }
-            }
-
-            'f' => match self.char_at(self.start + 1) {
-                'a' => self.check_identifier_keyword(2, &['l', 's', 'e'], Type::False),
-                'o' => self.check_identifier_keyword(2, &['r'], Type::For),
-                'r' => self.check_identifier_keyword(2, &['o', 'm'], Type::From),
-                'u' => self.check_identifier_keyword(2, &['n', 'c'], Type::Func),
-                _ => Type::Identifier,
-            },
-
-            't' => match self.char_at(self.start + 1) {
-                'o' => self.check_identifier_keyword(2, &[], Type::To),
-                'r' => self.check_identifier_keyword(2, &['u', 'e'], Type::True),
-                _ => Type::Identifier,
-            },
+        token.t_type = match &token.lexeme[..] {
+            "and" => Type::And,
+            "break" => Type::Break,
+            "class" => Type::Class,
+            "else" => Type::Else,
+            "enum" => Type::Enum,
+            "error" => Type::Error,
+            "exfn" => Type::ExFn,
+            "ext" => Type::Ext,
+            "false" => Type::False,
+            "for" => Type::For,
+            "from" => Type::From,
+            "func" => Type::Func,
+            "if" => Type::If,
+            "import" => Type::Import,
+            "in" => Type::In,
+            "None" => Type::None,
+            "or" => Type::Or,
+            "return" => Type::Return,
+            "super" => Type::Super,
+            "to" => Type::To,
+            "true" => Type::True,
+            "val" => Type::Val,
+            "var" => Type::Var,
+            "when" => Type::When,
 
             _ => Type::Identifier,
-        }
-    }
+        };
 
-    /// Helper function for [identifier_type], checks if rest of keyword matches
-    fn check_identifier_keyword(&self, start: usize, pattern: &[char], t_type: Type) -> Type {
-        // Check all chars in the pattern; if one does not match it isn't the keyword
-        if pattern
-            .iter()
-            .enumerate()
-            .any(|(i, ch)| self.char_at(self.start + start + i) != *ch)
-        {
-            return Type::Identifier;
-        }
-
-        // If the next char is alphabetic, it is an identifier that starts with a keyword ('superb')
-        // If it is not (other token, whitespace, etc.) it is the keyword type
-        if self
-            .char_at(self.start + start + pattern.len())
-            .is_alphabetic()
-        {
-            Type::Identifier
-        } else {
-            t_type
-        }
+        token
     }
 
     /// Creates a Int or Float token
