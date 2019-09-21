@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/17/19 5:15 PM.
+ * Last modified on 9/20/19 11:28 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -306,6 +306,8 @@ impl MIRBuilder {
             ASTType::Array(type_) => MIRType::Array(Box::new(self.find_type(type_)?)),
 
             ASTType::Closure { .. } => unimplemented!(),
+
+            ASTType::Generic { token, types } => unimplemented!(),
         })
     }
 

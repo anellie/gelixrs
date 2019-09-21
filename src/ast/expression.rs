@@ -1,8 +1,10 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/17/19 5:15 PM.
+ * Last modified on 9/21/19 2:16 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
+
+use crate::ast::declaration::ASTType;
 
 use super::declaration::Variable;
 use super::literal::Literal;
@@ -45,6 +47,14 @@ pub enum Expression {
     /// A method/function call.
     Call {
         callee: Box<Expression>,
+        arguments: Vec<Expression>,
+    },
+
+    /// A call with a generic; all valid cases of this are a constructor.
+    /// Thing<OtherThing>()
+    CallWithGeneric {
+        callee: Box<Expression>,
+        types: Vec<ASTType>,
         arguments: Vec<Expression>,
     },
 
@@ -120,6 +130,7 @@ impl Expression {
             Expression::Block(vec) => vec.first()?.get_token()?,
             Expression::Break(expr) => (*expr).as_ref()?.get_token()?,
             Expression::Call { callee, .. } => callee.get_token()?,
+            Expression::CallWithGeneric { callee, .. } => callee.get_token()?,
             Expression::For { condition, .. } => condition.get_token()?,
             Expression::Get { name, .. } => name,
             Expression::Grouping(expr) => expr.get_token()?,

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/17/19 5:15 PM.
+ * Last modified on 9/21/19 2:16 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -8,6 +8,8 @@
 //! and creating the AST from them.
 
 use std::rc::Rc;
+
+use either::Either;
 
 use crate::ast::declaration::ASTType;
 use crate::ast::module::Import;
@@ -23,7 +25,6 @@ use super::super::{
     },
     lexer::token::{Token, Type},
 };
-use either::Either;
 
 // All expressions that require no semicolon when used as a higher expression.
 static NO_SEMICOLON: [Type; 3] = [Type::If, Type::LeftBrace, Type::When];
@@ -123,6 +124,14 @@ impl Parser {
 
     fn class_declaration(&mut self) -> Option<Class> {
         let name = self.consume(Type::Identifier, "Expected a class name.")?;
+        let mut generics = Vec::new();
+        if self.match_token(Type::Less) {
+            while let Some(type_) = self.match_tokens(&[Type::Identifier]) {
+                generics.push(type_);
+                self.match_token(Type::Comma);
+            }
+            self.consume(Type::Greater, "Expected '>' after type parameters.")?;
+        }
 
         let superclass = if self.match_token(Type::Ext) {
             Some(self.consume(Type::Identifier, "Expected superclass name.")?)
@@ -147,6 +156,7 @@ impl Parser {
         self.consume(Type::RightBrace, "Expected '}' after class body.");
         Some(Class {
             name,
+            generics,
             superclass,
             methods,
             variables,
@@ -498,6 +508,36 @@ impl Parser {
                     }
                 }
 
+                // TODO deduplicate this
+                _ if self.match_token(Type::Less) => {
+                    let mut types = Vec::new();
+                    loop {
+                        types.push(self.type_("Expected generic type.")?);
+                        if !self.match_token(Type::Comma) { break; }
+                    }
+
+                    self.consume(Type::Greater, "Expected '>' after type parameters.")?;
+                    self.consume(Type::LeftParen, "Expected '(' after type parameters.")?;
+
+                    let mut arguments: Vec<Expression> = Vec::new();
+                    if !self.check(Type::RightParen) {
+                        loop {
+                            arguments.push(self.expression()?);
+                            if !self.match_token(Type::Comma) {
+                                break;
+                            }
+                        }
+                    }
+
+                    self.consume(Type::RightParen, "Expected ')' after call arguments.")?;
+                    expression = Expression::CallWithGeneric {
+                        callee: Box::new(expression),
+                        types,
+                        arguments,
+                    }
+
+                }
+
                 _ => break,
             }
         }
@@ -579,10 +619,28 @@ impl Parser {
         Expression::Literal(Literal::String(token.lexeme))
     }
 
-    /// Reads a type name
+    /// Reads a type name.
     fn type_(&mut self, msg: &str) -> Option<ASTType> {
         Some(match self.current.t_type {
-            Type::Identifier => ASTType::Token(self.advance()),
+            Type::Identifier => {
+                let token = self.advance();
+
+                if self.match_token(Type::Less) {
+                    let mut types = Vec::new();
+                    loop {
+                        types.push(self.type_("Expected generic type.")?);
+                        if !self.match_token(Type::Comma) { break; }
+                    }
+                    self.consume(Type::Greater, "Expected '>' after type parameters.")?;
+
+                    ASTType::Generic {
+                        token,
+                        types
+                    }
+                } else {
+                    ASTType::Token(token)
+                }
+            },
 
             Type::LeftBracket => {
                 self.advance(); // consume '['
@@ -593,9 +651,9 @@ impl Parser {
 
             Type::LeftParen => {
                 let mut params = Vec::new();
-                while let Some(param) = self.type_("") {
-                    params.push(param);
-                    self.match_token(Type::Comma);
+                loop {
+                    params.push(self.type_("Expected closure parameter type.")?);
+                    if !self.match_token(Type::Comma) { break; }
                 }
 
                 self.consume(Type::RightParen, "Expected ')' after closure parameters.")?;

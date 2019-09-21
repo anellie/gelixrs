@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/17/19 5:15 PM.
+ * Last modified on 9/21/19 2:16 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -19,7 +19,7 @@ use crate::ast::literal::Literal;
 use crate::ast::module::Module;
 use crate::lexer::token::{Token, Type};
 use crate::mir::{MIRModule, MutRc};
-use crate::mir::nodes::{MIRExpression, MIRFlow, MIRFunction, MIRStructMem, MIRType, MIRVariable, MIRArray};
+use crate::mir::nodes::{MIRArray, MIRExpression, MIRFlow, MIRFunction, MIRStructMem, MIRType, MIRVariable};
 
 mod builder;
 pub mod module;
@@ -217,6 +217,8 @@ impl MIRGenerator {
                     ));
                 }
             }
+
+            Expression::CallWithGeneric { .. } => unimplemented!(),
 
             Expression::For {
                 condition,
