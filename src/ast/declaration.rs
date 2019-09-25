@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/21/19 6:54 PM.
+ * Last modified on 9/21/19 8:27 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -15,6 +15,24 @@ pub struct Class {
     pub name: Token,
     pub generics: Vec<Token>,
     pub variables: Vec<Variable>,
+    pub methods: Vec<Function>,
+}
+
+// An interface definition.
+#[derive(Debug)]
+pub struct Interface {
+    pub name: Token,
+    pub generics: Vec<Token>,
+    pub methods: Vec<InterfaceFunc>,
+}
+
+/// An interface implementation for a class.
+#[derive(Debug)]
+pub struct IFaceImpl {
+    pub iface: Token,
+    pub class: Token,
+    pub iface_generics: Vec<Token>,
+    pub class_generics: Vec<Token>,
     pub methods: Vec<Function>,
 }
 
@@ -46,6 +64,13 @@ pub struct FunctionArg {
 pub struct Function {
     pub sig: FuncSignature,
     pub body: Expression,
+}
+
+/// A function inside an interface, where the body is the default implementation and optional
+#[derive(Debug)]
+pub struct InterfaceFunc {
+    pub sig: FuncSignature,
+    pub body: Option<Expression>,
 }
 
 /// A variable definition.

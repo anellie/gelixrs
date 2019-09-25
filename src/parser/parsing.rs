@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/21/19 6:54 PM.
+ * Last modified on 9/25/19 5:58 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,7 +11,7 @@ use std::rc::Rc;
 
 use either::Either;
 
-use crate::ast::declaration::ASTType;
+use crate::ast::declaration::{ASTType, IFaceImpl, Interface, InterfaceFunc};
 use crate::ast::module::Import;
 use crate::Error;
 
@@ -28,6 +28,9 @@ use super::super::{
 
 // All expressions that require no semicolon when used as a higher expression.
 static NO_SEMICOLON: [Type; 3] = [Type::If, Type::LeftBrace, Type::When];
+
+// All tokens that indicate that an interface function does not have a body (bodies are optional).
+static IFACE_END_OF_FUNCTION: [Type; 2] = [Type::Func, Type::RightBrace];
 
 #[macro_use]
 mod bin_macro {
@@ -81,6 +84,8 @@ impl Parser {
             Type::ExFn => module.ext_functions.push(self.ex_func_declaration()?),
             Type::Func => module.functions.push(self.function()?),
             Type::Import => module.imports.push(self.import_declaration()?),
+            Type::Interface => module.interfaces.push(self.iface_declaration()?),
+            Type::Impl => module.iface_impls.push(self.iface_impl()?),
             _ => self.error_at_current("Encountered invalid top-level declaration.")?,
         }
 
@@ -123,15 +128,7 @@ impl Parser {
     }
 
     fn class_declaration(&mut self) -> Option<Class> {
-        let name = self.consume(Type::Identifier, "Expected a class name.")?;
-        let mut generics = Vec::new();
-        if self.match_token(Type::Less) {
-            while let Some(type_) = self.match_tokens(&[Type::Identifier]) {
-                generics.push(type_);
-                self.match_token(Type::Comma);
-            }
-            self.consume(Type::Greater, "Expected '>' after type parameters.")?;
-        }
+        let (name, generics) = self.generic_ident()?;
 
         self.consume(Type::LeftBrace, "Expected '{' before class body.");
 
@@ -189,6 +186,59 @@ impl Parser {
 
         let symbol = path.pop().unwrap();
         Some(Import { path, symbol })
+    }
+
+    fn iface_declaration(&mut self) -> Option<Interface> {
+        let (name, generics) = self.generic_ident()?;
+
+        self.consume(Type::LeftBrace, "Expected '{' before interface body.");
+
+        let mut methods = Vec::new();
+        while !self.check(Type::RightBrace) && !self.is_at_end() {
+            match self.advance().t_type {
+                Type::Func => {
+                    let sig = self.ex_func_declaration()?;
+                    let body = if !IFACE_END_OF_FUNCTION.contains(&self.current.t_type) {
+                        Some(self.expression()?)
+                    } else {
+                        None
+                    };
+                    methods.push(InterfaceFunc { sig, body })
+                },
+                _ => self.error_at_current("Encountered invalid declaration inside interface.")?,
+            }
+        }
+
+        self.consume(Type::RightBrace, "Expected '}' after interface body.");
+        Some(Interface {
+            name,
+            generics,
+            methods,
+        })
+    }
+
+    fn iface_impl(&mut self) -> Option<IFaceImpl> {
+        let (iface, iface_generics) = self.generic_ident()?;
+        self.consume(Type::For, "Expected 'for' after interface name.");
+        let (class, class_generics) = self.generic_ident()?;
+        self.consume(Type::LeftBrace, "Expected '{' before impl body.");
+
+        let mut methods: Vec<Function> = Vec::new();
+        while !self.check(Type::RightBrace) && !self.is_at_end() {
+            match self.advance().t_type {
+                Type::Func => methods.push(self.function()?),
+                _ => self.error_at_current("Encountered invalid declaration inside impl.")?,
+            }
+        }
+        self.consume(Type::RightBrace, "Expected '}' after impl body.");
+
+        Some(IFaceImpl {
+            iface,
+            class,
+            iface_generics,
+            class_generics,
+            methods,
+        })
     }
 
     fn function(&mut self) -> Option<Function> {
@@ -615,6 +665,20 @@ impl Parser {
     fn string(&mut self) -> Expression {
         let token = self.advance();
         Expression::Literal(Literal::String(token.lexeme))
+    }
+
+    // Reads an identifier followed by optional generic type parameters.
+    fn generic_ident(&mut self) -> Option<(Token, Vec<Token>)> {
+        let name = self.consume(Type::Identifier, "Expected a name.")?;
+        let mut generics = Vec::new();
+        if self.match_token(Type::Less) {
+            while let Some(type_) = self.match_tokens(&[Type::Identifier]) {
+                generics.push(type_);
+                self.match_token(Type::Comma);
+            }
+            self.consume(Type::Greater, "Expected '>' after type parameters.")?;
+        }
+        Some((name, generics))
     }
 
     /// Reads a type name.

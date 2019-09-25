@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/21/19 4:30 PM.
+ * Last modified on 9/21/19 8:30 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -99,12 +99,13 @@ impl Lexer {
             "from" => Type::From,
             "func" => Type::Func,
             "if" => Type::If,
+            "impl" => Type::Impl,
             "import" => Type::Import,
             "in" => Type::In,
+            "interface" => Type::Interface,
             "None" => Type::None,
             "or" => Type::Or,
             "return" => Type::Return,
-            "super" => Type::Super,
             "to" => Type::To,
             "true" => Type::True,
             "val" => Type::Val,
