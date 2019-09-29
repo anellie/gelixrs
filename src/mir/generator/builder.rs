@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/21/19 7:06 PM.
+ * Last modified on 9/29/19 10:35 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,7 +12,7 @@ use crate::ast::declaration::ASTType;
 use crate::ast::literal::Literal;
 use crate::lexer::token::Type;
 use crate::mir::{MIRModule, MutRc, mutrc_new};
-use crate::mir::nodes::{MIRClass, MIRClassMember, MIRExpression, MIRFlow, MIRVariable};
+use crate::mir::nodes::{MIRClass, MIRClassMember, MIRExpression, MIRFlow, MIRInterface, MIRVariable};
 use crate::ModulePath;
 
 use super::super::nodes::{MIRFunction, MIRType};
@@ -25,7 +25,10 @@ pub struct MIRBuilder {
     /// The module the builder is inserting into.
     pub module: MIRModule,
 
-    /// Types and functions imported into this module by 'import' declarations
+    /// All interfaces in this module.
+    pub interfaces: HashMap<Rc<String>, MutRc<MIRInterface>>,
+
+    /// Types and functions imported into this module by 'import' declarations.
     imported_types: HashMap<Rc<String>, MutRc<MIRClass>>,
 
     /// Simply a const of the string "tmp".
@@ -104,6 +107,22 @@ impl MIRBuilder {
             Some(())
         } else {
             // Function already exists
+            None
+        }
+    }
+
+    pub fn create_interface(&mut self, name: &Rc<String>) -> Option<MutRc<MIRInterface>> {
+        let iface = mutrc_new(MIRInterface {
+            name: Rc::clone(name),
+            methods: HashMap::new(),
+            methods_order: Vec::new(),
+        });
+
+        if self.find_interface(name).is_none() {
+            self.interfaces.insert(Rc::clone(name), Rc::clone(&iface));
+            Some(iface)
+        } else {
+            // Interface already exists
             None
         }
     }
@@ -306,7 +325,7 @@ impl MIRBuilder {
 
             ASTType::Closure { .. } => unimplemented!(),
 
-            ASTType::Generic { token, types } => unimplemented!(),
+            ASTType::Generic { .. } => unimplemented!(),
         })
     }
 
@@ -332,6 +351,12 @@ impl MIRBuilder {
                         panic!("Not a function!")
                     }
                 })?,
+        ))
+    }
+
+    pub fn find_interface(&self, name: &String) -> Option<MutRc<MIRInterface>> {
+        Some(Rc::clone(
+            self.interfaces.get(name)?,
         ))
     }
 
@@ -375,6 +400,7 @@ impl MIRBuilder {
         MIRBuilder {
             position: None,
             module,
+            interfaces: HashMap::new(),
             imported_types: HashMap::new(),
             tmp_const: Rc::new("tmp".to_string()),
         }

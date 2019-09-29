@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/21/19 7:06 PM.
+ * Last modified on 9/29/19 10:32 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -683,7 +683,7 @@ impl MIRGenerator {
     /// Checks if the arg parameter is of the given type ty.
     /// Will do casts if needed to make the types match;
     /// returns the new expression that should be used in case a cast happened.
-    fn check_call_arg_type(&self, mut arg: MIRExpression, ty: &MIRType) -> Option<MIRExpression> {
+    fn check_call_arg_type(&self, arg: MIRExpression, ty: &MIRType) -> Option<MIRExpression> {
         let arg_type = arg.get_type();
         if &arg_type == ty {
             Some(arg)

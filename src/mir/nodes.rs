@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/21/19 6:54 PM.
+ * Last modified on 9/29/19 10:35 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -35,6 +35,7 @@ pub enum MIRType {
     Array(Box<MIRType>),
 
     Function(MutRc<MIRFunction>),
+
     Class(MutRc<MIRClass>),
 }
 
@@ -103,6 +104,16 @@ pub struct MIRClassMember {
     pub index: u32,
 }
 
+/// An abstract interface defining all its methods.
+#[derive(Debug)]
+pub struct MIRInterface {
+    pub name: Rc<String>,
+    // A map of all methods. If the method does not have a default implementation, it has no blocks/variables.
+    pub methods: HashMap<Rc<String>, MutRc<MIRFunction>>,
+    // All methods by index inside the interface struct.
+    pub methods_order: Vec<MutRc<MIRFunction>>,
+}
+
 /// A function in MIR. Consists of blocks.
 #[derive(Debug)]
 pub struct MIRFunction {
@@ -138,6 +149,7 @@ impl MIRFunction {
     }
 
     /// Inserts a variable into the functions allocation table.
+    /// Returns the name of it (should be used since a change can be needed due to colliding names).
     pub fn insert_var(&mut self, mut name: Rc<String>, var: Rc<MIRVariable>) -> Rc<String> {
         if self.variables.contains_key(&name) {
             name = Rc::new(format!("{}-{}", name, self.variables.len()));

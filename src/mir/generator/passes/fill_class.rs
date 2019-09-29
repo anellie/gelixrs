@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/21/19 7:08 PM.
+ * Last modified on 9/29/19 10:32 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,7 +12,7 @@ use crate::ast::module::Module;
 use crate::lexer::token::Token;
 use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::generator::passes::PreMIRPass;
-use crate::mir::nodes::{MIRClassMember, MIRExpression, MIRVariable};
+use crate::mir::nodes::{MIRClassMember, MIRVariable};
 
 /// This pass fills all classes with their members
 /// and creates their internal init function.

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/21/19 4:33 PM.
+ * Last modified on 9/29/19 10:35 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -8,9 +8,11 @@ use std::rc::Rc;
 
 use crate::ast::module::Module;
 use crate::mir::generator::{MIRError, MIRGenerator, Res};
-use crate::mir::generator::passes::declare::{DeclareClassPass, DeclareFuncPass};
+use crate::mir::generator::passes::declare_class::DeclareClassPass;
+use crate::mir::generator::passes::declare_func::DeclareFuncPass;
+use crate::mir::generator::passes::declare_interface::DeclareIFacePass;
 use crate::mir::generator::passes::fill_class::FillClassPass;
-use crate::mir::generator::passes::import::{ImportClassPass, ImportFuncPass};
+use crate::mir::generator::passes::import::{class_imports, ensure_no_imports, function_imports};
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::MIRModule;
 
@@ -26,11 +28,15 @@ impl MIRModuleGenerator {
         self.run_for_all(Box::new(|(module, gen)| {
             DeclareClassPass::new(gen).run(module)
         }))?;
-        ImportClassPass::new(&mut self.modules).run();
+        class_imports(&mut self.modules);
+        self.run_for_all(Box::new(|(module, gen)| {
+            DeclareIFacePass::new(gen).run(module)
+        }))?;
         self.run_for_all(Box::new(|(module, gen)| {
             DeclareFuncPass::new(gen).run(module)
         }))?;
-        ImportFuncPass::new(&mut self.modules).run()?;
+        function_imports(&mut self.modules);
+        ensure_no_imports(&mut self.modules)?;
         self.run_for_all(Box::new(|(module, gen)| {
             FillClassPass::new(gen).run(module)
         }))?;
