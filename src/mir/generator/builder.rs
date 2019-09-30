@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/29/19 10:35 PM.
+ * Last modified on 9/30/19 2:22 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -318,7 +318,12 @@ impl MIRBuilder {
                 "f64" => MIRType::F64,
 
                 "String" => MIRType::String,
-                _ => MIRType::Class(self.find_class(&tok.lexeme)?),
+
+                _ => {
+                    self.find_class(&tok.lexeme)
+                        .map(|c| MIRType::Class(c))
+                        .or_else(|| Some(MIRType::Interface(self.find_interface(&tok.lexeme)?)))?
+                },
             },
 
             ASTType::Array(type_) => MIRType::Array(Box::new(self.find_type(type_)?)),

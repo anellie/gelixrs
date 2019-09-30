@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/29/19 10:35 PM.
+ * Last modified on 9/30/19 2:20 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -37,6 +37,8 @@ pub enum MIRType {
     Function(MutRc<MIRFunction>),
 
     Class(MutRc<MIRClass>),
+
+    Interface(MutRc<MIRInterface>),
 }
 
 impl PartialEq for MIRType {
@@ -109,7 +111,7 @@ pub struct MIRClassMember {
 pub struct MIRInterface {
     pub name: Rc<String>,
     // A map of all methods. If the method does not have a default implementation, it has no blocks/variables.
-    pub methods: HashMap<Rc<String>, MutRc<MIRFunction>>,
+    pub methods: HashMap<Rc<String>, Rc<MIRVariable>>,
     // All methods by index inside the interface struct.
     pub methods_order: Vec<MutRc<MIRFunction>>,
 }
