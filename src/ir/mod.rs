@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/1/19 6:13 PM.
+ * Last modified on 10/2/19 1:22 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,25 +12,26 @@ use std::{
 };
 
 use inkwell::{
+    AddressSpace,
     basic_block::BasicBlock,
     builder::Builder,
     context::Context,
+    IntPredicate,
     module::Module,
     passes::PassManager,
-    types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType, StructType},
-    values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
-    AddressSpace, IntPredicate,
+    types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType, StructType}, values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
 };
 
-use crate::module_path_to_string;
+use crate::mir::nodes::MIRInterface;
 
 use super::{
     ast::literal::Literal,
     lexer::token::Type,
     mir::{
-        nodes::{MIRBlock, MIRClass, MIRExpression, MIRFlow, MIRFunction, MIRType, MIRVariable},
         MIRModule,
+        nodes::{MIRBlock, MIRClass, MIRExpression, MIRFlow, MIRFunction, MIRType, MIRVariable},
     },
+    module_path_to_string
 };
 
 /// A generator that creates LLVM IR out of Gelix mid-level IR (MIR).
@@ -51,7 +52,7 @@ pub struct IRGenerator {
     /// All blocks in the current function.
     blocks: HashMap<Rc<String>, BasicBlock>,
 
-    /// All types (classes/structs) that are available.
+    /// All types (classes/interfaces/structs) that are available.
     types: HashMap<Rc<String>, StructType>,
 
     /// A constant that is used for expressions that don't produce a value but are required to,
@@ -64,9 +65,14 @@ pub struct IRGenerator {
 impl IRGenerator {
     /// Generates IR. Will process all MIR modules given.
     pub fn generate(mut self, mir: Vec<MIRModule>) -> Module {
-        // Create structs for all classes first
+        // Create structs for all classes & interfaces first
         for module in mir.iter() {
-            for struc in module.types.iter() {
+            for struc in module.classes.iter() {
+                let struc = struc.1.borrow();
+                let val = self.context.opaque_struct_type(&struc.name);
+                self.types.insert(Rc::clone(&struc.name), val);
+            }
+            for struc in module.interfaces.iter() {
                 let struc = struc.1.borrow();
                 let val = self.context.opaque_struct_type(&struc.name);
                 self.types.insert(Rc::clone(&struc.name), val);
@@ -84,7 +90,7 @@ impl IRGenerator {
         }
         finished_modules.push(self.module);
 
-        let finished_module = finished_modules.pop().unwrap();
+        let finished_module = finished_modules.swap_remove(0);
         for module in finished_modules.into_iter() {
             if let Err(msg) = finished_module.link_in_module(module) {
                 panic!(format!("LLVM linking error: {}", msg.to_string()))
@@ -115,9 +121,12 @@ impl IRGenerator {
             );
         }
 
-        mir.types
+        mir.classes
             .into_iter()
-            .for_each(|struc| self.struc(struc.1.borrow()));
+            .for_each(|struc| self.class_to_struct(struc.1.borrow()));
+        mir.interfaces
+            .into_iter()
+            .for_each(|struc| self.iface_to_struct(struc.1.borrow()));
         mir.functions
             .into_iter()
             .for_each(|(name, func)| self.function(name, func));
@@ -125,11 +134,23 @@ impl IRGenerator {
         self.mpm.run_on(&self.module);
     }
 
-    /// Generates a struct and its body
-    fn struc(&mut self, _struc: Ref<MIRClass>) {
-        let struc_val = self.types[&_struc.name];
-        let body: Vec<BasicTypeEnum> = _struc
+    /// Generates a class struct and its body
+    fn class_to_struct(&mut self, class: Ref<MIRClass>) {
+        let struc_val = self.types[&class.name];
+        let body: Vec<BasicTypeEnum> = class
             .member_order
+            .iter()
+            .map(|mem| self.to_ir_type_no_ptr(&mem._type))
+            .collect();
+        struc_val.set_body(body.as_slice(), false);
+    }
+
+    /// Generates a interface struct and its body (which is simply a collection of function pointers)
+    fn iface_to_struct(&mut self, iface: Ref<MIRInterface>) {
+        let struc_val = self.types[&iface.name];
+        println!("{}", iface.name);
+        let body: Vec<BasicTypeEnum> = iface
+            .methods_order
             .iter()
             .map(|mem| self.to_ir_type_no_ptr(&mem._type))
             .collect();
@@ -561,10 +582,7 @@ impl IRGenerator {
                 .ptr_type(AddressSpace::Generic)
                 .as_basic_type_enum(),
             MIRType::Class(struc) => self.types[&struc.borrow().name].as_basic_type_enum(),
-            MIRType::Interface(_) => {
-                eprintln!("WARN: Unimplemented interface type. Returning dummy type (i1)...");
-                self.context.bool_type().as_basic_type_enum()
-            }
+            MIRType::Interface(iface) => self.types[&iface.borrow().name].as_basic_type_enum(),
         }
     }
 

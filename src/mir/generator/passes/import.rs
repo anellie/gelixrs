@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/29/19 10:35 PM.
+ * Last modified on 10/2/19 1:22 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -9,11 +9,11 @@ use std::rc::Rc;
 
 use either::Either;
 
+use crate::{module_path_to_string, ModulePath};
 use crate::ast::module::{Import, Module};
 use crate::mir::generator::{MIRError, MIRGenerator};
-use crate::mir::nodes::{MIRClass, MIRVariable};
 use crate::mir::MutRc;
-use crate::{module_path_to_string, ModulePath};
+use crate::mir::nodes::{MIRClass, MIRInterface, MIRVariable};
 
 type ModulesRef<'t> = &'t mut Vec<(Module, MIRGenerator)>;
 
@@ -39,6 +39,8 @@ pub fn class_imports(modules: ModulesRef) {
     });
 }
 
+/// Returns the classes at the given module path.
+/// If the module path ends in a wildcard, a set of classes is returned.
 fn find_class<'t>(
     modules: ModulesRef<'t>,
     path: &ModulePath,
@@ -48,8 +50,51 @@ fn find_class<'t>(
 
     if let Some(module) = module {
         match &name[..] {
-            "+" => Either::Right(&module.1.builder.module.types),
+            "+" => Either::Right(&module.1.builder.module.classes),
             _ => Either::Left(module.1.builder.find_class(name)),
+        }
+    } else {
+        Either::Left(None)
+    }
+}
+
+/// This pass tries to resolve all imports to an interface.
+/// TODO: This, along with some related code in the builder, is mostly the same as classes.
+/// TODO: Deduplicate in some way?
+pub fn interface_imports(modules: ModulesRef) {
+    drain_mod_imports(modules, &mut |modules, gen, import| {
+        match find_interface(modules, &import.path, &import.symbol) {
+            Either::Left(iface) => {
+                iface.and_then(|iface| gen.builder.add_imported_iface(iface, true))
+            }
+
+            Either::Right(ifaces) => {
+                // Do not import interface methods.
+                // They are imported later in function imports, as they appear
+                // as regular functions in the module
+                ifaces.iter().try_for_each(|(_, iface)| {
+                    gen.builder.add_imported_iface(Rc::clone(iface), false)
+                });
+                None // Functions still need to be imported!
+            }
+        }
+            .is_some()
+    });
+}
+
+/// Returns the interface at the given module path.
+/// If the module path ends in a wildcard, a set of interfaces is returned.
+fn find_interface<'t>(
+    modules: ModulesRef<'t>,
+    path: &ModulePath,
+    name: &String,
+) -> Either<Option<MutRc<MIRInterface>>, &'t HashMap<Rc<String>, MutRc<MIRInterface>>> {
+    let module = modules.iter().find(|(module, _)| &*module.path == path);
+
+    if let Some(module) = module {
+        match &name[..] {
+            "+" => Either::Right(&module.1.builder.module.interfaces),
+            _ => Either::Left(module.1.builder.find_interface(name)),
         }
     } else {
         Either::Left(None)
@@ -70,6 +115,8 @@ pub fn function_imports(modules: ModulesRef) {
     });
 }
 
+/// Returns the function at the given module path.
+/// If the module path ends in a wildcard, a set of functions is returned.
 fn find_func<'t>(
     modules: ModulesRef<'t>,
     path: &ModulePath,

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/30/19 2:22 PM.
+ * Last modified on 10/2/19 1:22 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,10 +11,10 @@ use std::rc::Rc;
 use crate::ast::declaration::ASTType;
 use crate::ast::literal::Literal;
 use crate::lexer::token::Type;
+use crate::mir::{MIRModule, MutRc, mutrc_new};
 use crate::mir::nodes::{
     MIRClass, MIRClassMember, MIRExpression, MIRFlow, MIRInterface, MIRVariable,
 };
-use crate::mir::{mutrc_new, MIRModule, MutRc};
 use crate::ModulePath;
 
 use super::super::nodes::{MIRFunction, MIRType};
@@ -27,11 +27,8 @@ pub struct MIRBuilder {
     /// The module the builder is inserting into.
     pub module: MIRModule,
 
-    /// All interfaces in this module.
-    pub interfaces: HashMap<Rc<String>, MutRc<MIRInterface>>,
-
-    /// Types imported into this module by 'import' declarations.
-    imported_types: HashMap<Rc<String>, MutRc<MIRClass>>,
+    /// Things imported into this module by 'import' declarations.
+    imports: Imports,
 
     /// Simply a const of the string "tmp".
     /// Used for temporary variables needed for class init.
@@ -49,7 +46,7 @@ impl MIRBuilder {
 
         if self.find_class(&name).is_none() {
             self.module
-                .types
+                .classes
                 .insert(Rc::clone(&name), Rc::clone(&class));
             Some(class)
         } else {
@@ -65,7 +62,7 @@ impl MIRBuilder {
     ) -> Option<()> {
         let name = Rc::clone(&class.borrow().name);
         if self.find_class(&name).is_none() {
-            self.imported_types
+            self.imports.classes
                 .insert(Rc::clone(&name), Rc::clone(&class));
             if import_methods {
                 for (_, method) in class.borrow().methods.iter() {
@@ -113,6 +110,27 @@ impl MIRBuilder {
         }
     }
 
+    pub fn add_imported_iface(
+        &mut self,
+        iface: MutRc<MIRInterface>,
+        import_methods: bool,
+    ) -> Option<()> {
+        let name = Rc::clone(&iface.borrow().name);
+        if self.find_interface(&name).is_none() {
+            self.imports.interfaces
+                .insert(Rc::clone(&name), Rc::clone(&iface));
+            if import_methods {
+                for (_, method) in iface.borrow().methods.iter() {
+                    self.add_imported_function(Rc::clone(method))?;
+                }
+            }
+            Some(())
+        } else {
+            // Interface already exists
+            None
+        }
+    }
+
     pub fn create_interface(&mut self, name: &Rc<String>) -> Option<MutRc<MIRInterface>> {
         let iface = mutrc_new(MIRInterface {
             name: Rc::clone(name),
@@ -121,7 +139,7 @@ impl MIRBuilder {
         });
 
         if self.find_interface(name).is_none() {
-            self.interfaces.insert(Rc::clone(name), Rc::clone(&iface));
+            self.module.interfaces.insert(Rc::clone(name), Rc::clone(&iface));
             Some(iface)
         } else {
             // Interface already exists
@@ -338,9 +356,9 @@ impl MIRBuilder {
     pub fn find_class(&self, name: &String) -> Option<MutRc<MIRClass>> {
         Some(Rc::clone(
             self.module
-                .types
+                .classes
                 .get(name)
-                .or_else(|| self.imported_types.get(name))?,
+                .or_else(|| self.imports.classes.get(name))?,
         ))
     }
 
@@ -361,7 +379,7 @@ impl MIRBuilder {
     }
 
     pub fn find_interface(&self, name: &String) -> Option<MutRc<MIRInterface>> {
-        Some(Rc::clone(self.interfaces.get(name)?))
+        Some(Rc::clone(self.module.interfaces.get(name)?))
     }
 
     pub fn set_pointer(&mut self, function: MutRc<MIRFunction>, block: Rc<String>) {
@@ -404,8 +422,7 @@ impl MIRBuilder {
         MIRBuilder {
             position: None,
             module,
-            interfaces: HashMap::new(),
-            imported_types: HashMap::new(),
+            imports: Imports::default(),
             tmp_const: Rc::new("tmp".to_string()),
         }
     }
@@ -414,4 +431,10 @@ impl MIRBuilder {
 pub struct Pointer {
     pub function: MutRc<MIRFunction>,
     block: Rc<String>,
+}
+
+#[derive(Default)]
+pub struct Imports {
+    classes: HashMap<Rc<String>, MutRc<MIRClass>>,
+    interfaces: HashMap<Rc<String>, MutRc<MIRInterface>>,
 }

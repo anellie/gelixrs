@@ -1,0 +1,33 @@
+/*
+ok
+ok
+*/
+
+interface Test {
+    func test() -> String
+}
+
+class A {
+    val a = "ok"
+}
+
+impl Test for A {
+    func test() -> String this.a
+}
+
+class B {
+    val b = "ok"
+}
+
+impl Test for B {
+    func test() -> String this.b
+}
+
+func main() {
+    test(A())
+    test(B())
+}
+
+func test(Test t) {
+    print(t.test())
+}

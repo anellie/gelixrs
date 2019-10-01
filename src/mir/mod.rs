@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/21/19 4:44 PM.
+ * Last modified on 10/2/19 1:22 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -10,6 +10,7 @@ use std::rc::Rc;
 
 use nodes::{MIRClass, MIRVariable};
 
+use crate::mir::nodes::MIRInterface;
 use crate::ModulePath;
 
 pub mod generator;
@@ -25,7 +26,8 @@ fn mutrc_new<T>(value: T) -> MutRc<T> {
 #[derive(Debug, Default)]
 pub struct MIRModule {
     pub path: Rc<ModulePath>,
-    pub types: HashMap<Rc<String>, MutRc<MIRClass>>,
+    pub classes: HashMap<Rc<String>, MutRc<MIRClass>>,
+    pub interfaces: HashMap<Rc<String>, MutRc<MIRInterface>>,
     pub functions: HashMap<Rc<String>, Rc<MIRVariable>>,
     /// Imported functions will only be declared; not defined.
     /// They are defined when modules are linked/combined at the end of IR generation.

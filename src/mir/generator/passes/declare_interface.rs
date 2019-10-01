@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/30/19 2:26 PM.
+ * Last modified on 10/2/19 1:22 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -9,8 +9,8 @@ use std::rc::Rc;
 use crate::ast::declaration::{ASTType, FunctionArg, Interface};
 use crate::ast::module::Module;
 use crate::lexer::token::Token;
-use crate::mir::generator::passes::declare_func::create_function;
 use crate::mir::generator::{MIRGenerator, Res};
+use crate::mir::generator::passes::declare_func::create_function;
 
 /// This pass declares all interfaces.
 pub fn declare_interface_pass(gen: &mut MIRGenerator, module: &mut Module) -> Res<()> {
@@ -42,7 +42,8 @@ fn create_interface(gen: &mut MIRGenerator, interface: &mut Interface) -> Res<()
         method.sig.parameters.insert(0, this_arg.clone());
 
         let mir_method = create_function(gen, &method.sig)?;
-        mir_iface.methods.insert(old_name, mir_method);
+        mir_iface.methods.insert(old_name, Rc::clone(&mir_method));
+        mir_iface.methods_order.push(mir_method);
     }
 
     Ok(())

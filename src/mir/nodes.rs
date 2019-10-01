@@ -1,11 +1,11 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/1/19 6:10 PM.
+ * Last modified on 10/2/19 1:21 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Error, Formatter};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
@@ -115,7 +115,7 @@ pub struct MIRInterface {
     // A map of all methods. If the method does not have a default implementation, it has no blocks/variables.
     pub methods: HashMap<Rc<String>, Rc<MIRVariable>>,
     // All methods by index inside the interface struct.
-    pub methods_order: Vec<MutRc<MIRFunction>>,
+    pub methods_order: Vec<Rc<MIRVariable>>,
 }
 
 /// A function in MIR. Consists of blocks.
