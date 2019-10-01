@@ -12,16 +12,16 @@ use either::Either;
 
 use builder::MIRBuilder;
 
-use crate::{Error, ModulePath};
 use crate::ast::declaration::Function;
 use crate::ast::expression::Expression;
 use crate::ast::literal::Literal;
 use crate::ast::module::Module;
 use crate::lexer::token::{Token, Type};
-use crate::mir::{MIRModule, MutRc};
 use crate::mir::nodes::{
     MIRArray, MIRClassMember, MIRExpression, MIRFlow, MIRFunction, MIRType, MIRVariable,
 };
+use crate::mir::{MIRModule, MutRc};
+use crate::{Error, ModulePath};
 
 mod builder;
 pub mod module;
@@ -51,11 +51,14 @@ pub struct MIRGenerator {
 
 impl MIRGenerator {
     fn generate_mir(&mut self, module: &Module) -> Res<()> {
-        for func in module
-            .functions
-            .iter()
-            .chain(module.classes.iter().map(|class| &class.methods).flatten().chain(module.iface_impls.iter().map(|im| &im.methods).flatten()))
-        {
+        for func in module.functions.iter().chain(
+            module
+                .classes
+                .iter()
+                .map(|class| &class.methods)
+                .flatten()
+                .chain(module.iface_impls.iter().map(|im| &im.methods).flatten()),
+        ) {
             self.generate_function(func)?;
         }
 
@@ -591,7 +594,10 @@ impl MIRGenerator {
         &mut self,
         object: &Expression,
         name: &Token,
-    ) -> Res<(MIRExpression, Either<Rc<MIRClassMember>, MutRc<MIRFunction>>)> {
+    ) -> Res<(
+        MIRExpression,
+        Either<Rc<MIRClassMember>, MutRc<MIRFunction>>,
+    )> {
         let object = self.generate_expression(object)?;
 
         if let MIRType::Class(class) = object.get_type() {
@@ -753,7 +759,7 @@ impl MIRGenerator {
 
 /// All data of a loop.
 struct ForLoop {
-    /// The alloca of the for loop. Can be None for loops that return None type.
+    /// The alloca of the for loop result. Can be None for loops that return None type.
     result_var: Option<Rc<MIRVariable>>,
     /// The block to jump to when the current loop finishes.
     cont_block: Rc<String>,

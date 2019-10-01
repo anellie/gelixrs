@@ -6,8 +6,9 @@
 
 use std::fmt;
 
-use super::expression::Expression;
 use super::super::lexer::token::Token;
+use super::expression::Expression;
+use std::rc::Rc;
 
 /// A class definition.
 #[derive(Debug)]
@@ -57,6 +58,16 @@ pub struct FuncSignature {
 pub struct FunctionArg {
     pub _type: ASTType,
     pub name: Token,
+}
+
+impl FunctionArg {
+    /// Used to create the implicit 'this' arg in class & iface methods.
+    pub fn this_arg(ty: &Token) -> FunctionArg {
+        FunctionArg {
+            name: Token::generic_identifier("this".to_string()),
+            _type: ASTType::Token(ty.clone()),
+        }
+    }
 }
 
 /// A function definition.

@@ -11,8 +11,10 @@ use std::rc::Rc;
 use crate::ast::declaration::ASTType;
 use crate::ast::literal::Literal;
 use crate::lexer::token::Type;
-use crate::mir::{MIRModule, MutRc, mutrc_new};
-use crate::mir::nodes::{MIRClass, MIRClassMember, MIRExpression, MIRFlow, MIRInterface, MIRVariable};
+use crate::mir::nodes::{
+    MIRClass, MIRClassMember, MIRExpression, MIRFlow, MIRInterface, MIRVariable,
+};
+use crate::mir::{mutrc_new, MIRModule, MutRc};
 use crate::ModulePath;
 
 use super::super::nodes::{MIRFunction, MIRType};
@@ -28,7 +30,7 @@ pub struct MIRBuilder {
     /// All interfaces in this module.
     pub interfaces: HashMap<Rc<String>, MutRc<MIRInterface>>,
 
-    /// Types and functions imported into this module by 'import' declarations.
+    /// Types imported into this module by 'import' declarations.
     imported_types: HashMap<Rc<String>, MutRc<MIRClass>>,
 
     /// Simply a const of the string "tmp".
@@ -319,11 +321,10 @@ impl MIRBuilder {
 
                 "String" => MIRType::String,
 
-                _ => {
-                    self.find_class(&tok.lexeme)
-                        .map(|c| MIRType::Class(c))
-                        .or_else(|| Some(MIRType::Interface(self.find_interface(&tok.lexeme)?)))?
-                },
+                _ => self
+                    .find_class(&tok.lexeme)
+                    .map(|c| MIRType::Class(c))
+                    .or_else(|| Some(MIRType::Interface(self.find_interface(&tok.lexeme)?)))?,
             },
 
             ASTType::Array(type_) => MIRType::Array(Box::new(self.find_type(type_)?)),
@@ -360,9 +361,7 @@ impl MIRBuilder {
     }
 
     pub fn find_interface(&self, name: &String) -> Option<MutRc<MIRInterface>> {
-        Some(Rc::clone(
-            self.interfaces.get(name)?,
-        ))
+        Some(Rc::clone(self.interfaces.get(name)?))
     }
 
     pub fn set_pointer(&mut self, function: MutRc<MIRFunction>, block: Rc<String>) {

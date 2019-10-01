@@ -6,50 +6,37 @@
 
 use std::rc::Rc;
 
-use crate::ast::declaration::{ASTType, FuncSignature};
+use crate::ast::declaration::FuncSignature;
 use crate::ast::module::Module;
-use crate::lexer::token::Token;
+use crate::mir::generator::passes::NONE_CONST;
 use crate::mir::generator::{MIRGenerator, Res};
-use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::nodes::{MIRType, MIRVariable};
 
-/// This pass declares all functions.
-pub struct DeclareFuncPass<'p> {
-    gen: &'p mut MIRGenerator,
-    none_const: ASTType,
-}
-
-impl<'p> PreMIRPass for DeclareFuncPass<'p> {
-    fn run(self, module: &mut Module) -> Res<()> {
-        for function in module
-            .ext_functions
-            .iter()
-            .chain(module.functions.iter().map(|f| &f.sig))
-            {
-                create_function(self.gen, &function, &self.none_const)?;
-            }
-
-        Ok(())
+/// This pass generates all functions.
+pub fn declare_func_pass(gen: &mut MIRGenerator, module: &mut Module) -> Res<()> {
+    for function in module
+        .ext_functions
+        .iter()
+        .chain(module.functions.iter().map(|f| &f.sig))
+    {
+        create_function(gen, &function)?;
     }
-}
 
-impl<'p> DeclareFuncPass<'p> {
-    pub fn new(gen: &'p mut MIRGenerator) -> DeclareFuncPass<'p> {
-        Self {
-            gen,
-            none_const: ASTType::Token(Token::generic_identifier("None".to_string())),
-        }
-    }
+    Ok(())
 }
 
 pub(super) fn create_function(
     gen: &mut MIRGenerator,
     func_sig: &FuncSignature,
-    none_const: &ASTType,
 ) -> Res<Rc<MIRVariable>> {
     let ret_type = gen
         .builder
-        .find_type(func_sig.return_type.as_ref().unwrap_or(none_const))
+        .find_type(
+            func_sig
+                .return_type
+                .as_ref()
+                .unwrap_or(&NONE_CONST.with(|c| c.clone())),
+        )
         .ok_or_else(|| {
             let tok = func_sig.return_type.as_ref().unwrap().get_token();
             MIRGenerator::anon_err(gen, tok, "Unknown function return type")

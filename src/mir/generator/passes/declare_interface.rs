@@ -9,53 +9,41 @@ use std::rc::Rc;
 use crate::ast::declaration::{ASTType, FunctionArg, Interface};
 use crate::ast::module::Module;
 use crate::lexer::token::Token;
-use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::generator::passes::declare_func::create_function;
-use crate::mir::generator::passes::PreMIRPass;
+use crate::mir::generator::{MIRGenerator, Res};
 
 /// This pass declares all interfaces.
-pub struct DeclareIFacePass<'p> {
-    gen: &'p mut MIRGenerator,
-    none_const: ASTType,
+pub fn declare_interface_pass(gen: &mut MIRGenerator, module: &mut Module) -> Res<()> {
+    for interface in module.interfaces.iter_mut() {
+        create_interface(gen, interface)?
+    }
+
+    Ok(())
 }
 
-impl<'p> PreMIRPass for DeclareIFacePass<'p> {
-    fn run(mut self, module: &mut Module) -> Res<()> {
-        for interface in module.interfaces.iter_mut() {
-            self.create_interface(interface)?
-        }
+fn create_interface(gen: &mut MIRGenerator, interface: &mut Interface) -> Res<()> {
+    let mir_iface = gen
+        .builder
+        .create_interface(&interface.name.lexeme)
+        .ok_or(gen.error(
+            &interface.name,
+            &interface.name,
+            "Interface with the same name already defined.",
+        ))?;
+    let mut mir_iface = mir_iface.borrow_mut();
 
-        Ok(())
-    }
-}
+    let this_arg = FunctionArg::this_arg(&interface.name);
+    for method in interface.methods.iter_mut() {
+        let old_name = Rc::clone(&method.sig.name.lexeme);
+        method.sig.name.lexeme = Rc::new(format!(
+            "{}-{}",
+            interface.name.lexeme, method.sig.name.lexeme
+        ));
+        method.sig.parameters.insert(0, this_arg.clone());
 
-impl<'p> DeclareIFacePass<'p> {
-    fn create_interface(&mut self, interface: &mut Interface) -> Res<()> {
-        let mir_iface = self.gen.builder.create_interface(&interface.name.lexeme)
-            .ok_or(self.gen.error(&interface.name, &interface.name, "Interface with the same name already defined."))?;
-        let mut mir_iface = mir_iface.borrow_mut();
-
-        let this_arg = FunctionArg {
-            name: Token::generic_identifier("this".to_string()),
-            _type: ASTType::Token(interface.name.clone()),
-        };
-
-        for method in interface.methods.iter_mut() {
-            let old_name = Rc::clone(&method.sig.name.lexeme);
-            method.sig.name.lexeme = Rc::new(format!("{}-{}", interface.name.lexeme, method.sig.name.lexeme));
-            method.sig.parameters.insert(0, this_arg.clone());
-
-            let mir_method = create_function(self.gen, &method.sig, &self.none_const)?;
-            mir_iface.methods.insert(old_name, mir_method);
-        }
-
-        Ok(())
+        let mir_method = create_function(gen, &method.sig)?;
+        mir_iface.methods.insert(old_name, mir_method);
     }
 
-    pub fn new(gen: &'p mut MIRGenerator) -> DeclareIFacePass<'p> {
-        Self {
-            gen,
-            none_const: ASTType::Token(Token::generic_identifier("None".to_string())),
-        }
-    }
+    Ok(())
 }

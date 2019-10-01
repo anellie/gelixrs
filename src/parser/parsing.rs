@@ -15,7 +15,6 @@ use crate::ast::declaration::{ASTType, IFaceImpl, Interface, InterfaceFunc};
 use crate::ast::module::Import;
 use crate::Error;
 
-use super::Parser;
 use super::super::{
     ast::{
         declaration::{Class, Enum, FuncSignature, Function, FunctionArg, Variable},
@@ -25,6 +24,7 @@ use super::super::{
     },
     lexer::token::{Token, Type},
 };
+use super::Parser;
 
 // All expressions that require no semicolon when used as a higher expression.
 static NO_SEMICOLON: [Type; 3] = [Type::If, Type::LeftBrace, Type::When];
@@ -204,7 +204,7 @@ impl Parser {
                         None
                     };
                     methods.push(InterfaceFunc { sig, body })
-                },
+                }
                 _ => self.error_at_current("Encountered invalid declaration inside interface.")?,
             }
         }

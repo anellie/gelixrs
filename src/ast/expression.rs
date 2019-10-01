@@ -6,9 +6,9 @@
 
 use crate::ast::declaration::ASTType;
 
+use super::super::lexer::token::{Token, Type};
 use super::declaration::Variable;
 use super::literal::Literal;
-use super::super::lexer::token::{Token, Type};
 
 /// All binary operand types that return a bool instead of the types of their values.
 pub static LOGICAL_BINARY: [Type; 6] = [

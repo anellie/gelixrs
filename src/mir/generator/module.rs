@@ -7,14 +7,13 @@
 use std::rc::Rc;
 
 use crate::ast::module::Module;
-use crate::mir::generator::{MIRError, MIRGenerator, Res};
-use crate::mir::generator::passes::declare_class::DeclareClassPass;
-use crate::mir::generator::passes::declare_func::DeclareFuncPass;
-use crate::mir::generator::passes::declare_interface::DeclareIFacePass;
-use crate::mir::generator::passes::fill_class::FillClassPass;
-use crate::mir::generator::passes::iface_impl::IfaceImplPass;
+use crate::mir::generator::passes::declare_class::declare_class_pass;
+use crate::mir::generator::passes::declare_func::declare_func_pass;
+use crate::mir::generator::passes::declare_interface::declare_interface_pass;
+use crate::mir::generator::passes::fill_class::fill_class_pass;
+use crate::mir::generator::passes::iface_impl::iface_impl_pass;
 use crate::mir::generator::passes::import::{class_imports, ensure_no_imports, function_imports};
-use crate::mir::generator::passes::PreMIRPass;
+use crate::mir::generator::{MIRError, MIRGenerator, Res};
 use crate::mir::MIRModule;
 
 /// A set of [MIRGenerator]s.
@@ -26,24 +25,14 @@ pub struct MIRModuleGenerator {
 
 impl MIRModuleGenerator {
     pub fn execute(mut self) -> Result<Vec<MIRModule>, Vec<MIRError>> {
-        self.run_for_all(Box::new(|(module, gen)| {
-            DeclareClassPass::new(gen).run(module)
-        }))?;
+        self.run_for_all(&declare_class_pass)?;
         class_imports(&mut self.modules);
-        self.run_for_all(Box::new(|(module, gen)| {
-            DeclareIFacePass::new(gen).run(module)
-        }))?;
-        self.run_for_all(Box::new(|(module, gen)| {
-            IfaceImplPass::new(gen).run(module)
-        }))?;
-        self.run_for_all(Box::new(|(module, gen)| {
-            DeclareFuncPass::new(gen).run(module)
-        }))?;
+        self.run_for_all(&declare_interface_pass)?;
+        self.run_for_all(&iface_impl_pass)?;
+        self.run_for_all(&declare_func_pass)?;
         function_imports(&mut self.modules);
         ensure_no_imports(&mut self.modules)?;
-        self.run_for_all(Box::new(|(module, gen)| {
-            FillClassPass::new(gen).run(module)
-        }))?;
+        self.run_for_all(&fill_class_pass)?;
 
         self.modules
             .into_iter()
@@ -57,11 +46,11 @@ impl MIRModuleGenerator {
 
     fn run_for_all(
         &mut self,
-        mut func: Box<dyn FnMut(&mut (Module, MIRGenerator)) -> Res<()>>,
+        func: &'static dyn Fn(&mut MIRGenerator, &mut Module) -> Res<()>,
     ) -> Result<(), Vec<MIRError>> {
         let mut errors = Vec::new();
-        for module in self.modules.iter_mut() {
-            let result = func(module);
+        for (module, gen) in self.modules.iter_mut() {
+            let result = func(gen, module);
             if let Err(err) = result {
                 errors.push(err)
             }

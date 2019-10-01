@@ -9,11 +9,11 @@ use std::rc::Rc;
 
 use either::Either;
 
-use crate::{module_path_to_string, ModulePath};
 use crate::ast::module::{Import, Module};
-use crate::mir::generator::{MIRError, MIRGenerator, Res};
-use crate::mir::MutRc;
+use crate::mir::generator::{MIRError, MIRGenerator};
 use crate::mir::nodes::{MIRClass, MIRVariable};
+use crate::mir::MutRc;
+use crate::{module_path_to_string, ModulePath};
 
 type ModulesRef<'t> = &'t mut Vec<(Module, MIRGenerator)>;
 
@@ -27,7 +27,7 @@ pub fn class_imports(modules: ModulesRef) {
 
             Either::Right(classes) => {
                 // Do not import class methods.
-                // They are imported later in ImportFuncPass, as they appear
+                // They are imported later in function imports, as they appear
                 // as regular functions in the module
                 classes.iter().try_for_each(|(_, class)| {
                     gen.builder.add_imported_class(Rc::clone(class), false)
@@ -35,7 +35,7 @@ pub fn class_imports(modules: ModulesRef) {
                 None // Functions still need to be imported!
             }
         }
-            .is_some()
+        .is_some()
     });
 }
 
@@ -44,9 +44,7 @@ fn find_class<'t>(
     path: &ModulePath,
     name: &String,
 ) -> Either<Option<MutRc<MIRClass>>, &'t HashMap<Rc<String>, MutRc<MIRClass>>> {
-    let module = modules
-        .iter()
-        .find(|(module, _)| &*module.path == path);
+    let module = modules.iter().find(|(module, _)| &*module.path == path);
 
     if let Some(module) = module {
         match &name[..] {
@@ -62,15 +60,13 @@ fn find_class<'t>(
 pub fn function_imports(modules: ModulesRef) {
     drain_mod_imports(modules, &mut |modules, gen, import| {
         match find_func(modules, &import.path, &import.symbol) {
-            Either::Left(func) => {
-                func.and_then(|func| gen.builder.add_imported_function(func))
-            }
+            Either::Left(func) => func.and_then(|func| gen.builder.add_imported_function(func)),
 
-            Either::Right(funcs) => funcs.iter().try_for_each(|(_, func)| {
-                gen.builder.add_imported_function(Rc::clone(func))
-            }),
+            Either::Right(funcs) => funcs
+                .iter()
+                .try_for_each(|(_, func)| gen.builder.add_imported_function(Rc::clone(func))),
         }
-            .is_some()
+        .is_some()
     });
 }
 
@@ -79,9 +75,7 @@ fn find_func<'t>(
     path: &ModulePath,
     name: &String,
 ) -> Either<Option<Rc<MIRVariable>>, &'t HashMap<Rc<String>, Rc<MIRVariable>>> {
-    let module = modules
-        .iter()
-        .find(|(module, _)| &*module.path == path);
+    let module = modules.iter().find(|(module, _)| &*module.path == path);
 
     if let Some(module) = module {
         match &name[..] {
@@ -131,7 +125,10 @@ fn drain_mod_imports(
         let i = if i == modules.len() { 0 } else { i };
         let (mut module, mut gen) = modules.swap_remove(i);
 
-        module.imports.drain_filter(|i| cond(modules, &mut gen, i)).count();
+        module
+            .imports
+            .drain_filter(|i| cond(modules, &mut gen, i))
+            .count();
         modules.push((module, gen))
     }
 }

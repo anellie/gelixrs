@@ -12,14 +12,14 @@ use std::{
 };
 
 use inkwell::{
-    AddressSpace,
     basic_block::BasicBlock,
     builder::Builder,
     context::Context,
-    IntPredicate,
     module::Module,
     passes::PassManager,
-    types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType, StructType}, values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
+    types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType, StructType},
+    values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
+    AddressSpace, IntPredicate,
 };
 
 use crate::module_path_to_string;
@@ -28,8 +28,8 @@ use super::{
     ast::literal::Literal,
     lexer::token::Type,
     mir::{
-        MIRModule,
         nodes::{MIRBlock, MIRClass, MIRExpression, MIRFlow, MIRFunction, MIRType, MIRVariable},
+        MIRModule,
     },
 };
 

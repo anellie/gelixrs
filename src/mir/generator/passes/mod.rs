@@ -4,8 +4,8 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use crate::ast::module::Module;
-use crate::mir::generator::Res;
+use crate::ast::declaration::ASTType;
+use crate::lexer::token::Token;
 
 pub(super) mod declare_class;
 pub(super) mod declare_func;
@@ -14,7 +14,7 @@ pub(super) mod fill_class;
 pub(super) mod iface_impl;
 pub(super) mod import;
 
-/// A trait for passes that modify the AST or the generator before MIR creation.
-pub(super) trait PreMIRPass {
-    fn run(self, module: &mut Module) -> Res<()>;
+thread_local! {
+    // A constant used by some passes that is simply gelix's None type.
+    static NONE_CONST: ASTType = ASTType::Token(Token::generic_identifier("None".to_string()));
 }
