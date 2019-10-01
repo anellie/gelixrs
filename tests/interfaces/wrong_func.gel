@@ -1,0 +1,18 @@
+// ERR
+
+interface Test {
+    func test() -> String
+}
+
+class Implementor {
+    val a = "ok"
+}
+
+impl Test for Implementor {
+    func test() -> String this.a
+    func ohNo() -> String "bad!"
+}
+
+func main() {
+    print(Implementor().test())
+}

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/30/19 2:22 PM.
+ * Last modified on 10/1/19 6:13 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -561,7 +561,10 @@ impl IRGenerator {
                 .ptr_type(AddressSpace::Generic)
                 .as_basic_type_enum(),
             MIRType::Class(struc) => self.types[&struc.borrow().name].as_basic_type_enum(),
-            MIRType::Interface(_) => unimplemented!()
+            MIRType::Interface(_) => {
+                eprintln!("WARN: Unimplemented interface type. Returning dummy type (i1)...");
+                self.context.bool_type().as_basic_type_enum()
+            }
         }
     }
 

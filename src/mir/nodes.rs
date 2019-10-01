@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/30/19 2:20 PM.
+ * Last modified on 10/1/19 6:10 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -74,8 +74,10 @@ impl PartialEq for MIRType {
 impl Display for MIRType {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         match self {
-            MIRType::Function(_) => write!(f, "<func>"),
+            MIRType::Array(arr) => write!(f, "[{}]", arr),
+            MIRType::Function(func) => write!(f, "<func {}>", func.borrow().name),
             MIRType::Class(class) => write!(f, "{}", class.borrow().name),
+            MIRType::Interface(iface) => write!(f, "{}", iface.borrow().name),
             _ => write!(f, "{:?}", self),
         }
     }

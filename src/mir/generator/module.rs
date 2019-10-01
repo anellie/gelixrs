@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/29/19 10:35 PM.
+ * Last modified on 10/1/19 6:18 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,6 +12,7 @@ use crate::mir::generator::passes::declare_class::DeclareClassPass;
 use crate::mir::generator::passes::declare_func::DeclareFuncPass;
 use crate::mir::generator::passes::declare_interface::DeclareIFacePass;
 use crate::mir::generator::passes::fill_class::FillClassPass;
+use crate::mir::generator::passes::iface_impl::IfaceImplPass;
 use crate::mir::generator::passes::import::{class_imports, ensure_no_imports, function_imports};
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::MIRModule;
@@ -31,6 +32,9 @@ impl MIRModuleGenerator {
         class_imports(&mut self.modules);
         self.run_for_all(Box::new(|(module, gen)| {
             DeclareIFacePass::new(gen).run(module)
+        }))?;
+        self.run_for_all(Box::new(|(module, gen)| {
+            IfaceImplPass::new(gen).run(module)
         }))?;
         self.run_for_all(Box::new(|(module, gen)| {
             DeclareFuncPass::new(gen).run(module)

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/30/19 2:26 PM.
+ * Last modified on 10/1/19 5:04 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -51,7 +51,6 @@ impl<'p> DeclareClassPass<'p> {
             _type: ASTType::Token(class.name.clone()),
         };
 
-        // Declare all class methods
         let name = &class.name.lexeme;
         let mut mir_class = mir_class.borrow_mut();
 

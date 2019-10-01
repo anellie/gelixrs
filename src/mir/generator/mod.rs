@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/29/19 10:32 PM.
+ * Last modified on 10/1/19 6:15 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -54,7 +54,7 @@ impl MIRGenerator {
         for func in module
             .functions
             .iter()
-            .chain(module.classes.iter().map(|class| &class.methods).flatten())
+            .chain(module.classes.iter().map(|class| &class.methods).flatten().chain(module.iface_impls.iter().map(|im| &im.methods).flatten()))
         {
             self.generate_function(func)?;
         }
