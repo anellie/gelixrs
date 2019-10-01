@@ -1,14 +1,16 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/2/19 1:21 AM.
+ * Last modified on 10/2/19 1:40 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt::{Display, Error, Formatter};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
+
+use indexmap::IndexMap;
 
 use crate::ast::expression::LOGICAL_BINARY;
 use crate::ast::literal::Literal;
@@ -86,10 +88,8 @@ impl Display for MIRType {
 #[derive(Debug)]
 pub struct MIRClass {
     pub name: Rc<String>,
-    /// All class members by name.
-    pub members: HashMap<Rc<String>, Rc<MIRClassMember>>,
-    /// All class members by index.
-    pub member_order: Vec<Rc<MIRClassMember>>,
+    /// All class members.
+    pub members: IndexMap<Rc<String>, Rc<MIRClassMember>>,
     /// All class methods. Inserted as "doThing", not "Name-doThing".
     pub methods: HashMap<Rc<String>, Rc<MIRVariable>>,
 }
@@ -113,9 +113,7 @@ pub struct MIRClassMember {
 pub struct MIRInterface {
     pub name: Rc<String>,
     // A map of all methods. If the method does not have a default implementation, it has no blocks/variables.
-    pub methods: HashMap<Rc<String>, Rc<MIRVariable>>,
-    // All methods by index inside the interface struct.
-    pub methods_order: Vec<Rc<MIRVariable>>,
+    pub methods: IndexMap<Rc<String>, Rc<MIRVariable>>,
 }
 
 /// A function in MIR. Consists of blocks.

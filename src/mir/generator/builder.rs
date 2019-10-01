@@ -1,12 +1,14 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/2/19 1:22 AM.
+ * Last modified on 10/2/19 1:40 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::collections::HashMap;
 use std::mem::discriminant;
 use std::rc::Rc;
+
+use indexmap::IndexMap;
 
 use crate::ast::declaration::ASTType;
 use crate::ast::literal::Literal;
@@ -39,8 +41,7 @@ impl MIRBuilder {
     pub fn create_class(&mut self, name: Rc<String>) -> Option<MutRc<MIRClass>> {
         let class = mutrc_new(MIRClass {
             name: Rc::clone(&name),
-            members: HashMap::new(),
-            member_order: Vec::new(),
+            members: IndexMap::new(),
             methods: HashMap::new(),
         });
 
@@ -134,8 +135,7 @@ impl MIRBuilder {
     pub fn create_interface(&mut self, name: &Rc<String>) -> Option<MutRc<MIRInterface>> {
         let iface = mutrc_new(MIRInterface {
             name: Rc::clone(name),
-            methods: HashMap::new(),
-            methods_order: Vec::new(),
+            methods: IndexMap::new(),
         });
 
         if self.find_interface(name).is_none() {

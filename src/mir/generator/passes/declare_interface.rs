@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/2/19 1:22 AM.
+ * Last modified on 10/2/19 1:29 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -43,7 +43,6 @@ fn create_interface(gen: &mut MIRGenerator, interface: &mut Interface) -> Res<()
 
         let mir_method = create_function(gen, &method.sig)?;
         mir_iface.methods.insert(old_name, Rc::clone(&mir_method));
-        mir_iface.methods_order.push(mir_method);
     }
 
     Ok(())

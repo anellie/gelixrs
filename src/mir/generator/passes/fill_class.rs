@@ -1,11 +1,13 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/29/19 10:32 PM.
+ * Last modified on 10/2/19 1:40 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::collections::HashMap;
 use std::rc::Rc;
+
+use indexmap::IndexMap;
 
 use crate::ast::declaration::Class;
 use crate::ast::module::Module;
@@ -23,24 +25,22 @@ pub fn fill_class_pass(gen: &mut MIRGenerator, list: &mut Module) -> Res<()> {
 }
 
 fn fill_class(gen: &mut MIRGenerator, class: &mut Class) -> Res<()> {
-    let mut fields = HashMap::with_capacity(class.variables.len());
-    let mut fields_vec = Vec::with_capacity(class.variables.len());
+    let mut fields = IndexMap::with_capacity(class.variables.len());
 
-    build_class_init(gen, class, &mut fields, &mut fields_vec)?;
+    build_class_init(gen, class, &mut fields)?;
 
     let class_rc = gen.builder.find_class(&class.name.lexeme).unwrap();
     let mut class_def = class_rc.borrow_mut();
     check_duplicate(gen, &class.name, &fields, &class_def.methods)?;
 
     class_def.members = fields;
-    class_def.member_order = fields_vec;
     Ok(())
 }
 
 fn check_duplicate(
     gen: &mut MIRGenerator,
     tok: &Token,
-    members: &HashMap<Rc<String>, Rc<MIRClassMember>>,
+    members: &IndexMap<Rc<String>, Rc<MIRClassMember>>,
     methods: &HashMap<Rc<String>, Rc<MIRVariable>>,
 ) -> Res<()> {
     for (mem_name, _) in members.iter() {
@@ -62,8 +62,7 @@ fn check_duplicate(
 fn build_class_init(
     gen: &mut MIRGenerator,
     class: &mut Class,
-    fields: &mut HashMap<Rc<String>, Rc<MIRClassMember>>,
-    fields_vec: &mut Vec<Rc<MIRClassMember>>,
+    fields: &mut IndexMap<Rc<String>, Rc<MIRClassMember>>,
 ) -> Res<()> {
     let function_rc = gen
         .builder
@@ -86,8 +85,6 @@ fn build_class_init(
         });
 
         let existing_entry = fields.insert(Rc::clone(&field.name.lexeme), Rc::clone(&member));
-        fields_vec.push(Rc::clone(&member));
-
         if existing_entry.is_some() {
             return Err(MIRGenerator::error(
                 gen,

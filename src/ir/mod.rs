@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/2/19 1:22 AM.
+ * Last modified on 10/2/19 1:38 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -90,7 +90,7 @@ impl IRGenerator {
         }
         finished_modules.push(self.module);
 
-        let finished_module = finished_modules.swap_remove(0);
+        let finished_module = finished_modules.pop().unwrap();
         for module in finished_modules.into_iter() {
             if let Err(msg) = finished_module.link_in_module(module) {
                 panic!(format!("LLVM linking error: {}", msg.to_string()))
@@ -138,9 +138,9 @@ impl IRGenerator {
     fn class_to_struct(&mut self, class: Ref<MIRClass>) {
         let struc_val = self.types[&class.name];
         let body: Vec<BasicTypeEnum> = class
-            .member_order
+            .members
             .iter()
-            .map(|mem| self.to_ir_type_no_ptr(&mem._type))
+            .map(|(_, mem)| self.to_ir_type_no_ptr(&mem._type))
             .collect();
         struc_val.set_body(body.as_slice(), false);
     }
@@ -148,11 +148,10 @@ impl IRGenerator {
     /// Generates a interface struct and its body (which is simply a collection of function pointers)
     fn iface_to_struct(&mut self, iface: Ref<MIRInterface>) {
         let struc_val = self.types[&iface.name];
-        println!("{}", iface.name);
         let body: Vec<BasicTypeEnum> = iface
-            .methods_order
+            .methods
             .iter()
-            .map(|mem| self.to_ir_type_no_ptr(&mem._type))
+            .map(|(_, mem)| self.to_ir_type_no_ptr(&mem._type))
             .collect();
         struc_val.set_body(body.as_slice(), false);
     }
