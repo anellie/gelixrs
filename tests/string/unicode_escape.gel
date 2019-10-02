@@ -1,0 +1,7 @@
+/*
+🤷Hello!
+*/
+
+func main() {
+    print("\u1F937Hello!")
+}

@@ -1,9 +1,11 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/2/19 4:47 PM.
+ * Last modified on 10/2/19 5:56 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
+use std::convert::TryInto;
+use std::iter::FromIterator;
 use std::rc::Rc;
 
 use token::{Token, Type};
@@ -160,10 +162,45 @@ impl Lexer {
         } else {
             // Ensure the quotes are not included in the literal
             self.start += 1;
-            let token = self.make_token(Type::String);
+            let token = self.str_escape_seq();
             self.advance();
             token
         }
+    }
+
+    /// Replace all escape sequences inside a string literal with their proper char
+    /// and return either an error or the finished string token
+    fn str_escape_seq(&mut self) -> Token {
+        for i in self.start..self.current {
+            if self.char_at(i) == '\\' {
+                self.chars.remove(i);
+                self.current -= 1;
+                if self.chars.len() == i {
+                    return self.error_token("Unterminated string!");
+                }
+
+                self.chars[i] = match self.char_at(i) {
+                    'n' => '\n',
+                    'r' => '\r',
+                    't' => '\t',
+                    '\\' => '\\',
+                    '0' => '\0',
+                    '"' => '"',
+
+                    'u' => {
+                        let mut chars = Vec::with_capacity(6);
+                        while self.char_at(i + 1).is_ascii_hexdigit() {
+                            chars.push(self.chars.remove(i + 1));
+                            self.current -= 1;
+                        }
+                        u32::from_str_radix(&String::from_iter(chars), 16).unwrap().try_into().unwrap()
+                    }
+
+                    _ => return self.error_token("Unknown escape sequence.")
+                }
+            }
+        }
+        self.make_token(Type::String)
     }
 
     /// Creates a char token
