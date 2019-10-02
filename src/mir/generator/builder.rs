@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/2/19 1:40 AM.
+ * Last modified on 10/2/19 4:44 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -32,6 +32,9 @@ pub struct MIRBuilder {
     /// Things imported into this module by 'import' declarations.
     imports: Imports,
 
+    /// A list of type aliases, where the key is a type that will be translated to the value.
+    type_aliases: HashMap<Rc<String>, ASTType>,
+
     /// Simply a const of the string "tmp".
     /// Used for temporary variables needed for class init.
     tmp_const: Rc<String>,
@@ -43,6 +46,7 @@ impl MIRBuilder {
             name: Rc::clone(&name),
             members: IndexMap::new(),
             methods: HashMap::new(),
+            interfaces: Vec::new(),
         });
 
         if self.find_class(&name).is_none() {
@@ -325,24 +329,30 @@ impl MIRBuilder {
 
     pub fn find_type(&self, ast: &ASTType) -> Option<MIRType> {
         Some(match ast {
-            ASTType::Token(tok) => match &tok.lexeme[..] {
-                "None" => MIRType::None,
-                "bool" => MIRType::Bool,
+            ASTType::Token(tok) => {
+                if let Some(alias) = self.type_aliases.get(&tok.lexeme) {
+                    return self.find_type(alias);
+                }
 
-                "i8" => MIRType::I8,
-                "i16" => MIRType::I16,
-                "i32" => MIRType::I32,
-                "i64" => MIRType::I64,
+                match &tok.lexeme[..] {
+                    "None" => MIRType::None,
+                    "bool" => MIRType::Bool,
 
-                "f32" => MIRType::F32,
-                "f64" => MIRType::F64,
+                    "i8" => MIRType::I8,
+                    "i16" => MIRType::I16,
+                    "i32" => MIRType::I32,
+                    "i64" => MIRType::I64,
 
-                "String" => MIRType::String,
+                    "f32" => MIRType::F32,
+                    "f64" => MIRType::F64,
 
-                _ => self
-                    .find_class(&tok.lexeme)
-                    .map(|c| MIRType::Class(c))
-                    .or_else(|| Some(MIRType::Interface(self.find_interface(&tok.lexeme)?)))?,
+                    "String" => MIRType::String,
+
+                    _ => self
+                        .find_class(&tok.lexeme)
+                        .map(|c| MIRType::Class(c))
+                        .or_else(|| Some(MIRType::Interface(self.find_interface(&tok.lexeme)?)))?,
+                }
             },
 
             ASTType::Array(type_) => MIRType::Array(Box::new(self.find_type(type_)?)),
@@ -392,6 +402,14 @@ impl MIRBuilder {
         }
     }
 
+    pub fn add_alias(&mut self, key: &Rc<String>, val: &ASTType) {
+        self.type_aliases.insert(Rc::clone(key), val.clone());
+    }
+
+    pub fn remove_alias(&mut self, name: &Rc<String>) {
+        self.type_aliases.remove(name);
+    }
+
     pub fn insert_at_ptr(&mut self, expr: MIRExpression) {
         let func = self.cur_fn();
         let mut func = func.borrow_mut();
@@ -423,6 +441,7 @@ impl MIRBuilder {
             position: None,
             module,
             imports: Imports::default(),
+            type_aliases: HashMap::new(),
             tmp_const: Rc::new("tmp".to_string()),
         }
     }

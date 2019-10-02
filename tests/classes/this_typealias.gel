@@ -1,0 +1,16 @@
+/*
+ok
+*/
+
+func main() {
+    Test().otherMe(Test())
+}
+
+class Test {
+
+    var test = "hello!"
+
+    func otherMe(This other) {
+        print(other.test)
+    }
+}

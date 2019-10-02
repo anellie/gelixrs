@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/2/19 1:29 AM.
+ * Last modified on 10/2/19 4:44 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,6 +11,8 @@ use crate::ast::module::Module;
 use crate::lexer::token::Token;
 use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::generator::passes::declare_func::create_function;
+use crate::mir::generator::passes::THIS_CONST;
+use crate::mir::nodes::MIRType;
 
 /// This pass declares all interfaces.
 pub fn declare_interface_pass(gen: &mut MIRGenerator, module: &mut Module) -> Res<()> {
@@ -22,6 +24,7 @@ pub fn declare_interface_pass(gen: &mut MIRGenerator, module: &mut Module) -> Re
 }
 
 fn create_interface(gen: &mut MIRGenerator, interface: &mut Interface) -> Res<()> {
+    gen.builder.add_alias(&THIS_CONST.with(|c| c.clone()), &ASTType::Token(interface.name.clone()));
     let mir_iface = gen
         .builder
         .create_interface(&interface.name.lexeme)
@@ -45,5 +48,6 @@ fn create_interface(gen: &mut MIRGenerator, interface: &mut Interface) -> Res<()
         mir_iface.methods.insert(old_name, Rc::clone(&mir_method));
     }
 
+    gen.builder.remove_alias(&THIS_CONST.with(|c| c.clone()));
     Ok(())
 }

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/1/19 6:18 PM.
+ * Last modified on 10/2/19 4:44 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -9,8 +9,9 @@ use std::rc::Rc;
 use crate::ast::declaration::{ASTType, FunctionArg, IFaceImpl};
 use crate::ast::module::Module;
 use crate::lexer::token::Token;
-use crate::mir::generator::passes::declare_func::create_function;
 use crate::mir::generator::{MIRGenerator, Res};
+use crate::mir::generator::passes::declare_func::create_function;
+use crate::mir::generator::passes::THIS_CONST;
 
 /// This pass checks and defines all interface impl blocks.
 pub fn iface_impl_pass(gen: &mut MIRGenerator, list: &mut Module) -> Res<()> {
@@ -21,17 +22,18 @@ pub fn iface_impl_pass(gen: &mut MIRGenerator, list: &mut Module) -> Res<()> {
 }
 
 fn iface_impl(gen: &mut MIRGenerator, iface_impl: &mut IFaceImpl) -> Res<()> {
+    gen.builder.add_alias(&THIS_CONST.with(|c| c.clone()), &ASTType::Token(iface_impl.class.clone()));
     let class = gen
         .builder
         .find_class(&iface_impl.class.lexeme)
         .ok_or_else(|| gen.error(&iface_impl.class, &iface_impl.class, "Unknown class."))?;
     let mut class = class.borrow_mut();
 
-    let iface = gen
+    let iface_cell = gen
         .builder
         .find_interface(&iface_impl.iface.lexeme)
         .ok_or_else(|| gen.error(&iface_impl.iface, &iface_impl.iface, "Unknown interface."))?;
-    let iface = iface.borrow();
+    let iface = iface_cell.borrow();
 
     for method in iface_impl.methods.iter_mut() {
         if !iface.methods.contains_key(&method.sig.name.lexeme) {
@@ -61,6 +63,8 @@ fn iface_impl(gen: &mut MIRGenerator, iface_impl: &mut IFaceImpl) -> Res<()> {
             "Missing methods in interface impl.",
         ))
     } else {
+        class.interfaces.push(Rc::clone(&iface_cell));
+        gen.builder.remove_alias(&THIS_CONST.with(|c| c.clone()));
         Ok(())
     }
 }

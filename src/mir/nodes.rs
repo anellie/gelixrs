@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/2/19 1:40 AM.
+ * Last modified on 10/2/19 4:43 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -92,6 +92,8 @@ pub struct MIRClass {
     pub members: IndexMap<Rc<String>, Rc<MIRClassMember>>,
     /// All class methods. Inserted as "doThing", not "Name-doThing".
     pub methods: HashMap<Rc<String>, Rc<MIRVariable>>,
+    /// All interfaces implemented by this class.
+    pub interfaces: Vec<MutRc<MIRInterface>>
 }
 
 impl PartialEq for MIRClass {
