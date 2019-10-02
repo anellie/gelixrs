@@ -1,6 +1,6 @@
 // ERR
 
-fun test(String s) {
+fun test(s: String) {
     print(s);
 }
 

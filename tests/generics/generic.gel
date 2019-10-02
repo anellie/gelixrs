@@ -8,7 +8,7 @@ func main() {
 }
 
 class Generic<A> {
-    func test(A a) -> A {
+    func test(a: A) -> A {
         a
     }
 }

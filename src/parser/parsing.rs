@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/25/19 5:58 PM.
+ * Last modified on 10/2/19 5:15 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -15,6 +15,7 @@ use crate::ast::declaration::{ASTType, IFaceImpl, Interface, InterfaceFunc};
 use crate::ast::module::Import;
 use crate::Error;
 
+use super::Parser;
 use super::super::{
     ast::{
         declaration::{Class, Enum, FuncSignature, Function, FunctionArg, Variable},
@@ -24,7 +25,6 @@ use super::super::{
     },
     lexer::token::{Token, Type},
 };
-use super::Parser;
 
 // All expressions that require no semicolon when used as a higher expression.
 static NO_SEMICOLON: [Type; 3] = [Type::If, Type::LeftBrace, Type::When];
@@ -114,10 +114,10 @@ impl Parser {
         let mut parameters: Vec<FunctionArg> = Vec::new();
         if !self.check(Type::RightParen) {
             loop {
-                parameters.push(FunctionArg {
-                    _type: self.type_("Expected parameter type.")?,
-                    name: self.consume(Type::Identifier, "Expected parameter name.")?,
-                });
+                let name = self.consume(Type::Identifier, "Expected parameter name.")?;
+                self.consume(Type::Colon, "Expected ':' after parameter name.");
+                let type_ = self.type_("Expected parameter type.")?;
+                parameters.push(FunctionArg { type_, name });
                 if !self.match_token(Type::Comma) {
                     break;
                 }

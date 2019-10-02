@@ -1,14 +1,14 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/21/19 8:27 PM.
+ * Last modified on 10/2/19 5:15 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::fmt;
-
-use super::super::lexer::token::Token;
-use super::expression::Expression;
 use std::rc::Rc;
+
+use super::expression::Expression;
+use super::super::lexer::token::Token;
 
 /// A class definition.
 #[derive(Debug)]
@@ -56,7 +56,7 @@ pub struct FuncSignature {
 /// A function argument.
 #[derive(Debug, Clone)]
 pub struct FunctionArg {
-    pub _type: ASTType,
+    pub type_: ASTType,
     pub name: Token,
 }
 
@@ -65,7 +65,7 @@ impl FunctionArg {
     pub fn this_arg(ty: &Token) -> FunctionArg {
         FunctionArg {
             name: Token::generic_identifier("this".to_string()),
-            _type: ASTType::Token(ty.clone()),
+            type_: ASTType::Token(ty.clone()),
         }
     }
 }

@@ -8,6 +8,6 @@ func main() {
     arr = test(arr)
 }
 
-func test([i64] a) -> [i64] {
+func test(a: [i64]) -> [i64] {
     a
 }

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/21/19 8:30 PM.
+ * Last modified on 10/2/19 4:46 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -67,6 +67,8 @@ pub enum Type {
     Minus,
     Plus,
     Semicolon,
+    Colon,
+    ColonColon,
     Slash,
     Star,
     Arrow,

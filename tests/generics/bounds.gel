@@ -7,7 +7,7 @@ interface Test {
 }
 
 class Generic<T: Test> {
-    func test(T t) {
+    func test(t: T) {
         t.test()
     }
 }

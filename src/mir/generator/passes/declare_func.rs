@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/30/19 2:09 PM.
+ * Last modified on 10/2/19 5:15 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -8,8 +8,8 @@ use std::rc::Rc;
 
 use crate::ast::declaration::FuncSignature;
 use crate::ast::module::Module;
-use crate::mir::generator::passes::NONE_CONST;
 use crate::mir::generator::{MIRGenerator, Res};
+use crate::mir::generator::passes::NONE_CONST;
 use crate::mir::nodes::{MIRType, MIRVariable};
 
 /// This pass generates all functions.
@@ -47,7 +47,7 @@ pub(super) fn create_function(
         parameters.push(Rc::new(MIRVariable {
             mutable: false,
             name: Rc::clone(&param.name.lexeme),
-            _type: gen.builder.find_type(&param._type).ok_or_else(|| {
+            _type: gen.builder.find_type(&param.type_).ok_or_else(|| {
                 MIRGenerator::error(
                     gen,
                     &func_sig.name,

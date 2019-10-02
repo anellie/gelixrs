@@ -1,6 +1,6 @@
-exfn print(String a)
+exfn print(a: String)
 
-exfn printnum(i64 a)
+exfn printnum(a: i64)
 
 /*
 // A simple, fixed-size array type.
@@ -27,7 +27,7 @@ class Array<E> {
     val len = 0
 }
 
-// A UTF-8 String.
+// A UTF-8 string.
 class String {
     val chars = [i8]
 

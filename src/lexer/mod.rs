@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/21/19 8:30 PM.
+ * Last modified on 10/2/19 4:47 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -55,6 +55,7 @@ impl Lexer {
             '<' => self.check_double_token('=', Type::LessEqual, Type::Less),
             '>' => self.check_double_token('=', Type::GreaterEqual, Type::Greater),
             '-' => self.check_double_token('>', Type::Arrow, Type::Minus),
+            ':' => self.check_double_token(':', Type::ColonColon, Type::Colon),
 
             // Literals
             '"' => self.string(),

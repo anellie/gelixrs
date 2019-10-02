@@ -3,12 +3,12 @@ ok
 ok
 */
 
-func isEven(i64 n) -> String {
+func isEven(n: i64) -> String {
     if (n == 0) return "ok"
     isOdd(n - 1)
 }
 
-func isOdd(i64 n) -> String {
+func isOdd(n: i64) -> String {
     isEven(n - 1)
 }
 

@@ -3,14 +3,16 @@ ok
 */
 
 func main() {
-    Test().otherMe(Test())
+    var other = Test()
+    other.test = "ok"
+    Test().otherMe(other)
 }
 
 class Test {
 
     var test = "hello!"
 
-    func otherMe(This other) {
+    func otherMe(other: This) {
         print(other.test)
     }
 }

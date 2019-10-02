@@ -28,6 +28,6 @@ func main() {
     test(B())
 }
 
-func test(Test t) {
+func test(t: Test) {
     print(t.test())
 }

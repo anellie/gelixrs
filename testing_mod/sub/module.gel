@@ -1,4 +1,4 @@
-func sub(i64 a, i64 b) -> i64 {
+func sub(a: i64, b: i64) -> i64 {
     a * b
 }
 
