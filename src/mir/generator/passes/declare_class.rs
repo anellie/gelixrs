@@ -9,8 +9,8 @@ use std::rc::Rc;
 use crate::ast::declaration::{ASTType, Class, FuncSignature, FunctionArg};
 use crate::ast::module::Module;
 use crate::lexer::token::Token;
-use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::generator::passes::declare_func::create_function;
+use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::ToMIRResult;
 
 /// This pass declares all classes.
@@ -24,10 +24,11 @@ pub fn declare_class_pass(gen: &mut MIRGenerator, module: &mut Module) -> Res<()
 }
 
 fn create_class(gen: &mut MIRGenerator, class: &mut Class) -> Res<()> {
-    let mir_class = gen
-        .builder
-        .create_class(&class.name)
-        .or_err(gen, &class.name, "Class is already defined!")?;
+    let mir_class = gen.builder.create_class(&class.name).or_err(
+        gen,
+        &class.name,
+        "Class is already defined!",
+    )?;
     let mut mir_class = mir_class.borrow_mut();
     let this_arg = FunctionArg::this_arg(&class.name);
 
@@ -47,7 +48,8 @@ fn create_class(gen: &mut MIRGenerator, class: &mut Class) -> Res<()> {
     for method in class.methods.iter_mut() {
         let method_name = Rc::clone(&method.sig.name.lexeme);
         // Change the method name to $class-$method to prevent name collisions
-        method.sig.name.lexeme = Rc::new(format!("{}-{}", class.name.lexeme, method.sig.name.lexeme));
+        method.sig.name.lexeme =
+            Rc::new(format!("{}-{}", class.name.lexeme, method.sig.name.lexeme));
         method.sig.parameters.insert(0, this_arg.clone());
 
         let mir_method = create_function(gen, &method.sig)?;

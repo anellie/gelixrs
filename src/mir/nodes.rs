@@ -44,7 +44,7 @@ pub enum MIRType {
 
     /// A generic type. Only found in interface methods.
     /// Appearing anywhere else is undefined behavior; panicking is appropriate in that case.
-    Generic(Rc<String>)
+    Generic(Rc<String>),
 }
 
 impl PartialEq for MIRType {
@@ -102,7 +102,7 @@ pub struct MIRClass {
     /// All class methods. Inserted as "doThing", not "Name-doThing".
     pub methods: HashMap<Rc<String>, Rc<MIRVariable>>,
     /// All interfaces implemented by this class.
-    pub interfaces: Vec<MutRc<MIRInterface>>
+    pub interfaces: Vec<MutRc<MIRInterface>>,
 }
 
 impl PartialEq for MIRClass {
@@ -126,7 +126,7 @@ pub struct MIRInterface {
     /// A map of all methods.
     pub methods: IndexMap<Rc<String>, MIRIFaceMethod>,
     /// All generic parameters that are type-aliased on concrete implementations.
-    pub generics: Vec<Rc<String>>
+    pub generics: Vec<Rc<String>>,
 }
 
 impl PartialEq for MIRInterface {

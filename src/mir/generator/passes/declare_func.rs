@@ -8,8 +8,8 @@ use std::rc::Rc;
 
 use crate::ast::declaration::FuncSignature;
 use crate::ast::module::Module;
-use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::generator::passes::NONE_CONST;
+use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::nodes::{MIRType, MIRVariable};
 use crate::mir::ToMIRResult;
 
@@ -45,7 +45,11 @@ pub(super) fn create_function(
         parameters.push(Rc::new(MIRVariable {
             mutable: false,
             name: Rc::clone(&param.name.lexeme),
-            type_: gen.builder.find_type(&param.type_).or_err(gen, &param.name, "Function parameter has unknown type")?,
+            type_: gen.builder.find_type(&param.type_).or_err(
+                gen,
+                &param.name,
+                "Function parameter has unknown type",
+            )?,
         }));
     }
 

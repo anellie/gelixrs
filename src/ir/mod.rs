@@ -12,14 +12,14 @@ use std::{
 };
 
 use inkwell::{
-    AddressSpace,
     basic_block::BasicBlock,
     builder::Builder,
     context::Context,
-    IntPredicate,
     module::Module,
     passes::PassManager,
-    types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType, StructType}, values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
+    types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType, StructType},
+    values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
+    AddressSpace, IntPredicate,
 };
 
 use crate::mir::nodes::MIRInterface;
@@ -28,10 +28,10 @@ use super::{
     ast::literal::Literal,
     lexer::token::Type,
     mir::{
-        MIRModule,
         nodes::{MIRBlock, MIRClass, MIRExpression, MIRFlow, MIRFunction, MIRType, MIRVariable},
+        MIRModule,
     },
-    module_path_to_string
+    module_path_to_string,
 };
 
 /// A generator that creates LLVM IR out of Gelix mid-level IR (MIR).
@@ -571,7 +571,7 @@ impl IRGenerator {
             MIRType::Interface(iface) => {
                 println!("WARN: Unimplemented interface type. Returning dummy...");
                 self.context.bool_type().as_basic_type_enum()
-            },
+            }
             MIRType::Generic(name) => {
                 println!("WARN: Unimplemented generic type. Returning dummy...");
                 self.context.bool_type().as_basic_type_enum()

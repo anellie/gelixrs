@@ -12,16 +12,16 @@ use either::Either;
 
 use builder::MIRBuilder;
 
-use crate::{Error, ModulePath};
 use crate::ast::declaration::Function;
 use crate::ast::expression::Expression;
 use crate::ast::literal::Literal;
 use crate::ast::module::Module;
 use crate::lexer::token::{Token, Type};
-use crate::mir::{MIRModule, MutRc, ToMIRResult};
 use crate::mir::nodes::{
     MIRArray, MIRClassMember, MIRExpression, MIRFlow, MIRFunction, MIRType, MIRVariable,
 };
+use crate::mir::{MIRModule, MutRc, ToMIRResult};
+use crate::{Error, ModulePath};
 
 mod builder;
 pub mod module;
@@ -72,7 +72,8 @@ impl MIRGenerator {
         let ret_type = function.ret_type.clone();
         let entry_block = function.append_block("entry");
 
-        self.builder.set_pointer(Rc::clone(&function_rc), Rc::clone(&entry_block));
+        self.builder
+            .set_pointer(Rc::clone(&function_rc), Rc::clone(&entry_block));
         drop(function);
 
         self.begin_scope();
@@ -186,8 +187,11 @@ impl MIRGenerator {
                     // Method call
                     Expression::Get { object, name } => {
                         let (object, field) = self.get_class_field(object, name)?;
-                        let func = field.right().or_err(self, name, "Class members cannot be called.")?;
-                        let args = self.generate_func_args(Rc::clone(&func), arguments, Some(object))?;
+                        let func = field
+                                .right()
+                                .or_err(self, name, "Class members cannot be called.")?;
+                        let args =
+                            self.generate_func_args(Rc::clone(&func), arguments, Some(object))?;
                         return Ok(self.builder.build_call(MIRExpression::Function(func), args));
                     }
 
@@ -282,7 +286,9 @@ impl MIRGenerator {
 
             Expression::Get { object, name } => {
                 let (object, field) = self.get_class_field(&**object, name)?;
-                let field = field.left().or_err(self, name, "Cannot get class method (must be called)")?;
+                let field = field
+                        .left()
+                        .or_err(self, name, "Cannot get class method (must be called)")?;
                 self.builder.build_struct_get(object, field)
             }
 
@@ -402,9 +408,7 @@ impl MIRGenerator {
                 value,
             } => {
                 let (object, field) = self.get_class_field(&**object, name)?;
-                let field = field
-                    .left()
-                    .or_err(self, name, "Cannot set class method")?;
+                let field = field.left().or_err(self, name, "Cannot set class method")?;
                 let value = self.generate_expression(&**value)?;
 
                 if value.get_type() != field.type_ {
@@ -516,7 +520,8 @@ impl MIRGenerator {
         });
 
         self.builder.add_function_variable(Rc::clone(&def));
-        self.insert_variable(Rc::clone(&def), true, token.line).unwrap_or(());
+        self.insert_variable(Rc::clone(&def), true, token.line)
+            .unwrap_or(());
         def
     }
 
@@ -556,7 +561,11 @@ impl MIRGenerator {
             }
         }
 
-        self.builder.find_global(&token.lexeme).or_err(self, token, &format!("Variable '{}' is not defined", token.lexeme))
+        self.builder.find_global(&token.lexeme).or_err(
+            self,
+            token,
+            &format!("Variable '{}' is not defined", token.lexeme),
+        )
     }
 
     /// Returns the variable of the current loop or creates it if it does not exist yet

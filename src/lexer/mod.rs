@@ -193,10 +193,13 @@ impl Lexer {
                             chars.push(self.chars.remove(i + 1));
                             self.current -= 1;
                         }
-                        u32::from_str_radix(&String::from_iter(chars), 16).unwrap().try_into().unwrap()
+                        u32::from_str_radix(&String::from_iter(chars), 16)
+                            .unwrap()
+                            .try_into()
+                            .unwrap()
                     }
 
-                    _ => return self.error_token("Unknown escape sequence.")
+                    _ => return self.error_token("Unknown escape sequence."),
                 }
             }
         }

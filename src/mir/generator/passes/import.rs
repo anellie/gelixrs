@@ -9,11 +9,11 @@ use std::rc::Rc;
 
 use either::Either;
 
-use crate::{module_path_to_string, ModulePath};
 use crate::ast::module::{Import, Module};
 use crate::mir::generator::{MIRError, MIRGenerator};
-use crate::mir::MutRc;
 use crate::mir::nodes::{MIRClass, MIRInterface, MIRVariable};
+use crate::mir::MutRc;
+use crate::{module_path_to_string, ModulePath};
 
 type ModulesRef<'t> = &'t mut Vec<(Module, MIRGenerator)>;
 
@@ -64,21 +64,19 @@ fn find_class<'t>(
 pub fn interface_imports(modules: ModulesRef) {
     drain_mod_imports(modules, &mut |modules, gen, import| {
         match find_interface(modules, &import.path, &import.symbol) {
-            Either::Left(iface) => {
-                iface.and_then(|iface| gen.builder.add_imported_iface(iface))
-            }
+            Either::Left(iface) => iface.and_then(|iface| gen.builder.add_imported_iface(iface)),
 
             Either::Right(ifaces) => {
                 // Do not import interface methods.
                 // They are imported later in function imports, as they appear
                 // as regular functions in the module
-                ifaces.iter().try_for_each(|(_, iface)| {
-                    gen.builder.add_imported_iface(Rc::clone(iface))
-                });
+                ifaces
+                    .iter()
+                    .try_for_each(|(_, iface)| gen.builder.add_imported_iface(Rc::clone(iface)));
                 None // Functions still need to be imported!
             }
         }
-            .is_some()
+        .is_some()
     });
 }
 

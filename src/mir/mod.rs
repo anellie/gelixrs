@@ -51,10 +51,20 @@ pub trait ToMIRResult<T> {
     fn or_err(self, gen: &MIRGenerator, error_token: &Token, msg: &str) -> Result<T, MIRError>;
 
     #[inline(always)]
-    fn or_anon_err(self, gen: &MIRGenerator, error_token: Option<&Token>, msg: &str) -> Result<T, MIRError>;
+    fn or_anon_err(
+        self,
+        gen: &MIRGenerator,
+        error_token: Option<&Token>,
+        msg: &str,
+    ) -> Result<T, MIRError>;
 
     #[inline(always)]
-    fn or_type_err(self, gen: &MIRGenerator, error_ty: &Option<ASTType>, msg: &str) -> Result<T, MIRError>;
+    fn or_type_err(
+        self,
+        gen: &MIRGenerator,
+        error_ty: &Option<ASTType>,
+        msg: &str,
+    ) -> Result<T, MIRError>;
 }
 
 impl<T> ToMIRResult<T> for Option<T> {
@@ -62,11 +72,21 @@ impl<T> ToMIRResult<T> for Option<T> {
         self.ok_or_else(|| gen.error(error_token, error_token, msg))
     }
 
-    fn or_anon_err(self, gen: &MIRGenerator, error_token: Option<&Token>, msg: &str) -> Result<T, MIRError> {
+    fn or_anon_err(
+        self,
+        gen: &MIRGenerator,
+        error_token: Option<&Token>,
+        msg: &str,
+    ) -> Result<T, MIRError> {
         self.ok_or_else(|| gen.anon_err(error_token, msg))
     }
 
-    fn or_type_err(self, gen: &MIRGenerator, error_ty: &Option<ASTType>, msg: &str) -> Result<T, MIRError> {
+    fn or_type_err(
+        self,
+        gen: &MIRGenerator,
+        error_ty: &Option<ASTType>,
+        msg: &str,
+    ) -> Result<T, MIRError> {
         self.ok_or_else(|| gen.anon_err(error_ty.as_ref().map(|t| t.get_token()).flatten(), msg))
     }
 }

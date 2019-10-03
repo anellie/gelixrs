@@ -13,8 +13,10 @@ use indexmap::IndexMap;
 use crate::ast::declaration::ASTType;
 use crate::ast::literal::Literal;
 use crate::lexer::token::{Token, Type};
-use crate::mir::{MIRModule, MutRc, mutrc_new};
-use crate::mir::nodes::{MIRClass, MIRClassMember, MIRExpression, MIRFlow, MIRInterface, MIRVariable};
+use crate::mir::nodes::{
+    MIRClass, MIRClassMember, MIRExpression, MIRFlow, MIRInterface, MIRVariable,
+};
+use crate::mir::{mutrc_new, MIRModule, MutRc};
 use crate::ModulePath;
 
 use super::super::nodes::{MIRFunction, MIRType};
@@ -70,7 +72,8 @@ impl MIRBuilder {
     ) -> Option<()> {
         let name = Rc::clone(&class.borrow().name);
         if self.find_class(&name).is_none() {
-            self.imports.classes
+            self.imports
+                .classes
                 .insert(Rc::clone(&name), Rc::clone(&class));
             if import_methods {
                 for (_, method) in class.borrow().methods.iter() {
@@ -118,13 +121,11 @@ impl MIRBuilder {
         }
     }
 
-    pub fn add_imported_iface(
-        &mut self,
-        iface: MutRc<MIRInterface>,
-    ) -> Option<()> {
+    pub fn add_imported_iface(&mut self, iface: MutRc<MIRInterface>) -> Option<()> {
         let name = Rc::clone(&iface.borrow().name);
         if self.find_interface(&name).is_none() {
-            self.imports.interfaces
+            self.imports
+                .interfaces
                 .insert(Rc::clone(&name), Rc::clone(&iface));
             Some(())
         } else {
@@ -137,11 +138,13 @@ impl MIRBuilder {
         let iface = mutrc_new(MIRInterface {
             name: Rc::clone(name),
             methods: IndexMap::new(),
-            generics: Vec::new()
+            generics: Vec::new(),
         });
 
         if self.find_interface(name).is_none() {
-            self.module.interfaces.insert(Rc::clone(name), Rc::clone(&iface));
+            self.module
+                .interfaces
+                .insert(Rc::clone(name), Rc::clone(&iface));
             Some(iface)
         } else {
             // Interface already exists
@@ -352,7 +355,7 @@ impl MIRBuilder {
                         .map(|c| MIRType::Class(c))
                         .or_else(|| Some(MIRType::Interface(self.find_interface(&tok.lexeme)?)))?,
                 }
-            },
+            }
 
             ASTType::Array(type_) => MIRType::Array(Box::new(self.find_type(type_)?)),
 
@@ -406,7 +409,8 @@ impl MIRBuilder {
     }
 
     pub fn add_this_alias(&mut self, name: &Token) {
-        self.type_aliases.insert(Rc::clone(&self.this_const), ASTType::Token(name.clone()));
+        self.type_aliases
+            .insert(Rc::clone(&self.this_const), ASTType::Token(name.clone()));
     }
 
     pub fn remove_alias(&mut self, name: &Rc<String>) {
@@ -420,7 +424,8 @@ impl MIRBuilder {
     /// Will turn the passed in type into a concrete type, should it still be a generic one.
     pub fn translate_generic(&mut self, ty: &MIRType) -> MIRType {
         if let MIRType::Generic(name) = ty {
-            self.find_type(self.type_aliases.get(name).unwrap()).unwrap()
+            self.find_type(self.type_aliases.get(name).unwrap())
+                .unwrap()
         } else {
             ty.clone()
         }

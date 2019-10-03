@@ -9,9 +9,9 @@ use std::rc::Rc;
 use crate::ast::declaration::{ASTType, FunctionArg, Interface};
 use crate::ast::module::Module;
 use crate::lexer::token::Token;
-use crate::mir::generator::{MIRError, MIRGenerator, Res};
 use crate::mir::generator::passes::declare_func::create_function;
 use crate::mir::generator::passes::NONE_CONST;
+use crate::mir::generator::{MIRError, MIRGenerator, Res};
 use crate::mir::nodes::{MIRIFaceMethod, MIRType};
 use crate::mir::ToMIRResult;
 
@@ -28,11 +28,19 @@ fn create_interface(gen: &mut MIRGenerator, interface: &mut Interface) -> Res<()
     let mir_iface = gen
         .builder
         .create_interface(&interface.name.lexeme)
-        .or_err(gen, &interface.name, "Interface with the same name already defined.")?;
+        .or_err(
+            gen,
+            &interface.name,
+            "Interface with the same name already defined.",
+        )?;
     let mut mir_iface = mir_iface.borrow_mut();
 
     gen.builder.add_this_alias(&interface.name);
-    mir_iface.generics = interface.generics.iter().map(|t| t.lexeme.clone()).collect();
+    mir_iface.generics = interface
+        .generics
+        .iter()
+        .map(|t| t.lexeme.clone())
+        .collect();
 
     for method in interface.methods.iter_mut() {
         let ast_ret_type = method.sig.return_type.as_ref();
@@ -52,12 +60,15 @@ fn create_interface(gen: &mut MIRGenerator, interface: &mut Interface) -> Res<()
             parameters.push(ty);
         }
 
-        mir_iface.methods.insert(Rc::clone(&method.sig.name.lexeme), MIRIFaceMethod {
-            name: Rc::clone(&method.sig.name.lexeme),
-            parameters,
-            ret_type,
-            default_impl: method.body.take(),
-        });
+        mir_iface.methods.insert(
+            Rc::clone(&method.sig.name.lexeme),
+            MIRIFaceMethod {
+                name: Rc::clone(&method.sig.name.lexeme),
+                parameters,
+                ret_type,
+                default_impl: method.body.take(),
+            },
+        );
     }
 
     gen.builder.remove_this_alias();
@@ -65,13 +76,10 @@ fn create_interface(gen: &mut MIRGenerator, interface: &mut Interface) -> Res<()
 }
 
 /// Tries resolving an AST type to a generic.
-fn try_resolve_generic_type(
-    generics: &Vec<Rc<String>>,
-    ty: Option<&ASTType>,
-) -> Option<MIRType> {
+fn try_resolve_generic_type(generics: &Vec<Rc<String>>, ty: Option<&ASTType>) -> Option<MIRType> {
     if let ASTType::Token(tok) = ty.unwrap() {
         if generics.contains(&tok.lexeme) {
-            return Some(MIRType::Generic(Rc::clone(&tok.lexeme)))
+            return Some(MIRType::Generic(Rc::clone(&tok.lexeme)));
         }
     }
     None
