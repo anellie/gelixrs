@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/3/19 2:37 AM.
+ * Last modified on 10/3/19 6:00 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -107,7 +107,7 @@ impl IRGenerator {
     fn generate_module(&mut self, mir: MIRModule) {
         // Put all functions into the variables map first
         for (name, func) in mir.functions.iter().chain(mir.imported_func.iter()) {
-            let func_val = if let MIRType::Function(func) = &func._type {
+            let func_val = if let MIRType::Function(func) = &func.type_ {
                 let func = func.borrow();
                 self.module
                     .add_function(&name, self.get_fn_type(&func), None)
@@ -137,7 +137,7 @@ impl IRGenerator {
         let body: Vec<BasicTypeEnum> = class
             .members
             .iter()
-            .map(|(_, mem)| self.to_ir_type_no_ptr(&mem._type))
+            .map(|(_, mem)| self.to_ir_type_no_ptr(&mem.type_))
             .collect();
         struc_val.set_body(body.as_slice(), false);
     }
@@ -145,7 +145,7 @@ impl IRGenerator {
     /// Generates a function; function should already be declared in the module.
     fn function(&mut self, name: Rc<String>, func: Rc<MIRVariable>) {
         let func_val = self.module.get_function(&name).unwrap();
-        if let MIRType::Function(func) = &func._type {
+        if let MIRType::Function(func) = &func.type_ {
             let func = func.borrow_mut();
             if !func.blocks.is_empty() {
                 self.function_body(func, func_val)
@@ -179,7 +179,7 @@ impl IRGenerator {
         for (name, var) in func.variables.iter() {
             let alloca = self
                 .builder
-                .build_alloca(self.to_ir_type_no_ptr(&var._type), &name);
+                .build_alloca(self.to_ir_type_no_ptr(&var.type_), &name);
             self.variables.insert(PtrEqRc::new(var), alloca);
         }
 
@@ -482,7 +482,7 @@ impl IRGenerator {
                 let value = self.generate_expression(value);
 
                 // String pointers should not be unwrapped
-                let value = if var._type == MIRType::String {
+                let value = if var.type_ == MIRType::String {
                     value
                 } else {
                     self.unwrap_value_ptr(value)
@@ -584,13 +584,13 @@ impl IRGenerator {
         let params: Vec<BasicTypeEnum> = func
             .parameters
             .iter()
-            .map(|param| self.to_ir_type(&param._type))
+            .map(|param| self.to_ir_type(&param.type_))
             .collect();
 
-        let ret_type = self.to_ir_type(&func.ret_type);
-        if ret_type == self.none_const.get_type() {
+        if func.ret_type == MIRType::None {
             self.context.void_type().fn_type(params.as_slice(), false)
         } else {
+            let ret_type = self.to_ir_type(&func.ret_type);
             ret_type.fn_type(params.as_slice(), false)
         }
     }

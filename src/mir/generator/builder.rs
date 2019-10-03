@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/3/19 4:13 PM.
+ * Last modified on 10/3/19 6:25 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,7 +12,7 @@ use indexmap::IndexMap;
 
 use crate::ast::declaration::ASTType;
 use crate::ast::literal::Literal;
-use crate::lexer::token::Type;
+use crate::lexer::token::{Token, Type};
 use crate::mir::{MIRModule, MutRc, mutrc_new};
 use crate::mir::nodes::{MIRClass, MIRClassMember, MIRExpression, MIRFlow, MIRInterface, MIRVariable};
 use crate::ModulePath;
@@ -36,21 +36,26 @@ pub struct MIRBuilder {
     /// Simply a const of the string "tmp".
     /// Used for temporary variables needed for class init.
     tmp_const: Rc<String>,
+    /// Simply a const of the string "This".
+    /// Used for the This alias inside classes/interfaces.
+    this_const: Rc<String>,
 }
 
 impl MIRBuilder {
-    pub fn create_class(&mut self, name: Rc<String>) -> Option<MutRc<MIRClass>> {
+    pub fn create_class(&mut self, name: &Token) -> Option<MutRc<MIRClass>> {
         let class = mutrc_new(MIRClass {
-            name: Rc::clone(&name),
+            name: Rc::clone(&name.lexeme),
             members: IndexMap::new(),
             methods: HashMap::new(),
             interfaces: Vec::new(),
         });
 
-        if self.find_class(&name).is_none() {
+        if self.find_class(&name.lexeme).is_none() {
             self.module
                 .classes
-                .insert(Rc::clone(&name), Rc::clone(&class));
+                .insert(Rc::clone(&name.lexeme), Rc::clone(&class));
+
+            self.add_this_alias(name);
             Some(class)
         } else {
             // Class already exists
@@ -145,7 +150,7 @@ impl MIRBuilder {
     }
 
     pub fn add_global(&mut self, name: Rc<String>, variable: Rc<MIRVariable>) {
-        if let MIRType::Function(_) = variable._type {
+        if let MIRType::Function(_) = variable.type_ {
             self.module.functions.insert(name, variable);
         } else {
             panic!("Invalid global")
@@ -203,11 +208,12 @@ impl MIRBuilder {
 
     pub fn build_constructor(&mut self, class_ref: MutRc<MIRClass>) -> MIRExpression {
         let class = class_ref.borrow();
-        let var = Rc::new(MIRVariable::new(
-            Rc::clone(&self.tmp_const),
-            MIRType::Class(Rc::clone(&class_ref)),
-            false,
-        ));
+        let var = Rc::new(MIRVariable {
+            name: Rc::clone(&self.tmp_const),
+            type_: MIRType::Class(Rc::clone(&class_ref)),
+            mutable: false,
+        });
+
         self.cur_fn()
             .borrow_mut()
             .insert_var(Rc::clone(&self.tmp_const), Rc::clone(&var));
@@ -300,7 +306,7 @@ impl MIRBuilder {
     }
 
     pub fn append_block(&mut self, name: &str) -> Rc<String> {
-        self.cur_fn().borrow_mut().append_block(name.to_string())
+        self.cur_fn().borrow_mut().append_block(name)
     }
 
     pub fn set_return(&mut self, ret: MIRFlow) {
@@ -372,7 +378,7 @@ impl MIRBuilder {
                 .get(name)
                 .or_else(|| self.module.imported_func.get(name))
                 .map(|f| {
-                    if let MIRType::Function(f) = &f._type {
+                    if let MIRType::Function(f) = &f.type_ {
                         f
                     } else {
                         panic!("Not a function!")
@@ -399,8 +405,16 @@ impl MIRBuilder {
         self.type_aliases.insert(Rc::clone(key), val.clone());
     }
 
+    pub fn add_this_alias(&mut self, name: &Token) {
+        self.type_aliases.insert(Rc::clone(&self.this_const), ASTType::Token(name.clone()));
+    }
+
     pub fn remove_alias(&mut self, name: &Rc<String>) {
         self.type_aliases.remove(name);
+    }
+
+    pub fn remove_this_alias(&mut self) {
+        self.type_aliases.remove(&self.this_const);
     }
 
     /// Will turn the passed in type into a concrete type, should it still be a generic one.
@@ -445,6 +459,7 @@ impl MIRBuilder {
             imports: Imports::default(),
             type_aliases: HashMap::new(),
             tmp_const: Rc::new("tmp".to_string()),
+            this_const: Rc::new("This".to_string()),
         }
     }
 }

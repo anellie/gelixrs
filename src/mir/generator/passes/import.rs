@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/3/19 2:36 AM.
+ * Last modified on 10/3/19 5:29 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -28,7 +28,7 @@ pub fn class_imports(modules: ModulesRef) {
             Either::Right(classes) => {
                 // Do not import class methods.
                 // They are imported later in function imports, as they appear
-                // as regular functions in the module
+                // as regular functions in the module (and will thus be imported by wildcard)
                 classes.iter().try_for_each(|(_, class)| {
                     gen.builder.add_imported_class(Rc::clone(class), false)
                 });

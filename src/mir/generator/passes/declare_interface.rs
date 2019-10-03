@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/3/19 3:08 AM.
+ * Last modified on 10/3/19 5:40 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,8 +12,8 @@ use crate::lexer::token::Token;
 use crate::mir::generator::{MIRError, MIRGenerator, Res};
 use crate::mir::generator::passes::declare_func::create_function;
 use crate::mir::generator::passes::NONE_CONST;
-use crate::mir::generator::passes::THIS_CONST;
 use crate::mir::nodes::{MIRIFaceMethod, MIRType};
+use crate::mir::ToMIRResult;
 
 /// This pass declares all interfaces.
 pub fn declare_interface_pass(gen: &mut MIRGenerator, module: &mut Module) -> Res<()> {
@@ -28,33 +28,27 @@ fn create_interface(gen: &mut MIRGenerator, interface: &mut Interface) -> Res<()
     let mir_iface = gen
         .builder
         .create_interface(&interface.name.lexeme)
-        .ok_or(gen.error(
-            &interface.name,
-            &interface.name,
-            "Interface with the same name already defined.",
-        ))?;
+        .or_err(gen, &interface.name, "Interface with the same name already defined.")?;
     let mut mir_iface = mir_iface.borrow_mut();
 
-    gen.builder.add_alias(&THIS_CONST.with(|c| c.clone()), &ASTType::Token(interface.name.clone()));
-    for generic in interface.generics.iter() {
-        mir_iface.generics.push(Rc::clone(&generic.lexeme))
-    }
+    gen.builder.add_this_alias(&interface.name);
+    mir_iface.generics = interface.generics.iter().map(|t| t.lexeme.clone()).collect();
 
     for method in interface.methods.iter_mut() {
+        let ast_ret_type = method.sig.return_type.as_ref();
         let ret_type = gen
             .builder
-            .find_type(
-                method
-                    .sig
-                    .return_type
-                    .as_ref()
-                    .unwrap_or(&NONE_CONST.with(|c| c.clone())),
-            );
-        let ret_type = check_for_generic_type(gen, &mir_iface.generics, method.sig.return_type.as_ref(), ret_type)?;
+            .find_type(ast_ret_type.unwrap_or(&NONE_CONST.with(|c| c.clone())))
+            .or_else(|| try_resolve_generic_type(&mir_iface.generics, ast_ret_type))
+            .or_type_err(gen, &method.sig.return_type, "Unknown return type")?;
 
         let mut parameters = Vec::with_capacity(method.sig.parameters.len());
         for param in method.sig.parameters.iter() {
-            let ty = check_for_generic_type(gen, &mir_iface.generics, Some(&param.type_), gen.builder.find_type(&param.type_))?;
+            let ty = gen
+                .builder
+                .find_type(&param.type_)
+                .or_else(|| try_resolve_generic_type(&mir_iface.generics, Some(&param.type_)))
+                .or_err(gen, &param.name, "Unknown parameter type")?;
             parameters.push(ty);
         }
 
@@ -66,28 +60,19 @@ fn create_interface(gen: &mut MIRGenerator, interface: &mut Interface) -> Res<()
         });
     }
 
-    gen.builder.remove_alias(&THIS_CONST.with(|c| c.clone()));
+    gen.builder.remove_this_alias();
     Ok(())
 }
 
-/// Takes an option of a MIRType as well as the ASTType it came from.
-/// If the MIRType is none, it checks if it is a generic type; an error is raised if it isn't.
-fn check_for_generic_type(
-    gen: &mut MIRGenerator,
+/// Tries resolving an AST type to a generic.
+fn try_resolve_generic_type(
     generics: &Vec<Rc<String>>,
     ty: Option<&ASTType>,
-    current: Option<MIRType>,
-) -> Res<MIRType> {
-    match current {
-        Some(ty) => Ok(ty),
-        None => {
-            if let ASTType::Token(tok) = ty.unwrap() {
-                if generics.contains(&tok.lexeme) {
-                    return Ok(MIRType::Generic(Rc::clone(&tok.lexeme)))
-                }
-            }
-            let tok = ty.unwrap().get_token();
-            Err(MIRGenerator::anon_err(gen, tok, "Unknown type"))
+) -> Option<MIRType> {
+    if let ASTType::Token(tok) = ty.unwrap() {
+        if generics.contains(&tok.lexeme) {
+            return Some(MIRType::Generic(Rc::clone(&tok.lexeme)))
         }
     }
+    None
 }

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/2/19 1:22 AM.
+ * Last modified on 10/3/19 6:25 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -10,6 +10,9 @@ use std::rc::Rc;
 
 use nodes::{MIRClass, MIRVariable};
 
+use crate::ast::declaration::ASTType;
+use crate::lexer::token::Token;
+use crate::mir::generator::{MIRError, MIRGenerator};
 use crate::mir::nodes::MIRInterface;
 use crate::ModulePath;
 
@@ -40,5 +43,30 @@ impl MIRModule {
             path,
             ..Default::default()
         }
+    }
+}
+
+pub trait ToMIRResult<T> {
+    #[inline(always)]
+    fn or_err(self, gen: &MIRGenerator, error_token: &Token, msg: &str) -> Result<T, MIRError>;
+
+    #[inline(always)]
+    fn or_anon_err(self, gen: &MIRGenerator, error_token: Option<&Token>, msg: &str) -> Result<T, MIRError>;
+
+    #[inline(always)]
+    fn or_type_err(self, gen: &MIRGenerator, error_ty: &Option<ASTType>, msg: &str) -> Result<T, MIRError>;
+}
+
+impl<T> ToMIRResult<T> for Option<T> {
+    fn or_err(self, gen: &MIRGenerator, error_token: &Token, msg: &str) -> Result<T, MIRError> {
+        self.ok_or_else(|| gen.error(error_token, error_token, msg))
+    }
+
+    fn or_anon_err(self, gen: &MIRGenerator, error_token: Option<&Token>, msg: &str) -> Result<T, MIRError> {
+        self.ok_or_else(|| gen.anon_err(error_token, msg))
+    }
+
+    fn or_type_err(self, gen: &MIRGenerator, error_ty: &Option<ASTType>, msg: &str) -> Result<T, MIRError> {
+        self.ok_or_else(|| gen.anon_err(error_ty.as_ref().map(|t| t.get_token()).flatten(), msg))
     }
 }

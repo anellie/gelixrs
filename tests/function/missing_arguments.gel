@@ -1,7 +1,7 @@
 // ERR
 
-fun test(s: String) {
-    print(s);
+func test(s: String) {
+    print(s)
 }
 
 func main() {

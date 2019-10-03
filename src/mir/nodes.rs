@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/3/19 3:08 AM.
+ * Last modified on 10/3/19 6:20 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -53,6 +53,7 @@ impl PartialEq for MIRType {
             return true;
         }
 
+        // TODO: Is there really no other way than whatever the heck this is?
         match self {
             MIRType::Function(f) => {
                 if let MIRType::Function(o) = o { f == o } else { false }
@@ -114,7 +115,7 @@ impl PartialEq for MIRClass {
 #[derive(Debug)]
 pub struct MIRClassMember {
     pub mutable: bool,
-    pub _type: MIRType,
+    pub type_: MIRType,
     pub index: u32,
 }
 
@@ -164,7 +165,8 @@ impl PartialEq for MIRFunction {
 impl MIRFunction {
     /// Appends a new block; will returns the block name.
     /// The name can be different than the given one when it was already in use.
-    pub fn append_block(&mut self, mut name: String) -> Rc<String> {
+    pub fn append_block(&mut self, name: &str) -> Rc<String> {
+        let mut name = name.to_string();
         if self.blocks.contains_key(&name) {
             name = format!("{}-{}", name, self.blocks.len());
         }
@@ -194,18 +196,8 @@ impl MIRFunction {
 #[derive(Debug, Clone)]
 pub struct MIRVariable {
     pub mutable: bool,
-    pub _type: MIRType,
+    pub type_: MIRType,
     pub name: Rc<String>,
-}
-
-impl MIRVariable {
-    pub fn new(name: Rc<String>, _type: MIRType, mutable: bool) -> MIRVariable {
-        MIRVariable {
-            name,
-            _type,
-            mutable,
-        }
-    }
 }
 
 impl Hash for MIRVariable {
@@ -374,9 +366,9 @@ impl MIRExpression {
                 _ => panic!("invalid unary"),
             },
 
-            MIRExpression::VarGet(var) => var._type.clone(),
+            MIRExpression::VarGet(var) => var.type_.clone(),
 
-            MIRExpression::VarStore { var, .. } => var._type.clone(),
+            MIRExpression::VarStore { .. } => MIRType::None,
         }
     }
 
@@ -384,13 +376,14 @@ impl MIRExpression {
     fn type_from_struct_get(object: &MIRExpression, index: u32) -> MIRType {
         let object = object.get_type();
         if let MIRType::Class(class) = object {
-            RefCell::borrow(&class)
+            class
+                .borrow()
                 .members
                 .iter()
                 .find(|(_, mem)| mem.index == index)
                 .unwrap()
                 .1
-                ._type
+                .type_
                 .clone()
         } else {
             panic!("non-class struct get")

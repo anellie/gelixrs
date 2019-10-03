@@ -1,0 +1,10 @@
+// ERR
+
+func test(a: String) -> i64 {
+    print(a)
+    var b = "this isn't a i64 expression"
+}
+
+func main() {
+    printnum(test("hmm"))
+}

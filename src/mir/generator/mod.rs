@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/1/19 6:15 PM.
+ * Last modified on 10/3/19 6:25 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,16 +12,16 @@ use either::Either;
 
 use builder::MIRBuilder;
 
+use crate::{Error, ModulePath};
 use crate::ast::declaration::Function;
 use crate::ast::expression::Expression;
 use crate::ast::literal::Literal;
 use crate::ast::module::Module;
 use crate::lexer::token::{Token, Type};
+use crate::mir::{MIRModule, MutRc, ToMIRResult};
 use crate::mir::nodes::{
     MIRArray, MIRClassMember, MIRExpression, MIRFlow, MIRFunction, MIRType, MIRVariable,
 };
-use crate::mir::{MIRModule, MutRc};
-use crate::{Error, ModulePath};
 
 mod builder;
 pub mod module;
@@ -68,11 +68,12 @@ impl MIRGenerator {
     fn generate_function(&mut self, func: &Function) -> Res<()> {
         let function_rc = self.builder.find_function(&func.sig.name.lexeme).unwrap();
         let mut function = function_rc.borrow_mut();
-        let func_type = function.ret_type.clone();
-        let entry = function.append_block("entry".to_string());
+
+        let ret_type = function.ret_type.clone();
+        let entry_block = function.append_block("entry");
+
+        self.builder.set_pointer(Rc::clone(&function_rc), Rc::clone(&entry_block));
         drop(function);
-        self.builder
-            .set_pointer(Rc::clone(&function_rc), Rc::clone(&entry));
 
         self.begin_scope();
         for param in function_rc.borrow().parameters.iter() {
@@ -80,28 +81,21 @@ impl MIRGenerator {
         }
 
         let body = self.generate_expression(&func.body)?;
-        if func_type != MIRType::None {
-            if func_type == body.get_type() {
-                self.builder.set_return(MIRFlow::Return(body));
-            } else {
+        match () {
+            _ if ret_type == MIRType::None => self.builder.insert_at_ptr(body),
+            _ if ret_type == body.get_type() => self.builder.set_return(MIRFlow::Return(body)),
+            _ => {
                 return Err(self.error(
                     &func.sig.name,
-                    func.sig
-                        .return_type
-                        .as_ref()
-                        .map(|t| t.get_token())
-                        .flatten()
-                        .unwrap_or(&func.sig.name),
+                    &func.sig.name,
                     &format!(
                         "Function return type ({}) does not match body type ({}).",
-                        func_type,
+                        ret_type,
                         body.get_type()
                     ),
                 ));
             }
-        } else {
-            self.builder.insert_at_ptr(body)
-        }
+        };
 
         self.end_scope();
         Ok(())
@@ -113,7 +107,7 @@ impl MIRGenerator {
                 let var = self.find_var(&name)?;
                 if var.mutable {
                     let value = self.generate_expression(&**value)?;
-                    if value.get_type() == var._type {
+                    if value.get_type() == var.type_ {
                         self.builder.build_store(var, value)
                     } else {
                         return Err(self.error(
@@ -192,11 +186,8 @@ impl MIRGenerator {
                     // Method call
                     Expression::Get { object, name } => {
                         let (object, field) = self.get_class_field(object, name)?;
-                        let func = field.right().ok_or_else(|| {
-                            self.error(name, name, "Class members cannot be called.")
-                        })?;
-                        let args =
-                            self.generate_func_args(Rc::clone(&func), arguments, Some(object))?;
+                        let func = field.right().or_err(self, name, "Class members cannot be called.")?;
+                        let args = self.generate_func_args(Rc::clone(&func), arguments, Some(object))?;
                         return Ok(self.builder.build_call(MIRExpression::Function(func), args));
                     }
 
@@ -291,9 +282,7 @@ impl MIRGenerator {
 
             Expression::Get { object, name } => {
                 let (object, field) = self.get_class_field(&**object, name)?;
-                let field = field.left().ok_or_else(|| {
-                    self.error(name, name, "Cannot get class method (must be called)")
-                })?;
+                let field = field.left().or_err(self, name, "Cannot get class method (must be called)")?;
                 self.builder.build_struct_get(object, field)
             }
 
@@ -415,10 +404,10 @@ impl MIRGenerator {
                 let (object, field) = self.get_class_field(&**object, name)?;
                 let field = field
                     .left()
-                    .ok_or_else(|| self.error(name, name, "Cannot set class method"))?;
+                    .or_err(self, name, "Cannot set class method")?;
                 let value = self.generate_expression(&**value)?;
 
-                if value.get_type() != field._type {
+                if value.get_type() != field.type_ {
                     return Err(self.error(name, name, "Class member is a different type"));
                 }
                 if !field.mutable {
@@ -519,11 +508,15 @@ impl MIRGenerator {
 
     /// Defines a new variable. It is put into the variable list in the current function
     /// and placed in the topmost scope.
-    fn define_variable(&mut self, token: &Token, mutable: bool, _type: MIRType) -> Rc<MIRVariable> {
-        let def = Rc::new(MIRVariable::new(Rc::clone(&token.lexeme), _type, mutable));
+    fn define_variable(&mut self, token: &Token, mutable: bool, ty: MIRType) -> Rc<MIRVariable> {
+        let def = Rc::new(MIRVariable {
+            mutable,
+            type_: ty,
+            name: Rc::clone(&token.lexeme),
+        });
+
         self.builder.add_function_variable(Rc::clone(&def));
-        self.insert_variable(Rc::clone(&def), true, token.line)
-            .unwrap_or(());
+        self.insert_variable(Rc::clone(&def), true, token.line).unwrap_or(());
         def
     }
 
@@ -563,13 +556,7 @@ impl MIRGenerator {
             }
         }
 
-        self.builder.find_global(&token.lexeme).ok_or_else(|| {
-            self.error(
-                token,
-                token,
-                &format!("Variable '{}' is not defined", token.lexeme),
-            )
-        })
+        self.builder.find_global(&token.lexeme).or_err(self, token, &format!("Variable '{}' is not defined", token.lexeme))
     }
 
     /// Returns the variable of the current loop or creates it if it does not exist yet
@@ -583,7 +570,7 @@ impl MIRGenerator {
         });
         self.cur_loop().result_var = Some(Rc::clone(&var));
 
-        if &var._type != type_ {
+        if &var.type_ != type_ {
             Err(self.anon_err(None, "Break expressions + for body must have same type"))
         } else {
             Ok(var)
@@ -627,7 +614,7 @@ impl MIRGenerator {
     }
 
     fn var_to_function(var: &Rc<MIRVariable>) -> MutRc<MIRFunction> {
-        if let MIRType::Function(f) = &var._type {
+        if let MIRType::Function(f) = &var.type_ {
             Rc::clone(&f)
         } else {
             panic!()
@@ -657,7 +644,7 @@ impl MIRGenerator {
         let mut result = Vec::with_capacity(args_len);
         let first_arg_is_some = first_arg.is_some();
         if let Some(arg) = first_arg {
-            let ty = &func.parameters[0]._type;
+            let ty = &func.parameters[0].type_;
             let arg = self
                 .check_call_arg_type(arg, ty)
                 .expect("internal error: method call");
@@ -670,16 +657,15 @@ impl MIRGenerator {
             let arg = self.generate_expression(argument)?;
             let arg_type = arg.get_type();
             let arg = self
-                .check_call_arg_type(arg, &parameter._type)
-                .ok_or_else(|| {
-                    self.anon_err(
-                        argument.get_token(),
-                        &format!(
-                            "Call argument is the wrong type (was {}, expected {})",
-                            arg_type, parameter._type
-                        ),
-                    )
-                })?;
+                .check_call_arg_type(arg, &parameter.type_)
+                .or_anon_err(
+                    self,
+                    argument.get_token(),
+                    &format!(
+                        "Call argument is the wrong type (was {}, expected {})",
+                        arg_type, parameter.type_
+                    ),
+                )?;
             result.push(arg)
         }
 
@@ -730,7 +716,7 @@ impl MIRGenerator {
         MIRExpression::Literal(Literal::None)
     }
 
-    fn error(&self, start: &Token, end: &Token, message: &str) -> MIRError {
+    pub fn error(&self, start: &Token, end: &Token, message: &str) -> MIRError {
         MIRError {
             error: Error::new(start, end, "MIRGenerator", message.to_string()),
             module: self.builder.module_path(),
@@ -739,7 +725,7 @@ impl MIRGenerator {
 
     /// Produces an error when the caller cannot guarantee that the expression contains a token.
     /// If it doesn't, the function creates a generic "unknown location" token.
-    fn anon_err(&self, tok: Option<&Token>, message: &str) -> MIRError {
+    pub fn anon_err(&self, tok: Option<&Token>, message: &str) -> MIRError {
         let generic = Token::generic_token(Type::Identifier);
         let tok = tok.unwrap_or_else(|| &generic);
         MIRError {
