@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/3/19 6:20 PM.
+ * Last modified on 10/3/19 6:31 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -368,7 +368,7 @@ impl MIRExpression {
 
             MIRExpression::VarGet(var) => var.type_.clone(),
 
-            MIRExpression::VarStore { .. } => MIRType::None,
+            MIRExpression::VarStore { var, .. } => var.type_.clone(),
         }
     }
 

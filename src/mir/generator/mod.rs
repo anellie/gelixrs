@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/3/19 6:25 PM.
+ * Last modified on 10/3/19 6:38 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,16 +12,16 @@ use either::Either;
 
 use builder::MIRBuilder;
 
+use crate::{Error, ModulePath};
 use crate::ast::declaration::Function;
 use crate::ast::expression::Expression;
 use crate::ast::literal::Literal;
 use crate::ast::module::Module;
 use crate::lexer::token::{Token, Type};
+use crate::mir::{MIRModule, MutRc, ToMIRResult};
 use crate::mir::nodes::{
     MIRArray, MIRClassMember, MIRExpression, MIRFlow, MIRFunction, MIRType, MIRVariable,
 };
-use crate::mir::{MIRModule, MutRc, ToMIRResult};
-use crate::{Error, ModulePath};
 
 mod builder;
 pub mod module;
@@ -677,7 +677,6 @@ impl MIRGenerator {
                 )?;
             result.push(arg)
         }
-
         Ok(result)
     }
 

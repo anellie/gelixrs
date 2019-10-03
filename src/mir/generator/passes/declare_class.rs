@@ -1,16 +1,16 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/3/19 5:13 PM.
+ * Last modified on 10/3/19 6:38 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::rc::Rc;
 
-use crate::ast::declaration::{ASTType, Class, FuncSignature, FunctionArg};
+use crate::ast::declaration::{Class, FuncSignature, FunctionArg};
 use crate::ast::module::Module;
 use crate::lexer::token::Token;
-use crate::mir::generator::passes::declare_func::create_function;
 use crate::mir::generator::{MIRGenerator, Res};
+use crate::mir::generator::passes::declare_func::create_function;
 use crate::mir::ToMIRResult;
 
 /// This pass declares all classes.

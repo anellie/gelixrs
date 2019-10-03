@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/3/19 6:00 PM.
+ * Last modified on 10/3/19 6:38 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,24 +12,22 @@ use std::{
 };
 
 use inkwell::{
+    AddressSpace,
     basic_block::BasicBlock,
     builder::Builder,
     context::Context,
+    IntPredicate,
     module::Module,
     passes::PassManager,
-    types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType, StructType},
-    values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
-    AddressSpace, IntPredicate,
+    types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType, StructType}, values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
 };
-
-use crate::mir::nodes::MIRInterface;
 
 use super::{
     ast::literal::Literal,
     lexer::token::Type,
     mir::{
-        nodes::{MIRBlock, MIRClass, MIRExpression, MIRFlow, MIRFunction, MIRType, MIRVariable},
         MIRModule,
+        nodes::{MIRBlock, MIRClass, MIRExpression, MIRFlow, MIRFunction, MIRType, MIRVariable},
     },
     module_path_to_string,
 };
@@ -568,11 +566,11 @@ impl IRGenerator {
                 .as_basic_type_enum(),
             MIRType::Class(struc) => self.types[&struc.borrow().name].as_basic_type_enum(),
 
-            MIRType::Interface(iface) => {
+            MIRType::Interface(_) => {
                 println!("WARN: Unimplemented interface type. Returning dummy...");
                 self.context.bool_type().as_basic_type_enum()
             }
-            MIRType::Generic(name) => {
+            MIRType::Generic(_) => {
                 println!("WARN: Unimplemented generic type. Returning dummy...");
                 self.context.bool_type().as_basic_type_enum()
             }

@@ -1,10 +1,8 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/3/19 4:21 PM.
+ * Last modified on 10/3/19 6:37 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
-
-use std::rc::Rc;
 
 use crate::ast::declaration::ASTType;
 use crate::lexer::token::Token;

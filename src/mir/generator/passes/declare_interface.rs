@@ -1,17 +1,15 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/3/19 5:40 PM.
+ * Last modified on 10/3/19 6:38 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::rc::Rc;
 
-use crate::ast::declaration::{ASTType, FunctionArg, Interface};
+use crate::ast::declaration::{ASTType, Interface};
 use crate::ast::module::Module;
-use crate::lexer::token::Token;
-use crate::mir::generator::passes::declare_func::create_function;
+use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::generator::passes::NONE_CONST;
-use crate::mir::generator::{MIRError, MIRGenerator, Res};
 use crate::mir::nodes::{MIRIFaceMethod, MIRType};
 use crate::mir::ToMIRResult;
 

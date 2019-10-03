@@ -1,10 +1,10 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/21/19 4:25 PM.
+ * Last modified on 10/3/19 6:38 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::{env, ffi::CStr, fs::read_to_string, os::raw::c_char, path::PathBuf, sync::Mutex};
+use std::{env, ffi::CStr, fs::read_to_string, os::raw::c_char, panic, path::PathBuf, sync::Mutex};
 
 use inkwell::{execution_engine::JitFunction, OptimizationLevel};
 
@@ -50,7 +50,7 @@ fn for_file(file: PathBuf) {
         println!("Running test: {}", file.to_str().unwrap());
         let source = read_to_string(file.clone()).expect("Couldn't get file.");
         let expected = get_expected_result(&source);
-        let result = exec_jit(file);
+        let result = panic::catch_unwind(|| exec_jit(file)).unwrap_or(Err(()));
 
         if result != expected {
             println!(

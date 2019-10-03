@@ -1,0 +1,24 @@
+// ERR
+
+interface Test<T> {
+    func test() -> T
+}
+
+class Implementor {
+    val a = "ok"
+}
+
+impl Test<String, i64> for Implementor {
+    func test() -> T this.a
+}
+
+class OtherImpl { }
+
+impl Test<i64> for OtherImpl {
+    func test() -> T 123
+}
+
+func main() {
+    print(Implementor().test())
+    printnum(OtherImpl().test())
+}
