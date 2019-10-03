@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/3/19 2:36 AM.
+ * Last modified on 10/3/19 4:13 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -401,6 +401,15 @@ impl MIRBuilder {
 
     pub fn remove_alias(&mut self, name: &Rc<String>) {
         self.type_aliases.remove(name);
+    }
+
+    /// Will turn the passed in type into a concrete type, should it still be a generic one.
+    pub fn translate_generic(&mut self, ty: &MIRType) -> MIRType {
+        if let MIRType::Generic(name) = ty {
+            self.find_type(self.type_aliases.get(name).unwrap()).unwrap()
+        } else {
+            ty.clone()
+        }
     }
 
     pub fn insert_at_ptr(&mut self, expr: MIRExpression) {
