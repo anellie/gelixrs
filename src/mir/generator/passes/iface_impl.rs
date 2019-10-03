@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/2/19 4:44 PM.
+ * Last modified on 10/3/19 3:08 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -35,6 +35,17 @@ fn iface_impl(gen: &mut MIRGenerator, iface_impl: &mut IFaceImpl) -> Res<()> {
         .ok_or_else(|| gen.error(&iface_impl.iface, &iface_impl.iface, "Unknown interface."))?;
     let iface = iface_cell.borrow();
 
+    if iface_impl.iface_generics.len() != iface.generics.len() {
+        return Err(gen.error(
+            &iface_impl.iface,
+            &iface_impl.iface,
+            &format!("Wrong amount of interface generic parameters (expected {}; got {})", iface.generics.len(), iface_impl.iface_generics.len()),
+        ))
+    }
+    for (g_impl, g_iface) in iface_impl.iface_generics.iter().zip(iface.generics.iter()) {
+        gen.builder.add_alias(g_iface, &ASTType::Token(g_impl.clone()));
+    }
+
     for method in iface_impl.methods.iter_mut() {
         if !iface.methods.contains_key(&method.sig.name.lexeme) {
             return Err(gen.error(
@@ -64,7 +75,12 @@ fn iface_impl(gen: &mut MIRGenerator, iface_impl: &mut IFaceImpl) -> Res<()> {
         ))
     } else {
         class.interfaces.push(Rc::clone(&iface_cell));
+
         gen.builder.remove_alias(&THIS_CONST.with(|c| c.clone()));
+        for g_iface in iface.generics.iter() {
+            gen.builder.remove_alias(g_iface);
+        }
+
         Ok(())
     }
 }

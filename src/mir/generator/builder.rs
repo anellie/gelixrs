@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/2/19 4:44 PM.
+ * Last modified on 10/3/19 2:36 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -14,9 +14,7 @@ use crate::ast::declaration::ASTType;
 use crate::ast::literal::Literal;
 use crate::lexer::token::Type;
 use crate::mir::{MIRModule, MutRc, mutrc_new};
-use crate::mir::nodes::{
-    MIRClass, MIRClassMember, MIRExpression, MIRFlow, MIRInterface, MIRVariable,
-};
+use crate::mir::nodes::{MIRClass, MIRClassMember, MIRExpression, MIRFlow, MIRInterface, MIRVariable};
 use crate::ModulePath;
 
 use super::super::nodes::{MIRFunction, MIRType};
@@ -118,17 +116,11 @@ impl MIRBuilder {
     pub fn add_imported_iface(
         &mut self,
         iface: MutRc<MIRInterface>,
-        import_methods: bool,
     ) -> Option<()> {
         let name = Rc::clone(&iface.borrow().name);
         if self.find_interface(&name).is_none() {
             self.imports.interfaces
                 .insert(Rc::clone(&name), Rc::clone(&iface));
-            if import_methods {
-                for (_, method) in iface.borrow().methods.iter() {
-                    self.add_imported_function(Rc::clone(method))?;
-                }
-            }
             Some(())
         } else {
             // Interface already exists
@@ -140,6 +132,7 @@ impl MIRBuilder {
         let iface = mutrc_new(MIRInterface {
             name: Rc::clone(name),
             methods: IndexMap::new(),
+            generics: Vec::new()
         });
 
         if self.find_interface(name).is_none() {

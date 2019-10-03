@@ -1,0 +1,17 @@
+// ERR
+
+interface Test {
+    func test() -> String
+}
+
+class Implementor {
+    val a = 123
+}
+
+impl Test for Implementor {
+    func test() -> i64 this.a
+}
+
+func main() {
+    printnum(Implementor().test())
+}

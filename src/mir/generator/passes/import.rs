@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/2/19 1:22 AM.
+ * Last modified on 10/3/19 2:36 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -65,7 +65,7 @@ pub fn interface_imports(modules: ModulesRef) {
     drain_mod_imports(modules, &mut |modules, gen, import| {
         match find_interface(modules, &import.path, &import.symbol) {
             Either::Left(iface) => {
-                iface.and_then(|iface| gen.builder.add_imported_iface(iface, true))
+                iface.and_then(|iface| gen.builder.add_imported_iface(iface))
             }
 
             Either::Right(ifaces) => {
@@ -73,7 +73,7 @@ pub fn interface_imports(modules: ModulesRef) {
                 // They are imported later in function imports, as they appear
                 // as regular functions in the module
                 ifaces.iter().try_for_each(|(_, iface)| {
-                    gen.builder.add_imported_iface(Rc::clone(iface), false)
+                    gen.builder.add_imported_iface(Rc::clone(iface))
                 });
                 None // Functions still need to be imported!
             }

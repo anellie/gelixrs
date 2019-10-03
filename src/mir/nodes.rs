@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/2/19 4:43 PM.
+ * Last modified on 10/3/19 3:08 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,7 +12,7 @@ use std::rc::Rc;
 
 use indexmap::IndexMap;
 
-use crate::ast::expression::LOGICAL_BINARY;
+use crate::ast::expression::{Expression, LOGICAL_BINARY};
 use crate::ast::literal::Literal;
 use crate::lexer::token::Type;
 use crate::mir::MutRc;
@@ -41,34 +41,42 @@ pub enum MIRType {
     Class(MutRc<MIRClass>),
 
     Interface(MutRc<MIRInterface>),
+
+    /// A generic type. Only found in interface methods.
+    /// Appearing anywhere else is undefined behavior; panicking is appropriate in that case.
+    Generic(Rc<String>)
 }
 
 impl PartialEq for MIRType {
-    fn eq(&self, other: &Self) -> bool {
-        if let MIRType::Any = other {
+    fn eq(&self, o: &Self) -> bool {
+        if let MIRType::Any = o {
             return true;
         }
 
         match self {
-            MIRType::Function(func) => {
-                if let MIRType::Function(other) = other {
-                    func == other
-                } else {
-                    false
-                }
+            MIRType::Function(f) => {
+                if let MIRType::Function(o) = o { f == o } else { false }
             }
 
-            MIRType::Class(class) => {
-                if let MIRType::Class(other) = other {
-                    class == other
-                } else {
-                    false
-                }
+            MIRType::Class(c) => {
+                if let MIRType::Class(o) = o { c == o } else { false }
+            }
+
+            MIRType::Interface(i) => {
+                if let MIRType::Interface(o) = o { i == o } else { false }
+            }
+
+            MIRType::Array(a) => {
+                if let MIRType::Array(o) = o { a == o } else { false }
+            }
+
+            MIRType::Generic(g) => {
+                if let MIRType::Generic(o) = o { g == o } else { false }
             }
 
             MIRType::Any => true,
 
-            _ => std::mem::discriminant(self) == std::mem::discriminant(other),
+            _ => std::mem::discriminant(self) == std::mem::discriminant(o),
         }
     }
 }
@@ -114,8 +122,27 @@ pub struct MIRClassMember {
 #[derive(Debug)]
 pub struct MIRInterface {
     pub name: Rc<String>,
-    // A map of all methods. If the method does not have a default implementation, it has no blocks/variables.
-    pub methods: IndexMap<Rc<String>, Rc<MIRVariable>>,
+    /// A map of all methods.
+    pub methods: IndexMap<Rc<String>, MIRIFaceMethod>,
+    /// All generic parameters that are type-aliased on concrete implementations.
+    pub generics: Vec<Rc<String>>
+}
+
+impl PartialEq for MIRInterface {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
+
+/// A method inside an interface.
+/// The default implementation is left in AST state so that it can be compiled
+/// individually on concrete implementations if needed.
+#[derive(Debug)]
+pub struct MIRIFaceMethod {
+    pub name: Rc<String>,
+    pub parameters: Vec<MIRType>,
+    pub ret_type: MIRType,
+    pub default_impl: Option<Expression>,
 }
 
 /// A function in MIR. Consists of blocks.

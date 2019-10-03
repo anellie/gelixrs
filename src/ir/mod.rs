@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/2/19 1:38 AM.
+ * Last modified on 10/3/19 2:37 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -124,9 +124,6 @@ impl IRGenerator {
         mir.classes
             .into_iter()
             .for_each(|struc| self.class_to_struct(struc.1.borrow()));
-        mir.interfaces
-            .into_iter()
-            .for_each(|struc| self.iface_to_struct(struc.1.borrow()));
         mir.functions
             .into_iter()
             .for_each(|(name, func)| self.function(name, func));
@@ -139,17 +136,6 @@ impl IRGenerator {
         let struc_val = self.types[&class.name];
         let body: Vec<BasicTypeEnum> = class
             .members
-            .iter()
-            .map(|(_, mem)| self.to_ir_type_no_ptr(&mem._type))
-            .collect();
-        struc_val.set_body(body.as_slice(), false);
-    }
-
-    /// Generates a interface struct and its body (which is simply a collection of function pointers)
-    fn iface_to_struct(&mut self, iface: Ref<MIRInterface>) {
-        let struc_val = self.types[&iface.name];
-        let body: Vec<BasicTypeEnum> = iface
-            .methods
             .iter()
             .map(|(_, mem)| self.to_ir_type_no_ptr(&mem._type))
             .collect();
@@ -581,7 +567,15 @@ impl IRGenerator {
                 .ptr_type(AddressSpace::Generic)
                 .as_basic_type_enum(),
             MIRType::Class(struc) => self.types[&struc.borrow().name].as_basic_type_enum(),
-            MIRType::Interface(iface) => self.types[&iface.borrow().name].as_basic_type_enum(),
+
+            MIRType::Interface(iface) => {
+                println!("WARN: Unimplemented interface type. Returning dummy...");
+                self.context.bool_type().as_basic_type_enum()
+            },
+            MIRType::Generic(name) => {
+                println!("WARN: Unimplemented generic type. Returning dummy...");
+                self.context.bool_type().as_basic_type_enum()
+            }
         }
     }
 
