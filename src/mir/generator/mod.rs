@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/3/19 6:38 PM.
+ * Last modified on 10/12/19 5:22 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -622,7 +622,7 @@ impl MIRGenerator {
         }
     }
 
-    fn var_to_function(var: &Rc<MIRVariable>) -> MutRc<MIRFunction> {
+    pub fn var_to_function(var: &Rc<MIRVariable>) -> MutRc<MIRFunction> {
         if let MIRType::Function(f) = &var.type_ {
             Rc::clone(&f)
         } else {

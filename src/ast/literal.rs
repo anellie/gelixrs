@@ -1,9 +1,10 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/21/19 7:01 PM.
+ * Last modified on 10/12/19 5:46 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
+use std::fmt::{Display, Error, Formatter};
 use std::rc::Rc;
 
 use either::Either;
@@ -36,4 +37,24 @@ pub enum Literal {
     Array(Either<Rc<Vec<Expression>>, MIRArray>),
 
     Closure(Rc<Function>),
+}
+
+impl Display for Literal {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+        match self {
+            Literal::Any => write!(f, "Any"),
+            Literal::None => write!(f, "None"),
+            Literal::Bool(b) => write!(f, "{}", b),
+            Literal::I8(num) => write!(f, "{}i8", num),
+            Literal::I16(num) => write!(f, "{}i16", num),
+            Literal::I32(num) => write!(f, "{}i32", num),
+            Literal::I64(num) => write!(f, "{}", num),
+            Literal::F32(num) => write!(f, "{}f", num),
+            Literal::F64(num) => write!(f, "{}d", num),
+            Literal::Char(ch) => write!(f, "'{}'", ch),
+            Literal::String(st) => write!(f, "\"{}\"", st),
+            Literal::Array(_) => write!(f, "<array literal>"),
+            Literal::Closure(_) => write!(f, "<closure>"),
+        }
+    }
 }

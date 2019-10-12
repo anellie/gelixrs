@@ -1,20 +1,21 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/3/19 6:25 PM.
+ * Last modified on 10/12/19 5:46 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::fmt::{Display, Error, Formatter};
 use std::rc::Rc;
 
 use nodes::{MIRClass, MIRVariable};
 
+use crate::{module_path_to_string, ModulePath};
 use crate::ast::declaration::ASTType;
 use crate::lexer::token::Token;
 use crate::mir::generator::{MIRError, MIRGenerator};
 use crate::mir::nodes::MIRInterface;
-use crate::ModulePath;
 
 pub mod generator;
 pub mod nodes;
@@ -43,6 +44,30 @@ impl MIRModule {
             path,
             ..Default::default()
         }
+    }
+}
+
+impl Display for MIRModule {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+        write!(f, "----------------------------------------\n")?;
+        write!(f, "Module {}\n", module_path_to_string(&self.path))?;
+        write!(f, "----------------------------------------\n\n")?;
+
+        if !self.functions.is_empty() {
+            write!(f, "---------- Functions ----------\n")?;
+        }
+        for func in self.functions.iter().map(|f| MIRGenerator::var_to_function(f.1)) {
+            write!(f, "{}\n", func.borrow())?;
+        }
+
+        if !self.classes.is_empty() {
+            write!(f, "---------- Classes ----------\n")?;
+        }
+        for (_, class) in self.classes.iter() {
+            write!(f, "{}\n", class.borrow())?;
+        }
+
+        Ok(())
     }
 }
 

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/3/19 6:31 PM.
+ * Last modified on 10/12/19 5:46 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -111,6 +111,16 @@ impl PartialEq for MIRClass {
     }
 }
 
+impl Display for MIRClass {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+        write!(f, "class {} {{\n", self.name)?;
+        for (name, member) in self.members.iter() {
+            write!(f, "    {} {}: {}\n", if member.mutable { "var" } else { "val" }, name, member.type_)?;
+        }
+        write!(f, "}}\n")
+    }
+}
+
 /// A member of a class.
 #[derive(Debug)]
 pub struct MIRClassMember {
@@ -159,6 +169,28 @@ pub struct MIRFunction {
 impl PartialEq for MIRFunction {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name
+    }
+}
+
+impl Display for MIRFunction {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+        write!(f, "func {}(", self.name)?;
+
+        let mut params = self.parameters.iter();
+        params.next().map(|param| write!(f, "{}: {}", param.name, param.type_));
+        for param in params {
+            write!(f, ", {}: {}", param.name, param.type_)?;
+        }
+
+        write!(f, ") {{\n")?;
+        for (name, block) in self.blocks.iter() {
+            write!(f, "{}:\n", name)?;
+            for inst in block.expressions.iter() {
+                write!(f, "    {}\n", inst)?;
+            }
+            write!(f, "    {}\n\n", block.last)?;
+        }
+        write!(f, "}}\n")
     }
 }
 
@@ -238,6 +270,29 @@ pub enum MIRFlow {
 
     /// Return a value
     Return(MIRExpression),
+}
+
+impl Display for MIRFlow {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+        match self {
+            MIRFlow::None => write!(f, "return"),
+
+            MIRFlow::Jump(goal) => write!(f, "jump {}", goal),
+
+            MIRFlow::Branch { condition, then_b, else_b } => write!(f, "jump {} if ({}) else {}", then_b, condition, else_b),
+
+            MIRFlow::Switch { cases, default } => {
+                write!(f, "switch {{ ")?;
+                for (expr, block) in cases.iter() {
+                    write!(f, "{}: ({}), ", block, expr)?;
+                }
+                write!(f, "else {}", default)?;
+                write!(f, "}}")
+            },
+
+            MIRFlow::Return(expr) => write!(f, "return ({})", expr),
+        }
+    }
 }
 
 /// All expressions in MIR. All of them produce a value.
@@ -387,6 +442,48 @@ impl MIRExpression {
                 .clone()
         } else {
             panic!("non-class struct get")
+        }
+    }
+}
+
+impl Display for MIRExpression {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+        match self {
+            MIRExpression::Binary { left, operator, right } => write!(f, "({}) {:?} ({})", left, operator, right),
+
+            MIRExpression::Bitcast { object, goal } => write!(f, "cast ({}) to {}", object, goal.borrow().name),
+
+            MIRExpression::Call { callee, arguments } => {
+                write!(f, "call ({}) with ", callee)?;
+                for arg in arguments.iter() {
+                    write!(f, "({})", arg)?;
+                }
+                Ok(())
+            },
+
+            MIRExpression::DoRet => write!(f, "endblock"),
+
+            MIRExpression::Function(func) => write!(f, "{}", func.borrow().name),
+
+            MIRExpression::Phi(nodes) => {
+                write!(f, "phi {{ ")?;
+                for (expr, block) in nodes.iter() {
+                    write!(f, "{}: ({}), ", block, expr)?;
+                }
+                write!(f, "}}")
+            },
+
+            MIRExpression::StructGet { object, index } => write!(f, "get {} from ({})", index, object),
+
+            MIRExpression::StructSet { object, index, value } => write!(f, "set {} of ({}) to ({})", index, object, value),
+
+            MIRExpression::Literal(literal) => write!(f, "{}", literal),
+
+            MIRExpression::Unary { right, .. } => write!(f, "neg ({})", right),
+
+            MIRExpression::VarGet(var) => write!(f, "load {}", var.name),
+
+            MIRExpression::VarStore { var, value } => write!(f, "store ({}) in {}", value, var.name),
         }
     }
 }
