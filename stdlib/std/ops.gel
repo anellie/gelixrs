@@ -1,0 +1,23 @@
+interface Add<O, T> {
+    func add(other: O) -> T
+}
+
+interface Sub<O, T> {
+    func sub(other: O) -> T
+}
+
+interface Mul<O, T> {
+    func mul(other: O) -> T
+}
+
+interface Div<O, T> {
+    func div(other: O) -> T
+}
+
+interface Equal<O> {
+    func equal(other: O) -> bool
+}
+
+interface Index<I, T> {
+    func index(index: I) -> T
+}

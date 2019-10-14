@@ -1,0 +1,47 @@
+/*
+6
+2
+8
+2
+good
+*/
+
+import std/ops/+
+
+class IntBox {
+    var int = 0
+}
+
+impl Add<IntBox, i64> for IntBox {
+    func add(other: IntBox) -> i64 this.int + other.int
+}
+
+impl Sub<IntBox, i64> for IntBox {
+    func sub(other: IntBox) -> i64 this.int - other.int
+}
+
+impl Mul<IntBox, i64> for IntBox {
+    func mul(other: IntBox) -> i64 this.int * other.int
+}
+
+impl Div<IntBox, i64> for IntBox {
+    func div(other: IntBox) -> i64 this.int / other.int
+}
+
+impl Equal<IntBox> for IntBox {
+    func equal(other: IntBox) -> bool this.int == other.int
+}
+
+func main() {
+    var a = IntBox()
+    var b = IntBox()
+    a.int = 4
+    b.int = 2
+
+    printnum(a + b)
+    printnum(a - b)
+    printnum(a * b)
+    printnum(a / b)
+    if (a == b) print("bad")
+    if (a != b) print("good")
+}

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/3/19 6:38 PM.
+ * Last modified on 10/14/19 5:53 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -23,13 +23,12 @@ pub fn iface_impl_pass(gen: &mut MIRGenerator, list: &mut Module) -> Res<()> {
 }
 
 fn iface_impl(gen: &mut MIRGenerator, iface_impl: &mut IFaceImpl) -> Res<()> {
-    gen.builder.add_this_alias(&iface_impl.class);
+    gen.builder.add_this_alias(&iface_impl.iface);
     let class = gen.builder.find_class(&iface_impl.class.lexeme).or_err(
         gen,
         &iface_impl.class,
         "Unknown class.",
     )?;
-    let mut class = class.borrow_mut();
 
     let iface_cell = gen
         .builder
@@ -60,7 +59,7 @@ fn iface_impl(gen: &mut MIRGenerator, iface_impl: &mut IFaceImpl) -> Res<()> {
         method.sig.parameters.insert(0, this_arg);
 
         let mir_method = create_function(gen, &method.sig)?;
-        class.methods.insert(old_name, Rc::clone(&mir_method));
+        class.borrow_mut().methods.insert(old_name, Rc::clone(&mir_method));
 
         check_equal_signature(gen, method, mir_method, iface_method)?;
     }
@@ -72,7 +71,7 @@ fn iface_impl(gen: &mut MIRGenerator, iface_impl: &mut IFaceImpl) -> Res<()> {
             "Missing methods in interface impl.",
         ))
     } else {
-        class.interfaces.push(Rc::clone(&iface_cell));
+        class.borrow_mut().interfaces.insert(Rc::clone(&iface.name), Rc::clone(&iface_cell));
 
         gen.builder.remove_this_alias();
         for g_iface in iface.generics.iter() {
@@ -142,13 +141,14 @@ fn check_equal_signature(
         .zip(iface_method.parameters.iter())
         .enumerate()
     {
-        if method_param.type_ != gen.builder.translate_generic(iface_param) {
+        let iface_ty = gen.builder.translate_generic(iface_param);
+        if method_param.type_ != iface_ty {
             let tok = &method.sig.parameters[i].name;
             return Err(MIRGenerator::error(
                 gen,
                 tok,
                 tok,
-                "Incorrect parameter type on interface method.",
+                &format!("Incorrect parameter type on interface method (Expected {}).", iface_ty),
             ));
         }
     }

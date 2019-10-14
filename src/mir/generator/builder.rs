@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/3/19 6:25 PM.
+ * Last modified on 10/14/19 6:06 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -13,10 +13,10 @@ use indexmap::IndexMap;
 use crate::ast::declaration::ASTType;
 use crate::ast::literal::Literal;
 use crate::lexer::token::{Token, Type};
+use crate::mir::{MIRModule, MutRc, mutrc_new};
 use crate::mir::nodes::{
     MIRClass, MIRClassMember, MIRExpression, MIRFlow, MIRInterface, MIRVariable,
 };
-use crate::mir::{mutrc_new, MIRModule, MutRc};
 use crate::ModulePath;
 
 use super::super::nodes::{MIRFunction, MIRType};
@@ -49,7 +49,7 @@ impl MIRBuilder {
             name: Rc::clone(&name.lexeme),
             members: IndexMap::new(),
             methods: HashMap::new(),
-            interfaces: Vec::new(),
+            interfaces: IndexMap::new(),
         });
 
         if self.find_class(&name.lexeme).is_none() {
@@ -391,7 +391,9 @@ impl MIRBuilder {
     }
 
     pub fn find_interface(&self, name: &String) -> Option<MutRc<MIRInterface>> {
-        Some(Rc::clone(self.module.interfaces.get(name)?))
+        Some(Rc::clone(
+            self.module.interfaces.get(name).or_else(|| self.imports.interfaces.get(name))?
+        ))
     }
 
     pub fn set_pointer(&mut self, function: MutRc<MIRFunction>, block: Rc<String>) {

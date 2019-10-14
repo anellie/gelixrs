@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/12/19 5:46 PM.
+ * Last modified on 10/12/19 5:48 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -45,6 +45,24 @@ pub enum MIRType {
     /// A generic type. Only found in interface methods.
     /// Appearing anywhere else is undefined behavior; panicking is appropriate in that case.
     Generic(Rc<String>),
+}
+
+impl MIRType {
+    /// Is this type an integer?
+    pub fn is_int(&self) -> bool {
+        match self {
+            MIRType::I8 | MIRType::I16 | MIRType::I32 | MIRType::I64 => true,
+            _ => false
+        }
+    }
+
+    /// Is this type a floating-point number?
+    pub fn is_float(&self) -> bool {
+        match self {
+            MIRType::F32 | MIRType::F64 => true,
+            _ => false
+        }
+    }
 }
 
 impl PartialEq for MIRType {
@@ -102,7 +120,7 @@ pub struct MIRClass {
     /// All class methods. Inserted as "doThing", not "Name-doThing".
     pub methods: HashMap<Rc<String>, Rc<MIRVariable>>,
     /// All interfaces implemented by this class.
-    pub interfaces: Vec<MutRc<MIRInterface>>,
+    pub interfaces: IndexMap<Rc<String>, MutRc<MIRInterface>>,
 }
 
 impl PartialEq for MIRClass {

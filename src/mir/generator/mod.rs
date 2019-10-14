@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/12/19 5:22 PM.
+ * Last modified on 10/14/19 6:06 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -19,9 +19,7 @@ use crate::ast::literal::Literal;
 use crate::ast::module::Module;
 use crate::lexer::token::{Token, Type};
 use crate::mir::{MIRModule, MutRc, ToMIRResult};
-use crate::mir::nodes::{
-    MIRArray, MIRClassMember, MIRExpression, MIRFlow, MIRFunction, MIRType, MIRVariable,
-};
+use crate::mir::nodes::{MIRArray, MIRClass, MIRClassMember, MIRExpression, MIRFlow, MIRFunction, MIRType, MIRVariable};
 
 mod builder;
 pub mod module;
@@ -133,14 +131,32 @@ impl MIRGenerator {
             } => {
                 let left = self.generate_expression(&**left)?;
                 let right = self.generate_expression(&**right)?;
+                let left_ty = left.get_type();
+                let right_ty = right.get_type();
 
-                if (left.get_type() == MIRType::I64) && (right.get_type() == MIRType::I64) {
+                if (left_ty == right_ty) && (left_ty.is_int() || left_ty.is_float()) {
                     self.builder.build_binary(left, operator.t_type, right)
+                } else if let MIRType::Class(left_class) = left_ty {
+                    let method = self
+                        .get_operator_overloading_method(operator.t_type, left_class)
+                        .or_err(self, operator, "No implementation of operator found for type.")?;
+                    let method_rc = Self::var_to_function(&method);
+                    let method = method_rc.borrow();
+                    if method.parameters[1].type_ != right_ty {
+                        return Err(self.error(operator, operator, "Right-hand side expression is wrong type."));
+                    }
+                    drop(method);
+
+                    let mut expr = self.builder.build_call(MIRExpression::Function(method_rc), vec![left, right]);
+                    if operator.t_type == Type::BangEqual {
+                        expr = self.builder.build_unary(expr, Type::Bang);
+                    }
+                    expr
                 } else {
                     return Err(self.error(
                         &operator,
                         &operator,
-                        "Binary operations are only allowed on i64.",
+                        "Binary operations are only allowed on numbers or class that overload them.",
                     ));
                 }
             }
@@ -678,6 +694,24 @@ impl MIRGenerator {
             result.push(arg)
         }
         Ok(result)
+    }
+
+    /// Returns the method that corresponds to the operator given (operator overloading).
+    /// Returns None if the given class does not implement overloading.
+    /// TODO: This *really* needs to check the module the interface comes from...
+    fn get_operator_overloading_method(&mut self, op: Type, class: MutRc<MIRClass>) -> Option<Rc<MIRVariable>> {
+        let class = class.borrow();
+        let interface = match op {
+            Type::Plus => class.interfaces.get(&"Add".to_string()),
+            Type::Minus => class.interfaces.get(&"Sub".to_string()),
+            Type::Star => class.interfaces.get(&"Mul".to_string()),
+            Type::Slash => class.interfaces.get(&"Div".to_string()),
+            Type::EqualEqual | Type::BangEqual => class.interfaces.get(&"Equal".to_string()),
+            _ => None
+        }?;
+        let interface = interface.borrow();
+        let method_name = interface.methods.get_index(0)?.0;
+        class.methods.get(method_name).cloned()
     }
 
     /// Checks if the arg parameter is of the given type ty.

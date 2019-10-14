@@ -13,3 +13,12 @@ class Test {
         print("I'm a method that cannot exist!")
     }
 }
+
+
+    interface Hash {
+        func hash() -> i64
+    }
+
+    class Map<K: Hash, V> {
+        ...
+    }

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/3/19 6:38 PM.
+ * Last modified on 10/14/19 6:06 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,16 +11,7 @@ use std::{
     rc::Rc,
 };
 
-use inkwell::{
-    AddressSpace,
-    basic_block::BasicBlock,
-    builder::Builder,
-    context::Context,
-    IntPredicate,
-    module::Module,
-    passes::PassManager,
-    types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType, StructType}, values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
-};
+use inkwell::{AddressSpace, basic_block::BasicBlock, builder::Builder, context::Context, FloatPredicate, IntPredicate, module::Module, passes::PassManager, types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType, StructType}, values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue}};
 
 use super::{
     ast::literal::Literal,
@@ -291,37 +282,36 @@ impl IRGenerator {
                 operator,
                 right,
             } => {
-                let left = *self.generate_expression(left).as_int_value();
-                let right = *self.generate_expression(right).as_int_value();
+                let left = self.generate_expression(left);
+                let right = self.generate_expression(right);
 
-                BasicValueEnum::IntValue(match operator {
-                    Type::Plus => self.builder.build_int_add(left, right, "add"),
-                    Type::Minus => self.builder.build_int_sub(left, right, "sub"),
-                    Type::Star => self.builder.build_int_mul(left, right, "mul"),
-                    Type::Slash => {
-                        let left = self.builder.build_signed_int_to_float(
-                            left,
-                            self.context.f64_type(),
-                            "divconv",
-                        );
-                        let right = self.builder.build_signed_int_to_float(
-                            right,
-                            self.context.f64_type(),
-                            "divconv",
-                        );
-                        let float_div = self.builder.build_float_div(left, right, "div");
-                        self.builder.build_float_to_signed_int(
-                            float_div,
-                            self.context.i64_type(),
-                            "divconv",
-                        )
+                match left.get_type() {
+                    BasicTypeEnum::IntType(_) => {
+                        let left = *left.as_int_value();
+                        let right = *right.as_int_value();
+                        BasicValueEnum::IntValue(match operator {
+                            Type::Plus => self.builder.build_int_add(left, right, "add"),
+                            Type::Minus => self.builder.build_int_sub(left, right, "sub"),
+                            Type::Star => self.builder.build_int_mul(left, right, "mul"),
+                            Type::Slash => self.builder.build_int_signed_div(left, right, "div"),
+                            _ => self.builder.build_int_compare(get_predicate(*operator), left, right, "cmp")
+                        })
+                    },
+
+                    BasicTypeEnum::FloatType(_) => {
+                        let left = *left.as_float_value();
+                        let right = *right.as_float_value();
+                        BasicValueEnum::FloatValue(match operator {
+                            Type::Plus => self.builder.build_float_add(left, right, "add"),
+                            Type::Minus => self.builder.build_float_sub(left, right, "sub"),
+                            Type::Star => self.builder.build_float_mul(left, right, "mul"),
+                            Type::Slash => self.builder.build_float_div(left, right, "div"),
+                            _ => return BasicValueEnum::IntValue(self.builder.build_float_compare(get_float_predicate(*operator), left, right, "cmp"))
+                        })
                     }
 
-                    _ => {
-                        self.builder
-                            .build_int_compare(get_predicate(*operator), left, right, "cmp")
-                    }
-                })
+                    _ => panic!("invalid binary operation"),
+                }
             }
 
             MIRExpression::Bitcast { object, goal } => {
@@ -673,6 +663,18 @@ fn get_predicate(tok: Type) -> IntPredicate {
         Type::LessEqual => IntPredicate::SLE,
         Type::EqualEqual => IntPredicate::EQ,
         Type::BangEqual => IntPredicate::NE,
+        _ => panic!("invalid tok"),
+    }
+}
+
+fn get_float_predicate(tok: Type) -> FloatPredicate {
+    match tok {
+        Type::Greater => FloatPredicate::OGT,
+        Type::GreaterEqual => FloatPredicate::OGE,
+        Type::Less => FloatPredicate::OLT,
+        Type::LessEqual => FloatPredicate::OLE,
+        Type::EqualEqual => FloatPredicate::OEQ,
+        Type::BangEqual => FloatPredicate::ONE,
         _ => panic!("invalid tok"),
     }
 }
