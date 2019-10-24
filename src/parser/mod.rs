@@ -1,16 +1,16 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/17/19 5:15 PM.
+ * Last modified on 10/24/19 3:58 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::{iter::Peekable, mem};
 
-use crate::{module_path_to_string, Error, ModulePath};
+use crate::{Error, module_path_to_string, ModulePath};
 
 use super::lexer::{
-    token::{Token, Type},
     Lexer,
+    token::{Token, TType},
 };
 
 mod parsing;
@@ -35,7 +35,7 @@ pub struct Parser {
 /// to manipulate the stream of tokens.
 impl Parser {
     /// Checks if the current token is the given type. If yes, it consumes it.
-    fn match_token(&mut self, t_type: Type) -> bool {
+    fn match_token(&mut self, t_type: TType) -> bool {
         let matches = self.check(t_type);
         if matches {
             self.advance();
@@ -44,7 +44,7 @@ impl Parser {
     }
 
     /// Same as [match_token], but checks for multiple types. Returns the token consumed.
-    fn match_tokens(&mut self, types: &[Type]) -> Option<Token> {
+    fn match_tokens(&mut self, types: &[TType]) -> Option<Token> {
         if types.iter().any(|&t| self.check(t)) {
             Some(self.advance())
         } else {
@@ -54,7 +54,7 @@ impl Parser {
 
     /// Consumes the current token if it is the type given.
     /// Will return None if the token was not the one that was expected.
-    fn consume(&mut self, t_type: Type, message: &'static str) -> Option<Token> {
+    fn consume(&mut self, t_type: TType, message: &'static str) -> Option<Token> {
         if self.check(t_type) {
             Some(self.advance())
         } else {
@@ -67,7 +67,7 @@ impl Parser {
     /// Also does not return a token, since newlines are not tokens.
     /// (This special function is needed because of this)
     fn consume_semi_or_nl(&mut self, message: &'static str) {
-        if self.check(Type::Semicolon) {
+        if self.check(TType::Semicolon) {
             self.advance();
         } else if self.previous_line == self.current.line {
             self.error_at_current(message); // No newline
@@ -86,7 +86,7 @@ impl Parser {
             .unwrap_or_else(|| Token::eof_token(self.current.line + 1));
         let old_token = mem::replace(&mut self.current, next_token);
 
-        if self.check(Type::ScanError) {
+        if self.check(TType::ScanError) {
             self.lexer_error();
         }
 
@@ -94,24 +94,24 @@ impl Parser {
     }
 
     /// Is the current token the given token?
-    fn check(&self, t_type: Type) -> bool {
+    fn check(&self, t_type: TType) -> bool {
         self.current.t_type == t_type
     }
 
     /// Is the next token the given token?
-    fn check_next(&mut self, t_type: Type) -> bool {
+    fn check_next(&mut self, t_type: TType) -> bool {
         self.tokens.peek().unwrap_or(&Token::eof_token(0)).t_type == t_type
     }
 
     /// Same as check, but checks for ; or newlines
     /// (This special function is needed since newlines are not a token)
     fn check_semi_or_nl(&mut self) -> bool {
-        self.check(Type::Semicolon) || self.previous_line != self.current.line
+        self.check(TType::Semicolon) || self.previous_line != self.current.line
     }
 
     /// Is the parser at the end of the token stream?
     fn is_at_end(&self) -> bool {
-        self.current.t_type == Type::EndOfFile
+        self.current.t_type == TType::EndOfFile
     }
 
     /// Causes an error at the current token with the given message.
@@ -122,7 +122,7 @@ impl Parser {
 
         // Display the last line as well if the error happened right after a newline;
         // most errors after newline would be meaningless otherwise
-        if self.previous_line != self.current.line && self.current.t_type != Type::EndOfFile {
+        if self.previous_line != self.current.line && self.current.t_type != TType::EndOfFile {
             error.lines.0 -= 1;
         }
 
@@ -150,7 +150,7 @@ impl Parser {
 
         while !self.is_at_end() {
             match self.current.t_type {
-                Type::ExFn | Type::Class | Type::Enum | Type::Func => return,
+                TType::ExFn | TType::Class | TType::Enum | TType::Func => return,
                 _ => (),
             }
             self.advance();

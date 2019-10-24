@@ -1,12 +1,12 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/14/19 5:53 PM.
+ * Last modified on 10/24/19 3:58 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::rc::Rc;
 
-use crate::ast::declaration::{ASTType, Function, FunctionArg, IFaceImpl};
+use crate::ast::declaration::{Function, FunctionArg, IFaceImpl, Type};
 use crate::ast::module::Module;
 use crate::lexer::token::Token;
 use crate::mir::generator::{MIRGenerator, Res};
@@ -102,7 +102,7 @@ fn add_generic_aliases(
     }
     for (g_impl, g_iface) in impl_.iter().zip(iface.iter()) {
         gen.builder
-            .add_alias(g_iface, &ASTType::Token(g_impl.clone()));
+            .add_alias(g_iface, &Type::Ident(g_impl.clone()));
     }
     Ok(())
 }

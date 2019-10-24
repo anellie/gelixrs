@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/14/19 6:06 PM.
+ * Last modified on 10/24/19 3:56 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -10,9 +10,9 @@ use std::rc::Rc;
 
 use indexmap::IndexMap;
 
-use crate::ast::declaration::ASTType;
+use crate::ast::declaration::Type;
 use crate::ast::literal::Literal;
-use crate::lexer::token::{Token, Type};
+use crate::lexer::token::{Token, TType};
 use crate::mir::{MIRModule, MutRc, mutrc_new};
 use crate::mir::nodes::{
     MIRClass, MIRClassMember, MIRExpression, MIRFlow, MIRInterface, MIRVariable,
@@ -33,7 +33,7 @@ pub struct MIRBuilder {
     imports: Imports,
 
     /// A list of type aliases, where the key is a type that will be translated to the value.
-    type_aliases: HashMap<Rc<String>, ASTType>,
+    type_aliases: HashMap<Rc<String>, Type>,
 
     /// Simply a const of the string "tmp".
     /// Used for temporary variables needed for class init.
@@ -178,7 +178,7 @@ impl MIRBuilder {
     pub fn build_binary(
         &self,
         left: MIRExpression,
-        operator: Type,
+        operator: TType,
         right: MIRExpression,
     ) -> MIRExpression {
         MIRExpression::Binary {
@@ -188,7 +188,7 @@ impl MIRBuilder {
         }
     }
 
-    pub fn build_unary(&self, right: MIRExpression, op: Type) -> MIRExpression {
+    pub fn build_unary(&self, right: MIRExpression, op: TType) -> MIRExpression {
         MIRExpression::Unary {
             operator: op,
             right: Box::new(right),
@@ -329,9 +329,9 @@ impl MIRBuilder {
         }
     }
 
-    pub fn find_type(&self, ast: &ASTType) -> Option<MIRType> {
+    pub fn find_type(&self, ast: &Type) -> Option<MIRType> {
         Some(match ast {
-            ASTType::Token(tok) => {
+            Type::Ident(tok) => {
                 if let Some(alias) = self.type_aliases.get(&tok.lexeme) {
                     return self.find_type(alias);
                 }
@@ -357,11 +357,11 @@ impl MIRBuilder {
                 }
             }
 
-            ASTType::Array(type_) => MIRType::Array(Box::new(self.find_type(type_)?)),
+            Type::Array(type_) => MIRType::Array(Box::new(self.find_type(type_)?)),
 
-            ASTType::Closure { .. } => unimplemented!(),
+            Type::Closure { .. } => unimplemented!(),
 
-            ASTType::Generic { .. } => unimplemented!(),
+            Type::Generic { .. } => unimplemented!(),
         })
     }
 
@@ -406,13 +406,13 @@ impl MIRBuilder {
         }
     }
 
-    pub fn add_alias(&mut self, key: &Rc<String>, val: &ASTType) {
+    pub fn add_alias(&mut self, key: &Rc<String>, val: &Type) {
         self.type_aliases.insert(Rc::clone(key), val.clone());
     }
 
     pub fn add_this_alias(&mut self, name: &Token) {
         self.type_aliases
-            .insert(Rc::clone(&self.this_const), ASTType::Token(name.clone()));
+            .insert(Rc::clone(&self.this_const), Type::Ident(name.clone()));
     }
 
     pub fn remove_alias(&mut self, name: &Rc<String>) {

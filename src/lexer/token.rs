@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/2/19 4:46 PM.
+ * Last modified on 10/24/19 3:53 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,7 +11,7 @@ use std::rc::Rc;
 #[derive(Debug, Clone)]
 pub struct Token {
     /// The type of the token.
-    pub t_type: Type,
+    pub t_type: TType,
     /// The lexeme of the token. Does not include escape chars (ex. String lexeme is <i>I'm a string!</i>)
     pub lexeme: Rc<String>,
     /// The index of the last char of the token inside the source.
@@ -24,7 +24,7 @@ pub struct Token {
 impl Token {
     pub fn eof_token(line: usize) -> Token {
         Token {
-            t_type: Type::EndOfFile,
+            t_type: TType::EndOfFile,
             lexeme: Rc::new("\0".to_string()),
             index: 1,
             line,
@@ -34,14 +34,14 @@ impl Token {
     pub fn generic_identifier(lexeme: String) -> Token {
         let index = lexeme.len();
         Token {
-            t_type: Type::Identifier,
+            t_type: TType::Identifier,
             lexeme: Rc::new(lexeme),
             index,
             line: 0,
         }
     }
 
-    pub fn generic_token(token: Type) -> Token {
+    pub fn generic_token(token: TType) -> Token {
         Token {
             t_type: token,
             lexeme: Rc::new("".to_string()),
@@ -55,7 +55,7 @@ impl Token {
 /// The ScanError token is a special token signifying a syntax error.
 /// Its lexeme is an error message to be displayed to the user.
 #[derive(PartialEq, Debug, Clone, Copy)]
-pub enum Type {
+pub enum TType {
     LeftParen,
     RightParen,
     LeftBracket,

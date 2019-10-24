@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/14/19 6:06 PM.
+ * Last modified on 10/24/19 3:53 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -17,7 +17,7 @@ use crate::ast::declaration::Function;
 use crate::ast::expression::Expression;
 use crate::ast::literal::Literal;
 use crate::ast::module::Module;
-use crate::lexer::token::{Token, Type};
+use crate::lexer::token::{Token, TType};
 use crate::mir::{MIRModule, MutRc, ToMIRResult};
 use crate::mir::nodes::{MIRArray, MIRClass, MIRClassMember, MIRExpression, MIRFlow, MIRFunction, MIRType, MIRVariable};
 
@@ -148,8 +148,8 @@ impl MIRGenerator {
                     drop(method);
 
                     let mut expr = self.builder.build_call(MIRExpression::Function(method_rc), vec![left, right]);
-                    if operator.t_type == Type::BangEqual {
-                        expr = self.builder.build_unary(expr, Type::Bang);
+                    if operator.t_type == TType::BangEqual {
+                        expr = self.builder.build_unary(expr, TType::Bang);
                     }
                     expr
                 } else {
@@ -234,8 +234,6 @@ impl MIRGenerator {
                 }
             }
 
-            Expression::CallWithGeneric { .. } => unimplemented!(),
-
             Expression::For {
                 condition,
                 body,
@@ -307,8 +305,6 @@ impl MIRGenerator {
                         .or_err(self, name, "Cannot get class method (must be called)")?;
                 self.builder.build_struct_get(object, field)
             }
-
-            Expression::Grouping(expr) => self.generate_expression(&**expr)?,
 
             Expression::If {
                 condition,
@@ -441,7 +437,7 @@ impl MIRGenerator {
                 let right = self.generate_expression(&**right)?;
 
                 match operator.t_type {
-                    Type::Bang if right.get_type() != MIRType::Bool => Err(self.error(
+                    TType::Bang if right.get_type() != MIRType::Bool => Err(self.error(
                         operator,
                         operator,
                         "'!' can only be used on boolean values",
@@ -489,7 +485,7 @@ impl MIRGenerator {
                     }
                     let val = self
                         .builder
-                        .build_binary(val, Type::EqualEqual, value.clone());
+                        .build_binary(val, TType::EqualEqual, value.clone());
 
                     let branch_b = self.builder.append_block("when-br");
                     self.builder.set_block(&branch_b);
@@ -520,7 +516,7 @@ impl MIRGenerator {
             Expression::VarDef(var) => {
                 let init = self.generate_expression(&var.initializer)?;
                 let _type = init.get_type();
-                let var = self.define_variable(&var.name, !var.is_val, _type);
+                let var = self.define_variable(&var.name, var.mutable, _type);
                 self.builder.build_store(var, init)
             }
         })
@@ -699,14 +695,14 @@ impl MIRGenerator {
     /// Returns the method that corresponds to the operator given (operator overloading).
     /// Returns None if the given class does not implement overloading.
     /// TODO: This *really* needs to check the module the interface comes from...
-    fn get_operator_overloading_method(&mut self, op: Type, class: MutRc<MIRClass>) -> Option<Rc<MIRVariable>> {
+    fn get_operator_overloading_method(&mut self, op: TType, class: MutRc<MIRClass>) -> Option<Rc<MIRVariable>> {
         let class = class.borrow();
         let interface = match op {
-            Type::Plus => class.interfaces.get(&"Add".to_string()),
-            Type::Minus => class.interfaces.get(&"Sub".to_string()),
-            Type::Star => class.interfaces.get(&"Mul".to_string()),
-            Type::Slash => class.interfaces.get(&"Div".to_string()),
-            Type::EqualEqual | Type::BangEqual => class.interfaces.get(&"Equal".to_string()),
+            TType::Plus => class.interfaces.get(&"Add".to_string()),
+            TType::Minus => class.interfaces.get(&"Sub".to_string()),
+            TType::Star => class.interfaces.get(&"Mul".to_string()),
+            TType::Slash => class.interfaces.get(&"Div".to_string()),
+            TType::EqualEqual | TType::BangEqual => class.interfaces.get(&"Equal".to_string()),
             _ => None
         }?;
         let interface = interface.borrow();
@@ -768,7 +764,7 @@ impl MIRGenerator {
     /// Produces an error when the caller cannot guarantee that the expression contains a token.
     /// If it doesn't, the function creates a generic "unknown location" token.
     pub fn anon_err(&self, tok: Option<&Token>, message: &str) -> MIRError {
-        let generic = Token::generic_token(Type::Identifier);
+        let generic = Token::generic_token(TType::Identifier);
         let tok = tok.unwrap_or_else(|| &generic);
         MIRError {
             error: Error::new(tok, tok, "MIRGenerator", message.to_string()),

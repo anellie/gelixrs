@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/2/19 5:56 PM.
+ * Last modified on 10/24/19 3:53 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -8,7 +8,7 @@ use std::convert::TryInto;
 use std::iter::FromIterator;
 use std::rc::Rc;
 
-use token::{Token, Type};
+use token::{Token, TType};
 
 pub mod token;
 
@@ -38,26 +38,26 @@ impl Lexer {
 
         Some(match ch {
             // Single-char
-            '(' => self.make_token(Type::LeftParen),
-            ')' => self.make_token(Type::RightParen),
-            '[' => self.make_token(Type::LeftBracket),
-            ']' => self.make_token(Type::RightBracket),
-            '{' => self.make_token(Type::LeftBrace),
-            '}' => self.make_token(Type::RightBrace),
-            ';' => self.make_token(Type::Semicolon),
-            ',' => self.make_token(Type::Comma),
-            '.' => self.make_token(Type::Dot),
-            '+' => self.make_token(Type::Plus),
-            '*' => self.make_token(Type::Star),
-            '/' => self.make_token(Type::Slash),
+            '(' => self.make_token(TType::LeftParen),
+            ')' => self.make_token(TType::RightParen),
+            '[' => self.make_token(TType::LeftBracket),
+            ']' => self.make_token(TType::RightBracket),
+            '{' => self.make_token(TType::LeftBrace),
+            '}' => self.make_token(TType::RightBrace),
+            ';' => self.make_token(TType::Semicolon),
+            ',' => self.make_token(TType::Comma),
+            '.' => self.make_token(TType::Dot),
+            '+' => self.make_token(TType::Plus),
+            '*' => self.make_token(TType::Star),
+            '/' => self.make_token(TType::Slash),
 
             // Double-char
-            '!' => self.check_double_token('=', Type::BangEqual, Type::Bang),
-            '=' => self.check_double_token('=', Type::EqualEqual, Type::Equal),
-            '<' => self.check_double_token('=', Type::LessEqual, Type::Less),
-            '>' => self.check_double_token('=', Type::GreaterEqual, Type::Greater),
-            '-' => self.check_double_token('>', Type::Arrow, Type::Minus),
-            ':' => self.check_double_token(':', Type::ColonColon, Type::Colon),
+            '!' => self.check_double_token('=', TType::BangEqual, TType::Bang),
+            '=' => self.check_double_token('=', TType::EqualEqual, TType::Equal),
+            '<' => self.check_double_token('=', TType::LessEqual, TType::Less),
+            '>' => self.check_double_token('=', TType::GreaterEqual, TType::Greater),
+            '-' => self.check_double_token('>', TType::Arrow, TType::Minus),
+            ':' => self.check_double_token(':', TType::ColonColon, TType::Colon),
 
             // Literals
             '"' => self.string(),
@@ -72,7 +72,7 @@ impl Lexer {
     }
 
     /// Matches the next char to check for double-char tokens. Will emit token based on match.
-    fn check_double_token(&mut self, next: char, matched: Type, not_matched: Type) -> Token {
+    fn check_double_token(&mut self, next: char, matched: TType, not_matched: TType) -> Token {
         let token = if self.match_next(next) {
             matched
         } else {
@@ -86,36 +86,36 @@ impl Lexer {
         while self.peek().is_alphanumeric() || self.check('_') {
             self.advance();
         }
-        let mut token = self.make_token(Type::Identifier);
+        let mut token = self.make_token(TType::Identifier);
 
         token.t_type = match &token.lexeme[..] {
-            "and" => Type::And,
-            "break" => Type::Break,
-            "class" => Type::Class,
-            "else" => Type::Else,
-            "enum" => Type::Enum,
-            "error" => Type::Error,
-            "exfn" => Type::ExFn,
-            "ext" => Type::Ext,
-            "false" => Type::False,
-            "for" => Type::For,
-            "from" => Type::From,
-            "func" => Type::Func,
-            "if" => Type::If,
-            "impl" => Type::Impl,
-            "import" => Type::Import,
-            "in" => Type::In,
-            "interface" => Type::Interface,
-            "None" => Type::None,
-            "or" => Type::Or,
-            "return" => Type::Return,
-            "to" => Type::To,
-            "true" => Type::True,
-            "val" => Type::Val,
-            "var" => Type::Var,
-            "when" => Type::When,
+            "and" => TType::And,
+            "break" => TType::Break,
+            "class" => TType::Class,
+            "else" => TType::Else,
+            "enum" => TType::Enum,
+            "error" => TType::Error,
+            "exfn" => TType::ExFn,
+            "ext" => TType::Ext,
+            "false" => TType::False,
+            "for" => TType::For,
+            "from" => TType::From,
+            "func" => TType::Func,
+            "if" => TType::If,
+            "impl" => TType::Impl,
+            "import" => TType::Import,
+            "in" => TType::In,
+            "interface" => TType::Interface,
+            "None" => TType::None,
+            "or" => TType::Or,
+            "return" => TType::Return,
+            "to" => TType::To,
+            "true" => TType::True,
+            "val" => TType::Val,
+            "var" => TType::Var,
+            "when" => TType::When,
 
-            _ => Type::Identifier,
+            _ => TType::Identifier,
         };
 
         token
@@ -133,14 +133,14 @@ impl Lexer {
                 self.advance();
             }
             self.match_next('f');
-            self.make_token(Type::Float)
+            self.make_token(TType::Float)
         } else {
             if self.match_next('i') {
                 while self.peek().is_ascii_digit() {
                     self.advance();
                 }
             }
-            self.make_token(Type::Int)
+            self.make_token(TType::Int)
         }
     }
 
@@ -203,14 +203,14 @@ impl Lexer {
                 }
             }
         }
-        self.make_token(Type::String)
+        self.make_token(TType::String)
     }
 
     /// Creates a char token
     fn ch(&mut self) -> Token {
         self.advance();
         if self.match_next('\'') {
-            self.make_token(Type::Char)
+            self.make_token(TType::Char)
         } else {
             self.advance();
             self.error_token("Unterminated char literal!")
@@ -218,7 +218,7 @@ impl Lexer {
     }
 
     /// Creates a token based on the current position of self.start and self.current
-    fn make_token(&mut self, t_type: Type) -> Token {
+    fn make_token(&mut self, t_type: TType) -> Token {
         Token {
             t_type,
             lexeme: Rc::new(self.chars[(self.start)..(self.current)].iter().collect()),
@@ -230,7 +230,7 @@ impl Lexer {
     /// Creates a ScanError token with the given message at the current location
     fn error_token(&mut self, message: &'static str) -> Token {
         Token {
-            t_type: Type::ScanError,
+            t_type: TType::ScanError,
             lexeme: Rc::new(message.to_string()),
             index: self.line_index + message.len(),
             line: self.line,

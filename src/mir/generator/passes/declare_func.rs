@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/3/19 5:13 PM.
+ * Last modified on 10/24/19 3:58 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -8,8 +8,8 @@ use std::rc::Rc;
 
 use crate::ast::declaration::FuncSignature;
 use crate::ast::module::Module;
-use crate::mir::generator::passes::NONE_CONST;
 use crate::mir::generator::{MIRGenerator, Res};
+use crate::mir::generator::passes::NONE_CONST;
 use crate::mir::nodes::{MIRType, MIRVariable};
 use crate::mir::ToMIRResult;
 

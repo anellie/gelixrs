@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/12/19 5:46 PM.
+ * Last modified on 10/24/19 3:46 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -24,9 +24,9 @@ pub enum Literal {
     // since literals themselves are always unsigned.
     // (A negative literal is just a unary negated literal)
     I8(u8),
-    I16(u8),
-    I32(u16),
-    I64(u32),
+    I16(u16),
+    I32(u32),
+    I64(u64),
 
     F32(f32),
     F64(f64),

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/3/19 6:38 PM.
+ * Last modified on 10/24/19 3:57 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -48,14 +48,14 @@ pub struct Enum {
 #[derive(Debug)]
 pub struct FuncSignature {
     pub name: Token,
-    pub return_type: Option<ASTType>,
+    pub return_type: Option<Type>,
     pub parameters: Vec<FunctionArg>,
 }
 
 /// A function argument.
 #[derive(Debug, Clone)]
 pub struct FunctionArg {
-    pub type_: ASTType,
+    pub type_: Type,
     pub name: Token,
 }
 
@@ -64,7 +64,7 @@ impl FunctionArg {
     pub fn this_arg(ty: &Token) -> FunctionArg {
         FunctionArg {
             name: Token::generic_identifier("this".to_string()),
-            type_: ASTType::Token(ty.clone()),
+            type_: Type::Ident(ty.clone()),
         }
     }
 }
@@ -87,52 +87,52 @@ pub struct InterfaceFunc {
 #[derive(Debug)]
 pub struct Variable {
     pub name: Token,
-    pub is_val: bool,
+    pub mutable: bool,
     pub initializer: Expression,
 }
 
 /// A type literal, like 'String' or '[i64]'
 #[derive(Clone, Debug)]
-pub enum ASTType {
-    Token(Token),
+pub enum Type {
+    Ident(Token),
 
-    Array(Box<ASTType>),
+    Array(Box<Type>),
 
     Closure {
-        params: Vec<ASTType>,
-        ret_type: Option<Box<ASTType>>,
+        params: Vec<Type>,
+        ret_type: Option<Box<Type>>,
     },
 
     Generic {
         token: Token,
-        types: Vec<ASTType>,
+        types: Vec<Type>,
     },
 }
 
-impl ASTType {
+impl Type {
     pub fn get_token(&self) -> Option<&Token> {
         match self {
-            ASTType::Token(tok) => Some(tok),
-            ASTType::Array(type_) => type_.get_token(),
-            ASTType::Closure { params, ret_type } => ret_type
+            Type::Ident(tok) => Some(tok),
+            Type::Array(type_) => type_.get_token(),
+            Type::Closure { params, ret_type } => ret_type
                 .as_ref()
                 .map(|box_| &**box_)
                 .or(params.first())
                 .map(|t| t.get_token())
                 .flatten(),
-            ASTType::Generic { token, .. } => Some(token),
+            Type::Generic { token, .. } => Some(token),
         }
     }
 }
 
-impl fmt::Display for ASTType {
+impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
-            ASTType::Token(tok) => write!(f, "{}", tok.lexeme),
+            Type::Ident(tok) => write!(f, "{}", tok.lexeme),
 
-            ASTType::Array(type_) => write!(f, "[{}]", type_),
+            Type::Array(type_) => write!(f, "[{}]", type_),
 
-            ASTType::Closure { params, ret_type } => {
+            Type::Closure { params, ret_type } => {
                 write!(f, "(")?;
                 let mut iter = params.iter();
                 if let Some(param) = iter.next() {
@@ -148,7 +148,7 @@ impl fmt::Display for ASTType {
                 Ok(())
             }
 
-            ASTType::Generic { token, types } => {
+            Type::Generic { token, types } => {
                 write!(f, "{}<", token.lexeme)?;
                 let mut iter = types.iter();
                 if let Some(type_) = iter.next() {

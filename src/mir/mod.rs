@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/12/19 5:46 PM.
+ * Last modified on 10/24/19 3:55 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,7 +12,7 @@ use std::rc::Rc;
 use nodes::{MIRClass, MIRVariable};
 
 use crate::{module_path_to_string, ModulePath};
-use crate::ast::declaration::ASTType;
+use crate::ast::declaration::Type;
 use crate::lexer::token::Token;
 use crate::mir::generator::{MIRError, MIRGenerator};
 use crate::mir::nodes::MIRInterface;
@@ -87,7 +87,7 @@ pub trait ToMIRResult<T> {
     fn or_type_err(
         self,
         gen: &MIRGenerator,
-        error_ty: &Option<ASTType>,
+        error_ty: &Option<Type>,
         msg: &str,
     ) -> Result<T, MIRError>;
 }
@@ -109,7 +109,7 @@ impl<T> ToMIRResult<T> for Option<T> {
     fn or_type_err(
         self,
         gen: &MIRGenerator,
-        error_ty: &Option<ASTType>,
+        error_ty: &Option<Type>,
         msg: &str,
     ) -> Result<T, MIRError> {
         self.ok_or_else(|| gen.anon_err(error_ty.as_ref().map(|t| t.get_token()).flatten(), msg))

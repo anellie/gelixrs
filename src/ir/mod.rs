@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/14/19 6:06 PM.
+ * Last modified on 10/24/19 3:53 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -15,7 +15,7 @@ use inkwell::{AddressSpace, basic_block::BasicBlock, builder::Builder, context::
 
 use super::{
     ast::literal::Literal,
-    lexer::token::Type,
+    lexer::token::TType,
     mir::{
         MIRModule,
         nodes::{MIRBlock, MIRClass, MIRExpression, MIRFlow, MIRFunction, MIRType, MIRVariable},
@@ -290,10 +290,10 @@ impl IRGenerator {
                         let left = *left.as_int_value();
                         let right = *right.as_int_value();
                         BasicValueEnum::IntValue(match operator {
-                            Type::Plus => self.builder.build_int_add(left, right, "add"),
-                            Type::Minus => self.builder.build_int_sub(left, right, "sub"),
-                            Type::Star => self.builder.build_int_mul(left, right, "mul"),
-                            Type::Slash => self.builder.build_int_signed_div(left, right, "div"),
+                            TType::Plus => self.builder.build_int_add(left, right, "add"),
+                            TType::Minus => self.builder.build_int_sub(left, right, "sub"),
+                            TType::Star => self.builder.build_int_mul(left, right, "mul"),
+                            TType::Slash => self.builder.build_int_signed_div(left, right, "div"),
                             _ => self.builder.build_int_compare(get_predicate(*operator), left, right, "cmp")
                         })
                     },
@@ -302,10 +302,10 @@ impl IRGenerator {
                         let left = *left.as_float_value();
                         let right = *right.as_float_value();
                         BasicValueEnum::FloatValue(match operator {
-                            Type::Plus => self.builder.build_float_add(left, right, "add"),
-                            Type::Minus => self.builder.build_float_sub(left, right, "sub"),
-                            Type::Star => self.builder.build_float_mul(left, right, "mul"),
-                            Type::Slash => self.builder.build_float_div(left, right, "div"),
+                            TType::Plus => self.builder.build_float_add(left, right, "add"),
+                            TType::Minus => self.builder.build_float_sub(left, right, "sub"),
+                            TType::Star => self.builder.build_float_mul(left, right, "mul"),
+                            TType::Slash => self.builder.build_float_div(left, right, "div"),
                             _ => return BasicValueEnum::IntValue(self.builder.build_float_compare(get_float_predicate(*operator), left, right, "cmp"))
                         })
                     }
@@ -448,8 +448,8 @@ impl IRGenerator {
 
                 match expr {
                     BasicValueEnum::IntValue(int) => match operator {
-                        Type::Bang => self.builder.build_not(int, "unarynot"),
-                        Type::Minus => self.builder.build_int_neg(int, "unaryneg"),
+                        TType::Bang => self.builder.build_not(int, "unarynot"),
+                        TType::Minus => self.builder.build_int_neg(int, "unaryneg"),
                         _ => panic!("Invalid unary operator"),
                     }
                     .as_basic_value_enum(),
@@ -655,26 +655,26 @@ impl<T: Hash> Hash for PtrEqRc<T> {
     }
 }
 
-fn get_predicate(tok: Type) -> IntPredicate {
+fn get_predicate(tok: TType) -> IntPredicate {
     match tok {
-        Type::Greater => IntPredicate::SGT,
-        Type::GreaterEqual => IntPredicate::SGE,
-        Type::Less => IntPredicate::SLT,
-        Type::LessEqual => IntPredicate::SLE,
-        Type::EqualEqual => IntPredicate::EQ,
-        Type::BangEqual => IntPredicate::NE,
+        TType::Greater => IntPredicate::SGT,
+        TType::GreaterEqual => IntPredicate::SGE,
+        TType::Less => IntPredicate::SLT,
+        TType::LessEqual => IntPredicate::SLE,
+        TType::EqualEqual => IntPredicate::EQ,
+        TType::BangEqual => IntPredicate::NE,
         _ => panic!("invalid tok"),
     }
 }
 
-fn get_float_predicate(tok: Type) -> FloatPredicate {
+fn get_float_predicate(tok: TType) -> FloatPredicate {
     match tok {
-        Type::Greater => FloatPredicate::OGT,
-        Type::GreaterEqual => FloatPredicate::OGE,
-        Type::Less => FloatPredicate::OLT,
-        Type::LessEqual => FloatPredicate::OLE,
-        Type::EqualEqual => FloatPredicate::OEQ,
-        Type::BangEqual => FloatPredicate::ONE,
+        TType::Greater => FloatPredicate::OGT,
+        TType::GreaterEqual => FloatPredicate::OGE,
+        TType::Less => FloatPredicate::OLT,
+        TType::LessEqual => FloatPredicate::OLE,
+        TType::EqualEqual => FloatPredicate::OEQ,
+        TType::BangEqual => FloatPredicate::ONE,
         _ => panic!("invalid tok"),
     }
 }

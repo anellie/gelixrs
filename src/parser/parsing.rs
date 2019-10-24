@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/2/19 5:15 PM.
+ * Last modified on 10/24/19 3:58 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,10 +11,11 @@ use std::rc::Rc;
 
 use either::Either;
 
-use crate::ast::declaration::{ASTType, IFaceImpl, Interface, InterfaceFunc};
+use crate::ast::declaration::{IFaceImpl, Interface, InterfaceFunc, Type};
 use crate::ast::module::Import;
 use crate::Error;
 
+use super::Parser;
 use super::super::{
     ast::{
         declaration::{Class, Enum, FuncSignature, Function, FunctionArg, Variable},
@@ -22,15 +23,14 @@ use super::super::{
         literal::Literal,
         module::Module,
     },
-    lexer::token::{Token, Type},
+    lexer::token::{Token, TType},
 };
-use super::Parser;
 
 // All expressions that require no semicolon when used as a higher expression.
-static NO_SEMICOLON: [Type; 3] = [Type::If, Type::LeftBrace, Type::When];
+static NO_SEMICOLON: [TType; 3] = [TType::If, TType::LeftBrace, TType::When];
 
 // All tokens that indicate that an interface function does not have a body (bodies are optional).
-static IFACE_END_OF_FUNCTION: [Type; 2] = [Type::Func, Type::RightBrace];
+static IFACE_END_OF_FUNCTION: [TType; 2] = [TType::Func, TType::RightBrace];
 
 #[macro_use]
 mod bin_macro {
@@ -79,13 +79,13 @@ impl Parser {
     /// Note that synchronization is not done on error, and is done by the caller.
     pub fn declaration(&mut self, module: &mut Module) -> Option<()> {
         match self.advance().t_type {
-            Type::Class => module.classes.push(self.class_declaration()?),
-            Type::Enum => module.enums.push(self.enum_declaration()?),
-            Type::ExFn => module.ext_functions.push(self.ex_func_declaration()?),
-            Type::Func => module.functions.push(self.function()?),
-            Type::Import => module.imports.push(self.import_declaration()?),
-            Type::Interface => module.interfaces.push(self.iface_declaration()?),
-            Type::Impl => module.iface_impls.push(self.iface_impl()?),
+            TType::Class => module.classes.push(self.class_declaration()?),
+            TType::Enum => module.enums.push(self.enum_declaration()?),
+            TType::ExFn => module.ext_functions.push(self.ex_func_declaration()?),
+            TType::Func => module.functions.push(self.function()?),
+            TType::Import => module.imports.push(self.import_declaration()?),
+            TType::Interface => module.interfaces.push(self.iface_declaration()?),
+            TType::Impl => module.iface_impls.push(self.iface_impl()?),
             _ => self.error_at_current("Encountered invalid top-level declaration.")?,
         }
 
@@ -93,11 +93,11 @@ impl Parser {
     }
 
     fn ex_func_declaration(&mut self) -> Option<FuncSignature> {
-        let name = self.consume(Type::Identifier, "Expected an external function name.")?;
-        self.consume(Type::LeftParen, "Expected '(' after function name.");
+        let name = self.consume(TType::Identifier, "Expected an external function name.")?;
+        self.consume(TType::LeftParen, "Expected '(' after function name.");
 
         let parameters = self.func_parameters()?;
-        let return_type = if self.match_token(Type::Arrow) {
+        let return_type = if self.match_token(TType::Arrow) {
             Some(self.type_("Expected return type after '->'.")?)
         } else {
             None
@@ -112,39 +112,39 @@ impl Parser {
 
     fn func_parameters(&mut self) -> Option<Vec<FunctionArg>> {
         let mut parameters: Vec<FunctionArg> = Vec::new();
-        if !self.check(Type::RightParen) {
+        if !self.check(TType::RightParen) {
             loop {
-                let name = self.consume(Type::Identifier, "Expected parameter name.")?;
-                self.consume(Type::Colon, "Expected ':' after parameter name.");
+                let name = self.consume(TType::Identifier, "Expected parameter name.")?;
+                self.consume(TType::Colon, "Expected ':' after parameter name.");
                 let type_ = self.type_("Expected parameter type.")?;
                 parameters.push(FunctionArg { type_, name });
-                if !self.match_token(Type::Comma) {
+                if !self.match_token(TType::Comma) {
                     break;
                 }
             }
         }
-        self.consume(Type::RightParen, "Expected ')' after parameters.");
+        self.consume(TType::RightParen, "Expected ')' after parameters.");
         Some(parameters)
     }
 
     fn class_declaration(&mut self) -> Option<Class> {
         let (name, generics) = self.generic_ident()?;
 
-        self.consume(Type::LeftBrace, "Expected '{' before class body.");
+        self.consume(TType::LeftBrace, "Expected '{' before class body.");
 
         let mut methods: Vec<Function> = Vec::new();
         let mut variables: Vec<Variable> = Vec::new();
 
-        while !self.check(Type::RightBrace) && !self.is_at_end() {
+        while !self.check(TType::RightBrace) && !self.is_at_end() {
             match self.advance().t_type {
-                Type::Func => methods.push(self.function()?),
-                Type::Var => variables.push(self.variable(false)?),
-                Type::Val => variables.push(self.variable(true)?),
+                TType::Func => methods.push(self.function()?),
+                TType::Var => variables.push(self.variable(true)?),
+                TType::Val => variables.push(self.variable(false)?),
                 _ => self.error_at_current("Encountered invalid declaration inside class.")?,
             }
         }
 
-        self.consume(Type::RightBrace, "Expected '}' after class body.");
+        self.consume(TType::RightBrace, "Expected '}' after class body.");
         Some(Class {
             name,
             generics,
@@ -154,31 +154,31 @@ impl Parser {
     }
 
     fn enum_declaration(&mut self) -> Option<Enum> {
-        let name = self.consume(Type::Identifier, "Expected an enum name.")?;
-        self.consume(Type::LeftBrace, "Expected '{' before enum body.");
+        let name = self.consume(TType::Identifier, "Expected an enum name.")?;
+        self.consume(TType::LeftBrace, "Expected '{' before enum body.");
 
         let mut variants: Vec<Token> = Vec::new();
-        while !self.check(Type::RightBrace) {
-            variants.push(self.consume(Type::Identifier, "Expected enum variant.")?);
-            if !self.match_token(Type::Comma) {
+        while !self.check(TType::RightBrace) {
+            variants.push(self.consume(TType::Identifier, "Expected enum variant.")?);
+            if !self.match_token(TType::Comma) {
                 break;
             }
         }
-        self.consume(Type::RightBrace, "Expected '}' after enum body.");
+        self.consume(TType::RightBrace, "Expected '}' after enum body.");
 
         Some(Enum { name, variants })
     }
 
     fn import_declaration(&mut self) -> Option<Import> {
         let mut path = Vec::new();
-        if !self.check(Type::Identifier) {
+        if !self.check(TType::Identifier) {
             self.error_at_current("Expected path after 'import'.")?
         }
 
         let mut consumed_slash = false;
-        while self.check(Type::Identifier) || self.check(Type::Plus) {
+        while self.check(TType::Identifier) || self.check(TType::Plus) {
             path.push(self.advance().lexeme);
-            consumed_slash = self.match_token(Type::Slash);
+            consumed_slash = self.match_token(TType::Slash);
         }
         if consumed_slash {
             self.error_at_current("Trailing '/' in import.")?
@@ -191,12 +191,12 @@ impl Parser {
     fn iface_declaration(&mut self) -> Option<Interface> {
         let (name, generics) = self.generic_ident()?;
 
-        self.consume(Type::LeftBrace, "Expected '{' before interface body.");
+        self.consume(TType::LeftBrace, "Expected '{' before interface body.");
 
         let mut methods = Vec::new();
-        while !self.check(Type::RightBrace) && !self.is_at_end() {
+        while !self.check(TType::RightBrace) && !self.is_at_end() {
             match self.advance().t_type {
-                Type::Func => {
+                TType::Func => {
                     let sig = self.ex_func_declaration()?;
                     let body = if !IFACE_END_OF_FUNCTION.contains(&self.current.t_type) {
                         Some(self.expression()?)
@@ -209,7 +209,7 @@ impl Parser {
             }
         }
 
-        self.consume(Type::RightBrace, "Expected '}' after interface body.");
+        self.consume(TType::RightBrace, "Expected '}' after interface body.");
         Some(Interface {
             name,
             generics,
@@ -219,18 +219,18 @@ impl Parser {
 
     fn iface_impl(&mut self) -> Option<IFaceImpl> {
         let (iface, iface_generics) = self.generic_ident()?;
-        self.consume(Type::For, "Expected 'for' after interface name.");
+        self.consume(TType::For, "Expected 'for' after interface name.");
         let (class, class_generics) = self.generic_ident()?;
-        self.consume(Type::LeftBrace, "Expected '{' before impl body.");
+        self.consume(TType::LeftBrace, "Expected '{' before impl body.");
 
         let mut methods: Vec<Function> = Vec::new();
-        while !self.check(Type::RightBrace) && !self.is_at_end() {
+        while !self.check(TType::RightBrace) && !self.is_at_end() {
             match self.advance().t_type {
-                Type::Func => methods.push(self.function()?),
+                TType::Func => methods.push(self.function()?),
                 _ => self.error_at_current("Encountered invalid declaration inside impl.")?,
             }
         }
-        self.consume(Type::RightBrace, "Expected '}' after impl body.");
+        self.consume(TType::RightBrace, "Expected '}' after impl body.");
 
         Some(IFaceImpl {
             iface,
@@ -247,15 +247,15 @@ impl Parser {
         Some(Function { sig, body })
     }
 
-    fn variable(&mut self, is_val: bool) -> Option<Variable> {
-        let name = self.consume(Type::Identifier, "Expected variable name.")?;
-        self.consume(Type::Equal, "Expected '=' after variable name.");
+    fn variable(&mut self, mutable: bool) -> Option<Variable> {
+        let name = self.consume(TType::Identifier, "Expected variable name.")?;
+        self.consume(TType::Equal, "Expected '=' after variable name.");
         let initializer = self.expression()?;
         self.consume_semi_or_nl("Expected newline or ';' after variable declaration.");
 
         Some(Variable {
             name,
-            is_val,
+            mutable,
             initializer,
         })
     }
@@ -265,8 +265,8 @@ impl Parser {
     /// This function can also produce a top-level non-higher expression.
     fn higher_expression(&mut self) -> Option<Expression> {
         Some(match () {
-            _ if self.match_token(Type::Var) => Expression::VarDef(Box::new(self.variable(false)?)),
-            _ if self.match_token(Type::Val) => Expression::VarDef(Box::new(self.variable(true)?)),
+            _ if self.match_token(TType::Var) => Expression::VarDef(Box::new(self.variable(true)?)),
+            _ if self.match_token(TType::Val) => Expression::VarDef(Box::new(self.variable(false)?)),
             _ => {
                 let requires_semicolon = !NO_SEMICOLON.contains(&self.current.t_type);
                 let expression = self.expression()?;
@@ -280,33 +280,33 @@ impl Parser {
 
     fn expression(&mut self) -> Option<Expression> {
         match () {
-            _ if self.match_token(Type::LeftBrace) => self.block(),
-            _ if self.match_token(Type::If) => self.if_expression(),
-            _ if self.match_token(Type::Return) => self.return_expression(),
-            _ if self.match_token(Type::Break) => self.break_expression(),
-            _ if self.match_token(Type::For) => self.for_expression(),
-            _ if self.match_token(Type::When) => self.when_expression(),
+            _ if self.match_token(TType::LeftBrace) => self.block(),
+            _ if self.match_token(TType::If) => self.if_expression(),
+            _ if self.match_token(TType::Return) => self.return_expression(),
+            _ if self.match_token(TType::Break) => self.break_expression(),
+            _ if self.match_token(TType::For) => self.for_expression(),
+            _ if self.match_token(TType::When) => self.when_expression(),
             _ => self.assignment(),
         }
     }
 
     fn block(&mut self) -> Option<Expression> {
         let mut expressions: Vec<Expression> = Vec::new();
-        while !self.check(Type::RightBrace) && !self.is_at_end() {
+        while !self.check(TType::RightBrace) && !self.is_at_end() {
             expressions.push(self.higher_expression()?);
         }
 
-        self.consume(Type::RightBrace, "Expected '}' after block.");
+        self.consume(TType::RightBrace, "Expected '}' after block.");
         Some(Expression::Block(expressions))
     }
 
     fn if_expression(&mut self) -> Option<Expression> {
-        self.consume(Type::LeftParen, "Expected '(' after 'if'.");
+        self.consume(TType::LeftParen, "Expected '(' after 'if'.");
         let condition = Box::new(self.expression()?);
-        self.consume(Type::RightParen, "Expected ')' after if condition.");
+        self.consume(TType::RightParen, "Expected ')' after if condition.");
         let then_branch = Box::new(self.expression()?);
 
-        let else_branch = if self.match_token(Type::Else) {
+        let else_branch = if self.match_token(TType::Else) {
             Some(Box::new(self.expression()?))
         } else {
             None
@@ -320,31 +320,31 @@ impl Parser {
     }
 
     fn for_expression(&mut self) -> Option<Expression> {
-        self.consume(Type::LeftParen, "Expected '(' after 'for'.");
+        self.consume(TType::LeftParen, "Expected '(' after 'for'.");
 
-        if self.check_next(Type::From) {
+        if self.check_next(TType::From) {
             // for (var from x to y)
-            let variable_name = self.consume(Type::Identifier, "Expected identifier after '('")?;
-            self.consume(Type::From, "Expected 'from' after identifier.")?;
+            let variable_name = self.consume(TType::Identifier, "Expected identifier after '('")?;
+            self.consume(TType::From, "Expected 'from' after identifier.")?;
 
             let initial_value = self.expression()?;
-            self.consume(Type::To, "Expected 'to' after starting value.")?;
+            self.consume(TType::To, "Expected 'to' after starting value.")?;
 
             let last_value = self.expression()?;
-            self.consume(Type::RightParen, "Expected ')' after for condition.");
+            self.consume(TType::RightParen, "Expected ')' after for condition.");
 
             let last_value = Expression::Binary {
                 left: Box::new(last_value),
-                operator: Token::generic_token(Type::Minus),
+                operator: Token::generic_token(TType::Minus),
                 right: Box::new(Expression::Literal(Literal::I64(1))),
             };
 
             let variable = Expression::VarDef(Box::new(Variable {
                 name: variable_name.clone(),
-                is_val: false,
+                mutable: true,
                 initializer: Expression::Binary {
                     left: Box::new(initial_value),
-                    operator: Token::generic_token(Type::Minus),
+                    operator: Token::generic_token(TType::Minus),
                     right: Box::new(Expression::Literal(Literal::I64(1))),
                 },
             }));
@@ -353,13 +353,13 @@ impl Parser {
                 name: variable_name.clone(),
                 value: Box::new(Expression::Binary {
                     left: Box::new(Expression::Variable(variable_name.clone())),
-                    operator: Token::generic_token(Type::Plus),
+                    operator: Token::generic_token(TType::Plus),
                     right: Box::new(Expression::Literal(Literal::I64(1))),
                 }),
             };
 
             let body = self.expression()?;
-            let else_b = if self.match_token(Type::Else) {
+            let else_b = if self.match_token(TType::Else) {
                 Some(Box::new(self.expression()?))
             } else {
                 None
@@ -368,7 +368,7 @@ impl Parser {
             let for_loop = Expression::For {
                 condition: Box::new(Expression::Binary {
                     left: Box::new(Expression::Variable(variable_name.clone())),
-                    operator: Token::generic_token(Type::BangEqual),
+                    operator: Token::generic_token(TType::BangEqual),
                     right: Box::new(last_value),
                 }),
                 body: Box::new(Expression::Block(vec![var_increment, body])),
@@ -379,10 +379,10 @@ impl Parser {
         } else {
             // for (condition)
             let condition = Box::new(self.expression()?);
-            self.consume(Type::RightParen, "Expected ')' after for condition.");
+            self.consume(TType::RightParen, "Expected ')' after for condition.");
             let body = Box::new(self.expression()?);
 
-            let else_b = if self.match_token(Type::Else) {
+            let else_b = if self.match_token(TType::Else) {
                 Some(Box::new(self.expression()?))
             } else {
                 None
@@ -417,23 +417,23 @@ impl Parser {
     }
 
     fn when_expression(&mut self) -> Option<Expression> {
-        self.consume(Type::LeftParen, "Expected '(' after 'when'.");
+        self.consume(TType::LeftParen, "Expected '(' after 'when'.");
         let value = Box::new(self.expression()?);
-        self.consume(Type::RightParen, "Expected ')' after when value.");
-        self.consume(Type::LeftBrace, "Expected '{' after when value.");
+        self.consume(TType::RightParen, "Expected ')' after when value.");
+        self.consume(TType::LeftBrace, "Expected '{' after when value.");
 
         let mut branches: Vec<(Expression, Expression)> = Vec::new();
         let mut else_branch = None;
-        while !self.match_token(Type::RightBrace) {
-            if self.match_token(Type::Else) {
+        while !self.match_token(TType::RightBrace) {
+            if self.match_token(TType::Else) {
                 if else_branch.is_some() {
                     self.error_at_current("'when' expression can only have 1 'else' branch.");
                 }
-                self.consume(Type::Arrow, "Expected '->' after when condition.");
+                self.consume(TType::Arrow, "Expected '->' after when condition.");
                 else_branch = Some(self.expression()?);
             } else {
                 let condition = self.expression()?;
-                self.consume(Type::Arrow, "Expected '->' after when condition.");
+                self.consume(TType::Arrow, "Expected '->' after when condition.");
                 let expression = self.expression()?;
                 branches.push((condition, expression));
             }
@@ -450,10 +450,10 @@ impl Parser {
     }
 
     fn closure(&mut self) -> Option<Expression> {
-        self.consume(Type::LeftParen, "Expected '(' after closure.");
+        self.consume(TType::LeftParen, "Expected '(' after closure.");
 
         let parameters = self.func_parameters()?;
-        let return_type = if self.match_token(Type::Arrow) {
+        let return_type = if self.match_token(TType::Arrow) {
             Some(self.type_("Expected return type after '->'.")?)
         } else {
             None
@@ -474,7 +474,7 @@ impl Parser {
     fn assignment(&mut self) -> Option<Expression> {
         let expression = self.logic_or()?;
 
-        if self.match_token(Type::Equal) {
+        if self.match_token(TType::Equal) {
             let value = Box::new(self.expression()?);
             match expression {
                 Expression::Variable(name) => Some(Expression::Assignment { name, value }),
@@ -494,25 +494,25 @@ impl Parser {
     }
 
     /// See the macro at the top of the file for info on how this works.
-    binary_op!(logic_or, logic_and, [Type::Or]);
-    binary_op!(logic_and, equality, [Type::And]);
-    binary_op!(equality, comparison, [Type::BangEqual, Type::EqualEqual]);
+    binary_op!(logic_or, logic_and, [TType::Or]);
+    binary_op!(logic_and, equality, [TType::And]);
+    binary_op!(equality, comparison, [TType::BangEqual, TType::EqualEqual]);
     binary_op!(
         comparison,
         addition,
         [
-            Type::Less,
-            Type::LessEqual,
-            Type::Greater,
-            Type::GreaterEqual
+            TType::Less,
+            TType::LessEqual,
+            TType::Greater,
+            TType::GreaterEqual
         ]
     );
-    binary_op!(addition, multiplication, [Type::Plus, Type::Minus]);
-    binary_op!(multiplication, unary, [Type::Star, Type::Slash]);
+    binary_op!(addition, multiplication, [TType::Plus, TType::Minus]);
+    binary_op!(multiplication, unary, [TType::Star, TType::Slash]);
 
     fn unary(&mut self) -> Option<Expression> {
         Some(
-            if let Some(operator) = self.match_tokens(&[Type::Bang, Type::Minus]) {
+            if let Some(operator) = self.match_tokens(&[TType::Bang, TType::Minus]) {
                 let right = Box::new(self.unary()?);
                 Expression::Unary { operator, right }
             } else {
@@ -525,62 +525,29 @@ impl Parser {
         let mut expression = self.primary()?;
         loop {
             match () {
-                _ if self.match_token(Type::LeftParen) => {
+                _ if self.match_token(TType::LeftParen) => {
                     let mut arguments: Vec<Expression> = Vec::new();
-                    if !self.check(Type::RightParen) {
+                    if !self.check(TType::RightParen) {
                         loop {
                             arguments.push(self.expression()?);
-                            if !self.match_token(Type::Comma) {
+                            if !self.match_token(TType::Comma) {
                                 break;
                             }
                         }
                     }
 
-                    self.consume(Type::RightParen, "Expected ')' after call arguments.")?;
+                    self.consume(TType::RightParen, "Expected ')' after call arguments.")?;
                     expression = Expression::Call {
                         callee: Box::new(expression),
                         arguments,
                     }
                 }
 
-                _ if self.match_token(Type::Dot) => {
+                _ if self.match_token(TType::Dot) => {
                     expression = Expression::Get {
                         object: Box::new(expression),
                         name: self
-                            .consume(Type::Identifier, "Expected property name after '.'.")?,
-                    }
-                }
-
-                // TODO deduplicate this
-                _ if self.match_token(Type::Bang) => {
-                    self.consume(Type::Less, "Expected '<' after '!'.")?;
-
-                    let mut types = Vec::new();
-                    loop {
-                        types.push(self.type_("Expected generic type.")?);
-                        if !self.match_token(Type::Comma) {
-                            break;
-                        }
-                    }
-
-                    self.consume(Type::Greater, "Expected '>' after type parameters.")?;
-                    self.consume(Type::LeftParen, "Expected '(' after type parameters.")?;
-
-                    let mut arguments: Vec<Expression> = Vec::new();
-                    if !self.check(Type::RightParen) {
-                        loop {
-                            arguments.push(self.expression()?);
-                            if !self.match_token(Type::Comma) {
-                                break;
-                            }
-                        }
-                    }
-
-                    self.consume(Type::RightParen, "Expected ')' after call arguments.")?;
-                    expression = Expression::CallWithGeneric {
-                        callee: Box::new(expression),
-                        types,
-                        arguments,
+                            .consume(TType::Identifier, "Expected property name after '.'.")?,
                     }
                 }
 
@@ -592,16 +559,16 @@ impl Parser {
 
     fn primary(&mut self) -> Option<Expression> {
         Some(match () {
-            _ if self.match_token(Type::None) => Expression::Literal(Literal::None),
-            _ if self.match_token(Type::False) => Expression::Literal(Literal::Bool(false)),
-            _ if self.match_token(Type::True) => Expression::Literal(Literal::Bool(true)),
-            _ if self.match_token(Type::LeftParen) => self.grouping()?,
-            _ if self.check(Type::Identifier) => Expression::Variable(self.advance()),
-            _ if self.check(Type::Int) => self.integer()?,
-            _ if self.check(Type::Float) => self.float()?,
-            _ if self.check(Type::String) => self.string(),
-            _ if self.match_token(Type::Func) => self.closure()?,
-            _ if self.match_token(Type::LeftBracket) => self.array()?,
+            _ if self.match_token(TType::None) => Expression::Literal(Literal::None),
+            _ if self.match_token(TType::False) => Expression::Literal(Literal::Bool(false)),
+            _ if self.match_token(TType::True) => Expression::Literal(Literal::Bool(true)),
+            _ if self.match_token(TType::LeftParen) => self.grouping()?,
+            _ if self.check(TType::Identifier) => Expression::Variable(self.advance()),
+            _ if self.check(TType::Int) => self.integer()?,
+            _ if self.check(TType::Float) => self.float()?,
+            _ if self.check(TType::String) => self.string(),
+            _ if self.match_token(TType::Func) => self.closure()?,
+            _ if self.match_token(TType::LeftBracket) => self.array()?,
             _ => {
                 self.error_at_current("Expected expression.");
                 None?
@@ -611,18 +578,18 @@ impl Parser {
 
     fn grouping(&mut self) -> Option<Expression> {
         let expression = self.expression()?;
-        self.consume(Type::RightParen, "Expected ')' after expression.");
-        Some(Expression::Grouping(Box::new(expression)))
+        self.consume(TType::RightParen, "Expected ')' after expression.");
+        Some(expression)
     }
 
     fn array(&mut self) -> Option<Expression> {
         let mut values: Vec<Expression> = Vec::new();
         loop {
             values.push(self.expression()?);
-            if self.match_token(Type::RightBracket) {
+            if self.match_token(TType::RightBracket) {
                 break;
             }
-            self.consume(Type::Comma, "Expected ']' or ',' after array value.");
+            self.consume(TType::Comma, "Expected ']' or ',' after array value.");
         }
         Some(Expression::Literal(Literal::Array(Either::Left(Rc::new(
             values,
@@ -669,65 +636,65 @@ impl Parser {
 
     // Reads an identifier followed by optional generic type parameters.
     fn generic_ident(&mut self) -> Option<(Token, Vec<Token>)> {
-        let name = self.consume(Type::Identifier, "Expected a name.")?;
+        let name = self.consume(TType::Identifier, "Expected a name.")?;
         let mut generics = Vec::new();
-        if self.match_token(Type::Less) {
-            while let Some(type_) = self.match_tokens(&[Type::Identifier]) {
+        if self.match_token(TType::Less) {
+            while let Some(type_) = self.match_tokens(&[TType::Identifier]) {
                 generics.push(type_);
-                self.match_token(Type::Comma);
+                self.match_token(TType::Comma);
             }
-            self.consume(Type::Greater, "Expected '>' after type parameters.")?;
+            self.consume(TType::Greater, "Expected '>' after type parameters.")?;
         }
         Some((name, generics))
     }
 
     /// Reads a type name.
-    fn type_(&mut self, msg: &str) -> Option<ASTType> {
+    fn type_(&mut self, msg: &str) -> Option<Type> {
         Some(match self.current.t_type {
-            Type::Identifier => {
+            TType::Identifier => {
                 let token = self.advance();
 
-                if self.match_token(Type::Less) {
+                if self.match_token(TType::Less) {
                     let mut types = Vec::new();
                     loop {
                         types.push(self.type_("Expected generic type.")?);
-                        if !self.match_token(Type::Comma) {
+                        if !self.match_token(TType::Comma) {
                             break;
                         }
                     }
-                    self.consume(Type::Greater, "Expected '>' after type parameters.")?;
+                    self.consume(TType::Greater, "Expected '>' after type parameters.")?;
 
-                    ASTType::Generic { token, types }
+                    Type::Generic { token, types }
                 } else {
-                    ASTType::Token(token)
+                    Type::Ident(token)
                 }
             }
 
-            Type::LeftBracket => {
+            TType::LeftBracket => {
                 self.advance(); // consume '['
                 let arr_type = self.type_("Expected type after '[' in array type.")?;
-                self.consume(Type::RightBracket, "Expected ']' after array type.");
-                ASTType::Array(Box::new(arr_type))
+                self.consume(TType::RightBracket, "Expected ']' after array type.");
+                Type::Array(Box::new(arr_type))
             }
 
-            Type::LeftParen => {
+            TType::LeftParen => {
                 let mut params = Vec::new();
                 loop {
                     params.push(self.type_("Expected closure parameter type.")?);
-                    if !self.match_token(Type::Comma) {
+                    if !self.match_token(TType::Comma) {
                         break;
                     }
                 }
 
-                self.consume(Type::RightParen, "Expected ')' after closure parameters.")?;
+                self.consume(TType::RightParen, "Expected ')' after closure parameters.")?;
 
-                let ret_type = if self.match_token(Type::Arrow) {
+                let ret_type = if self.match_token(TType::Arrow) {
                     Some(Box::new(self.type_("Expected return type after '->'.")?))
                 } else {
                     None
                 };
 
-                ASTType::Closure { params, ret_type }
+                Type::Closure { params, ret_type }
             }
 
             _ => {

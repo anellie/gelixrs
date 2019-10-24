@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/12/19 5:48 PM.
+ * Last modified on 10/24/19 3:53 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -14,7 +14,7 @@ use indexmap::IndexMap;
 
 use crate::ast::expression::{Expression, LOGICAL_BINARY};
 use crate::ast::literal::Literal;
-use crate::lexer::token::Type;
+use crate::lexer::token::TType;
 use crate::mir::MutRc;
 
 /// All types in Gelix.
@@ -319,7 +319,7 @@ pub enum MIRExpression {
     /// Simply a binary operation between numbers.
     Binary {
         left: Box<MIRExpression>,
-        operator: Type,
+        operator: TType,
         right: Box<MIRExpression>,
     },
 
@@ -364,7 +364,7 @@ pub enum MIRExpression {
 
     /// A unary expression on numbers.
     Unary {
-        operator: Type,
+        operator: TType,
         right: Box<MIRExpression>,
     },
 
@@ -434,8 +434,8 @@ impl MIRExpression {
             },
 
             MIRExpression::Unary { operator, right } => match operator {
-                Type::Bang => MIRType::Bool,
-                Type::Minus => right.get_type(),
+                TType::Bang => MIRType::Bool,
+                TType::Minus => right.get_type(),
                 _ => panic!("invalid unary"),
             },
 

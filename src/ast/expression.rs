@@ -1,23 +1,23 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/21/19 2:16 PM.
+ * Last modified on 10/24/19 3:58 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use crate::ast::declaration::ASTType;
+use crate::ast::declaration::Type;
 
-use super::super::lexer::token::{Token, Type};
 use super::declaration::Variable;
 use super::literal::Literal;
+use super::super::lexer::token::{Token, TType};
 
 /// All binary operand types that return a bool instead of the types of their values.
-pub static LOGICAL_BINARY: [Type; 6] = [
-    Type::Greater,
-    Type::Less,
-    Type::GreaterEqual,
-    Type::LessEqual,
-    Type::EqualEqual,
-    Type::BangEqual,
+pub static LOGICAL_BINARY: [TType; 6] = [
+    TType::Greater,
+    TType::Less,
+    TType::GreaterEqual,
+    TType::LessEqual,
+    TType::EqualEqual,
+    TType::BangEqual,
 ];
 
 /// An enum with all expression types in Gelix.
@@ -50,14 +50,6 @@ pub enum Expression {
         arguments: Vec<Expression>,
     },
 
-    /// A call with a generic; all valid cases of this are a constructor.
-    /// Thing<OtherThing>()
-    CallWithGeneric {
-        callee: Box<Expression>,
-        types: Vec<ASTType>,
-        arguments: Vec<Expression>,
-    },
-
     /// A for loop. Only conditional loops are in the AST; iteration loops are unrolled.
     /// The value produced is the value of the body on the last iteration, or the else branch if the condition was never true.
     For {
@@ -71,9 +63,6 @@ pub enum Expression {
         object: Box<Expression>,
         name: Token,
     },
-
-    /// A grouping of expressions. (5 + 5) / 5
-    Grouping(Box<Expression>),
 
     /// An if expression. Value is the value of the expression of the chosen branch.
     /// If no else branch is present or either branch does not return an expression,
@@ -130,10 +119,8 @@ impl Expression {
             Expression::Block(vec) => vec.first()?.get_token()?,
             Expression::Break(expr) => (*expr).as_ref()?.get_token()?,
             Expression::Call { callee, .. } => callee.get_token()?,
-            Expression::CallWithGeneric { callee, .. } => callee.get_token()?,
             Expression::For { condition, .. } => condition.get_token()?,
             Expression::Get { name, .. } => name,
-            Expression::Grouping(expr) => expr.get_token()?,
             Expression::If { condition, .. } => condition.get_token()?,
             Expression::Literal(_) => None?,
             Expression::Return(expr) => (*expr).as_ref()?.get_token()?,
