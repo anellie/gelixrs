@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/24/19 3:53 PM.
+ * Last modified on 10/24/19 4:13 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -13,13 +13,13 @@ use either::Either;
 use builder::MIRBuilder;
 
 use crate::{Error, ModulePath};
-use crate::ast::declaration::Function;
-use crate::ast::expression::Expression;
+use crate::ast::declaration::Function as ASTFunc;
+use crate::ast::expression::Expression as ASTExpr;
 use crate::ast::literal::Literal;
 use crate::ast::module::Module;
 use crate::lexer::token::{Token, TType};
 use crate::mir::{MIRModule, MutRc, ToMIRResult};
-use crate::mir::nodes::{MIRArray, MIRClass, MIRClassMember, MIRExpression, MIRFlow, MIRFunction, MIRType, MIRVariable};
+use crate::mir::nodes::{Class, ClassMember, Expression, Flow, Function, MIRArray, Type, Variable};
 
 mod builder;
 pub mod module;
@@ -41,7 +41,7 @@ pub struct MIRGenerator {
     /// An environment is a scope that variables live in.
     /// This variable is used like a stack.
     /// See the begin_scope and end_scope functions for more info.
-    environments: Vec<HashMap<Rc<String>, Rc<MIRVariable>>>,
+    environments: Vec<HashMap<Rc<String>, Rc<Variable>>>,
 
     /// The current loop, if in one.
     current_loop: Option<ForLoop>,
@@ -63,7 +63,7 @@ impl MIRGenerator {
         Ok(())
     }
 
-    fn generate_function(&mut self, func: &Function) -> Res<()> {
+    fn generate_function(&mut self, func: &ASTFunc) -> Res<()> {
         let function_rc = self.builder.find_function(&func.sig.name.lexeme).unwrap();
         let mut function = function_rc.borrow_mut();
 
@@ -81,8 +81,8 @@ impl MIRGenerator {
 
         let body = self.generate_expression(&func.body)?;
         match () {
-            _ if ret_type == MIRType::None => self.builder.insert_at_ptr(body),
-            _ if ret_type == body.get_type() => self.builder.set_return(MIRFlow::Return(body)),
+            _ if ret_type == Type::None => self.builder.insert_at_ptr(body),
+            _ if ret_type == body.get_type() => self.builder.set_return(Flow::Return(body)),
             _ => {
                 return Err(self.error(
                     &func.sig.name,
@@ -100,9 +100,9 @@ impl MIRGenerator {
         Ok(())
     }
 
-    fn generate_expression(&mut self, expression: &Expression) -> Res<MIRExpression> {
+    fn generate_expression(&mut self, expression: &ASTExpr) -> Res<Expression> {
         Ok(match expression {
-            Expression::Assignment { name, value } => {
+            ASTExpr::Assignment { name, value } => {
                 let var = self.find_var(&name)?;
                 if var.mutable {
                     let value = self.generate_expression(&**value)?;
@@ -124,7 +124,7 @@ impl MIRGenerator {
                 }
             }
 
-            Expression::Binary {
+            ASTExpr::Binary {
                 left,
                 operator,
                 right,
@@ -136,7 +136,7 @@ impl MIRGenerator {
 
                 if (left_ty == right_ty) && (left_ty.is_int() || left_ty.is_float()) {
                     self.builder.build_binary(left, operator.t_type, right)
-                } else if let MIRType::Class(left_class) = left_ty {
+                } else if let Type::Class(left_class) = left_ty {
                     let method = self
                         .get_operator_overloading_method(operator.t_type, left_class)
                         .or_err(self, operator, "No implementation of operator found for type.")?;
@@ -147,7 +147,7 @@ impl MIRGenerator {
                     }
                     drop(method);
 
-                    let mut expr = self.builder.build_call(MIRExpression::Function(method_rc), vec![left, right]);
+                    let mut expr = self.builder.build_call(Expression::Function(method_rc), vec![left, right]);
                     if operator.t_type == TType::BangEqual {
                         expr = self.builder.build_unary(expr, TType::Bang);
                     }
@@ -161,7 +161,7 @@ impl MIRGenerator {
                 }
             }
 
-            Expression::Block(expressions) => {
+            ASTExpr::Block(expressions) => {
                 if expressions.is_empty() {
                     return Ok(Self::none_const());
                 }
@@ -178,7 +178,7 @@ impl MIRGenerator {
                 last
             }
 
-            Expression::Break(expr) => {
+            ASTExpr::Break(expr) => {
                 if self.current_loop.is_none() {
                     return Err(self.anon_err(
                         expr.as_ref().map(|e| e.get_token()).flatten(),
@@ -198,21 +198,21 @@ impl MIRGenerator {
                 Self::any_const()
             }
 
-            Expression::Call { callee, arguments } => {
+            ASTExpr::Call { callee, arguments } => {
                 match &**callee {
                     // Method call
-                    Expression::Get { object, name } => {
+                    ASTExpr::Get { object, name } => {
                         let (object, field) = self.get_class_field(object, name)?;
                         let func = field
                                 .right()
                                 .or_err(self, name, "Class members cannot be called.")?;
                         let args =
                             self.generate_func_args(Rc::clone(&func), arguments, Some(object))?;
-                        return Ok(self.builder.build_call(MIRExpression::Function(func), args));
+                        return Ok(self.builder.build_call(Expression::Function(func), args));
                     }
 
                     // Might be class constructor
-                    Expression::Variable(name) => {
+                    ASTExpr::Variable(name) => {
                         if let Some(class) = self.builder.find_class(&name.lexeme) {
                             return Ok(self.builder.build_constructor(class));
                         }
@@ -223,7 +223,7 @@ impl MIRGenerator {
 
                 // match above fell through, its either a function call or invalid
                 let callee_mir = self.generate_expression(&**callee)?;
-                if let MIRType::Function(func) = callee_mir.get_type() {
+                if let Type::Function(func) = callee_mir.get_type() {
                     let args = self.generate_func_args(func, arguments, None)?;
                     self.builder.build_call(callee_mir, args)
                 } else {
@@ -234,7 +234,7 @@ impl MIRGenerator {
                 }
             }
 
-            Expression::For {
+            ASTExpr::For {
                 condition,
                 body,
                 else_b,
@@ -247,7 +247,7 @@ impl MIRGenerator {
                     std::mem::replace(&mut self.current_loop, Some(ForLoop::new(&cont_block)));
 
                 let cond = self.generate_expression(&**condition)?;
-                if cond.get_type() != MIRType::Bool {
+                if cond.get_type() != Type::Bool {
                     return Err(
                         self.anon_err(condition.get_token(), "For condition must be a boolean.")
                     );
@@ -298,7 +298,7 @@ impl MIRGenerator {
                 ret
             }
 
-            Expression::Get { object, name } => {
+            ASTExpr::Get { object, name } => {
                 let (object, field) = self.get_class_field(&**object, name)?;
                 let field = field
                         .left()
@@ -306,13 +306,13 @@ impl MIRGenerator {
                 self.builder.build_struct_get(object, field)
             }
 
-            Expression::If {
+            ASTExpr::If {
                 condition,
                 then_branch,
                 else_branch,
             } => {
                 let cond = self.generate_expression(&**condition)?;
-                if cond.get_type() != MIRType::Bool {
+                if cond.get_type() != Type::Bool {
                     return Err(self.anon_err(
                         condition.get_token().or_else(|| then_branch.get_token()),
                         "If condition must be a boolean",
@@ -360,7 +360,7 @@ impl MIRGenerator {
                 Self::none_const()
             }
 
-            Expression::Literal(literal) => {
+            ASTExpr::Literal(literal) => {
                 if let Literal::Array(arr) = literal {
                     let ast_values = arr.as_ref().left().unwrap();
                     let mut values_mir = Vec::new();
@@ -396,7 +396,7 @@ impl MIRGenerator {
                 }
             }
 
-            Expression::Return(val) => {
+            ASTExpr::Return(val) => {
                 let value = val
                     .as_ref()
                     .map(|v| self.generate_expression(&*v))
@@ -410,11 +410,11 @@ impl MIRGenerator {
                     ));
                 }
 
-                self.builder.set_return(MIRFlow::Return(value));
+                self.builder.set_return(Flow::Return(value));
                 Self::any_const()
             }
 
-            Expression::Set {
+            ASTExpr::Set {
                 object,
                 name,
                 value,
@@ -433,11 +433,11 @@ impl MIRGenerator {
                 self.builder.build_struct_set(object, field, value)
             }
 
-            Expression::Unary { operator, right } => {
+            ASTExpr::Unary { operator, right } => {
                 let right = self.generate_expression(&**right)?;
 
                 match operator.t_type {
-                    TType::Bang if right.get_type() != MIRType::Bool => Err(self.error(
+                    TType::Bang if right.get_type() != Type::Bool => Err(self.error(
                         operator,
                         operator,
                         "'!' can only be used on boolean values",
@@ -449,12 +449,12 @@ impl MIRGenerator {
                 self.builder.build_unary(right, operator.t_type)
             }
 
-            Expression::Variable(var) => {
+            ASTExpr::Variable(var) => {
                 let var = self.find_var(&var)?;
                 self.builder.build_load(var)
             }
 
-            Expression::When {
+            ASTExpr::When {
                 value,
                 branches,
                 else_branch,
@@ -504,7 +504,7 @@ impl MIRGenerator {
                 phi_nodes.push((else_val, Rc::clone(&else_b)));
 
                 self.builder.set_block(&start_b);
-                self.builder.set_return(MIRFlow::Switch {
+                self.builder.set_return(Flow::Switch {
                     cases,
                     default: else_b,
                 });
@@ -513,7 +513,7 @@ impl MIRGenerator {
                 self.builder.build_phi(phi_nodes)
             }
 
-            Expression::VarDef(var) => {
+            ASTExpr::VarDef(var) => {
                 let init = self.generate_expression(&var.initializer)?;
                 let _type = init.get_type();
                 let var = self.define_variable(&var.name, var.mutable, _type);
@@ -524,8 +524,8 @@ impl MIRGenerator {
 
     /// Defines a new variable. It is put into the variable list in the current function
     /// and placed in the topmost scope.
-    fn define_variable(&mut self, token: &Token, mutable: bool, ty: MIRType) -> Rc<MIRVariable> {
-        let def = Rc::new(MIRVariable {
+    fn define_variable(&mut self, token: &Token, mutable: bool, ty: Type) -> Rc<Variable> {
+        let def = Rc::new(Variable {
             mutable,
             type_: ty,
             name: Rc::clone(&token.lexeme),
@@ -541,7 +541,7 @@ impl MIRGenerator {
     /// Note that the variable does NOT get added to the function!
     fn insert_variable(
         &mut self,
-        var: Rc<MIRVariable>,
+        var: Rc<Variable>,
         allow_redefine: bool,
         line: usize,
     ) -> Res<()> {
@@ -566,7 +566,7 @@ impl MIRGenerator {
     }
 
     /// Searches all scopes for a variable, starting at the top.
-    fn find_var(&mut self, token: &Token) -> Res<Rc<MIRVariable>> {
+    fn find_var(&mut self, token: &Token) -> Res<Rc<Variable>> {
         for env in self.environments.iter().rev() {
             if let Some(var) = env.get(&token.lexeme) {
                 return Ok(Rc::clone(var));
@@ -581,7 +581,7 @@ impl MIRGenerator {
     }
 
     /// Returns the variable of the current loop or creates it if it does not exist yet
-    fn get_or_create_loop_var(&mut self, type_: &MIRType) -> Res<Rc<MIRVariable>> {
+    fn get_or_create_loop_var(&mut self, type_: &Type) -> Res<Rc<Variable>> {
         let var = self.cur_loop().result_var.clone().unwrap_or_else(|| {
             self.define_variable(
                 &Token::generic_identifier("for-body".to_string()),
@@ -600,15 +600,15 @@ impl MIRGenerator {
 
     fn get_class_field(
         &mut self,
-        object: &Expression,
+        object: &ASTExpr,
         name: &Token,
     ) -> Res<(
-        MIRExpression,
-        Either<Rc<MIRClassMember>, MutRc<MIRFunction>>,
+        Expression,
+        Either<Rc<ClassMember>, MutRc<Function>>,
     )> {
         let object = self.generate_expression(object)?;
 
-        if let MIRType::Class(class) = object.get_type() {
+        if let Type::Class(class) = object.get_type() {
             let class = class.borrow();
 
             // Class fields
@@ -634,8 +634,8 @@ impl MIRGenerator {
         }
     }
 
-    pub fn var_to_function(var: &Rc<MIRVariable>) -> MutRc<MIRFunction> {
-        if let MIRType::Function(f) = &var.type_ {
+    pub fn var_to_function(var: &Rc<Variable>) -> MutRc<Function> {
+        if let Type::Function(f) = &var.type_ {
             Rc::clone(&f)
         } else {
             panic!()
@@ -644,10 +644,10 @@ impl MIRGenerator {
 
     fn generate_func_args(
         &mut self,
-        func_ref: MutRc<MIRFunction>,
-        arguments: &[Expression],
-        first_arg: Option<MIRExpression>,
-    ) -> Res<Vec<MIRExpression>> {
+        func_ref: MutRc<Function>,
+        arguments: &[ASTExpr],
+        first_arg: Option<Expression>,
+    ) -> Res<Vec<Expression>> {
         let func = func_ref.borrow();
 
         let args_len = arguments.len() + (first_arg.is_some() as usize);
@@ -695,7 +695,7 @@ impl MIRGenerator {
     /// Returns the method that corresponds to the operator given (operator overloading).
     /// Returns None if the given class does not implement overloading.
     /// TODO: This *really* needs to check the module the interface comes from...
-    fn get_operator_overloading_method(&mut self, op: TType, class: MutRc<MIRClass>) -> Option<Rc<MIRVariable>> {
+    fn get_operator_overloading_method(&mut self, op: TType, class: MutRc<Class>) -> Option<Rc<Variable>> {
         let class = class.borrow();
         let interface = match op {
             TType::Plus => class.interfaces.get(&"Add".to_string()),
@@ -713,7 +713,7 @@ impl MIRGenerator {
     /// Checks if the arg parameter is of the given type ty.
     /// Will do casts if needed to make the types match;
     /// returns the new expression that should be used in case a cast happened.
-    fn check_call_arg_type(&self, arg: MIRExpression, ty: &MIRType) -> Option<MIRExpression> {
+    fn check_call_arg_type(&self, arg: Expression, ty: &Type) -> Option<Expression> {
         let arg_type = arg.get_type();
         if &arg_type == ty {
             Some(arg)
@@ -746,12 +746,12 @@ impl MIRGenerator {
         self.current_loop.as_mut().unwrap()
     }
 
-    fn any_const() -> MIRExpression {
-        MIRExpression::Literal(Literal::Any)
+    fn any_const() -> Expression {
+        Expression::Literal(Literal::Any)
     }
 
-    fn none_const() -> MIRExpression {
-        MIRExpression::Literal(Literal::None)
+    fn none_const() -> Expression {
+        Expression::Literal(Literal::None)
     }
 
     pub fn error(&self, start: &Token, end: &Token, message: &str) -> MIRError {
@@ -784,11 +784,11 @@ impl MIRGenerator {
 /// All data of a loop.
 struct ForLoop {
     /// The alloca of the for loop result. Can be None for loops that return None type.
-    result_var: Option<Rc<MIRVariable>>,
+    result_var: Option<Rc<Variable>>,
     /// The block to jump to when the current loop finishes.
     cont_block: Rc<String>,
     /// The phi nodes of the loop (loops are expressions).
-    phi_nodes: Vec<(MIRExpression, Rc<String>)>,
+    phi_nodes: Vec<(Expression, Rc<String>)>,
 }
 
 impl ForLoop {

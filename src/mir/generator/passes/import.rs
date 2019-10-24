@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/3/19 5:29 PM.
+ * Last modified on 10/24/19 4:13 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -9,11 +9,11 @@ use std::rc::Rc;
 
 use either::Either;
 
+use crate::{module_path_to_string, ModulePath};
 use crate::ast::module::{Import, Module};
 use crate::mir::generator::{MIRError, MIRGenerator};
-use crate::mir::nodes::{MIRClass, MIRInterface, MIRVariable};
 use crate::mir::MutRc;
-use crate::{module_path_to_string, ModulePath};
+use crate::mir::nodes::{Class, Interface, Variable};
 
 type ModulesRef<'t> = &'t mut Vec<(Module, MIRGenerator)>;
 
@@ -45,7 +45,7 @@ fn find_class<'t>(
     modules: ModulesRef<'t>,
     path: &ModulePath,
     name: &String,
-) -> Either<Option<MutRc<MIRClass>>, &'t HashMap<Rc<String>, MutRc<MIRClass>>> {
+) -> Either<Option<MutRc<Class>>, &'t HashMap<Rc<String>, MutRc<Class>>> {
     let module = modules.iter().find(|(module, _)| &*module.path == path);
 
     if let Some(module) = module {
@@ -86,7 +86,7 @@ fn find_interface<'t>(
     modules: ModulesRef<'t>,
     path: &ModulePath,
     name: &String,
-) -> Either<Option<MutRc<MIRInterface>>, &'t HashMap<Rc<String>, MutRc<MIRInterface>>> {
+) -> Either<Option<MutRc<Interface>>, &'t HashMap<Rc<String>, MutRc<Interface>>> {
     let module = modules.iter().find(|(module, _)| &*module.path == path);
 
     if let Some(module) = module {
@@ -119,7 +119,7 @@ fn find_func<'t>(
     modules: ModulesRef<'t>,
     path: &ModulePath,
     name: &String,
-) -> Either<Option<Rc<MIRVariable>>, &'t HashMap<Rc<String>, Rc<MIRVariable>>> {
+) -> Either<Option<Rc<Variable>>, &'t HashMap<Rc<String>, Rc<Variable>>> {
     let module = modules.iter().find(|(module, _)| &*module.path == path);
 
     if let Some(module) = module {

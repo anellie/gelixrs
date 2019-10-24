@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/24/19 3:58 PM.
+ * Last modified on 10/24/19 4:08 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -10,7 +10,7 @@ use crate::ast::declaration::FuncSignature;
 use crate::ast::module::Module;
 use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::generator::passes::NONE_CONST;
-use crate::mir::nodes::{MIRType, MIRVariable};
+use crate::mir::nodes::{Type, Variable};
 use crate::mir::ToMIRResult;
 
 /// This pass defines all functions in MIR.
@@ -29,7 +29,7 @@ pub fn declare_func_pass(gen: &mut MIRGenerator, module: &mut Module) -> Res<()>
 pub(super) fn create_function(
     gen: &mut MIRGenerator,
     func_sig: &FuncSignature,
-) -> Res<Rc<MIRVariable>> {
+) -> Res<Rc<Variable>> {
     let ret_type = gen
         .builder
         .find_type(
@@ -42,7 +42,7 @@ pub(super) fn create_function(
 
     let mut parameters = Vec::with_capacity(func_sig.parameters.len());
     for param in func_sig.parameters.iter() {
-        parameters.push(Rc::new(MIRVariable {
+        parameters.push(Rc::new(Variable {
             mutable: false,
             name: Rc::clone(&param.name.lexeme),
             type_: gen.builder.find_type(&param.type_).or_err(
@@ -62,9 +62,9 @@ pub(super) fn create_function(
         )
         .or_err(gen, &func_sig.name, "Function was declared twice")?;
 
-    let global = Rc::new(MIRVariable {
+    let global = Rc::new(Variable {
         name: Rc::clone(&func_sig.name.lexeme),
-        type_: MIRType::Function(Rc::clone(&function)),
+        type_: Type::Function(Rc::clone(&function)),
         mutable: false,
     });
     gen.builder

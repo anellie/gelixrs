@@ -1,16 +1,16 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/24/19 3:58 PM.
+ * Last modified on 10/24/19 4:07 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::rc::Rc;
 
-use crate::ast::declaration::{Interface, Type};
+use crate::ast::declaration::{Interface, Type as ASTType};
 use crate::ast::module::Module;
 use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::generator::passes::NONE_CONST;
-use crate::mir::nodes::{MIRIFaceMethod, MIRType};
+use crate::mir::nodes::{IFaceMethod, Type};
 use crate::mir::ToMIRResult;
 
 /// This pass declares all interfaces.
@@ -60,7 +60,7 @@ fn create_interface(gen: &mut MIRGenerator, interface: &mut Interface) -> Res<()
 
         mir_iface.methods.insert(
             Rc::clone(&method.sig.name.lexeme),
-            MIRIFaceMethod {
+            IFaceMethod {
                 name: Rc::clone(&method.sig.name.lexeme),
                 parameters,
                 ret_type,
@@ -74,10 +74,10 @@ fn create_interface(gen: &mut MIRGenerator, interface: &mut Interface) -> Res<()
 }
 
 /// Tries resolving an AST type to a generic.
-fn try_resolve_generic_type(generics: &Vec<Rc<String>>, ty: Option<&Type>) -> Option<MIRType> {
-    if let Type::Ident(tok) = ty.unwrap() {
+fn try_resolve_generic_type(generics: &Vec<Rc<String>>, ty: Option<&ASTType>) -> Option<Type> {
+    if let ASTType::Ident(tok) = ty.unwrap() {
         if generics.contains(&tok.lexeme) {
-            return Some(MIRType::Generic(Rc::clone(&tok.lexeme)));
+            return Some(Type::Generic(Rc::clone(&tok.lexeme)));
         }
     }
     None

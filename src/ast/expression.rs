@@ -1,10 +1,8 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/24/19 3:58 PM.
+ * Last modified on 10/24/19 4:05 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
-
-use crate::ast::declaration::Type;
 
 use super::declaration::Variable;
 use super::literal::Literal;

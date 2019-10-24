@@ -1,17 +1,17 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/24/19 3:58 PM.
+ * Last modified on 10/24/19 4:08 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::rc::Rc;
 
-use crate::ast::declaration::{Function, FunctionArg, IFaceImpl, Type};
+use crate::ast::declaration::{Function, FunctionArg, IFaceImpl, Type as ASTType};
 use crate::ast::module::Module;
 use crate::lexer::token::Token;
 use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::generator::passes::declare_func::create_function;
-use crate::mir::nodes::{MIRIFaceMethod, MIRType, MIRVariable};
+use crate::mir::nodes::{IFaceMethod, Type, Variable};
 use crate::mir::ToMIRResult;
 
 /// This pass checks and defines all interface impl blocks.
@@ -102,7 +102,7 @@ fn add_generic_aliases(
     }
     for (g_impl, g_iface) in impl_.iter().zip(iface.iter()) {
         gen.builder
-            .add_alias(g_iface, &Type::Ident(g_impl.clone()));
+            .add_alias(g_iface, &ASTType::Ident(g_impl.clone()));
     }
     Ok(())
 }
@@ -111,10 +111,10 @@ fn add_generic_aliases(
 fn check_equal_signature(
     gen: &mut MIRGenerator,
     method: &Function,
-    mir_method: Rc<MIRVariable>,
-    iface_method: &MIRIFaceMethod,
+    mir_method: Rc<Variable>,
+    iface_method: &IFaceMethod,
 ) -> Res<()> {
-    let mir_method = if let MIRType::Function(method) = &mir_method.type_ {
+    let mir_method = if let Type::Function(method) = &mir_method.type_ {
         method
     } else {
         panic!()

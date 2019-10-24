@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/24/19 3:34 PM.
+ * Last modified on 10/24/19 4:08 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -13,7 +13,7 @@ use crate::ast::declaration::Class;
 use crate::ast::module::Module;
 use crate::lexer::token::Token;
 use crate::mir::generator::{MIRGenerator, Res};
-use crate::mir::nodes::{MIRClassMember, MIRVariable};
+use crate::mir::nodes::{ClassMember, Variable};
 
 /// This pass fills all classes with their members
 /// and creates their internal init function.
@@ -41,7 +41,7 @@ fn fill_class(gen: &mut MIRGenerator, class: &mut Class) -> Res<()> {
 fn build_class(
     gen: &mut MIRGenerator,
     class: &mut Class,
-    fields: &mut IndexMap<Rc<String>, Rc<MIRClassMember>>,
+    fields: &mut IndexMap<Rc<String>, Rc<ClassMember>>,
 ) -> Res<()> {
     let function_rc = gen
         .builder
@@ -56,7 +56,7 @@ fn build_class(
     let offset = fields.len();
     for (i, field) in class.variables.drain(..).enumerate() {
         let value = gen.generate_expression(&field.initializer)?;
-        let member = Rc::new(MIRClassMember {
+        let member = Rc::new(ClassMember {
             mutable: field.mutable,
             type_: value.get_type(),
             index: (i + offset) as u32,
@@ -85,8 +85,8 @@ fn build_class(
 fn check_duplicate(
     gen: &mut MIRGenerator,
     tok: &Token,
-    members: &IndexMap<Rc<String>, Rc<MIRClassMember>>,
-    methods: &HashMap<Rc<String>, Rc<MIRVariable>>,
+    members: &IndexMap<Rc<String>, Rc<ClassMember>>,
+    methods: &HashMap<Rc<String>, Rc<Variable>>,
 ) -> Res<()> {
     for (mem_name, _) in members.iter() {
         if methods.contains_key(mem_name) {

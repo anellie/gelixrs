@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/24/19 3:53 PM.
+ * Last modified on 10/24/19 4:09 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -18,7 +18,7 @@ use super::{
     lexer::token::TType,
     mir::{
         MIRModule,
-        nodes::{MIRBlock, MIRClass, MIRExpression, MIRFlow, MIRFunction, MIRType, MIRVariable},
+        nodes::{Block, Class, Expression, Flow, Function, Type, Variable},
     },
     module_path_to_string,
 };
@@ -37,7 +37,7 @@ pub struct IRGenerator {
     /// All variables, the currently compiled function.
     /// Note that not all variables are valid - they are kept after going out of scope.
     /// This is not an issue since the MIR generator checked against this already.
-    variables: HashMap<PtrEqRc<MIRVariable>, PointerValue>,
+    variables: HashMap<PtrEqRc<Variable>, PointerValue>,
     /// All blocks in the current function.
     blocks: HashMap<Rc<String>, BasicBlock>,
 
@@ -96,7 +96,7 @@ impl IRGenerator {
     fn generate_module(&mut self, mir: MIRModule) {
         // Put all functions into the variables map first
         for (name, func) in mir.functions.iter().chain(mir.imported_func.iter()) {
-            let func_val = if let MIRType::Function(func) = &func.type_ {
+            let func_val = if let Type::Function(func) = &func.type_ {
                 let func = func.borrow();
                 self.module
                     .add_function(&name, self.get_fn_type(&func), None)
@@ -121,7 +121,7 @@ impl IRGenerator {
     }
 
     /// Generates a class struct and its body
-    fn class_to_struct(&mut self, class: Ref<MIRClass>) {
+    fn class_to_struct(&mut self, class: Ref<Class>) {
         let struc_val = self.types[&class.name];
         let body: Vec<BasicTypeEnum> = class
             .members
@@ -132,9 +132,9 @@ impl IRGenerator {
     }
 
     /// Generates a function; function should already be declared in the module.
-    fn function(&mut self, name: Rc<String>, func: Rc<MIRVariable>) {
+    fn function(&mut self, name: Rc<String>, func: Rc<Variable>) {
         let func_val = self.module.get_function(&name).unwrap();
-        if let MIRType::Function(func) = &func.type_ {
+        if let Type::Function(func) = &func.type_ {
             let func = func.borrow_mut();
             if !func.blocks.is_empty() {
                 self.function_body(func, func_val)
@@ -143,7 +143,7 @@ impl IRGenerator {
     }
 
     /// Generates a function's body.
-    fn function_body(&mut self, mut func: RefMut<MIRFunction>, func_val: FunctionValue) {
+    fn function_body(&mut self, mut func: RefMut<Function>, func_val: FunctionValue) {
         self.blocks.clear();
 
         let entry_b = func.blocks.remove_entry(&self.entry_const).unwrap();
@@ -197,7 +197,7 @@ impl IRGenerator {
         }
     }
 
-    fn fill_basic_block(&mut self, mir_bb: &MIRBlock, block: BasicBlock) {
+    fn fill_basic_block(&mut self, mir_bb: &Block, block: BasicBlock) {
         match block.get_first_instruction() {
             Some(inst) => self.builder.position_before(&inst),
             None => self.builder.position_at_end(&block),
@@ -208,16 +208,16 @@ impl IRGenerator {
         }
     }
 
-    fn build_bb_end(&mut self, mir_bb: &MIRBlock, block: BasicBlock) {
+    fn build_bb_end(&mut self, mir_bb: &Block, block: BasicBlock) {
         self.builder.position_at_end(&block);
         match &mir_bb.last {
-            MIRFlow::None => self.builder.build_return(None),
+            Flow::None => self.builder.build_return(None),
 
-            MIRFlow::Jump(block) => self
+            Flow::Jump(block) => self
                 .builder
                 .build_unconditional_branch(&self.get_block(block)),
 
-            MIRFlow::Branch {
+            Flow::Branch {
                 condition,
                 then_b,
                 else_b,
@@ -234,7 +234,7 @@ impl IRGenerator {
                 }
             }
 
-            MIRFlow::Switch { cases, default } => {
+            Flow::Switch { cases, default } => {
                 // TODO: meh
                 let cases: Vec<(IntValue, BasicBlock)> = cases
                     .iter()
@@ -255,7 +255,7 @@ impl IRGenerator {
                 )
             }
 
-            MIRFlow::Return(value) => {
+            Flow::Return(value) => {
                 let value = self.generate_expression(value);
                 if value.get_type() == self.none_const.get_type() {
                     self.builder.build_return(None)
@@ -270,14 +270,14 @@ impl IRGenerator {
         self.blocks[name]
     }
 
-    fn get_variable(&self, var: &Rc<MIRVariable>) -> PointerValue {
+    fn get_variable(&self, var: &Rc<Variable>) -> PointerValue {
         let wrap = PtrEqRc::new(var);
         self.variables[&wrap]
     }
 
-    fn generate_expression(&mut self, expression: &MIRExpression) -> BasicValueEnum {
+    fn generate_expression(&mut self, expression: &Expression) -> BasicValueEnum {
         match expression {
-            MIRExpression::Binary {
+            Expression::Binary {
                 left,
                 operator,
                 right,
@@ -314,13 +314,13 @@ impl IRGenerator {
                 }
             }
 
-            MIRExpression::Bitcast { object, goal } => {
+            Expression::Bitcast { object, goal } => {
                 let object = self.generate_expression(object);
-                let type_ = self.to_ir_type(&MIRType::Class(Rc::clone(goal)));
+                let type_ = self.to_ir_type(&Type::Class(Rc::clone(goal)));
                 self.builder.build_bitcast(object, type_, "bitcast")
             }
 
-            MIRExpression::Call { callee, arguments } => {
+            Expression::Call { callee, arguments } => {
                 let callee = self.generate_expression(callee);
                 if let BasicValueEnum::PointerValue(ptr) = callee {
                     let arguments: Vec<BasicValueEnum> = arguments
@@ -338,12 +338,12 @@ impl IRGenerator {
                 }
             }
 
-            MIRExpression::DoRet => {
+            Expression::DoRet => {
                 self.builder.clear_insertion_position();
                 self.none_const
             }
 
-            MIRExpression::Function(func) => BasicValueEnum::PointerValue(
+            Expression::Function(func) => BasicValueEnum::PointerValue(
                 self.module
                     .get_function(&func.borrow().name)
                     .unwrap()
@@ -351,7 +351,7 @@ impl IRGenerator {
                     .as_pointer_value(),
             ),
 
-            MIRExpression::Phi(branches) => {
+            Expression::Phi(branches) => {
                 // Insert block might be None if block return was hit
                 let cur_block = match self.builder.get_insert_block() {
                     Some(b) => b,
@@ -382,7 +382,7 @@ impl IRGenerator {
                 phi.as_basic_value()
             }
 
-            MIRExpression::StructGet { object, index } => {
+            Expression::StructGet { object, index } => {
                 let struc = self.generate_expression(object);
                 if let BasicValueEnum::PointerValue(ptr) = struc {
                     let ptr = unsafe { self.builder.build_struct_gep(ptr, *index, "classgep") };
@@ -392,7 +392,7 @@ impl IRGenerator {
                 }
             }
 
-            MIRExpression::StructSet {
+            Expression::StructSet {
                 object,
                 index,
                 value,
@@ -409,7 +409,7 @@ impl IRGenerator {
                 }
             }
 
-            MIRExpression::Literal(literal) => match literal {
+            Expression::Literal(literal) => match literal {
                 Literal::Any => self.none_const,
                 Literal::None => self.none_const,
                 Literal::Bool(value) => self
@@ -443,7 +443,7 @@ impl IRGenerator {
                 _ => panic!("unknown literal"),
             },
 
-            MIRExpression::Unary { right, operator } => {
+            Expression::Unary { right, operator } => {
                 let expr = self.generate_expression(right);
 
                 match expr {
@@ -463,14 +463,14 @@ impl IRGenerator {
                 }
             }
 
-            MIRExpression::VarGet(var) => self.load_ptr(self.get_variable(var)),
+            Expression::VarGet(var) => self.load_ptr(self.get_variable(var)),
 
-            MIRExpression::VarStore { var, value } => {
+            Expression::VarStore { var, value } => {
                 let variable = self.get_variable(var);
                 let value = self.generate_expression(value);
 
                 // String pointers should not be unwrapped
-                let value = if var.type_ == MIRType::String {
+                let value = if var.type_ == Type::String {
                     value
                 } else {
                     self.unwrap_value_ptr(value)
@@ -515,7 +515,7 @@ impl IRGenerator {
 
     /// Converts a MIRType to the corresponding LLVM type.
     /// Structs/Arrays are returned as PointerType<StructType/ArrayType>.
-    fn to_ir_type(&self, mir: &MIRType) -> BasicTypeEnum {
+    fn to_ir_type(&self, mir: &Type) -> BasicTypeEnum {
         let ir = self.to_ir_type_no_ptr(mir);
         match ir {
             BasicTypeEnum::StructType(struc) if ir != self.none_const.get_type() => {
@@ -526,41 +526,41 @@ impl IRGenerator {
     }
 
     /// Converts a MIRType to the corresponding LLVM type. Structs are returned as StructType.
-    fn to_ir_type_no_ptr(&self, mir: &MIRType) -> BasicTypeEnum {
+    fn to_ir_type_no_ptr(&self, mir: &Type) -> BasicTypeEnum {
         match mir {
-            MIRType::Any => self.none_const.get_type(),
-            MIRType::None => self.none_const.get_type(),
-            MIRType::Bool => self.context.bool_type().as_basic_type_enum(),
+            Type::Any => self.none_const.get_type(),
+            Type::None => self.none_const.get_type(),
+            Type::Bool => self.context.bool_type().as_basic_type_enum(),
 
-            MIRType::I8 => self.context.i8_type().as_basic_type_enum(),
-            MIRType::I16 => self.context.i16_type().as_basic_type_enum(),
-            MIRType::I32 => self.context.i32_type().as_basic_type_enum(),
-            MIRType::I64 => self.context.i64_type().as_basic_type_enum(),
+            Type::I8 => self.context.i8_type().as_basic_type_enum(),
+            Type::I16 => self.context.i16_type().as_basic_type_enum(),
+            Type::I32 => self.context.i32_type().as_basic_type_enum(),
+            Type::I64 => self.context.i64_type().as_basic_type_enum(),
 
-            MIRType::F32 => self.context.f32_type().as_basic_type_enum(),
-            MIRType::F64 => self.context.f64_type().as_basic_type_enum(),
+            Type::F32 => self.context.f32_type().as_basic_type_enum(),
+            Type::F64 => self.context.f64_type().as_basic_type_enum(),
 
-            MIRType::Array(type_) => self
+            Type::Array(type_) => self
                 .to_ir_type(type_)
                 .ptr_type(AddressSpace::Generic)
                 .as_basic_type_enum(),
 
-            MIRType::String => self
+            Type::String => self
                 .context
                 .i8_type()
                 .ptr_type(AddressSpace::Generic)
                 .as_basic_type_enum(),
-            MIRType::Function(func) => self
+            Type::Function(func) => self
                 .get_fn_type(&func.borrow())
                 .ptr_type(AddressSpace::Generic)
                 .as_basic_type_enum(),
-            MIRType::Class(struc) => self.types[&struc.borrow().name].as_basic_type_enum(),
+            Type::Class(struc) => self.types[&struc.borrow().name].as_basic_type_enum(),
 
-            MIRType::Interface(_) => {
+            Type::Interface(_) => {
                 println!("WARN: Unimplemented interface type. Returning dummy...");
                 self.context.bool_type().as_basic_type_enum()
             }
-            MIRType::Generic(_) => {
+            Type::Generic(_) => {
                 println!("WARN: Unimplemented generic type. Returning dummy...");
                 self.context.bool_type().as_basic_type_enum()
             }
@@ -568,14 +568,14 @@ impl IRGenerator {
     }
 
     /// Generates the LLVM FunctionType of a MIR function.
-    fn get_fn_type(&self, func: &Ref<MIRFunction>) -> FunctionType {
+    fn get_fn_type(&self, func: &Ref<Function>) -> FunctionType {
         let params: Vec<BasicTypeEnum> = func
             .parameters
             .iter()
             .map(|param| self.to_ir_type(&param.type_))
             .collect();
 
-        if func.ret_type == MIRType::None {
+        if func.ret_type == Type::None {
             self.context.void_type().fn_type(params.as_slice(), false)
         } else {
             let ret_type = self.to_ir_type(&func.ret_type);

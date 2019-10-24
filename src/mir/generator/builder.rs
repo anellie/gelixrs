@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/24/19 3:56 PM.
+ * Last modified on 10/24/19 4:13 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -10,16 +10,16 @@ use std::rc::Rc;
 
 use indexmap::IndexMap;
 
-use crate::ast::declaration::Type;
 use crate::ast::literal::Literal;
+use crate::ast::Type as ASTType;
 use crate::lexer::token::{Token, TType};
 use crate::mir::{MIRModule, MutRc, mutrc_new};
 use crate::mir::nodes::{
-    MIRClass, MIRClassMember, MIRExpression, MIRFlow, MIRInterface, MIRVariable,
+    Class, ClassMember, Expression, Flow, Interface, Variable,
 };
 use crate::ModulePath;
 
-use super::super::nodes::{MIRFunction, MIRType};
+use super::super::nodes::{Function, Type};
 
 /// A builder for assisting in creating MIR.
 pub struct MIRBuilder {
@@ -33,7 +33,7 @@ pub struct MIRBuilder {
     imports: Imports,
 
     /// A list of type aliases, where the key is a type that will be translated to the value.
-    type_aliases: HashMap<Rc<String>, Type>,
+    type_aliases: HashMap<Rc<String>, ASTType>,
 
     /// Simply a const of the string "tmp".
     /// Used for temporary variables needed for class init.
@@ -44,8 +44,8 @@ pub struct MIRBuilder {
 }
 
 impl MIRBuilder {
-    pub fn create_class(&mut self, name: &Token) -> Option<MutRc<MIRClass>> {
-        let class = mutrc_new(MIRClass {
+    pub fn create_class(&mut self, name: &Token) -> Option<MutRc<Class>> {
+        let class = mutrc_new(Class {
             name: Rc::clone(&name.lexeme),
             members: IndexMap::new(),
             methods: HashMap::new(),
@@ -67,7 +67,7 @@ impl MIRBuilder {
 
     pub fn add_imported_class(
         &mut self,
-        class: MutRc<MIRClass>,
+        class: MutRc<Class>,
         import_methods: bool,
     ) -> Option<()> {
         let name = Rc::clone(&class.borrow().name);
@@ -90,10 +90,10 @@ impl MIRBuilder {
     pub fn create_function(
         &mut self,
         name: Rc<String>,
-        ret_type: MIRType,
-        parameters: Vec<Rc<MIRVariable>>,
-    ) -> Option<MutRc<MIRFunction>> {
-        let function = mutrc_new(MIRFunction {
+        ret_type: Type,
+        parameters: Vec<Rc<Variable>>,
+    ) -> Option<MutRc<Function>> {
+        let function = mutrc_new(Function {
             name: Rc::clone(&name),
             parameters,
             blocks: HashMap::new(),
@@ -108,7 +108,7 @@ impl MIRBuilder {
         }
     }
 
-    pub fn add_imported_function(&mut self, func: Rc<MIRVariable>) -> Option<()> {
+    pub fn add_imported_function(&mut self, func: Rc<Variable>) -> Option<()> {
         let name = &func.name;
         if self.find_function(&name).is_none() {
             self.module
@@ -121,7 +121,7 @@ impl MIRBuilder {
         }
     }
 
-    pub fn add_imported_iface(&mut self, iface: MutRc<MIRInterface>) -> Option<()> {
+    pub fn add_imported_iface(&mut self, iface: MutRc<Interface>) -> Option<()> {
         let name = Rc::clone(&iface.borrow().name);
         if self.find_interface(&name).is_none() {
             self.imports
@@ -134,8 +134,8 @@ impl MIRBuilder {
         }
     }
 
-    pub fn create_interface(&mut self, name: &Rc<String>) -> Option<MutRc<MIRInterface>> {
-        let iface = mutrc_new(MIRInterface {
+    pub fn create_interface(&mut self, name: &Rc<String>) -> Option<MutRc<Interface>> {
+        let iface = mutrc_new(Interface {
             name: Rc::clone(name),
             methods: IndexMap::new(),
             generics: Vec::new(),
@@ -152,15 +152,15 @@ impl MIRBuilder {
         }
     }
 
-    pub fn add_global(&mut self, name: Rc<String>, variable: Rc<MIRVariable>) {
-        if let MIRType::Function(_) = variable.type_ {
+    pub fn add_global(&mut self, name: Rc<String>, variable: Rc<Variable>) {
+        if let Type::Function(_) = variable.type_ {
             self.module.functions.insert(name, variable);
         } else {
             panic!("Invalid global")
         }
     }
 
-    pub fn find_global(&self, name: &String) -> Option<Rc<MIRVariable>> {
+    pub fn find_global(&self, name: &String) -> Option<Rc<Variable>> {
         self.module
             .functions
             .get(name)
@@ -169,7 +169,7 @@ impl MIRBuilder {
     }
 
     /// Will create the variable in the current function.
-    pub fn add_function_variable(&mut self, variable: Rc<MIRVariable>) {
+    pub fn add_function_variable(&mut self, variable: Rc<Variable>) {
         let func = self.cur_fn();
         func.borrow_mut()
             .insert_var(Rc::clone(&variable.name), variable);
@@ -177,43 +177,43 @@ impl MIRBuilder {
 
     pub fn build_binary(
         &self,
-        left: MIRExpression,
+        left: Expression,
         operator: TType,
-        right: MIRExpression,
-    ) -> MIRExpression {
-        MIRExpression::Binary {
+        right: Expression,
+    ) -> Expression {
+        Expression::Binary {
             left: Box::new(left),
             operator,
             right: Box::new(right),
         }
     }
 
-    pub fn build_unary(&self, right: MIRExpression, op: TType) -> MIRExpression {
-        MIRExpression::Unary {
+    pub fn build_unary(&self, right: Expression, op: TType) -> Expression {
+        Expression::Unary {
             operator: op,
             right: Box::new(right),
         }
     }
 
-    pub fn build_bitcast(&self, obj: MIRExpression, goal: &MutRc<MIRClass>) -> MIRExpression {
-        MIRExpression::Bitcast {
+    pub fn build_bitcast(&self, obj: Expression, goal: &MutRc<Class>) -> Expression {
+        Expression::Bitcast {
             object: Box::new(obj),
             goal: Rc::clone(&goal),
         }
     }
 
-    pub fn build_call(&mut self, callee: MIRExpression, args: Vec<MIRExpression>) -> MIRExpression {
-        MIRExpression::Call {
+    pub fn build_call(&mut self, callee: Expression, args: Vec<Expression>) -> Expression {
+        Expression::Call {
             callee: Box::new(callee),
             arguments: args,
         }
     }
 
-    pub fn build_constructor(&mut self, class_ref: MutRc<MIRClass>) -> MIRExpression {
+    pub fn build_constructor(&mut self, class_ref: MutRc<Class>) -> Expression {
         let class = class_ref.borrow();
-        let var = Rc::new(MIRVariable {
+        let var = Rc::new(Variable {
             name: Rc::clone(&self.tmp_const),
-            type_: MIRType::Class(Rc::clone(&class_ref)),
+            type_: Type::Class(Rc::clone(&class_ref)),
             mutable: false,
         });
 
@@ -224,25 +224,25 @@ impl MIRBuilder {
         let init_fn = self
             .find_function(&format!("{}-internal-init", &class.name))
             .unwrap();
-        let init_call = MIRExpression::Call {
-            callee: Box::new(MIRExpression::Function(init_fn)),
-            arguments: vec![MIRExpression::VarGet(Rc::clone(&var))],
+        let init_call = Expression::Call {
+            callee: Box::new(Expression::Function(init_fn)),
+            arguments: vec![Expression::VarGet(Rc::clone(&var))],
         };
         self.insert_at_ptr(init_call);
 
         let user_init = self.find_function(&format!("{}-init", &class.name));
         if let Some(user_init) = user_init {
-            let init_call = MIRExpression::Call {
-                callee: Box::new(MIRExpression::Function(user_init)),
-                arguments: vec![MIRExpression::VarGet(Rc::clone(&var))],
+            let init_call = Expression::Call {
+                callee: Box::new(Expression::Function(user_init)),
+                arguments: vec![Expression::VarGet(Rc::clone(&var))],
             };
             self.insert_at_ptr(init_call);
         }
 
-        MIRExpression::VarGet(var)
+        Expression::VarGet(var)
     }
 
-    pub fn build_phi(&self, nodes: Vec<(MIRExpression, Rc<String>)>) -> MIRExpression {
+    pub fn build_phi(&self, nodes: Vec<(Expression, Rc<String>)>) -> Expression {
         // Filter all nodes that return Any.
         // A node might return Any if it does not produce a value;
         // but instead branches away from the phi.
@@ -250,23 +250,23 @@ impl MIRBuilder {
             .into_iter()
             .filter(|node| {
                 let type_ = node.0.get_type();
-                discriminant(&MIRType::Any) != discriminant(&type_)
+                discriminant(&Type::Any) != discriminant(&type_)
             })
             .collect();
 
-        MIRExpression::Phi(filtered_nodes)
+        Expression::Phi(filtered_nodes)
     }
 
-    pub fn build_literal(&self, literal: Literal) -> MIRExpression {
-        MIRExpression::Literal(literal)
+    pub fn build_literal(&self, literal: Literal) -> Expression {
+        Expression::Literal(literal)
     }
 
     pub fn build_struct_get(
         &self,
-        object: MIRExpression,
-        field: Rc<MIRClassMember>,
-    ) -> MIRExpression {
-        MIRExpression::StructGet {
+        object: Expression,
+        field: Rc<ClassMember>,
+    ) -> Expression {
+        Expression::StructGet {
             object: Box::new(object),
             index: field.index,
         }
@@ -274,30 +274,30 @@ impl MIRBuilder {
 
     pub fn build_struct_set(
         &self,
-        object: MIRExpression,
-        field: Rc<MIRClassMember>,
-        value: MIRExpression,
-    ) -> MIRExpression {
-        MIRExpression::StructSet {
+        object: Expression,
+        field: Rc<ClassMember>,
+        value: Expression,
+    ) -> Expression {
+        Expression::StructSet {
             object: Box::new(object),
             index: field.index,
             value: Box::new(value),
         }
     }
 
-    pub fn build_store(&self, var: Rc<MIRVariable>, value: MIRExpression) -> MIRExpression {
-        MIRExpression::VarStore {
+    pub fn build_store(&self, var: Rc<Variable>, value: Expression) -> Expression {
+        Expression::VarStore {
             var,
             value: Box::new(value),
         }
     }
 
-    pub fn build_load(&self, var: Rc<MIRVariable>) -> MIRExpression {
-        MIRExpression::VarGet(var)
+    pub fn build_load(&self, var: Rc<Variable>) -> Expression {
+        Expression::VarGet(var)
     }
 
-    pub fn build_branch(&mut self, cond: MIRExpression, then: &Rc<String>, else_: &Rc<String>) {
-        self.set_return(MIRFlow::Branch {
+    pub fn build_branch(&mut self, cond: Expression, then: &Rc<String>, else_: &Rc<String>) {
+        self.set_return(Flow::Branch {
             condition: cond,
             then_b: Rc::clone(&then),
             else_b: Rc::clone(&else_),
@@ -305,14 +305,14 @@ impl MIRBuilder {
     }
 
     pub fn build_jump(&mut self, to: &Rc<String>) {
-        self.set_return(MIRFlow::Jump(Rc::clone(to)))
+        self.set_return(Flow::Jump(Rc::clone(to)))
     }
 
     pub fn append_block(&mut self, name: &str) -> Rc<String> {
         self.cur_fn().borrow_mut().append_block(name)
     }
 
-    pub fn set_return(&mut self, ret: MIRFlow) {
+    pub fn set_return(&mut self, ret: Flow) {
         let cur_fn = self.cur_fn();
         let mut cur_fn = cur_fn.borrow_mut();
         let mut block = cur_fn
@@ -322,50 +322,50 @@ impl MIRBuilder {
         // If the return type is not None, it was already overridden by something else
         // (return or break expression mostly) and should not be changed.
         // (discriminant returns a unique id of an enum variant)
-        if std::mem::discriminant(&block.last) == std::mem::discriminant(&MIRFlow::None) {
+        if std::mem::discriminant(&block.last) == std::mem::discriminant(&Flow::None) {
             block.last = ret;
             drop(cur_fn);
-            self.insert_at_ptr(MIRExpression::DoRet)
+            self.insert_at_ptr(Expression::DoRet)
         }
     }
 
-    pub fn find_type(&self, ast: &Type) -> Option<MIRType> {
+    pub fn find_type(&self, ast: &ASTType) -> Option<Type> {
         Some(match ast {
-            Type::Ident(tok) => {
+            ASTType::Ident(tok) => {
                 if let Some(alias) = self.type_aliases.get(&tok.lexeme) {
                     return self.find_type(alias);
                 }
 
                 match &tok.lexeme[..] {
-                    "None" => MIRType::None,
-                    "bool" => MIRType::Bool,
+                    "None" => Type::None,
+                    "bool" => Type::Bool,
 
-                    "i8" => MIRType::I8,
-                    "i16" => MIRType::I16,
-                    "i32" => MIRType::I32,
-                    "i64" => MIRType::I64,
+                    "i8" => Type::I8,
+                    "i16" => Type::I16,
+                    "i32" => Type::I32,
+                    "i64" => Type::I64,
 
-                    "f32" => MIRType::F32,
-                    "f64" => MIRType::F64,
+                    "f32" => Type::F32,
+                    "f64" => Type::F64,
 
-                    "String" => MIRType::String,
+                    "String" => Type::String,
 
                     _ => self
                         .find_class(&tok.lexeme)
-                        .map(|c| MIRType::Class(c))
-                        .or_else(|| Some(MIRType::Interface(self.find_interface(&tok.lexeme)?)))?,
+                        .map(|c| Type::Class(c))
+                        .or_else(|| Some(Type::Interface(self.find_interface(&tok.lexeme)?)))?,
                 }
             }
 
-            Type::Array(type_) => MIRType::Array(Box::new(self.find_type(type_)?)),
+            ASTType::Array(type_) => Type::Array(Box::new(self.find_type(type_)?)),
 
-            Type::Closure { .. } => unimplemented!(),
+            ASTType::Closure { .. } => unimplemented!(),
 
-            Type::Generic { .. } => unimplemented!(),
+            ASTType::Generic { .. } => unimplemented!(),
         })
     }
 
-    pub fn find_class(&self, name: &String) -> Option<MutRc<MIRClass>> {
+    pub fn find_class(&self, name: &String) -> Option<MutRc<Class>> {
         Some(Rc::clone(
             self.module
                 .classes
@@ -374,14 +374,14 @@ impl MIRBuilder {
         ))
     }
 
-    pub fn find_function(&self, name: &String) -> Option<MutRc<MIRFunction>> {
+    pub fn find_function(&self, name: &String) -> Option<MutRc<Function>> {
         Some(Rc::clone(
             self.module
                 .functions
                 .get(name)
                 .or_else(|| self.module.imported_func.get(name))
                 .map(|f| {
-                    if let MIRType::Function(f) = &f.type_ {
+                    if let Type::Function(f) = &f.type_ {
                         f
                     } else {
                         panic!("Not a function!")
@@ -390,13 +390,13 @@ impl MIRBuilder {
         ))
     }
 
-    pub fn find_interface(&self, name: &String) -> Option<MutRc<MIRInterface>> {
+    pub fn find_interface(&self, name: &String) -> Option<MutRc<Interface>> {
         Some(Rc::clone(
             self.module.interfaces.get(name).or_else(|| self.imports.interfaces.get(name))?
         ))
     }
 
-    pub fn set_pointer(&mut self, function: MutRc<MIRFunction>, block: Rc<String>) {
+    pub fn set_pointer(&mut self, function: MutRc<Function>, block: Rc<String>) {
         self.position = Some(Pointer { function, block })
     }
 
@@ -406,13 +406,13 @@ impl MIRBuilder {
         }
     }
 
-    pub fn add_alias(&mut self, key: &Rc<String>, val: &Type) {
+    pub fn add_alias(&mut self, key: &Rc<String>, val: &ASTType) {
         self.type_aliases.insert(Rc::clone(key), val.clone());
     }
 
     pub fn add_this_alias(&mut self, name: &Token) {
         self.type_aliases
-            .insert(Rc::clone(&self.this_const), Type::Ident(name.clone()));
+            .insert(Rc::clone(&self.this_const), ASTType::Ident(name.clone()));
     }
 
     pub fn remove_alias(&mut self, name: &Rc<String>) {
@@ -424,8 +424,8 @@ impl MIRBuilder {
     }
 
     /// Will turn the passed in type into a concrete type, should it still be a generic one.
-    pub fn translate_generic(&mut self, ty: &MIRType) -> MIRType {
-        if let MIRType::Generic(name) = ty {
+    pub fn translate_generic(&mut self, ty: &Type) -> Type {
+        if let Type::Generic(name) = ty {
             self.find_type(self.type_aliases.get(name).unwrap())
                 .unwrap()
         } else {
@@ -433,7 +433,7 @@ impl MIRBuilder {
         }
     }
 
-    pub fn insert_at_ptr(&mut self, expr: MIRExpression) {
+    pub fn insert_at_ptr(&mut self, expr: Expression) {
         let func = self.cur_fn();
         let mut func = func.borrow_mut();
         func.blocks
@@ -443,7 +443,7 @@ impl MIRBuilder {
             .push(expr);
     }
 
-    pub fn cur_fn(&self) -> MutRc<MIRFunction> {
+    pub fn cur_fn(&self) -> MutRc<Function> {
         Rc::clone(&self.position.as_ref().unwrap().function)
     }
 
@@ -472,12 +472,12 @@ impl MIRBuilder {
 }
 
 pub struct Pointer {
-    pub function: MutRc<MIRFunction>,
+    pub function: MutRc<Function>,
     block: Rc<String>,
 }
 
 #[derive(Default)]
 pub struct Imports {
-    classes: HashMap<Rc<String>, MutRc<MIRClass>>,
-    interfaces: HashMap<Rc<String>, MutRc<MIRInterface>>,
+    classes: HashMap<Rc<String>, MutRc<Class>>,
+    interfaces: HashMap<Rc<String>, MutRc<Interface>>,
 }

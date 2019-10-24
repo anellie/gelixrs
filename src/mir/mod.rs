@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/24/19 3:55 PM.
+ * Last modified on 10/24/19 4:08 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -9,13 +9,13 @@ use std::collections::HashMap;
 use std::fmt::{Display, Error, Formatter};
 use std::rc::Rc;
 
-use nodes::{MIRClass, MIRVariable};
+use nodes::{Class, Variable};
 
 use crate::{module_path_to_string, ModulePath};
 use crate::ast::declaration::Type;
 use crate::lexer::token::Token;
 use crate::mir::generator::{MIRError, MIRGenerator};
-use crate::mir::nodes::MIRInterface;
+use crate::mir::nodes::Interface;
 
 pub mod generator;
 pub mod nodes;
@@ -30,12 +30,12 @@ fn mutrc_new<T>(value: T) -> MutRc<T> {
 #[derive(Debug, Default)]
 pub struct MIRModule {
     pub path: Rc<ModulePath>,
-    pub classes: HashMap<Rc<String>, MutRc<MIRClass>>,
-    pub interfaces: HashMap<Rc<String>, MutRc<MIRInterface>>,
-    pub functions: HashMap<Rc<String>, Rc<MIRVariable>>,
+    pub classes: HashMap<Rc<String>, MutRc<Class>>,
+    pub interfaces: HashMap<Rc<String>, MutRc<Interface>>,
+    pub functions: HashMap<Rc<String>, Rc<Variable>>,
     /// Imported functions will only be declared; not defined.
     /// They are defined when modules are linked/combined at the end of IR generation.
-    pub imported_func: HashMap<Rc<String>, Rc<MIRVariable>>,
+    pub imported_func: HashMap<Rc<String>, Rc<Variable>>,
 }
 
 impl MIRModule {
