@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/24/19 4:13 PM.
+ * Last modified on 10/25/19 8:33 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -19,7 +19,7 @@ use crate::ast::literal::Literal;
 use crate::ast::module::Module;
 use crate::lexer::token::{Token, TType};
 use crate::mir::{MIRModule, MutRc, ToMIRResult};
-use crate::mir::nodes::{Class, ClassMember, Expression, Flow, Function, MIRArray, Type, Variable};
+use crate::mir::nodes::{ArrayLiteral, Class, ClassMember, Expression, Flow, Function, Type, Variable};
 
 mod builder;
 pub mod module;
@@ -387,7 +387,7 @@ impl MIRGenerator {
                     }
 
                     self.builder
-                        .build_literal(Literal::Array(Either::Right(MIRArray {
+                        .build_literal(Literal::Array(Either::Right(ArrayLiteral {
                             values: values_mir,
                             type_: arr_type,
                         })))

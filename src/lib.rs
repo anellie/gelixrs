@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/17/19 5:15 PM.
+ * Last modified on 10/25/19 8:33 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -9,6 +9,8 @@
 // https://github.com/rust-lang/rust/issues/43244
 #![feature(drain_filter)]
 
+#[macro_use]
+extern crate enum_methods;
 #[macro_use]
 #[cfg(test)]
 extern crate lazy_static;
@@ -20,8 +22,8 @@ use std::rc::Rc;
 use ast::module::Module;
 use error::Error;
 use ir::IRGenerator;
-use mir::generator::module::MIRModuleGenerator;
 use mir::generator::MIRError;
+use mir::generator::module::MIRModuleGenerator;
 use mir::MIRModule;
 use parser::ParserErrors;
 

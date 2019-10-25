@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/24/19 4:12 PM.
+ * Last modified on 10/25/19 8:22 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -18,7 +18,7 @@ use crate::lexer::token::TType;
 use crate::mir::MutRc;
 
 /// All types in Gelix.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, EnumAsGetters)]
 pub enum Type {
     Any,
     None,
@@ -203,10 +203,9 @@ impl Display for Function {
         write!(f, ") {{\n")?;
         for (name, block) in self.blocks.iter() {
             write!(f, "{}:\n", name)?;
-            for inst in block.expressions.iter() {
+            for inst in block.iter() {
                 write!(f, "    {}\n", inst)?;
             }
-            write!(f, "    {}\n\n", block.last)?;
         }
         write!(f, "}}\n")
     }
@@ -223,10 +222,7 @@ impl Function {
         let rc = Rc::new(name);
         self.blocks.insert(
             Rc::clone(&rc),
-            Block {
-                expressions: Vec::with_capacity(5),
-                last: Flow::None,
-            },
+            Vec::with_capacity(5),
         );
         rc
     }
@@ -257,61 +253,7 @@ impl Hash for Variable {
 }
 
 /// A block inside a function.
-#[derive(Debug)]
-pub struct Block {
-    pub expressions: Vec<Expression>,
-    pub last: Flow,
-}
-
-/// The last part of a block.
-#[derive(Debug)]
-pub enum Flow {
-    /// Return void
-    None,
-
-    /// Jump to another block
-    Jump(Rc<String>),
-
-    /// Jump to another block conditionally
-    Branch {
-        condition: Expression,
-        then_b: Rc<String>,
-        else_b: Rc<String>,
-    },
-
-    /// Same as branch, but with a list of conditions.
-    /// Jumps to the first that matches.
-    Switch {
-        cases: Vec<(Expression, Rc<String>)>,
-        default: Rc<String>,
-    },
-
-    /// Return a value
-    Return(Expression),
-}
-
-impl Display for Flow {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-        match self {
-            Flow::None => write!(f, "return"),
-
-            Flow::Jump(goal) => write!(f, "jump {}", goal),
-
-            Flow::Branch { condition, then_b, else_b } => write!(f, "jump {} if ({}) else {}", then_b, condition, else_b),
-
-            Flow::Switch { cases, default } => {
-                write!(f, "switch {{ ")?;
-                for (expr, block) in cases.iter() {
-                    write!(f, "{}: ({}), ", block, expr)?;
-                }
-                write!(f, "else {}", default)?;
-                write!(f, "}}")
-            },
-
-            Flow::Return(expr) => write!(f, "return ({})", expr),
-        }
-    }
-}
+pub type Block = Vec<Expression>;
 
 /// All expressions in MIR. All of them produce a value.
 #[derive(Debug, Clone)]
@@ -335,9 +277,8 @@ pub enum Expression {
         arguments: Vec<Expression>,
     },
 
-    /// An expression indicating that any code after it should be discarded,
-    /// and that the next statement in the block should be the terminator ([MIRFlow]).
-    DoRet,
+    /// A 'flow' expression, which changes control flow. See [Flow] enum
+    Flow(Box<Flow>),
 
     /// Simply produces the function as a value.
     Function(MutRc<Function>),
@@ -402,18 +343,18 @@ impl Expression {
                 }
             }
 
-            Expression::DoRet => Type::None,
+            Expression::Flow(_) => Type::None,
 
             Expression::Function(func) => Type::Function(func.clone()),
 
             Expression::Phi(branches) => branches.first().unwrap().0.get_type(),
 
             Expression::StructGet { object, index } => {
-                Expression::type_from_struct_get(object, *index)
+                Self::type_from_struct_get(object, *index)
             }
 
             Expression::StructSet { object, index, .. } => {
-                Expression::type_from_struct_get(object, *index)
+                Self::type_from_struct_get(object, *index)
             }
 
             Expression::Literal(literal) => match literal {
@@ -479,7 +420,7 @@ impl Display for Expression {
                 Ok(())
             },
 
-            Expression::DoRet => write!(f, "endblock"),
+            Expression::Flow(flow) => write!(f, "{}", flow),
 
             Expression::Function(func) => write!(f, "{}", func.borrow().name),
 
@@ -506,9 +447,59 @@ impl Display for Expression {
     }
 }
 
+/// An 'expression' that always yields None, and changes control flow.
+#[derive(Clone, Debug)]
+pub enum Flow {
+    /// Return void from function
+    None,
+
+    /// Return a value from function
+    Return(Expression),
+
+    /// Jump to another block
+    Jump(Rc<String>),
+
+    /// Jump to another block conditionally
+    Branch {
+        condition: Expression,
+        then_b: Rc<String>,
+        else_b: Rc<String>,
+    },
+
+    /// Same as branch, but with a list of conditions.
+    /// Jumps to the first that matches.
+    Switch {
+        cases: Vec<(Expression, Rc<String>)>,
+        default: Rc<String>,
+    },
+}
+
+impl Display for Flow {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+        match self {
+            Flow::None => write!(f, "return"),
+
+            Flow::Return(expr) => write!(f, "return ({})", expr),
+
+            Flow::Jump(goal) => write!(f, "jump {}", goal),
+
+            Flow::Branch { condition, then_b, else_b } => write!(f, "jump {} if ({}) else {}", then_b, condition, else_b),
+
+            Flow::Switch { cases, default } => {
+                write!(f, "switch {{ ")?;
+                for (expr, block) in cases.iter() {
+                    write!(f, "{}: ({}), ", block, expr)?;
+                }
+                write!(f, "else {}", default)?;
+                write!(f, "}}")
+            },
+        }
+    }
+}
+
 /// An array literal in MIR. See ast/literal.rs for usage.
 #[derive(Debug, Clone)]
-pub struct MIRArray {
+pub struct ArrayLiteral {
     pub values: Vec<Expression>,
     pub type_: Type,
 }

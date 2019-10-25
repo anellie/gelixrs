@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/24/19 4:13 PM.
+ * Last modified on 10/25/19 7:02 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -195,13 +195,6 @@ impl MIRBuilder {
         }
     }
 
-    pub fn build_bitcast(&self, obj: Expression, goal: &MutRc<Class>) -> Expression {
-        Expression::Bitcast {
-            object: Box::new(obj),
-            goal: Rc::clone(&goal),
-        }
-    }
-
     pub fn build_call(&mut self, callee: Expression, args: Vec<Expression>) -> Expression {
         Expression::Call {
             callee: Box::new(callee),
@@ -313,20 +306,7 @@ impl MIRBuilder {
     }
 
     pub fn set_return(&mut self, ret: Flow) {
-        let cur_fn = self.cur_fn();
-        let mut cur_fn = cur_fn.borrow_mut();
-        let mut block = cur_fn
-            .blocks
-            .get_mut(&self.position.as_ref().unwrap().block)
-            .unwrap();
-        // If the return type is not None, it was already overridden by something else
-        // (return or break expression mostly) and should not be changed.
-        // (discriminant returns a unique id of an enum variant)
-        if std::mem::discriminant(&block.last) == std::mem::discriminant(&Flow::None) {
-            block.last = ret;
-            drop(cur_fn);
-            self.insert_at_ptr(Expression::DoRet)
-        }
+        self.insert_at_ptr(Expression::Flow(Box::new(ret)));
     }
 
     pub fn find_type(&self, ast: &ASTType) -> Option<Type> {
@@ -439,7 +419,6 @@ impl MIRBuilder {
         func.blocks
             .get_mut(&self.position.as_ref().unwrap().block)
             .unwrap()
-            .expressions
             .push(expr);
     }
 

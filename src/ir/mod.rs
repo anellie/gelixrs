@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/24/19 4:09 PM.
+ * Last modified on 10/25/19 8:30 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -95,17 +95,13 @@ impl IRGenerator {
 
     fn generate_module(&mut self, mir: MIRModule) {
         // Put all functions into the variables map first
-        for (name, func) in mir.functions.iter().chain(mir.imported_func.iter()) {
-            let func_val = if let Type::Function(func) = &func.type_ {
-                let func = func.borrow();
-                self.module
-                    .add_function(&name, self.get_fn_type(&func), None)
-            } else {
-                panic!("that function ain't a function...")
-            };
+        for (name, func_var) in mir.functions.iter().chain(mir.imported_func.iter()) {
+            let func = func_var.type_.as_function();
+            let func_ref = func.borrow();
+            let func_val = self.module.add_function(&name, self.get_fn_type(&func_ref), None);
 
             self.variables.insert(
-                PtrEqRc::new(func),
+                PtrEqRc::new(func_var),
                 func_val.as_global_value().as_pointer_value(),
             );
         }
@@ -134,11 +130,10 @@ impl IRGenerator {
     /// Generates a function; function should already be declared in the module.
     fn function(&mut self, name: Rc<String>, func: Rc<Variable>) {
         let func_val = self.module.get_function(&name).unwrap();
-        if let Type::Function(func) = &func.type_ {
-            let func = func.borrow_mut();
-            if !func.blocks.is_empty() {
-                self.function_body(func, func_val)
-            }
+        let func = func.type_.as_function();
+        let func = func.borrow_mut();
+        if !func.blocks.is_empty() {
+            self.function_body(func, func_val)
         }
     }
 
@@ -179,91 +174,33 @@ impl IRGenerator {
             self.blocks.insert(Rc::clone(name), bb);
         }
 
-        for expression in entry_b.1.expressions.iter() {
-            self.generate_expression(expression);
-        }
-        self.build_bb_end(&entry_b.1, entry_bb);
+        self.fill_basic_block(&entry_b.1, entry_bb);
 
         // Fill all blocks
         for (name, block) in func.blocks.iter() {
             let bb = self.get_block(name);
+            self.position_at_block(bb);
             self.fill_basic_block(block, bb)
-        }
-
-        // Set the block terminators
-        for (name, block) in func.blocks.iter() {
-            let bb = self.get_block(name);
-            self.build_bb_end(block, bb);
         }
     }
 
-    fn fill_basic_block(&mut self, mir_bb: &Block, block: BasicBlock) {
+    fn position_at_block(&mut self, block: BasicBlock) {
         match block.get_first_instruction() {
             Some(inst) => self.builder.position_before(&inst),
             None => self.builder.position_at_end(&block),
         }
-
-        for expression in mir_bb.expressions.iter() {
-            self.generate_expression(expression);
-        }
     }
 
-    fn build_bb_end(&mut self, mir_bb: &Block, block: BasicBlock) {
-        self.builder.position_at_end(&block);
-        match &mir_bb.last {
-            Flow::None => self.builder.build_return(None),
+    fn fill_basic_block(&mut self, mir_bb: &Block, block: BasicBlock) {
+        for expression in mir_bb.iter() {
+            self.generate_expression(expression);
+        }
 
-            Flow::Jump(block) => self
-                .builder
-                .build_unconditional_branch(&self.get_block(block)),
-
-            Flow::Branch {
-                condition,
-                then_b,
-                else_b,
-            } => {
-                let condition = self.generate_expression(condition);
-                if let BasicValueEnum::IntValue(condition) = condition {
-                    self.builder.build_conditional_branch(
-                        condition,
-                        &self.get_block(then_b),
-                        &self.get_block(else_b),
-                    )
-                } else {
-                    panic!("br condition wasn't a boolean");
-                }
-            }
-
-            Flow::Switch { cases, default } => {
-                // TODO: meh
-                let cases: Vec<(IntValue, BasicBlock)> = cases
-                    .iter()
-                    .map(|(expr, block)| {
-                        (
-                            *self.generate_expression(expr).as_int_value(),
-                            self.get_block(block),
-                        )
-                    })
-                    .collect();
-                let cases: Vec<(IntValue, &BasicBlock)> =
-                    cases.iter().map(|(expr, block)| (*expr, block)).collect();
-
-                self.builder.build_switch(
-                    self.context.bool_type().const_int(1, false),
-                    &self.get_block(default),
-                    cases.as_slice(),
-                )
-            }
-
-            Flow::Return(value) => {
-                let value = self.generate_expression(value);
-                if value.get_type() == self.none_const.get_type() {
-                    self.builder.build_return(None)
-                } else {
-                    self.builder.build_return(Some(&value))
-                }
-            }
-        };
+        // Blocks that return from a None-type function do not have a MIR terminator
+        // so we create a void return
+        if block.get_terminator().is_none() {
+            self.builder.build_return(None);
+        }
     }
 
     fn get_block(&self, name: &String) -> BasicBlock {
@@ -322,23 +259,78 @@ impl IRGenerator {
 
             Expression::Call { callee, arguments } => {
                 let callee = self.generate_expression(callee);
-                if let BasicValueEnum::PointerValue(ptr) = callee {
-                    let arguments: Vec<BasicValueEnum> = arguments
-                        .iter()
-                        .map(|arg| self.generate_expression(arg))
-                        .collect();
+                let ptr = callee.into_pointer_value();
+                let arguments: Vec<BasicValueEnum> = arguments
+                    .iter()
+                    .map(|arg| self.generate_expression(arg))
+                    .collect();
 
-                    let ret = self
-                        .builder
-                        .build_call(ptr, arguments.as_slice(), "call")
-                        .try_as_basic_value();
-                    ret.left().unwrap_or(self.none_const)
-                } else {
-                    panic!("Call target wasn't a function pointer");
-                }
+                let ret = self
+                    .builder
+                    .build_call(ptr, arguments.as_slice(), "call")
+                    .try_as_basic_value();
+                ret.left().unwrap_or(self.none_const)
             }
 
-            Expression::DoRet => {
+            Expression::Flow(flow) => {
+                // If still inserting, set insertion position to the end of the block.
+                // It might not be at the end if a Phi node in another block was compiled first,
+                // in which case the insertion position is before that phi expression.
+                match self.builder.get_insert_block() {
+                    Some(b) => self.builder.position_at_end(&b),
+                    None => return self.none_const,
+                }
+
+                match &**flow {
+                    Flow::None => self.builder.build_return(None),
+
+                    Flow::Jump(block) => self
+                        .builder
+                        .build_unconditional_branch(&self.get_block(block)),
+
+                    Flow::Branch {
+                        condition,
+                        then_b,
+                        else_b,
+                    } => {
+                        let condition = self.generate_expression(condition);
+                        self.builder.build_conditional_branch(
+                            *condition.as_int_value(),
+                            &self.get_block(then_b),
+                            &self.get_block(else_b),
+                        )
+                    }
+
+                    Flow::Switch { cases, default } => {
+                        // TODO: meh
+                        let cases: Vec<(IntValue, BasicBlock)> = cases
+                            .iter()
+                            .map(|(expr, block)| {
+                                (
+                                    *self.generate_expression(expr).as_int_value(),
+                                    self.get_block(block),
+                                )
+                            })
+                            .collect();
+                        let cases: Vec<(IntValue, &BasicBlock)> =
+                            cases.iter().map(|(expr, block)| (*expr, block)).collect();
+
+                        self.builder.build_switch(
+                            self.context.bool_type().const_int(1, false),
+                            &self.get_block(default),
+                            cases.as_slice(),
+                        )
+                    }
+
+                    Flow::Return(value) => {
+                        let value = self.generate_expression(value);
+                        if value.get_type() == self.none_const.get_type() {
+                            self.builder.build_return(None)
+                        } else {
+                            self.builder.build_return(Some(&value))
+                        }
+                    }
+                };
                 self.builder.clear_insertion_position();
                 self.none_const
             }
@@ -352,7 +344,7 @@ impl IRGenerator {
             ),
 
             Expression::Phi(branches) => {
-                // Insert block might be None if block return was hit
+                // Block inserting into might be None if block return was hit
                 let cur_block = match self.builder.get_insert_block() {
                     Some(b) => b,
                     None => return self.none_const,
@@ -369,7 +361,7 @@ impl IRGenerator {
                         (self.generate_expression(expr), block)
                     })
                     .collect();
-                let _type = branches[0].0.get_type();
+                let type_ = branches[0].0.get_type();
 
                 let branches_ref: Vec<(&dyn BasicValue, &BasicBlock)> = branches
                     .iter()
@@ -377,19 +369,15 @@ impl IRGenerator {
                     .collect();
 
                 self.builder.position_at_end(&cur_block);
-                let phi = self.builder.build_phi(_type, "phi");
+                let phi = self.builder.build_phi(type_, "phi");
                 phi.add_incoming(branches_ref.as_slice());
                 phi.as_basic_value()
             }
 
             Expression::StructGet { object, index } => {
                 let struc = self.generate_expression(object);
-                if let BasicValueEnum::PointerValue(ptr) = struc {
-                    let ptr = unsafe { self.builder.build_struct_gep(ptr, *index, "classgep") };
-                    self.load_ptr(ptr)
-                } else {
-                    panic!("Get target wasn't a struct")
-                }
+                let ptr = unsafe { self.builder.build_struct_gep(struc.into_pointer_value(), *index, "classgep") };
+                self.load_ptr(ptr)
             }
 
             Expression::StructSet {
@@ -398,20 +386,15 @@ impl IRGenerator {
                 value,
             } => {
                 let struc = self.generate_expression(object);
-                if let BasicValueEnum::PointerValue(ptr) = struc {
-                    let ptr = unsafe { self.builder.build_struct_gep(ptr, *index, "classgep") };
-                    let value = self.generate_expression(value);
-                    let value = self.unwrap_value_ptr(value);
-                    self.builder.build_store(ptr, value);
-                    value
-                } else {
-                    panic!("Get target wasn't a struct")
-                }
+                let ptr = unsafe { self.builder.build_struct_gep(struc.into_pointer_value(), *index, "classgep") };
+                let value = self.generate_expression(value);
+                let value = self.unwrap_value_ptr(value);
+                self.builder.build_store(ptr, value);
+                value
             }
 
             Expression::Literal(literal) => match literal {
-                Literal::Any => self.none_const,
-                Literal::None => self.none_const,
+                Literal::Any | Literal::None => self.none_const,
                 Literal::Bool(value) => self
                     .context
                     .bool_type()

@@ -78,6 +78,7 @@ name = "gelixrs"
 version = "0.1.0"
 dependencies = [
  "either 1.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "enum-methods 0.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "indexmap 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "inkwell 0.1.0 (git+https://github.com/TheDan64/inkwell?branch=llvm8-0)",
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
