@@ -1,0 +1,21 @@
+/*
+easy!
+All right!
+easy!
+*/
+
+func main() {
+    Test("easy!").simple()
+}
+
+class Test(val a: String) {
+
+    construct {
+        print(this.a)
+        print("All right!")
+    }
+
+    func simple() {
+        print(this.a)
+    }
+}

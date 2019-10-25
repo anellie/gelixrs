@@ -1,0 +1,14 @@
+/*
+easy!
+*/
+
+func main() {
+    Test("easy!").simple()
+}
+
+class Test(val a: String) {
+
+    func simple() {
+        print(this.a)
+    }
+}

@@ -1,0 +1,6 @@
+// ERR
+
+func main() {
+    val a = "a"
+    a = "value"
+}

@@ -1,0 +1,14 @@
+// ERR
+
+func main() {
+    Test()
+}
+
+class Test {
+
+    val a: String
+
+    func simple() {
+        print(this.a)
+    }
+}

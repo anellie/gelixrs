@@ -1,0 +1,8 @@
+// ERR
+
+func main() {
+    print(ok())
+    who()
+}
+
+func ok() -> String "ok"

@@ -1,0 +1,19 @@
+// ERR
+
+func main() {
+    Test("easy!").simple()
+}
+
+class Test(a: String) {
+
+    val a: String
+
+    construct {
+        print(this.a)
+        this.a = a
+    }
+
+    func simple() {
+        print(this.a)
+    }
+}
