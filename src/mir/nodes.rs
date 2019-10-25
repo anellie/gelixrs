@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/25/19 8:22 PM.
+ * Last modified on 10/25/19 9:51 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -33,8 +33,6 @@ pub enum Type {
     F64,
 
     String,
-
-    Array(Box<Type>),
 
     Function(MutRc<Function>),
 
@@ -85,10 +83,6 @@ impl PartialEq for Type {
                 if let Type::Interface(o) = o { i == o } else { false }
             }
 
-            Type::Array(a) => {
-                if let Type::Array(o) = o { a == o } else { false }
-            }
-
             Type::Generic(g) => {
                 if let Type::Generic(o) = o { g == o } else { false }
             }
@@ -103,7 +97,6 @@ impl PartialEq for Type {
 impl Display for Type {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         match self {
-            Type::Array(arr) => write!(f, "[{}]", arr),
             Type::Function(func) => write!(f, "<func {}>", func.borrow().name),
             Type::Class(class) => write!(f, "{}", class.borrow().name),
             Type::Interface(iface) => write!(f, "{}", iface.borrow().name),
@@ -368,9 +361,6 @@ impl Expression {
                 Literal::F32(_) => Type::F32,
                 Literal::F64(_) => Type::F64,
                 Literal::String(_) => Type::String,
-                Literal::Array(arr) => {
-                    Type::Array(Box::new(arr.as_ref().right().unwrap().type_.clone()))
-                }
                 _ => panic!("unknown literal"),
             },
 

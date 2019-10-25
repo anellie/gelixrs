@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/25/19 8:30 PM.
+ * Last modified on 10/25/19 9:45 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -522,11 +522,6 @@ impl IRGenerator {
 
             Type::F32 => self.context.f32_type().as_basic_type_enum(),
             Type::F64 => self.context.f64_type().as_basic_type_enum(),
-
-            Type::Array(type_) => self
-                .to_ir_type(type_)
-                .ptr_type(AddressSpace::Generic)
-                .as_basic_type_enum(),
 
             Type::String => self
                 .context
