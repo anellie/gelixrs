@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/25/19 9:45 PM.
+ * Last modified on 10/26/19 4:51 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -17,7 +17,7 @@ use super::{
     ast::literal::Literal,
     lexer::token::TType,
     mir::{
-        MIRModule,
+        MIRModule, MutRc,
         nodes::{Block, Class, Expression, Flow, Function, Type, Variable},
     },
     module_path_to_string,
@@ -41,8 +41,10 @@ pub struct IRGenerator {
     /// All blocks in the current function.
     blocks: HashMap<Rc<String>, BasicBlock>,
 
+    /// All functions.
+    functions: HashMap<PtrEqRc<Variable>, FunctionValue>,
     /// All types (classes/interfaces/structs) that are available.
-    types: HashMap<Rc<String>, StructType>,
+    types: HashMap<HashMutRc<Class>, StructType>,
 
     /// A constant that is used for expressions that don't produce a value but are required to,
     /// like return or break expressions.
@@ -54,71 +56,58 @@ pub struct IRGenerator {
 impl IRGenerator {
     /// Generates IR. Will process all MIR modules given.
     pub fn generate(mut self, mir: Vec<MIRModule>) -> Module {
-        // Create structs for all classes & interfaces first
+        // Create structs for all classes & interfaces and functions first
         for module in mir.iter() {
-            for struc in module.classes.iter() {
-                let struc = struc.1.borrow();
+            for (_, struc_rc) in module.classes.iter() {
+                let struc = struc_rc.borrow();
                 let val = self.context.opaque_struct_type(&struc.name);
-                self.types.insert(Rc::clone(&struc.name), val);
+                self.types.insert(HashMutRc::new(&struc_rc), val);
             }
-            for struc in module.interfaces.iter() {
-                let struc = struc.1.borrow();
-                let val = self.context.opaque_struct_type(&struc.name);
-                self.types.insert(Rc::clone(&struc.name), val);
+
+            let module_name = module_path_to_string(&module.path);
+            for (func_name, func_var) in module.functions.iter() {
+                let func = func_var.type_.as_function();
+                let func_ref = func.borrow();
+
+                // Explanation: If the function is external (no blocks)
+                // or called main, its name needs to be kept the same.
+                let mod_and_func_name = format!("{}:{}", module_name, func_name);
+                let ir_name = if func_ref.blocks.is_empty() || &**func_ref.name == "main" {
+                    func_name
+                } else {
+                    &mod_and_func_name
+                };
+                let func_val = self.module.add_function(ir_name, self.get_fn_type(&func_ref), None);
+
+                self.functions.insert(PtrEqRc::new(func_var), func_val);
             }
         }
 
-        let mut finished_modules = Vec::with_capacity(mir.len());
         for module in mir {
-            finished_modules.push(std::mem::replace(
-                &mut self.module,
-                self.context
-                    .create_module(&module_path_to_string(&module.path)),
-            ));
             self.generate_module(module);
         }
-        finished_modules.push(self.module);
 
-        let finished_module = finished_modules.pop().unwrap();
-        for module in finished_modules.into_iter() {
-            if let Err(msg) = finished_module.link_in_module(module) {
-                panic!(format!("LLVM linking error: {}", msg.to_string()))
-            }
-        }
-        finished_module
+        self.module
             .verify()
             .map_err(|e| println!("{}", e.to_string()))
             .unwrap();
-        self.mpm.run_on(&finished_module);
-        finished_module
+        self.mpm.run_on(&self.module);
+        self.module
     }
 
     fn generate_module(&mut self, mir: MIRModule) {
-        // Put all functions into the variables map first
-        for (name, func_var) in mir.functions.iter().chain(mir.imported_func.iter()) {
-            let func = func_var.type_.as_function();
-            let func_ref = func.borrow();
-            let func_val = self.module.add_function(&name, self.get_fn_type(&func_ref), None);
-
-            self.variables.insert(
-                PtrEqRc::new(func_var),
-                func_val.as_global_value().as_pointer_value(),
-            );
-        }
-
         mir.classes
             .into_iter()
-            .for_each(|struc| self.class_to_struct(struc.1.borrow()));
+            .for_each(|struc| self.class_to_struct(struc.1));
         mir.functions
             .into_iter()
-            .for_each(|(name, func)| self.function(name, func));
-
-        self.mpm.run_on(&self.module);
+            .for_each(|(_, func)| self.function(func));
     }
 
     /// Generates a class struct and its body
-    fn class_to_struct(&mut self, class: Ref<Class>) {
-        let struc_val = self.types[&class.name];
+    fn class_to_struct(&mut self, class: MutRc<Class>) {
+        let struc_val = self.types[&HashMutRc::new(&class)];
+        let class = class.borrow();
         let body: Vec<BasicTypeEnum> = class
             .members
             .iter()
@@ -128,8 +117,8 @@ impl IRGenerator {
     }
 
     /// Generates a function; function should already be declared in the module.
-    fn function(&mut self, name: Rc<String>, func: Rc<Variable>) {
-        let func_val = self.module.get_function(&name).unwrap();
+    fn function(&mut self, func: Rc<Variable>) {
+        let func_val = self.functions[&PtrEqRc::new(&func)];
         let func = func.type_.as_function();
         let func = func.borrow_mut();
         if !func.blocks.is_empty() {
@@ -209,7 +198,7 @@ impl IRGenerator {
 
     fn get_variable(&self, var: &Rc<Variable>) -> PointerValue {
         let wrap = PtrEqRc::new(var);
-        self.variables[&wrap]
+        self.variables.get(&wrap).cloned().unwrap_or_else(|| self.functions[&wrap].as_global_value().as_pointer_value())
     }
 
     fn generate_expression(&mut self, expression: &Expression) -> BasicValueEnum {
@@ -334,14 +323,6 @@ impl IRGenerator {
                 self.builder.clear_insertion_position();
                 self.none_const
             }
-
-            Expression::Function(func) => BasicValueEnum::PointerValue(
-                self.module
-                    .get_function(&func.borrow().name)
-                    .unwrap()
-                    .as_global_value()
-                    .as_pointer_value(),
-            ),
 
             Expression::Phi(branches) => {
                 // Block inserting into might be None if block return was hit
@@ -532,7 +513,7 @@ impl IRGenerator {
                 .get_fn_type(&func.borrow())
                 .ptr_type(AddressSpace::Generic)
                 .as_basic_type_enum(),
-            Type::Class(struc) => self.types[&struc.borrow().name].as_basic_type_enum(),
+            Type::Class(struc) => self.types[&HashMutRc::new(&struc)].as_basic_type_enum(),
 
             Type::Interface(_) => {
                 println!("WARN: Unimplemented interface type. Returning dummy...");
@@ -603,6 +584,8 @@ impl IRGenerator {
             blocks: HashMap::with_capacity(10),
 
             types: HashMap::with_capacity(10),
+            functions: HashMap::with_capacity(10),
+
             none_const: none_const.into(),
             entry_const: String::from("entry"),
         }
@@ -630,6 +613,29 @@ impl<T: Hash> Eq for PtrEqRc<T> {}
 impl<T: Hash> Hash for PtrEqRc<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.hash(state)
+    }
+}
+
+/// A Rc<RefCell<T>> that can be hashed. It borrows its contents to obtain a hash.
+struct HashMutRc<T: Hash>(MutRc<T>);
+
+impl<T: Hash> HashMutRc<T> {
+    fn new(rc: &MutRc<T>) -> HashMutRc<T> {
+        HashMutRc(Rc::clone(rc))
+    }
+}
+
+impl<T: Hash> PartialEq for HashMutRc<T> {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl<T: Hash> Eq for HashMutRc<T> {}
+
+impl<T: Hash> Hash for HashMutRc<T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.borrow().hash(state)
     }
 }
 

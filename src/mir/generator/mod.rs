@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/25/19 8:33 PM.
+ * Last modified on 10/26/19 1:41 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -137,17 +137,17 @@ impl MIRGenerator {
                 if (left_ty == right_ty) && (left_ty.is_int() || left_ty.is_float()) {
                     self.builder.build_binary(left, operator.t_type, right)
                 } else if let Type::Class(left_class) = left_ty {
-                    let method = self
+                    let method_var = self
                         .get_operator_overloading_method(operator.t_type, left_class)
                         .or_err(self, operator, "No implementation of operator found for type.")?;
-                    let method_rc = Self::var_to_function(&method);
+                    let method_rc = Self::var_to_function(&method_var);
                     let method = method_rc.borrow();
                     if method.parameters[1].type_ != right_ty {
                         return Err(self.error(operator, operator, "Right-hand side expression is wrong type."));
                     }
                     drop(method);
 
-                    let mut expr = self.builder.build_call(Expression::Function(method_rc), vec![left, right]);
+                    let mut expr = self.builder.build_call(Expression::VarGet(method_var), vec![left, right]);
                     if operator.t_type == TType::BangEqual {
                         expr = self.builder.build_unary(expr, TType::Bang);
                     }
@@ -207,8 +207,8 @@ impl MIRGenerator {
                                 .right()
                                 .or_err(self, name, "Class members cannot be called.")?;
                         let args =
-                            self.generate_func_args(Rc::clone(&func), arguments, Some(object))?;
-                        return Ok(self.builder.build_call(Expression::Function(func), args));
+                            self.generate_func_args(Rc::clone(func.type_.as_function()), arguments, Some(object))?;
+                        return Ok(self.builder.build_call(Expression::VarGet(func), args));
                     }
 
                     // Might be class constructor
@@ -604,7 +604,7 @@ impl MIRGenerator {
         name: &Token,
     ) -> Res<(
         Expression,
-        Either<Rc<ClassMember>, MutRc<Function>>,
+        Either<Rc<ClassMember>, Rc<Variable>>,
     )> {
         let object = self.generate_expression(object)?;
 
@@ -620,7 +620,7 @@ impl MIRGenerator {
             // Class methods
             let method = class.methods.get(&name.lexeme);
             if let Some(method) = method {
-                return Ok((object, Either::Right(Self::var_to_function(method))));
+                return Ok((object, Either::Right(Rc::clone(method))));
             }
 
             // Nothing found...

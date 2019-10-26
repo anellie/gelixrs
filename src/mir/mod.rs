@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/24/19 4:08 PM.
+ * Last modified on 10/26/19 4:51 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -20,7 +20,7 @@ use crate::mir::nodes::Interface;
 pub mod generator;
 pub mod nodes;
 
-type MutRc<T> = Rc<RefCell<T>>;
+pub type MutRc<T> = Rc<RefCell<T>>;
 
 fn mutrc_new<T>(value: T) -> MutRc<T> {
     Rc::new(RefCell::new(value))

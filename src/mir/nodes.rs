@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/25/19 9:51 PM.
+ * Last modified on 10/26/19 4:37 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -129,6 +129,12 @@ impl Display for Class {
             write!(f, "    {} {}: {}\n", if member.mutable { "var" } else { "val" }, name, member.type_)?;
         }
         write!(f, "}}\n")
+    }
+}
+
+impl Hash for Class {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.name.hash(state)
     }
 }
 
@@ -273,9 +279,6 @@ pub enum Expression {
     /// A 'flow' expression, which changes control flow. See [Flow] enum
     Flow(Box<Flow>),
 
-    /// Simply produces the function as a value.
-    Function(MutRc<Function>),
-
     /// A Phi node. Returns a different value based on
     /// which block the current block was reached from.
     Phi(Vec<(Expression, Rc<String>)>),
@@ -337,8 +340,6 @@ impl Expression {
             }
 
             Expression::Flow(_) => Type::None,
-
-            Expression::Function(func) => Type::Function(func.clone()),
 
             Expression::Phi(branches) => branches.first().unwrap().0.get_type(),
 
@@ -411,8 +412,6 @@ impl Display for Expression {
             },
 
             Expression::Flow(flow) => write!(f, "{}", flow),
-
-            Expression::Function(func) => write!(f, "{}", func.borrow().name),
 
             Expression::Phi(nodes) => {
                 write!(f, "phi {{ ")?;
