@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/26/19 4:51 PM.
+ * Last modified on 10/26/19 5:37 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -96,16 +96,13 @@ impl IRGenerator {
     }
 
     fn generate_module(&mut self, mir: MIRModule) {
-        mir.classes
-            .into_iter()
-            .for_each(|struc| self.class_to_struct(struc.1));
         mir.functions
             .into_iter()
             .for_each(|(_, func)| self.function(func));
     }
 
     /// Generates a class struct and its body
-    fn class_to_struct(&mut self, class: MutRc<Class>) {
+    fn class_to_struct(&self, class: MutRc<Class>) {
         let struc_val = self.types[&HashMutRc::new(&class)];
         let class = class.borrow();
         let body: Vec<BasicTypeEnum> = class
@@ -509,11 +506,21 @@ impl IRGenerator {
                 .i8_type()
                 .ptr_type(AddressSpace::Generic)
                 .as_basic_type_enum(),
+
             Type::Function(func) => self
                 .get_fn_type(&func.borrow())
                 .ptr_type(AddressSpace::Generic)
                 .as_basic_type_enum(),
-            Type::Class(struc) => self.types[&HashMutRc::new(&struc)].as_basic_type_enum(),
+
+            Type::Class(struc) => {
+                let ty = self.types[&HashMutRc::new(&struc)];
+
+                // Class structs are only filled with their types on first use.
+                if ty.is_opaque() {
+                    self.class_to_struct(Rc::clone(struc));
+                }
+                ty.as_basic_type_enum()
+            },
 
             Type::Interface(_) => {
                 println!("WARN: Unimplemented interface type. Returning dummy...");
