@@ -1,5 +1,8 @@
+import cyclic_import/main/hello
+
 func sub(a: i64, b: i64) -> i64 {
-    a * b
+    hello()
+    a - b
 }
 
 class Sub {

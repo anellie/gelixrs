@@ -1,0 +1,12 @@
+import overlapping_names/test/testing
+
+func main() {
+    val a = Sub()
+    printnum(a.a)
+    testing()
+}
+
+
+class Sub {
+    var a = 5
+}

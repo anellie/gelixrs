@@ -1,4 +1,4 @@
-// ERR
+// C-ERR
 
 class Test {
     func init() {

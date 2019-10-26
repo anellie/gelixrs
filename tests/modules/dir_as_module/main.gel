@@ -1,0 +1,10 @@
+import dir_as_module/sub/+
+
+func main() {
+    val s = Sub()
+    printnum(sub(4, 2))
+    printnum(s.a)
+    s.a = 4
+    s.sup()
+}
+

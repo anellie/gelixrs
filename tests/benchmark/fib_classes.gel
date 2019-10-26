@@ -1,0 +1,25 @@
+/*
+102334155
+*/
+
+class Int {
+    var a = 40
+}
+
+func fib(n: Int) -> Int {
+  if (n.a < 2) return n
+  var a = Int()
+  a.a = n.a - 2
+  var b = Int()
+  b.a = n.a - 1
+
+  var c = Int()
+  c.a = fib(a).a + fib(b).a
+  return c
+}
+
+func main() {
+    var a = Int()
+    a.a = 40
+    printnum(fib(a).a)
+}

@@ -1,0 +1,12 @@
+/*
+102334155
+*/
+
+func fib(n: i64) -> i64 {
+  if (n < 2) return n
+  return fib(n - 2) + fib(n - 1)
+}
+
+func main() {
+    printnum(fib(40))
+}

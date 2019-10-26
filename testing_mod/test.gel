@@ -1,6 +1,0 @@
-import testing_mod/sub/+
-
-func testing() {
-    val a = Sub()
-    print(if (true) "good~" else return None)
-}

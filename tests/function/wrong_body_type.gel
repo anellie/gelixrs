@@ -1,8 +1,8 @@
-// ERR
+// C-ERR
 
 func test(a: String) -> i64 {
     print(a)
-    var b = "this isn't a i64 expression"
+    var b = "this isn't an i64 expression"
 }
 
 func main() {

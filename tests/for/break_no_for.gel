@@ -1,0 +1,11 @@
+// C-ERR
+
+func main() {
+    test()
+}
+
+func test() -> i64 {
+    var i = 0
+    break i * 4
+    2
+}

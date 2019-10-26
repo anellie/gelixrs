@@ -1,4 +1,4 @@
-// ERR
+// C-ERR
 
 func main(a: i64, a: i64) {
 }
