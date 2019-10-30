@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/30/19 7:06 PM.
+ * Last modified on 10/30/19 7:59 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -115,7 +115,7 @@ pub fn auto_import_prelude(modules: &mut Vec<Module>) {
 
     for module in modules
         .iter_mut()
-        .filter(|module| &*module.path != &prelude_import.path)
+        .filter(|module| *module.path != prelude_import.path)
     {
         module.imports.push(prelude_import.clone())
     }

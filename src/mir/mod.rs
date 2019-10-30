@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/30/19 7:05 PM.
+ * Last modified on 10/30/19 8:05 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -50,22 +50,22 @@ impl MIRModule {
 
 impl Display for MIRModule {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-        write!(f, "----------------------------------------\n")?;
-        write!(f, "Module {}\n", module_path_to_string(&self.path))?;
-        write!(f, "----------------------------------------\n\n")?;
+        writeln!(f, "----------------------------------------")?;
+        writeln!(f, "Module {}", module_path_to_string(&self.path))?;
+        writeln!(f, "----------------------------------------\n")?;
 
         if !self.functions.is_empty() {
-            write!(f, "---------- Functions ----------\n")?;
+            writeln!(f, "---------- Functions ----------")?;
         }
         for func in self.functions.iter().map(|f| MIRGenerator::var_to_function(f.1)) {
-            write!(f, "{}\n", func.borrow())?;
+            writeln!(f, "{}", func.borrow())?;
         }
 
         if !self.classes.is_empty() {
-            write!(f, "---------- Classes ----------\n")?;
+            writeln!(f, "---------- Classes ----------")?;
         }
         for (_, class) in self.classes.iter() {
-            write!(f, "{}\n", class.borrow())?;
+            writeln!(f, "{}", class.borrow())?;
         }
 
         Ok(())
@@ -73,10 +73,8 @@ impl Display for MIRModule {
 }
 
 pub trait ToMIRResult<T> {
-    #[inline(always)]
     fn or_err(self, gen: &MIRGenerator, error_token: &Token, msg: &str) -> Result<T, MIRError>;
 
-    #[inline(always)]
     fn or_anon_err(
         self,
         gen: &MIRGenerator,
@@ -84,7 +82,6 @@ pub trait ToMIRResult<T> {
         msg: &str,
     ) -> Result<T, MIRError>;
 
-    #[inline(always)]
     fn or_type_err(
         self,
         gen: &MIRGenerator,
@@ -94,10 +91,12 @@ pub trait ToMIRResult<T> {
 }
 
 impl<T> ToMIRResult<T> for Option<T> {
+    #[inline(always)]
     fn or_err(self, gen: &MIRGenerator, error_token: &Token, msg: &str) -> Result<T, MIRError> {
         self.ok_or_else(|| gen.error(error_token, error_token, msg))
     }
 
+    #[inline(always)]
     fn or_anon_err(
         self,
         gen: &MIRGenerator,
@@ -107,6 +106,7 @@ impl<T> ToMIRResult<T> for Option<T> {
         self.ok_or_else(|| gen.anon_err(error_token, msg))
     }
 
+    #[inline(always)]
     fn or_type_err(
         self,
         gen: &MIRGenerator,

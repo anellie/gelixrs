@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/26/19 1:37 AM.
+ * Last modified on 10/30/19 8:03 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -332,7 +332,7 @@ impl MIRBuilder {
 
                     _ => self
                         .find_class(&tok.lexeme)
-                        .map(|c| Type::Class(c))
+                        .map(Type::Class)
                         .or_else(|| Some(Type::Interface(self.find_interface(&tok.lexeme)?)))?,
                 }
             }

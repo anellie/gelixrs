@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/30/19 7:09 PM.
+ * Last modified on 10/30/19 8:04 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -119,7 +119,7 @@ impl Type {
             Type::Closure { params, ret_type } => ret_type
                 .as_ref()
                 .map(|box_| &**box_)
-                .or(params.first())
+                .or_else(|| params.first())
                 .map(|t| t.get_token())
                 .flatten_(),
             Type::Generic { token, .. } => Some(token),

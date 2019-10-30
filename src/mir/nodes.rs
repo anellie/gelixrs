@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/26/19 4:37 PM.
+ * Last modified on 10/30/19 8:05 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -124,11 +124,11 @@ impl PartialEq for Class {
 
 impl Display for Class {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-        write!(f, "class {} {{\n", self.name)?;
+        writeln!(f, "class {} {{", self.name)?;
         for (name, member) in self.members.iter() {
-            write!(f, "    {} {}: {}\n", if member.mutable { "var" } else { "val" }, name, member.type_)?;
+            writeln!(f, "    {} {}: {}", if member.mutable { "var" } else { "val" }, name, member.type_)?;
         }
-        write!(f, "}}\n")
+        writeln!(f, "}}")
     }
 }
 
@@ -199,14 +199,14 @@ impl Display for Function {
             write!(f, ", {}: {}", param.name, param.type_)?;
         }
 
-        write!(f, ") {{\n")?;
+        writeln!(f, ") {{")?;
         for (name, block) in self.blocks.iter() {
-            write!(f, "{}:\n", name)?;
+            writeln!(f, "{}:", name)?;
             for inst in block.iter() {
-                write!(f, "    {}\n", inst)?;
+                writeln!(f, "    {}", inst)?;
             }
         }
-        write!(f, "}}\n")
+        writeln!(f, "}}")
     }
 }
 

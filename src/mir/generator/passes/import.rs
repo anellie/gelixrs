@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/30/19 7:09 PM.
+ * Last modified on 10/30/19 8:02 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -166,7 +166,7 @@ fn drain_mod_imports(
     // To allow for mutating it while accessing other modules immutably,
     // the module is temporarily removed.
     // This is done using swap_remove to prevent any array shifting or allocations.
-    for i in 0..(modules.len() + 1) {
+    for i in 0..=modules.len() {
         let i = if i == modules.len() { 0 } else { i };
         let (mut module, mut gen) = modules.swap_remove(i);
 
