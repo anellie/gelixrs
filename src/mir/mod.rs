@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/26/19 4:51 PM.
+ * Last modified on 10/30/19 7:05 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -16,6 +16,7 @@ use crate::ast::declaration::Type;
 use crate::lexer::token::Token;
 use crate::mir::generator::{MIRError, MIRGenerator};
 use crate::mir::nodes::Interface;
+use crate::option::Flatten;
 
 pub mod generator;
 pub mod nodes;
@@ -112,6 +113,6 @@ impl<T> ToMIRResult<T> for Option<T> {
         error_ty: &Option<Type>,
         msg: &str,
     ) -> Result<T, MIRError> {
-        self.ok_or_else(|| gen.anon_err(error_ty.as_ref().map(|t| t.get_token()).flatten(), msg))
+        self.ok_or_else(|| gen.anon_err(error_ty.as_ref().map(|t| t.get_token()).flatten_(), msg))
     }
 }

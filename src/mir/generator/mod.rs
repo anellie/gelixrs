@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/26/19 1:41 AM.
+ * Last modified on 10/30/19 7:05 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -20,6 +20,7 @@ use crate::ast::module::Module;
 use crate::lexer::token::{Token, TType};
 use crate::mir::{MIRModule, MutRc, ToMIRResult};
 use crate::mir::nodes::{ArrayLiteral, Class, ClassMember, Expression, Flow, Function, Type, Variable};
+use crate::option::Flatten;
 
 mod builder;
 pub mod module;
@@ -181,7 +182,7 @@ impl MIRGenerator {
             ASTExpr::Break(expr) => {
                 if self.current_loop.is_none() {
                     return Err(self.anon_err(
-                        expr.as_ref().map(|e| e.get_token()).flatten(),
+                        expr.as_ref().map(|e| e.get_token()).flatten_(),
                         "Break is only allowed in loops.",
                     ));
                 }
@@ -405,7 +406,7 @@ impl MIRGenerator {
 
                 if value.get_type() != self.builder.cur_fn().borrow().ret_type {
                     return Err(self.anon_err(
-                        val.as_ref().map(|v| v.get_token()).flatten(),
+                        val.as_ref().map(|v| v.get_token()).flatten_(),
                         "Return expression in function has wrong type",
                     ));
                 }
@@ -653,7 +654,7 @@ impl MIRGenerator {
         let args_len = arguments.len() + (first_arg.is_some() as usize);
         if func.parameters.len() != args_len {
             return Err(self.anon_err(
-                arguments.first().map(|e| e.get_token()).flatten(),
+                arguments.first().map(|e| e.get_token()).flatten_(),
                 &format!(
                     "Incorrect amount of function arguments. (Expected {}; got {})",
                     func.parameters.len(),

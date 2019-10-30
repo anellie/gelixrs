@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/24/19 4:13 PM.
+ * Last modified on 10/30/19 7:09 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -170,10 +170,17 @@ fn drain_mod_imports(
         let i = if i == modules.len() { 0 } else { i };
         let (mut module, mut gen) = modules.swap_remove(i);
 
-        module
-            .imports
-            .drain_filter(|i| cond(modules, &mut gen, i))
-            .count();
+        // This can be replaced with drain_filter once stabilized:
+        // https://github.com/rust-lang/rust/issues/43244
+        let mut i = 0;
+        while i != module.imports.len() {
+            if cond(modules, &mut gen, &mut module.imports[i]) {
+                module.imports.remove(i);
+            } else {
+                i += 1;
+            }
+        }
+
         modules.push((module, gen))
     }
 }

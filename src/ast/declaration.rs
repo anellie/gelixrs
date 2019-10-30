@@ -1,10 +1,12 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/24/19 3:57 PM.
+ * Last modified on 10/30/19 7:09 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::fmt;
+
+use crate::option::Flatten;
 
 use super::expression::Expression;
 use super::super::lexer::token::Token;
@@ -119,7 +121,7 @@ impl Type {
                 .map(|box_| &**box_)
                 .or(params.first())
                 .map(|t| t.get_token())
-                .flatten(),
+                .flatten_(),
             Type::Generic { token, .. } => Some(token),
         }
     }

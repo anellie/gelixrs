@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/24/19 4:08 PM.
+ * Last modified on 10/30/19 7:05 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -13,6 +13,7 @@ use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::generator::passes::declare_func::create_function;
 use crate::mir::nodes::{IFaceMethod, Type, Variable};
 use crate::mir::ToMIRResult;
+use crate::option::Flatten;
 
 /// This pass checks and defines all interface impl blocks.
 pub fn iface_impl_pass(gen: &mut MIRGenerator, list: &mut Module) -> Res<()> {
@@ -127,7 +128,7 @@ fn check_equal_signature(
             .return_type
             .as_ref()
             .map(|t| t.get_token())
-            .flatten();
+            .flatten_();
         return Err(MIRGenerator::anon_err(
             gen,
             tok,

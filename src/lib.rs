@@ -1,13 +1,8 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/25/19 8:33 PM.
+ * Last modified on 10/30/19 7:06 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
-
-// https://github.com/rust-lang/rust/pull/60256
-#![feature(option_flattening)]
-// https://github.com/rust-lang/rust/issues/43244
-#![feature(drain_filter)]
 
 #[macro_use]
 extern crate enum_methods;
@@ -34,6 +29,7 @@ pub mod error;
 pub mod ir;
 pub mod lexer;
 pub mod mir;
+pub mod option;
 pub mod parser;
 #[cfg(test)]
 pub mod tests;
