@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/4/19 8:00 PM.
+ * Last modified on 11/4/19 9:44 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -8,149 +8,75 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use either::Either;
+use either::Either::{Left, Right};
 
 use crate::{module_path_to_string, ModulePath};
 use crate::ast::module::{Import, Module};
-use crate::mir::generator::{MIRError, MIRGenerator};
-use crate::mir::MutRc;
+use crate::mir::{MutRc, ToMIRResult};
+use crate::mir::generator::{MIRError, MIRGenerator, Res};
 use crate::mir::nodes::{Class, Interface, Variable};
 
 type ModulesRef<'t> = &'t mut Vec<(Module, MIRGenerator)>;
 
-/// This pass tries to resolve all imports to a class.
-pub fn class_imports(modules: ModulesRef) {
-    drain_mod_imports(modules, &mut |modules, gen, import| {
-        match find_class(modules, &import.path, &import.symbol) {
-            Either::Left(class) => {
-                class.and_then(|class| {
-                    gen.builder.imports.classes.insert(&class.borrow().name, class);
-                    gen.builder.try_reserve_name(&class.borrow().name)
+#[macro_use]
+mod import_macro {
+    /// This macro generates a function for importing something.
+    /// This works since the builder has separate fields for different
+    /// things, but they can all be handled the same when importing.
+    #[macro_export]
+    macro_rules! import {
+        ($fn_name: ident, $name:ident, $getter:ident) => {
+            pub fn $fn_name(modules: ModulesRef) -> Result<(), Vec<MIRError>> {
+                drain_mod_imports(modules, &mut |modules, gen, import| {
+                    let (module, mod_gen) = modules
+                        .iter()
+                        .find(|(module, _)| *module.path == import.path)
+                        .or_err(gen, &import.symbol, "Unknown module.")?;
+
+                    Ok(match &import.symbol.lexeme[..] {
+                        "+" => {
+                            gen.builder.prototypes.$name.extend(mod_gen.builder.prototypes.$name.iter().map(|(a, b)| (a.clone(), b.clone())));
+                            gen.builder.imports.$name.extend(mod_gen.builder.module.$name.iter().map(|(a, b)| (a.clone(), b.clone())));
+                            for name in mod_gen.builder.prototypes.$name.keys().chain(mod_gen.builder.module.$name.keys()) {
+                                gen.builder.try_reserve_name_rc(name, &import.symbol)?
+                            }
+                            false
+                        },
+
+                        _ => {
+                            gen.builder.try_reserve_name(&import.symbol)?;
+                            let class = mod_gen.builder.$getter(&import.symbol.lexeme);
+
+                            match class {
+                                Some(Left(thing)) => gen.builder.imports.$name.insert(Rc::clone(&import.symbol.lexeme), thing).is_none(),
+                                Some(Right(proto)) => gen.builder.prototypes.$name.insert(Rc::clone(&import.symbol.lexeme), proto).is_none(),
+                                _ => false
+                            }
+                        },
+                    })
                 })
             }
-
-            Either::Right(classes) => {
-                // Do not import class methods.
-                // They are imported later in function imports, as they appear
-                // as regular functions in the module (and will thus be imported by wildcard)
-                classes.iter().try_for_each(|(_, class)| {
-                    gen.builder.imports.classes.insert(&class.borrow().name, class);
-                    gen.builder.try_reserve_name(&class.borrow().name)
-                });
-                None // Functions still need to be imported!
-            }
-        }
-        .is_some()
-    });
-}
-
-/// Returns the classes at the given module path.
-/// If the module path ends in a wildcard, a set of classes is returned.
-fn find_class<'t>(
-    modules: ModulesRef<'t>,
-    path: &ModulePath,
-    name: &String,
-) -> Either<Option<MutRc<Class>>, &'t HashMap<Rc<String>, MutRc<Class>>> {
-    let module = modules.iter().find(|(module, _)| &*module.path == path);
-
-    if let Some(module) = module {
-        match &name[..] {
-            "+" => Either::Right(&module.1.builder.module.classes),
-            _ => Either::Left(module.1.builder.find_class(name)),
-        }
-    } else {
-        Either::Left(None)
+        };
     }
 }
 
-/// This pass tries to resolve all imports to an interface.
-/// TODO: This, along with some related code in the builder, is mostly the same as classes.
-/// TODO: Deduplicate in some way?
-pub fn interface_imports(modules: ModulesRef) {
-    drain_mod_imports(modules, &mut |modules, gen, import| {
-        match find_interface(modules, &import.path, &import.symbol) {
-            Either::Left(iface) => iface.and_then(|iface| gen.builder.add_imported_iface(iface)),
-
-            Either::Right(ifaces) => {
-                // Do not import interface methods.
-                // They are imported later in function imports, as they appear
-                // as regular functions in the module
-                ifaces
-                    .iter()
-                    .try_for_each(|(_, iface)| gen.builder.add_imported_iface(Rc::clone(iface)));
-                None // Functions still need to be imported!
-            }
-        }
-        .is_some()
-    });
-}
-
-/// Returns the interface at the given module path.
-/// If the module path ends in a wildcard, a set of interfaces is returned.
-fn find_interface<'t>(
-    modules: ModulesRef<'t>,
-    path: &ModulePath,
-    name: &String,
-) -> Either<Option<MutRc<Interface>>, &'t HashMap<Rc<String>, MutRc<Interface>>> {
-    let module = modules.iter().find(|(module, _)| &*module.path == path);
-
-    if let Some(module) = module {
-        match &name[..] {
-            "+" => Either::Right(&module.1.builder.module.interfaces),
-            _ => Either::Left(module.1.builder.find_interface(name)),
-        }
-    } else {
-        Either::Left(None)
-    }
-}
-
-/// This pass tries to resolve all imports to a function.
-pub fn function_imports(modules: ModulesRef) {
-    drain_mod_imports(modules, &mut |modules, gen, import| {
-        match find_func(modules, &import.path, &import.symbol) {
-            Either::Left(func) => func.and_then(|func| gen.builder.add_imported_function(func)),
-
-            Either::Right(funcs) => funcs
-                .iter()
-                .try_for_each(|(_, func)| gen.builder.add_imported_function(Rc::clone(func))),
-        }
-        .is_some()
-    });
-}
-
-/// Returns the function at the given module path.
-/// If the module path ends in a wildcard, a set of functions is returned.
-fn find_func<'t>(
-    modules: ModulesRef<'t>,
-    path: &ModulePath,
-    name: &String,
-) -> Either<Option<Rc<Variable>>, &'t HashMap<Rc<String>, Rc<Variable>>> {
-    let module = modules.iter().find(|(module, _)| &*module.path == path);
-
-    if let Some(module) = module {
-        match &name[..] {
-            "+" => Either::Right(&module.1.builder.module.functions),
-            _ => Either::Left(module.1.builder.find_function_var(name)),
-        }
-    } else {
-        Either::Left(None)
-    }
-}
+import!(class_imports, classes, find_class_or_proto);
+import!(interface_imports, interfaces, find_iface_or_proto);
+import!(function_imports, functions, find_func_or_proto);
 
 /// Returns 'Unresolved import' errors on any imports left.
 pub fn ensure_no_imports(modules: &mut Vec<(Module, MIRGenerator)>) -> Result<(), Vec<MIRError>> {
     let mut errors = Vec::new();
-
     for (module, gen) in modules.iter() {
         for import in &module.imports {
-            let mut full_path = import.path.clone();
-            full_path.push(import.symbol.clone());
-
             errors.push(gen.anon_err(
                 None,
                 &format!(
-                    "Invalid import: {:?}\n(Either the specified symbol was not found, or the name already exists in the current module.)",
-                    module_path_to_string(&full_path)
-                )))
+                    "Symbol '{}' not found in module {:?}",
+                    import.symbol.lexeme,
+                    module_path_to_string(&import.path)
+                )
+            ))
         }
     }
 
@@ -162,10 +88,11 @@ pub fn ensure_no_imports(modules: &mut Vec<(Module, MIRGenerator)>) -> Result<()
 }
 
 /// This function runs drain_filter on all imports in all modules, using the given function as a filter.
+/// If the filter returns Err, the function exits prematurely and returns the error.
 fn drain_mod_imports(
     modules: &mut Vec<(Module, MIRGenerator)>,
-    cond: &mut dyn FnMut(&mut Vec<(Module, MIRGenerator)>, &mut MIRGenerator, &mut Import) -> bool,
-) {
+    cond: &mut dyn FnMut(&mut Vec<(Module, MIRGenerator)>, &mut MIRGenerator, &mut Import) -> Res<bool>,
+) -> Result<(), Vec<MIRError>> {
     // This piece of black magic iterates every module.
     // To allow for mutating it while accessing other modules immutably,
     // the module is temporarily removed.
@@ -178,7 +105,7 @@ fn drain_mod_imports(
         // https://github.com/rust-lang/rust/issues/43244
         let mut i = 0;
         while i != module.imports.len() {
-            if cond(modules, &mut gen, &mut module.imports[i]) {
+            if cond(modules, &mut gen, &mut module.imports[i]).map_err(|e| vec![e])? {
                 module.imports.remove(i);
             } else {
                 i += 1;
@@ -187,4 +114,5 @@ fn drain_mod_imports(
 
         modules.push((module, gen))
     }
+    Ok(())
 }

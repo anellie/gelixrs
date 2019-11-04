@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/4/19 8:03 PM.
+ * Last modified on 11/4/19 9:32 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -27,7 +27,7 @@ pub fn declare_interface_pass(gen: &mut MIRGenerator, module: &mut Module) -> Re
 fn create_interface(gen: &mut MIRGenerator, interface: &mut ASTIFace) -> Res<()> {
     gen.builder.try_reserve_name(&interface.name)?;
     gen.builder.add_this_alias(&interface.name);
-    func_sig.generics.as_ref().map(|g| gen.builder.set_generic_types(&g));
+    interface.generics.as_ref().map(|g| gen.builder.set_generic_types(&g));
 
     let mut methods = IndexMap::with_capacity(interface.methods.len());
     for method in interface.methods.iter_mut() {
@@ -63,7 +63,8 @@ fn create_interface(gen: &mut MIRGenerator, interface: &mut ASTIFace) -> Res<()>
         let mut interface = InterfacePrototype {
             name: Rc::clone(&interface.name.lexeme),
             methods,
-            generic_args: gen.builder.generic_types.iter().clone().collect(),
+            generic_args: gen.builder.generic_types.iter().cloned().collect(),
+            ..Default::default()
         };
     } else {
         let mut interface = Interface {

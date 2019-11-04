@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/4/19 6:48 PM.
+ * Last modified on 11/4/19 8:30 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -171,21 +171,22 @@ impl Parser {
     }
 
     fn import_declaration(&mut self) -> Option<Import> {
+        let import_token = self.current.clone();
         let mut path = Vec::new();
         if !self.check(TType::Identifier) {
             self.error_at_current("Expected path after 'import'.")?
         }
 
         let mut consumed_slash = false;
+        let mut symbol = self.advance();
         while self.check(TType::Identifier) || self.check(TType::Plus) {
-            path.push(self.advance().lexeme);
+            path.push(std::mem::replace(&mut symbol, self.advance()).lexeme);
             consumed_slash = self.match_token(TType::Slash);
         }
         if consumed_slash {
             self.error_at_current("Trailing '/' in import.")?
         }
 
-        let symbol = path.pop().unwrap();
         Some(Import { path, symbol })
     }
 

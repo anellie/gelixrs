@@ -1,12 +1,13 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/25/19 5:58 PM.
+ * Last modified on 11/4/19 9:44 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::rc::Rc;
 
 use crate::ast::declaration::{Class, Enum, FuncSignature, Function, IFaceImpl, Interface};
+use crate::lexer::token::Token;
 use crate::ModulePath;
 
 #[derive(Debug, Default)]
@@ -34,5 +35,5 @@ impl Module {
 #[derive(Debug, Clone)]
 pub struct Import {
     pub path: ModulePath,
-    pub symbol: Rc<String>,
+    pub symbol: Token,
 }

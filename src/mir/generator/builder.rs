@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/4/19 8:03 PM.
+ * Last modified on 11/4/19 9:38 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -56,11 +56,15 @@ impl MIRBuilder {
     /// Tries to reserve the given name for the current module. If the name
     /// is already used, returns an error.
     pub fn try_reserve_name(&mut self, name: &Token) -> Res<()> {
-        if self.used_names.insert(Rc::clone(&name.lexeme)) {
+        self.try_reserve_name_rc(&name.lexeme, name)
+    }
+
+    pub fn try_reserve_name_rc(&mut self, name: &Rc<String>, tok: &Token) -> Res<()> {
+        if self.used_names.insert(Rc::clone(name)) {
             Ok(())
         } else {
             Err(MIRError {
-                error: Error::new(name, name, "MIRGenerator", format!("Name {} already defined in this module", name.lexeme)),
+                error: Error::new(tok, tok, "MIRGenerator", format!("Name {} already defined in this module", name)),
                 module: self.module_path(),
             })
         }
@@ -265,6 +269,10 @@ impl MIRBuilder {
             .get(name)
             .or_else(|| self.imports.functions.get(name))
             .map(Rc::clone)
+    }
+
+    pub fn find_func_or_proto(&self, name: &String) -> Option<Either<Rc<Variable>, MutRc<FunctionPrototype>>> {
+        self.find_function_var(name).map(Left).or_else(|| self.prototypes.functions.get(name).cloned().map(Right))
     }
 
     pub fn find_class(&self, name: &String) -> Option<MutRc<Class>> {
