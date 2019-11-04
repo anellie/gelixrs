@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/30/19 8:04 PM.
+ * Last modified on 11/4/19 6:49 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -15,7 +15,7 @@ use super::super::lexer::token::Token;
 #[derive(Debug)]
 pub struct Class {
     pub name: Token,
-    pub generics: Vec<Token>,
+    pub generics: Option<Vec<Token>>,
     pub variables: Vec<Variable>,
     pub methods: Vec<Function>,
 }
@@ -24,7 +24,7 @@ pub struct Class {
 #[derive(Debug)]
 pub struct Interface {
     pub name: Token,
-    pub generics: Vec<Token>,
+    pub generics: Option<Vec<Token>>,
     pub methods: Vec<InterfaceFunc>,
 }
 
@@ -33,8 +33,8 @@ pub struct Interface {
 pub struct IFaceImpl {
     pub iface: Token,
     pub class: Token,
-    pub iface_generics: Vec<Token>,
-    pub class_generics: Vec<Token>,
+    pub iface_generics: Option<Vec<Token>>,
+    pub class_generics: Option<Vec<Token>>,
     pub methods: Vec<Function>,
 }
 
@@ -50,6 +50,7 @@ pub struct Enum {
 #[derive(Debug)]
 pub struct FuncSignature {
     pub name: Token,
+    pub generics: Option<Vec<Token>>,
     pub return_type: Option<Type>,
     pub parameters: Vec<FunctionArg>,
 }
@@ -86,7 +87,7 @@ pub struct InterfaceFunc {
 }
 
 /// A variable definition.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Variable {
     pub name: Token,
     pub mutable: bool,

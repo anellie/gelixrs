@@ -1,17 +1,19 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/24/19 4:08 PM.
+ * Last modified on 11/4/19 8:03 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::rc::Rc;
 
+use either::Either;
+use either::Either::{Left, Right};
+
 use crate::ast::declaration::FuncSignature;
 use crate::ast::module::Module;
+use crate::mir::{MutRc, mutrc_new, ToMIRResult};
 use crate::mir::generator::{MIRGenerator, Res};
-use crate::mir::generator::passes::NONE_CONST;
-use crate::mir::nodes::{Type, Variable};
-use crate::mir::ToMIRResult;
+use crate::mir::nodes::{Function, FunctionPrototype, Type, Variable};
 
 /// This pass defines all functions in MIR.
 pub fn declare_func_pass(gen: &mut MIRGenerator, module: &mut Module) -> Res<()> {
@@ -29,16 +31,16 @@ pub fn declare_func_pass(gen: &mut MIRGenerator, module: &mut Module) -> Res<()>
 pub(super) fn create_function(
     gen: &mut MIRGenerator,
     func_sig: &FuncSignature,
-) -> Res<Rc<Variable>> {
-    let ret_type = gen
-        .builder
-        .find_type(
-            func_sig
-                .return_type
-                .as_ref()
-                .unwrap_or(&NONE_CONST.with(|c| c.clone())),
-        )
-        .or_type_err(gen, &func_sig.return_type, "Unknown function return type")?;
+) -> Res<Either<Rc<Variable>, MutRc<FunctionPrototype>>> {
+    gen.builder.try_reserve_name(&func_sig.name)?;
+    func_sig.generics.as_ref().map(|g| gen.builder.set_generic_types(&g));
+
+    let name = gen.builder.get_function_name(&func_sig.name.lexeme);
+    let ret_type = func_sig
+        .return_type
+        .as_ref()
+        .map(|ty| gen.builder.find_type(ty).or_type_err(gen, &func_sig.return_type, "Unknown function return type"))
+        .unwrap_or(Ok(Type::None))?;
 
     let mut parameters = Vec::with_capacity(func_sig.parameters.len());
     for param in func_sig.parameters.iter() {
@@ -53,22 +55,32 @@ pub(super) fn create_function(
         }));
     }
 
-    let function = gen
-        .builder
-        .create_function(
-            Rc::clone(&func_sig.name.lexeme),
-            ret_type.clone(),
+    if func_sig.generics.is_some() {
+        let function = mutrc_new(FunctionPrototype {
+            name,
             parameters,
-        )
-        .or_err(gen, &func_sig.name, "Function was declared twice")?;
+            generic_args: gen.builder.generic_types.iter().cloned().collect(),
+            ret_type,
+            ..Default::default()
+        });
 
-    let global = Rc::new(Variable {
-        name: Rc::clone(&func_sig.name.lexeme),
-        type_: Type::Function(Rc::clone(&function)),
-        mutable: false,
-    });
-    gen.builder
-        .add_global(Rc::clone(&func_sig.name.lexeme), Rc::clone(&global));
+        gen.builder.prototypes.functions.insert(Rc::clone(&func_sig.name.lexeme), Rc::clone(&function));
+        Ok(Right(function))
+    } else {
+        let function = mutrc_new(Function {
+            name,
+            parameters,
+            ret_type,
+            ..Default::default()
+        });
 
-    Ok(global)
+        let global = Rc::new(Variable {
+            name: Rc::clone(&func_sig.name.lexeme),
+            type_: Type::Function(Rc::clone(&function)),
+            mutable: false,
+        });
+
+        gen.builder.module.functions.insert(Rc::clone(&func_sig.name.lexeme), Rc::clone(&global));
+        Ok(Left(global))
+    }
 }

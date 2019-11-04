@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/24/19 3:58 PM.
+ * Last modified on 11/4/19 6:48 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -93,7 +93,7 @@ impl Parser {
     }
 
     fn ex_func_declaration(&mut self) -> Option<FuncSignature> {
-        let name = self.consume(TType::Identifier, "Expected an external function name.")?;
+        let (name, generics) = self.generic_ident()?;
         self.consume(TType::LeftParen, "Expected '(' after function name.");
 
         let parameters = self.func_parameters()?;
@@ -107,6 +107,7 @@ impl Parser {
             name,
             return_type,
             parameters,
+            generics
         })
     }
 
@@ -466,6 +467,7 @@ impl Parser {
                 name: Token::generic_identifier("closure".to_string()),
                 return_type,
                 parameters,
+                generics: None
             },
             body,
         }))))
@@ -635,15 +637,17 @@ impl Parser {
     }
 
     // Reads an identifier followed by optional generic type parameters.
-    fn generic_ident(&mut self) -> Option<(Token, Vec<Token>)> {
+    fn generic_ident(&mut self) -> Option<(Token, Option<Vec<Token>>)> {
         let name = self.consume(TType::Identifier, "Expected a name.")?;
-        let mut generics = Vec::new();
+        let mut generics = None;
         if self.match_token(TType::Less) {
+            let mut generics_vec = Vec::with_capacity(1);
             while let Some(type_) = self.match_tokens(&[TType::Identifier]) {
-                generics.push(type_);
+                generics_vec.push(type_);
                 self.match_token(TType::Comma);
             }
             self.consume(TType::Greater, "Expected '>' after type parameters.")?;
+            generics = Some(generics_vec)
         }
         Some((name, generics))
     }

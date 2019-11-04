@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/30/19 8:02 PM.
+ * Last modified on 11/4/19 8:00 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -22,7 +22,10 @@ pub fn class_imports(modules: ModulesRef) {
     drain_mod_imports(modules, &mut |modules, gen, import| {
         match find_class(modules, &import.path, &import.symbol) {
             Either::Left(class) => {
-                class.and_then(|class| gen.builder.add_imported_class(class, true))
+                class.and_then(|class| {
+                    gen.builder.imports.classes.insert(&class.borrow().name, class);
+                    gen.builder.try_reserve_name(&class.borrow().name)
+                })
             }
 
             Either::Right(classes) => {
@@ -30,7 +33,8 @@ pub fn class_imports(modules: ModulesRef) {
                 // They are imported later in function imports, as they appear
                 // as regular functions in the module (and will thus be imported by wildcard)
                 classes.iter().try_for_each(|(_, class)| {
-                    gen.builder.add_imported_class(Rc::clone(class), false)
+                    gen.builder.imports.classes.insert(&class.borrow().name, class);
+                    gen.builder.try_reserve_name(&class.borrow().name)
                 });
                 None // Functions still need to be imported!
             }
@@ -125,7 +129,7 @@ fn find_func<'t>(
     if let Some(module) = module {
         match &name[..] {
             "+" => Either::Right(&module.1.builder.module.functions),
-            _ => Either::Left(module.1.builder.find_global(name)),
+            _ => Either::Left(module.1.builder.find_function_var(name)),
         }
     } else {
         Either::Left(None)

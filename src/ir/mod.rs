@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/26/19 5:37 PM.
+ * Last modified on 11/4/19 8:03 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -20,7 +20,6 @@ use super::{
         MIRModule, MutRc,
         nodes::{Block, Class, Expression, Flow, Function, Type, Variable},
     },
-    module_path_to_string,
 };
 
 /// A generator that creates LLVM IR out of Gelix mid-level IR (MIR).
@@ -44,7 +43,7 @@ pub struct IRGenerator {
     /// All functions.
     functions: HashMap<PtrEqRc<Variable>, FunctionValue>,
     /// All types (classes/interfaces/structs) that are available.
-    types: HashMap<HashMutRc<Class>, StructType>,
+    types: HashMap<Type, BasicTypeEnum>,
 
     /// A constant that is used for expressions that don't produce a value but are required to,
     /// like return or break expressions.
@@ -56,35 +55,16 @@ pub struct IRGenerator {
 impl IRGenerator {
     /// Generates IR. Will process all MIR modules given.
     pub fn generate(mut self, mir: Vec<MIRModule>) -> Module {
-        // Create structs for all classes & interfaces and functions first
-        for module in mir.iter() {
-            for (_, struc_rc) in module.classes.iter() {
-                let struc = struc_rc.borrow();
-                let val = self.context.opaque_struct_type(&struc.name);
-                self.types.insert(HashMutRc::new(&struc_rc), val);
-            }
-
-            let module_name = module_path_to_string(&module.path);
-            for (func_name, func_var) in module.functions.iter() {
-                let func = func_var.type_.as_function();
-                let func_ref = func.borrow();
-
-                // Explanation: If the function is external (no blocks)
-                // or called main, its name needs to be kept the same.
-                let mod_and_func_name = format!("{}:{}", module_name, func_name);
-                let ir_name = if func_ref.blocks.is_empty() || &**func_ref.name == "main" {
-                    func_name
-                } else {
-                    &mod_and_func_name
-                };
-                let func_val = self.module.add_function(ir_name, self.get_fn_type(&func_ref), None);
-
-                self.functions.insert(PtrEqRc::new(func_var), func_val);
+        for module in &mir {
+            for (_, function) in &module.functions {
+                self.declare_function(function);
             }
         }
 
         for module in mir {
-            self.generate_module(module);
+            for (_, function) in module.functions {
+                self.function(function);
+            }
         }
 
         self.module
@@ -95,30 +75,51 @@ impl IRGenerator {
         self.module
     }
 
-    fn generate_module(&mut self, mir: MIRModule) {
-        mir.functions
-            .into_iter()
-            .for_each(|(_, func)| self.function(func));
+    /// Generates a type, if it was not found in self.types.
+    fn build_type(&mut self, ty: &Type) -> BasicTypeEnum {
+        let ir_ty = match ty {
+            Type::Function(func) => self
+                .get_fn_type(&func.borrow())
+                .ptr_type(AddressSpace::Generic)
+                .as_basic_type_enum(),
+
+            Type::Class(class) => self.build_class(Rc::clone(class)).as_basic_type_enum(),
+
+            _ => panic!("Unknown type to build")
+        };
+        self.types.insert(ty.clone(), ir_ty);
+        ir_ty
     }
 
-    /// Generates a class struct and its body
-    fn class_to_struct(&self, class: MutRc<Class>) {
-        let struc_val = self.types[&HashMutRc::new(&class)];
-        let class = class.borrow();
+    /// Generates a class struct and its body.
+    fn build_class(&mut self, class: MutRc<Class>) -> StructType {
+        let struc_val = self.context.opaque_struct_type(&class.borrow().name);
         let body: Vec<BasicTypeEnum> = class
+            .borrow()
             .members
             .iter()
             .map(|(_, mem)| self.to_ir_type_no_ptr(&mem.type_))
             .collect();
         struc_val.set_body(body.as_slice(), false);
+        struc_val
     }
 
-    /// Generates a function; function should already be declared in the module.
-    fn function(&mut self, func: Rc<Variable>) {
-        let func_val = self.functions[&PtrEqRc::new(&func)];
-        let func = func.type_.as_function();
-        let func = func.borrow_mut();
+    /// Declares a function. All functions must be declared before generating
+    /// code; as a reference to an undeclared function is otherwise possible
+    /// (and leads to a panic)
+    fn declare_function(&mut self, func: &Rc<Variable>) {
+        let func_ty = func.type_.as_function();
+        let fn_ty = self.get_fn_type(&func_ty.borrow());
+        let func_val = self.module.add_function(&func_ty.borrow().name, fn_ty, None);
+        self.functions.insert(PtrEqRc::new(&func), func_val);
+    }
+
+    /// Generates a function, should it have a body.
+    fn function(&mut self, func_var: Rc<Variable>) {
+        let func_ty = func_var.type_.as_function();
+        let func = func_ty.borrow_mut();
         if !func.blocks.is_empty() {
+            let func_val = self.functions[&PtrEqRc::new(&func_var)];
             self.function_body(func, func_val)
         }
     }
@@ -147,9 +148,8 @@ impl IRGenerator {
         }
 
         for (name, var) in func.variables.iter() {
-            let alloca = self
-                .builder
-                .build_alloca(self.to_ir_type_no_ptr(&var.type_), &name);
+            let alloca_ty = self.to_ir_type_no_ptr(&var.type_);
+            let alloca = self.builder.build_alloca(alloca_ty, &name);
             self.variables.insert(PtrEqRc::new(var), alloca);
         }
 
@@ -235,12 +235,6 @@ impl IRGenerator {
 
                     _ => panic!("invalid binary operation"),
                 }
-            }
-
-            Expression::Bitcast { object, goal } => {
-                let object = self.generate_expression(object);
-                let type_ = self.to_ir_type(&Type::Class(Rc::clone(goal)));
-                self.builder.build_bitcast(object, type_, "bitcast")
             }
 
             Expression::Call { callee, arguments } => {
@@ -476,7 +470,7 @@ impl IRGenerator {
 
     /// Converts a MIRType to the corresponding LLVM type.
     /// Structs/Arrays are returned as PointerType<StructType/ArrayType>.
-    fn to_ir_type(&self, mir: &Type) -> BasicTypeEnum {
+    fn to_ir_type(&mut self, mir: &Type) -> BasicTypeEnum {
         let ir = self.to_ir_type_no_ptr(mir);
         match ir {
             BasicTypeEnum::StructType(struc) if ir != self.none_const.get_type() => {
@@ -487,54 +481,12 @@ impl IRGenerator {
     }
 
     /// Converts a MIRType to the corresponding LLVM type. Structs are returned as StructType.
-    fn to_ir_type_no_ptr(&self, mir: &Type) -> BasicTypeEnum {
-        match mir {
-            Type::Any => self.none_const.get_type(),
-            Type::None => self.none_const.get_type(),
-            Type::Bool => self.context.bool_type().as_basic_type_enum(),
-
-            Type::I8 => self.context.i8_type().as_basic_type_enum(),
-            Type::I16 => self.context.i16_type().as_basic_type_enum(),
-            Type::I32 => self.context.i32_type().as_basic_type_enum(),
-            Type::I64 => self.context.i64_type().as_basic_type_enum(),
-
-            Type::F32 => self.context.f32_type().as_basic_type_enum(),
-            Type::F64 => self.context.f64_type().as_basic_type_enum(),
-
-            Type::String => self
-                .context
-                .i8_type()
-                .ptr_type(AddressSpace::Generic)
-                .as_basic_type_enum(),
-
-            Type::Function(func) => self
-                .get_fn_type(&func.borrow())
-                .ptr_type(AddressSpace::Generic)
-                .as_basic_type_enum(),
-
-            Type::Class(struc) => {
-                let ty = self.types[&HashMutRc::new(&struc)];
-
-                // Class structs are only filled with their types on first use.
-                if ty.is_opaque() {
-                    self.class_to_struct(Rc::clone(struc));
-                }
-                ty.as_basic_type_enum()
-            },
-
-            Type::Interface(_) => {
-                println!("WARN: Unimplemented interface type. Returning dummy...");
-                self.context.bool_type().as_basic_type_enum()
-            }
-            Type::Generic(_) => {
-                println!("WARN: Unimplemented generic type. Returning dummy...");
-                self.context.bool_type().as_basic_type_enum()
-            }
-        }
+    fn to_ir_type_no_ptr(&mut self, mir: &Type) -> BasicTypeEnum {
+        self.types.get(mir).copied().unwrap_or_else(|| self.build_type(mir))
     }
 
     /// Generates the LLVM FunctionType of a MIR function.
-    fn get_fn_type(&self, func: &Ref<Function>) -> FunctionType {
+    fn get_fn_type(&mut self, func: &Ref<Function>) -> FunctionType {
         let params: Vec<BasicTypeEnum> = func
             .parameters
             .iter()
@@ -581,6 +533,24 @@ impl IRGenerator {
                 context.bool_type().const_int(0, false),
             )]);
 
+        let mut types = HashMap::with_capacity(20);
+        types.insert(Type::Any, none_const.get_type().into());
+        types.insert(Type::None, none_const.get_type().into());
+        types.insert(Type::Bool, context.bool_type().into());
+
+        types.insert(Type::I8, context.i8_type().into());
+        types.insert(Type::I16, context.i16_type().into());
+        types.insert(Type::I32, context.i32_type().into());
+        types.insert(Type::I64, context.i64_type().into());
+
+        types.insert(Type::F32, context.f32_type().into());
+        types.insert(Type::F64, context.f64_type().into());
+
+        types.insert(
+            Type::String,
+            context.i8_type().ptr_type(AddressSpace::Generic).into(),
+        );
+
         IRGenerator {
             context,
             module,
@@ -590,7 +560,7 @@ impl IRGenerator {
             variables: HashMap::with_capacity(10),
             blocks: HashMap::with_capacity(10),
 
-            types: HashMap::with_capacity(10),
+            types,
             functions: HashMap::with_capacity(10),
 
             none_const: none_const.into(),
@@ -620,29 +590,6 @@ impl<T: Hash> Eq for PtrEqRc<T> {}
 impl<T: Hash> Hash for PtrEqRc<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.hash(state)
-    }
-}
-
-/// A Rc<RefCell<T>> that can be hashed. It borrows its contents to obtain a hash.
-struct HashMutRc<T: Hash>(MutRc<T>);
-
-impl<T: Hash> HashMutRc<T> {
-    fn new(rc: &MutRc<T>) -> HashMutRc<T> {
-        HashMutRc(Rc::clone(rc))
-    }
-}
-
-impl<T: Hash> PartialEq for HashMutRc<T> {
-    fn eq(&self, other: &Self) -> bool {
-        Rc::ptr_eq(&self.0, &other.0)
-    }
-}
-
-impl<T: Hash> Eq for HashMutRc<T> {}
-
-impl<T: Hash> Hash for HashMutRc<T> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.borrow().hash(state)
     }
 }
 

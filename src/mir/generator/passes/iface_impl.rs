@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/30/19 7:05 PM.
+ * Last modified on 11/4/19 8:03 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -9,10 +9,10 @@ use std::rc::Rc;
 use crate::ast::declaration::{Function, FunctionArg, IFaceImpl, Type as ASTType};
 use crate::ast::module::Module;
 use crate::lexer::token::Token;
+use crate::mir::{MutRc, ToMIRResult};
 use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::generator::passes::declare_func::create_function;
-use crate::mir::nodes::{IFaceMethod, Type, Variable};
-use crate::mir::ToMIRResult;
+use crate::mir::nodes::{IFaceMethod, Interface, InterfacePrototype, Type, Variable};
 use crate::option::Flatten;
 
 /// This pass checks and defines all interface impl blocks.
@@ -24,25 +24,20 @@ pub fn iface_impl_pass(gen: &mut MIRGenerator, list: &mut Module) -> Res<()> {
 }
 
 fn iface_impl(gen: &mut MIRGenerator, iface_impl: &mut IFaceImpl) -> Res<()> {
-    gen.builder.add_this_alias(&iface_impl.iface);
-    let class = gen.builder.find_class(&iface_impl.class.lexeme).or_err(
-        gen,
-        &iface_impl.class,
-        "Unknown class.",
-    )?;
+    gen.builder.add_this_alias(&iface_impl.class);
+    iface_impl.class_generics.as_ref().and_then(|g| gen.builder.set_generic_types(&g));
 
-    let iface_cell = gen
+    let class = gen
         .builder
-        .find_interface(&iface_impl.iface.lexeme)
-        .or_err(gen, &iface_impl.iface, "Unknown interface.")?;
-    let iface = iface_cell.borrow();
+        .find_class_or_proto(&iface_impl.class.lexeme)
+        .or_err(gen, &iface_impl.class, "Unknown class")?;
 
-    add_generic_aliases(
-        gen,
-        &iface.generics,
-        &iface_impl.iface_generics,
-        &iface_impl.iface,
-    )?;
+    let iface = gen
+        .builder
+        .find_iface_or_proto(&iface_impl.iface.lexeme)
+        .or_err(gen, &iface_impl.iface, "Unknown interface.")?
+        .map_left(|l| Ok(l))
+        .left_or_else(|proto| iface_from_proto(gen, proto, iface_impl.iface_generics.unwrap_or_else(|| vec![]), &iface_impl.iface))?;
 
     for method in iface_impl.methods.iter_mut() {
         let iface_method = iface.methods.get(&method.sig.name.lexeme).or_err(
@@ -72,7 +67,7 @@ fn iface_impl(gen: &mut MIRGenerator, iface_impl: &mut IFaceImpl) -> Res<()> {
             "Missing methods in interface impl.",
         ))
     } else {
-        class.borrow_mut().interfaces.insert(Rc::clone(&iface.name), Rc::clone(&iface_cell));
+        class.borrow_mut().interfaces.insert(Rc::clone(&iface.name), Rc::clone(&iface));
 
         gen.builder.remove_this_alias();
         for g_iface in iface.generics.iter() {
@@ -81,6 +76,13 @@ fn iface_impl(gen: &mut MIRGenerator, iface_impl: &mut IFaceImpl) -> Res<()> {
 
         Ok(())
     }
+}
+
+fn iface_from_proto(gen: &mut MIRGenerator, proto: MutRc<InterfacePrototype>, args: Vec<Token>, error_tok: &Token) -> Res<MutRc<Interface>> {
+    let args = args.iter().map(|tok| gen.builder.find_type(&ASTType::Ident(tok.clone()))).collect()?;
+    let iface = proto.borrow_mut().build(args);
+    let iface = iface.map_err(|msg| gen.error(error_tok, error_tok, &msg))?;
+    Ok(iface)
 }
 
 /// Registers all generic parameter aliases; also does checking to ensure they are valid.

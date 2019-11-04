@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/30/19 8:05 PM.
+ * Last modified on 11/4/19 7:55 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -30,13 +30,15 @@ fn mutrc_new<T>(value: T) -> MutRc<T> {
 /// A struct produced by a generator. It contains the full MIR representation of a file/module.
 #[derive(Debug, Default)]
 pub struct MIRModule {
+    /// The path of the module, for example my_app/gui/widgets
+    /// Mainly used for namespacing in IR.
     pub path: Rc<ModulePath>,
+    /// All classes in this module.
     pub classes: HashMap<Rc<String>, MutRc<Class>>,
+    /// All interfaces.
     pub interfaces: HashMap<Rc<String>, MutRc<Interface>>,
-    pub functions: HashMap<Rc<String>, Rc<Variable>>,
-    /// Imported functions will only be declared; not defined.
-    /// They are defined when modules are linked/combined at the end of IR generation.
-    pub imported_func: HashMap<Rc<String>, Rc<Variable>>,
+    /// All functions.
+    pub functions: HashMap<Rc<String>, Rc<Variable>>
 }
 
 impl MIRModule {

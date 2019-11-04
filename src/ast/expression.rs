@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/24/19 4:05 PM.
+ * Last modified on 11/3/19 3:19 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -23,7 +23,7 @@ pub static LOGICAL_BINARY: [TType; 6] = [
 /// Currently, everything not top-level is an expression. However, some are not allowed in certain contexts;
 /// see the bottom of this enum.
 /// Expressions appear as part of a declaration.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Expression {
     /// Assignment a la x = 5
     Assignment { name: Token, value: Box<Expression> },

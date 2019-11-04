@@ -1,260 +1,21 @@
+
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/30/19 8:05 PM.
+ * Last modified on 11/4/19 8:03 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::fmt::{Display, Error, Formatter};
-use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
-use indexmap::IndexMap;
-
-use crate::ast::expression::{Expression as ASTExpr, LOGICAL_BINARY};
-use crate::ast::literal::Literal;
+use crate::ast::expression::LOGICAL_BINARY;
+use crate::ast::Literal;
 use crate::lexer::token::TType;
-use crate::mir::MutRc;
-
-/// All types in Gelix.
-#[derive(Debug, Clone, EnumAsGetters)]
-pub enum Type {
-    Any,
-    None,
-    Bool,
-
-    I8,
-    I16,
-    I32,
-    I64,
-
-    F32,
-    F64,
-
-    String,
-
-    Function(MutRc<Function>),
-
-    Class(MutRc<Class>),
-
-    Interface(MutRc<Interface>),
-
-    /// A generic type. Only found in interface methods.
-    /// Appearing anywhere else is undefined behavior; panicking is appropriate in that case.
-    Generic(Rc<String>),
-}
-
-impl Type {
-    /// Is this type an integer?
-    pub fn is_int(&self) -> bool {
-        match self {
-            Type::I8 | Type::I16 | Type::I32 | Type::I64 => true,
-            _ => false
-        }
-    }
-
-    /// Is this type a floating-point number?
-    pub fn is_float(&self) -> bool {
-        match self {
-            Type::F32 | Type::F64 => true,
-            _ => false
-        }
-    }
-}
-
-impl PartialEq for Type {
-    fn eq(&self, o: &Self) -> bool {
-        if let Type::Any = o {
-            return true;
-        }
-
-        // TODO: Is there really no other way than whatever the heck this is?
-        match self {
-            Type::Function(f) => {
-                if let Type::Function(o) = o { f == o } else { false }
-            }
-
-            Type::Class(c) => {
-                if let Type::Class(o) = o { c == o } else { false }
-            }
-
-            Type::Interface(i) => {
-                if let Type::Interface(o) = o { i == o } else { false }
-            }
-
-            Type::Generic(g) => {
-                if let Type::Generic(o) = o { g == o } else { false }
-            }
-
-            Type::Any => true,
-
-            _ => std::mem::discriminant(self) == std::mem::discriminant(o),
-        }
-    }
-}
-
-impl Display for Type {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-        match self {
-            Type::Function(func) => write!(f, "<func {}>", func.borrow().name),
-            Type::Class(class) => write!(f, "{}", class.borrow().name),
-            Type::Interface(iface) => write!(f, "{}", iface.borrow().name),
-            _ => write!(f, "{:?}", self),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct Class {
-    pub name: Rc<String>,
-    /// All class members.
-    pub members: IndexMap<Rc<String>, Rc<ClassMember>>,
-    /// All class methods. Inserted as "doThing", not "Name-doThing".
-    pub methods: HashMap<Rc<String>, Rc<Variable>>,
-    /// All interfaces implemented by this class.
-    pub interfaces: IndexMap<Rc<String>, MutRc<Interface>>,
-}
-
-impl PartialEq for Class {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
-    }
-}
-
-impl Display for Class {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-        writeln!(f, "class {} {{", self.name)?;
-        for (name, member) in self.members.iter() {
-            writeln!(f, "    {} {}: {}", if member.mutable { "var" } else { "val" }, name, member.type_)?;
-        }
-        writeln!(f, "}}")
-    }
-}
-
-impl Hash for Class {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.name.hash(state)
-    }
-}
-
-/// A member of a class.
-#[derive(Debug)]
-pub struct ClassMember {
-    pub mutable: bool,
-    pub type_: Type,
-    pub index: u32,
-}
-
-/// An abstract interface defining all its methods.
-#[derive(Debug)]
-pub struct Interface {
-    pub name: Rc<String>,
-    /// A map of all methods.
-    pub methods: IndexMap<Rc<String>, IFaceMethod>,
-    /// All generic parameters that are type-aliased on concrete implementations.
-    pub generics: Vec<Rc<String>>,
-}
-
-impl PartialEq for Interface {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
-    }
-}
-
-/// A method inside an interface.
-/// The default implementation is left in AST state so that it can be compiled
-/// individually on concrete implementations if needed.
-#[derive(Debug)]
-pub struct IFaceMethod {
-    pub name: Rc<String>,
-    pub parameters: Vec<Type>,
-    pub ret_type: Type,
-    pub default_impl: Option<ASTExpr>,
-}
-
-/// A function in MIR. Consists of blocks.
-#[derive(Debug)]
-pub struct Function {
-    pub name: Rc<String>,
-    pub parameters: Vec<Rc<Variable>>,
-    pub blocks: HashMap<Rc<String>, Block>,
-    pub variables: HashMap<Rc<String>, Rc<Variable>>,
-    pub ret_type: Type,
-}
-
-impl PartialEq for Function {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
-    }
-}
-
-impl Display for Function {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-        write!(f, "func {}(", self.name)?;
-
-        let mut params = self.parameters.iter();
-        params.next().map(|param| write!(f, "{}: {}", param.name, param.type_));
-        for param in params {
-            write!(f, ", {}: {}", param.name, param.type_)?;
-        }
-
-        writeln!(f, ") {{")?;
-        for (name, block) in self.blocks.iter() {
-            writeln!(f, "{}:", name)?;
-            for inst in block.iter() {
-                writeln!(f, "    {}", inst)?;
-            }
-        }
-        writeln!(f, "}}")
-    }
-}
-
-impl Function {
-    /// Appends a new block; will returns the block name.
-    /// The name can be different than the given one when it was already in use.
-    pub fn append_block(&mut self, name: &str) -> Rc<String> {
-        let mut name = name.to_string();
-        if self.blocks.contains_key(&name) {
-            name = format!("{}-{}", name, self.blocks.len());
-        }
-        let rc = Rc::new(name);
-        self.blocks.insert(
-            Rc::clone(&rc),
-            Vec::with_capacity(5),
-        );
-        rc
-    }
-
-    /// Inserts a variable into the functions allocation table.
-    /// Returns the name of it (should be used since a change can be needed due to colliding names).
-    pub fn insert_var(&mut self, mut name: Rc<String>, var: Rc<Variable>) -> Rc<String> {
-        if self.variables.contains_key(&name) {
-            name = Rc::new(format!("{}-{}", name, self.variables.len()));
-        }
-        self.variables.insert(Rc::clone(&name), var);
-        name
-    }
-}
-
-/// A variable inside a function.
-#[derive(Debug, Clone)]
-pub struct Variable {
-    pub mutable: bool,
-    pub type_: Type,
-    pub name: Rc<String>,
-}
-
-impl Hash for Variable {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.name.hash(state)
-    }
-}
-
-/// A block inside a function.
-pub type Block = Vec<Expression>;
+use crate::mir::nodes::{Type, Variable};
 
 /// All expressions in MIR. All of them produce a value.
+/// Expressions are in blocks in functions. Gelix does not have statements.
 #[derive(Debug, Clone)]
 pub enum Expression {
     /// Simply a binary operation between numbers.
@@ -262,12 +23,6 @@ pub enum Expression {
         left: Box<Expression>,
         operator: TType,
         right: Box<Expression>,
-    },
-
-    /// Casts a class to another class type.
-    Bitcast {
-        object: Box<Expression>,
-        goal: MutRc<Class>,
     },
 
     /// A function call.
@@ -319,7 +74,7 @@ impl Expression {
     /// Returns the type of this MIRExpression.
     /// Note that this function does not do type validation, and calling this function
     /// on malformed expressions is undefined behavior that can lead to panics.
-    pub(super) fn get_type(&self) -> Type {
+    pub fn get_type(&self) -> Type {
         match self {
             Expression::Binary { left, operator, .. } => {
                 if LOGICAL_BINARY.contains(&operator) {
@@ -328,8 +83,6 @@ impl Expression {
                     left.get_type()
                 }
             }
-
-            Expression::Bitcast { goal, .. } => Type::Class(Rc::clone(goal)),
 
             Expression::Call { callee, .. } => {
                 if let Type::Function(func) = callee.get_type() {
@@ -400,8 +153,6 @@ impl Display for Expression {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         match self {
             Expression::Binary { left, operator, right } => write!(f, "({}) {:?} ({})", left, operator, right),
-
-            Expression::Bitcast { object, goal } => write!(f, "cast ({}) to {}", object, goal.borrow().name),
 
             Expression::Call { callee, arguments } => {
                 write!(f, "call ({}) with ", callee)?;

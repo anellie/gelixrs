@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/30/19 7:05 PM.
+ * Last modified on 11/2/19 10:46 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -387,13 +387,12 @@ impl MIRGenerator {
                         values_mir.push(mir_val);
                     }
 
-                    self.builder
-                        .build_literal(Literal::Array(Either::Right(ArrayLiteral {
+                    Expression::Literal(Literal::Array(Either::Right(ArrayLiteral {
                             values: values_mir,
                             type_: arr_type,
                         })))
                 } else {
-                    self.builder.build_literal(literal.clone())
+                    Expression::Literal(literal.clone())
                 }
             }
 
@@ -574,7 +573,7 @@ impl MIRGenerator {
             }
         }
 
-        self.builder.find_global(&token.lexeme).or_err(
+        self.builder.find_function_var(&token.lexeme).or_err(
             self,
             token,
             &format!("Variable '{}' is not defined", token.lexeme),

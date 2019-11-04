@@ -1,23 +1,23 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/30/19 8:03 PM.
+ * Last modified on 11/4/19 8:03 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::mem::discriminant;
 use std::rc::Rc;
 
-use indexmap::IndexMap;
+use either::Either::{Left, Right};
+use either::Either;
 
-use crate::ast::literal::Literal;
+use crate::{module_path_to_string, ModulePath};
 use crate::ast::Type as ASTType;
+use crate::error::Error;
 use crate::lexer::token::{Token, TType};
-use crate::mir::{MIRModule, MutRc, mutrc_new};
-use crate::mir::nodes::{
-    Class, ClassMember, Expression, Flow, Interface, Variable,
-};
-use crate::ModulePath;
+use crate::mir::{MIRModule, MutRc};
+use crate::mir::generator::{MIRError, MIRGenerator, Res};
+use crate::mir::nodes::{Class, ClassMember, ClassPrototype, Expression, Flow, FunctionPrototype, Interface, InterfacePrototype, Variable};
 
 use super::super::nodes::{Function, Type};
 
@@ -30,10 +30,19 @@ pub struct MIRBuilder {
     pub module: MIRModule,
 
     /// Things imported into this module by 'import' declarations.
-    imports: Imports,
+    pub imports: Imports,
+    /// All prototypes in this module.
+    pub prototypes: Prototypes,
 
+    /// A list of all global names (classes/interfaces/functions) in this module.
+    /// Used to ensure that no naming collision occurs.
+    used_names: HashSet<Rc<String>>,
     /// A list of type aliases, where the key is a type that will be translated to the value.
+    /// Currently only used for the 'This' type alias inside classes/interfaces.
     type_aliases: HashMap<Rc<String>, ASTType>,
+    /// All generic types that should resolve to a generic MIR type.
+    /// Used when compiling prototypes.
+    pub generic_types: HashSet<Rc<String>>,
 
     /// Simply a const of the string "tmp".
     /// Used for temporary variables needed for class init.
@@ -44,128 +53,17 @@ pub struct MIRBuilder {
 }
 
 impl MIRBuilder {
-    pub fn create_class(&mut self, name: &Token) -> Option<MutRc<Class>> {
-        let class = mutrc_new(Class {
-            name: Rc::clone(&name.lexeme),
-            members: IndexMap::new(),
-            methods: HashMap::new(),
-            interfaces: IndexMap::new(),
-        });
-
-        if self.find_class(&name.lexeme).is_none() {
-            self.module
-                .classes
-                .insert(Rc::clone(&name.lexeme), Rc::clone(&class));
-
-            self.add_this_alias(name);
-            Some(class)
+    /// Tries to reserve the given name for the current module. If the name
+    /// is already used, returns an error.
+    pub fn try_reserve_name(&mut self, name: &Token) -> Res<()> {
+        if self.used_names.insert(Rc::clone(&name.lexeme)) {
+            Ok(())
         } else {
-            // Class already exists
-            None
+            Err(MIRError {
+                error: Error::new(name, name, "MIRGenerator", format!("Name {} already defined in this module", name.lexeme)),
+                module: self.module_path(),
+            })
         }
-    }
-
-    pub fn add_imported_class(
-        &mut self,
-        class: MutRc<Class>,
-        import_methods: bool,
-    ) -> Option<()> {
-        let name = Rc::clone(&class.borrow().name);
-        if self.find_class(&name).is_none() {
-            self.imports
-                .classes
-                .insert(Rc::clone(&name), Rc::clone(&class));
-            if import_methods {
-                for (_, method) in class.borrow().methods.iter() {
-                    self.add_imported_function(Rc::clone(method))?;
-                }
-            }
-            Some(())
-        } else {
-            // Class already exists
-            None
-        }
-    }
-
-    pub fn create_function(
-        &mut self,
-        name: Rc<String>,
-        ret_type: Type,
-        parameters: Vec<Rc<Variable>>,
-    ) -> Option<MutRc<Function>> {
-        let function = mutrc_new(Function {
-            name: Rc::clone(&name),
-            parameters,
-            blocks: HashMap::new(),
-            variables: HashMap::new(),
-            ret_type,
-        });
-
-        if self.find_function(&name).is_none() {
-            Some(function)
-        } else {
-            None
-        }
-    }
-
-    pub fn add_imported_function(&mut self, func: Rc<Variable>) -> Option<()> {
-        let name = &func.name;
-        if self.find_function(&name).is_none() {
-            self.module
-                .imported_func
-                .insert(Rc::clone(&name), Rc::clone(&func));
-            Some(())
-        } else {
-            // Function already exists
-            None
-        }
-    }
-
-    pub fn add_imported_iface(&mut self, iface: MutRc<Interface>) -> Option<()> {
-        let name = Rc::clone(&iface.borrow().name);
-        if self.find_interface(&name).is_none() {
-            self.imports
-                .interfaces
-                .insert(Rc::clone(&name), Rc::clone(&iface));
-            Some(())
-        } else {
-            // Interface already exists
-            None
-        }
-    }
-
-    pub fn create_interface(&mut self, name: &Rc<String>) -> Option<MutRc<Interface>> {
-        let iface = mutrc_new(Interface {
-            name: Rc::clone(name),
-            methods: IndexMap::new(),
-            generics: Vec::new(),
-        });
-
-        if self.find_interface(name).is_none() {
-            self.module
-                .interfaces
-                .insert(Rc::clone(name), Rc::clone(&iface));
-            Some(iface)
-        } else {
-            // Interface already exists
-            None
-        }
-    }
-
-    pub fn add_global(&mut self, name: Rc<String>, variable: Rc<Variable>) {
-        if let Type::Function(_) = variable.type_ {
-            self.module.functions.insert(name, variable);
-        } else {
-            panic!("Invalid global")
-        }
-    }
-
-    pub fn find_global(&self, name: &String) -> Option<Rc<Variable>> {
-        self.module
-            .functions
-            .get(name)
-            .or_else(|| self.module.imported_func.get(name))
-            .map(Rc::clone)
     }
 
     /// Will create the variable in the current function.
@@ -215,7 +113,7 @@ impl MIRBuilder {
             .insert_var(Rc::clone(&self.tmp_const), Rc::clone(&var));
 
         let init_fn = self
-            .find_global(&format!("{}-internal-init", &class.name))
+            .find_function_var(&format!("{}-internal-init", &class.name))
             .unwrap();
         let init_call = Expression::Call {
             callee: Box::new(Expression::VarGet(init_fn)),
@@ -223,7 +121,7 @@ impl MIRBuilder {
         };
         self.insert_at_ptr(init_call);
 
-        let user_init = self.find_global(&format!("{}-init", &class.name));
+        let user_init = self.find_function_var(&format!("{}-init", &class.name));
         if let Some(user_init) = user_init {
             let init_call = Expression::Call {
                 callee: Box::new(Expression::VarGet(user_init)),
@@ -248,10 +146,6 @@ impl MIRBuilder {
             .collect();
 
         Expression::Phi(filtered_nodes)
-    }
-
-    pub fn build_literal(&self, literal: Literal) -> Expression {
-        Expression::Literal(literal)
     }
 
     pub fn build_struct_get(
@@ -345,6 +239,34 @@ impl MIRBuilder {
         })
     }
 
+    /// Takes the name of a function and returns the name it should have as part of its definition.
+    /// This name has the module path appended to the front, to prevent naming collisions
+    /// inside IR.
+    /// The only exception to this is 'main', as it may only appear once.
+    pub fn get_function_name(&mut self, func_name: &Rc<String>) -> String {
+        if func_name.as_ref() != "main" {
+            format!("{}:{}", module_path_to_string(&self.module.path), func_name)
+        } else {
+            func_name.to_string()
+        }
+    }
+
+    pub fn find_function(&self, name: &String) -> Option<MutRc<Function>> {
+        self.module
+            .functions
+            .get(name)
+            .or_else(|| self.imports.functions.get(name))
+            .map(|f| MIRGenerator::var_to_function(f))
+    }
+
+    pub fn find_function_var(&self, name: &String) -> Option<Rc<Variable>> {
+        self.module
+            .functions
+            .get(name)
+            .or_else(|| self.imports.functions.get(name))
+            .map(Rc::clone)
+    }
+
     pub fn find_class(&self, name: &String) -> Option<MutRc<Class>> {
         Some(Rc::clone(
             self.module
@@ -354,26 +276,18 @@ impl MIRBuilder {
         ))
     }
 
-    pub fn find_function(&self, name: &String) -> Option<MutRc<Function>> {
-        Some(Rc::clone(
-            self.module
-                .functions
-                .get(name)
-                .or_else(|| self.module.imported_func.get(name))
-                .map(|f| {
-                    if let Type::Function(f) = &f.type_ {
-                        f
-                    } else {
-                        panic!("Not a function!")
-                    }
-                })?,
-        ))
+    pub fn find_class_or_proto(&self, name: &String) -> Option<Either<MutRc<Class>, MutRc<ClassPrototype>>> {
+        self.find_class(name).map(Left).or_else(|| self.prototypes.classes.get(name).cloned().map(Right))
     }
 
     pub fn find_interface(&self, name: &String) -> Option<MutRc<Interface>> {
         Some(Rc::clone(
             self.module.interfaces.get(name).or_else(|| self.imports.interfaces.get(name))?
         ))
+    }
+
+    pub fn find_iface_or_proto(&self, name: &String) -> Option<Either<MutRc<Interface>, MutRc<InterfacePrototype>>> {
+        self.find_interface(name).map(Left).or_else(|| self.prototypes.interfaces.get(name).cloned().map(Right))
     }
 
     pub fn set_pointer(&mut self, function: MutRc<Function>, block: Rc<String>) {
@@ -403,13 +317,17 @@ impl MIRBuilder {
         self.type_aliases.remove(&self.this_const);
     }
 
-    /// Will turn the passed in type into a concrete type, should it still be a generic one.
-    pub fn translate_generic(&mut self, ty: &Type) -> Type {
-        if let Type::Generic(name) = ty {
-            self.find_type(self.type_aliases.get(name).unwrap())
-                .unwrap()
-        } else {
-            ty.clone()
+    pub fn set_generic_types(&mut self, types: &Vec<Token>) {
+        self.generic_types.clear();
+        for ty in types.iter() {
+            self.generic_types.insert(Rc::clone(&ty.lexeme));
+        }
+    }
+
+    pub fn set_generic_types_rc(&mut self, types: &Vec<Rc<String>>) {
+        self.generic_types.clear();
+        for ty in types.iter() {
+            self.generic_types.insert(Rc::clone(ty));
         }
     }
 
@@ -443,7 +361,10 @@ impl MIRBuilder {
             position: None,
             module,
             imports: Imports::default(),
+            prototypes: Prototypes::default(),
+            used_names: HashSet::with_capacity(3),
             type_aliases: HashMap::new(),
+            generic_types: HashSet::with_capacity(3),
             tmp_const: Rc::new("tmp".to_string()),
             this_const: Rc::new("This".to_string()),
         }
@@ -457,6 +378,20 @@ pub struct Pointer {
 
 #[derive(Default)]
 pub struct Imports {
-    classes: HashMap<Rc<String>, MutRc<Class>>,
-    interfaces: HashMap<Rc<String>, MutRc<Interface>>,
+    pub classes: HashMap<Rc<String>, MutRc<Class>>,
+    pub interfaces: HashMap<Rc<String>, MutRc<Interface>>,
+    pub functions: HashMap<Rc<String>, Rc<Variable>>,
+}
+
+/// A list of all prototypes.
+/// Prototypes are things with generic parameters, that are
+/// turned into a concrete implementation when used with
+/// generic arguments.
+/// Note that the prototypes in the builder also include imported
+/// prototypes, since they do not end up in the final module either way.
+#[derive(Default)]
+pub struct Prototypes {
+    pub classes: HashMap<Rc<String>, MutRc<ClassPrototype>>,
+    pub interfaces: HashMap<Rc<String>, MutRc<InterfacePrototype>>,
+    pub functions: HashMap<Rc<String>, MutRc<FunctionPrototype>>,
 }

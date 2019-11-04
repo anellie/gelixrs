@@ -1,19 +1,20 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/24/19 4:08 PM.
+ * Last modified on 11/4/19 8:03 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use either::Either::{Left, Right};
 use indexmap::IndexMap;
 
 use crate::ast::declaration::Class;
 use crate::ast::module::Module;
 use crate::lexer::token::Token;
 use crate::mir::generator::{MIRGenerator, Res};
-use crate::mir::nodes::{ClassMember, Variable};
+use crate::mir::nodes::ClassMember;
 
 /// This pass fills all classes with their members
 /// and creates their internal init function.
@@ -25,16 +26,26 @@ pub fn fill_class_pass(gen: &mut MIRGenerator, list: &mut Module) -> Res<()> {
 }
 
 fn fill_class(gen: &mut MIRGenerator, class: &mut Class) -> Res<()> {
-    let mut fields = IndexMap::with_capacity(class.variables.len());
+    let class_rc = gen.builder.find_class_or_proto(&class.name.lexeme).unwrap();
 
-    build_class(gen, class, &mut fields)?;
+    match class_rc {
+        Left(class_rc) => {
+            let mut class_mir = class_rc.borrow_mut();
+            build_class(gen, class, &mut class_mir.members)?;
+            check_duplicate(gen, &class.name, &class_mir.members, &class_mir.methods)
+        },
 
-    let class_rc = gen.builder.find_class(&class.name.lexeme).unwrap();
-    let mut class_def = class_rc.borrow_mut();
-    check_duplicate(gen, &class.name, &fields, &class_def.methods)?;
+        Right(proto) => {
+            let mut proto = proto.borrow_mut();
+            gen.builder.set_generic_types_rc(&proto.generic_args);
 
-    class_def.members = fields;
-    Ok(())
+            build_class(gen, class, &mut proto.members)?;
+            check_duplicate(gen, &class.name, &proto.members, &proto.methods)?;
+
+            gen.builder.generic_types.clear();
+            Ok(())
+        },
+    }
 }
 
 /// This function will fill the class with its members while also generating the init method.
@@ -43,15 +54,14 @@ fn build_class(
     class: &mut Class,
     fields: &mut IndexMap<Rc<String>, Rc<ClassMember>>,
 ) -> Res<()> {
-    let function_rc = gen
+    let init_func_rc = gen
         .builder
         .find_function(&format!("{}-internal-init", &class.name.lexeme))
         .unwrap();
-    let mut function = function_rc.borrow_mut();
-    let class_var = Rc::clone(&function.parameters[0]);
-    let entry = function.append_block("entry");
-    gen.builder.set_pointer(Rc::clone(&function_rc), entry);
-    drop(function);
+    let mut init_func = init_func_rc.borrow_mut();
+    let class_parameter = Rc::clone(&init_func.parameters[0]);
+    gen.builder.set_pointer(Rc::clone(&init_func_rc), init_func.append_block("entry"));
+    drop(init_func);
 
     let offset = fields.len();
     for (i, field) in class.variables.drain(..).enumerate() {
@@ -73,7 +83,7 @@ fn build_class(
         }
 
         gen.builder.insert_at_ptr(gen.builder.build_struct_set(
-            gen.builder.build_load(Rc::clone(&class_var)),
+            gen.builder.build_load(Rc::clone(&class_parameter)),
             member,
             value,
         ));
@@ -82,11 +92,11 @@ fn build_class(
     Ok(())
 }
 
-fn check_duplicate(
+fn check_duplicate<T>(
     gen: &mut MIRGenerator,
     tok: &Token,
     members: &IndexMap<Rc<String>, Rc<ClassMember>>,
-    methods: &HashMap<Rc<String>, Rc<Variable>>,
+    methods: &HashMap<Rc<String>, T>,
 ) -> Res<()> {
     for (mem_name, _) in members.iter() {
         if methods.contains_key(mem_name) {
