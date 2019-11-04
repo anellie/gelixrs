@@ -1,14 +1,15 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/4/19 8:03 PM.
+ * Last modified on 11/4/19 11:02 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::fmt::{Display, Error, Formatter};
 use std::hash::{Hash, Hasher};
+use std::rc::Rc;
 
-use crate::mir::nodes::{Class, Function, Interface};
 use crate::mir::MutRc;
+use crate::mir::nodes::{Class, Function, Interface};
 
 /// All types in Gelix.
 /// For all types that can have generic parameters, these parameters
@@ -96,15 +97,15 @@ impl PartialEq for Type {
         // TODO: Is there really no other way than whatever the heck this is?
         match self {
             Type::Function(f) => {
-                if let Type::Function(o) = o { f == o } else { false }
+                if let Type::Function(o) = o { Rc::ptr_eq(f, o) } else { false }
             }
 
             Type::Class(c) => {
-                if let Type::Class(o) = o { c == o } else { false }
+                if let Type::Class(o) = o { Rc::ptr_eq(c, o) } else { false }
             }
 
             Type::Interface(i) => {
-                if let Type::Interface(o) = o { i == o } else { false }
+                if let Type::Interface(o) = o { Rc::ptr_eq(i, o) } else { false }
             }
 
             Type::Generic(g) => {

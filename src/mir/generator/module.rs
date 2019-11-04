@@ -1,21 +1,21 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/4/19 9:44 PM.
+ * Last modified on 11/4/19 11:02 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::rc::Rc;
 
 use crate::ast::module::Module;
+use crate::mir::generator::{MIRError, MIRGenerator, Res};
 use crate::mir::generator::passes::declare_class::declare_class_pass;
 use crate::mir::generator::passes::declare_func::declare_func_pass;
 use crate::mir::generator::passes::declare_interface::declare_interface_pass;
 use crate::mir::generator::passes::fill_class::fill_class_pass;
-use crate::mir::generator::passes::iface_impl::iface_impl_pass;
+//use crate::mir::generator::passes::iface_impl::iface_impl_pass;
 use crate::mir::generator::passes::import::{
     class_imports, ensure_no_imports, function_imports, interface_imports,
 };
-use crate::mir::generator::{MIRError, MIRGenerator, Res};
 use crate::mir::MIRModule;
 
 /// A set of [MIRGenerator]s.
@@ -31,7 +31,7 @@ impl MIRModuleGenerator {
         class_imports(&mut self.modules)?;
         self.run_for_all(&declare_interface_pass)?;
         interface_imports(&mut self.modules)?;
-        self.run_for_all(&iface_impl_pass)?;
+        //self.run_for_all(&iface_impl_pass)?;
         self.run_for_all(&declare_func_pass)?;
         function_imports(&mut self.modules)?;
         ensure_no_imports(&mut self.modules)?;

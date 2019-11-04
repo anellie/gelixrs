@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/4/19 9:44 PM.
+ * Last modified on 11/4/19 11:02 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -8,10 +8,10 @@ use std::rc::Rc;
 
 use either::Either::{Left, Right};
 
+use crate::module_path_to_string;
 use crate::ast::module::{Import, Module};
 use crate::mir::generator::{MIRError, MIRGenerator, Res};
 use crate::mir::ToMIRResult;
-use crate::{module_path_to_string};
 
 type ModulesRef<'t> = &'t mut Vec<(Module, MIRGenerator)>;
 
@@ -61,10 +61,8 @@ mod import_macro {
                         }
 
                         _ => {
-                            gen.builder.try_reserve_name(&import.symbol)?;
-                            let class = mod_gen.builder.$getter(&import.symbol.lexeme);
-
-                            match class {
+                            let thing = mod_gen.builder.$getter(&import.symbol.lexeme);
+                            let success = match thing {
                                 Some(Left(thing)) => gen
                                     .builder
                                     .imports
@@ -78,7 +76,12 @@ mod import_macro {
                                     .insert(Rc::clone(&import.symbol.lexeme), proto)
                                     .is_none(),
                                 _ => false,
+                            };
+
+                            if success {
+                               gen.builder.try_reserve_name(&import.symbol)?
                             }
+                            success
                         }
                     })
                 })
@@ -96,6 +99,10 @@ pub fn ensure_no_imports(modules: &mut Vec<(Module, MIRGenerator)>) -> Result<()
     let mut errors = Vec::new();
     for (module, gen) in modules.iter() {
         for import in &module.imports {
+            if import.symbol.lexeme.as_ref() == "+" {
+                continue
+            }
+
             errors.push(gen.anon_err(
                 None,
                 &format!(
@@ -128,8 +135,8 @@ fn drain_mod_imports(
     // To allow for mutating it while accessing other modules immutably,
     // the module is temporarily removed.
     // This is done using swap_remove to prevent any array shifting or allocations.
-    for i in 0..=modules.len() {
-        let i = if i == modules.len() { 0 } else { i };
+    for i in 0..modules.len() {
+        let i = if i == (modules.len() - 1) { 0 } else { i };
         let (mut module, mut gen) = modules.swap_remove(i);
 
         // This can be replaced with drain_filter once stabilized:

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/24/19 3:56 PM.
+ * Last modified on 11/4/19 9:49 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,7 +11,7 @@ pub(super) mod declare_class;
 pub(super) mod declare_func;
 pub(super) mod declare_interface;
 pub(super) mod fill_class;
-pub(super) mod iface_impl;
+//pub(super) mod iface_impl;
 pub(super) mod import;
 
 thread_local! {

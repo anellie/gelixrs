@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/12/19 5:36 PM.
+ * Last modified on 11/4/19 10:20 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -67,13 +67,13 @@ fn main() -> Result<(), &'static str> {
         Err("Parser encountered errors. Exiting.")
     })?;
 
+    if !args.no_prelude {
+        gelixrs::auto_import_prelude(&mut code)
+    }
+
     if args.parse_only {
         println!("{:#?}", code);
         return Ok(());
-    }
-
-    if !args.no_prelude {
-        gelixrs::auto_import_prelude(&mut code)
     }
 
     let mir = gelixrs::compile_mir(code).or_else(|errors| {

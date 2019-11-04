@@ -1,3 +1,5 @@
+/*
+
 /// An interface that allows overriding the behavior of the '+' operator on a type.
 /// Implementing this interface will cause the following translation:
 /// (a + b) -> (a.add(b))
@@ -79,3 +81,5 @@ interface Equal<O> {
 interface Index<I, T> {
     func index(index: I) -> T
 }
+
+*/

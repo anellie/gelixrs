@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/4/19 8:30 PM.
+ * Last modified on 11/4/19 11:02 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -15,6 +15,7 @@ use crate::ast::declaration::{IFaceImpl, Interface, InterfaceFunc, Type};
 use crate::ast::module::Import;
 use crate::Error;
 
+use super::Parser;
 use super::super::{
     ast::{
         declaration::{Class, Enum, FuncSignature, Function, FunctionArg, Variable},
@@ -22,9 +23,8 @@ use super::super::{
         literal::Literal,
         module::Module,
     },
-    lexer::token::{TType, Token},
+    lexer::token::{Token, TType},
 };
-use super::Parser;
 
 // All expressions that require no semicolon when used as a higher expression.
 static NO_SEMICOLON: [TType; 3] = [TType::If, TType::LeftBrace, TType::When];
@@ -177,8 +177,8 @@ impl Parser {
             self.error_at_current("Expected path after 'import'.")?
         }
 
-        let mut consumed_slash = false;
         let mut symbol = self.advance();
+        let mut consumed_slash = self.match_token(TType::Slash);
         while self.check(TType::Identifier) || self.check(TType::Plus) {
             path.push(std::mem::replace(&mut symbol, self.advance()).lexeme);
             consumed_slash = self.match_token(TType::Slash);
