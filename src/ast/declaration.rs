@@ -8,8 +8,8 @@ use std::fmt;
 
 use crate::option::Flatten;
 
-use super::expression::Expression;
 use super::super::lexer::token::Token;
+use super::expression::Expression;
 
 /// A class definition.
 #[derive(Debug)]

@@ -12,8 +12,8 @@ use std::rc::Rc;
 use indexmap::IndexMap;
 
 use crate::ast::expression::Expression as ASTExpr;
-use crate::mir::MutRc;
 use crate::mir::nodes::{Expression, Type};
+use crate::mir::MutRc;
 
 /// A full class including all members and methods.
 /// Members are ordered, as the class is represented as a struct in IR;
@@ -40,7 +40,13 @@ impl Display for Class {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         writeln!(f, "class {} {{", self.name)?;
         for (name, member) in self.members.iter() {
-            writeln!(f, "    {} {}: {}", if member.mutable { "var" } else { "val" }, name, member.type_)?;
+            writeln!(
+                f,
+                "    {} {}: {}",
+                if member.mutable { "var" } else { "val" },
+                name,
+                member.type_
+            )?;
         }
         writeln!(f, "}}")
     }
@@ -61,7 +67,6 @@ pub struct ClassMember {
     /// expressions. This is needed due to the IR only using indices for members
     pub index: u32,
 }
-
 
 /// An interface consisting of methods a type can implement.
 #[derive(Debug, Default)]
@@ -92,7 +97,6 @@ pub struct IFaceMethod {
     pub default_impl: Option<ASTExpr>,
 }
 
-
 /// A function.
 #[derive(Debug, Default)]
 pub struct Function {
@@ -118,10 +122,7 @@ impl Function {
             name = format!("{}-{}", name, self.blocks.len());
         }
         let rc = Rc::new(name);
-        self.blocks.insert(
-            Rc::clone(&rc),
-            Vec::with_capacity(5),
-        );
+        self.blocks.insert(Rc::clone(&rc), Vec::with_capacity(5));
         rc
     }
 
@@ -153,7 +154,9 @@ impl Display for Function {
         write!(f, "func {}(", self.name)?;
 
         let mut params = self.parameters.iter();
-        params.next().map(|param| write!(f, "{}: {}", param.name, param.type_));
+        params
+            .next()
+            .map(|param| write!(f, "{}: {}", param.name, param.type_));
         for param in params {
             write!(f, ", {}: {}", param.name, param.type_)?;
         }
@@ -171,7 +174,6 @@ impl Display for Function {
 
 /// A block inside a function.
 pub type Block = Vec<Expression>;
-
 
 /// A variable. Used for function variables as well as for referencing functions.
 #[derive(Debug, Clone)]

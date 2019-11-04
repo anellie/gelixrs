@@ -11,14 +11,23 @@ use std::{
     rc::Rc,
 };
 
-use inkwell::{AddressSpace, basic_block::BasicBlock, builder::Builder, context::Context, FloatPredicate, IntPredicate, module::Module, passes::PassManager, types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType, StructType}, values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue}};
+use inkwell::{
+    basic_block::BasicBlock,
+    builder::Builder,
+    context::Context,
+    module::Module,
+    passes::PassManager,
+    types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType, StructType},
+    values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
+    AddressSpace, FloatPredicate, IntPredicate,
+};
 
 use super::{
     ast::literal::Literal,
     lexer::token::TType,
     mir::{
-        MIRModule, MutRc,
         nodes::{Block, Class, Expression, Flow, Function, Type, Variable},
+        MIRModule, MutRc,
     },
 };
 
@@ -85,7 +94,7 @@ impl IRGenerator {
 
             Type::Class(class) => self.build_class(Rc::clone(class)).as_basic_type_enum(),
 
-            _ => panic!("Unknown type to build")
+            _ => panic!("Unknown type to build"),
         };
         self.types.insert(ty.clone(), ir_ty);
         ir_ty
@@ -110,7 +119,9 @@ impl IRGenerator {
     fn declare_function(&mut self, func: &Rc<Variable>) {
         let func_ty = func.type_.as_function();
         let fn_ty = self.get_fn_type(&func_ty.borrow());
-        let func_val = self.module.add_function(&func_ty.borrow().name, fn_ty, None);
+        let func_val = self
+            .module
+            .add_function(&func_ty.borrow().name, fn_ty, None);
         self.functions.insert(PtrEqRc::new(&func), func_val);
     }
 
@@ -195,7 +206,10 @@ impl IRGenerator {
 
     fn get_variable(&self, var: &Rc<Variable>) -> PointerValue {
         let wrap = PtrEqRc::new(var);
-        self.variables.get(&wrap).cloned().unwrap_or_else(|| self.functions[&wrap].as_global_value().as_pointer_value())
+        self.variables
+            .get(&wrap)
+            .cloned()
+            .unwrap_or_else(|| self.functions[&wrap].as_global_value().as_pointer_value())
     }
 
     fn generate_expression(&mut self, expression: &Expression) -> BasicValueEnum {
@@ -217,9 +231,14 @@ impl IRGenerator {
                             TType::Minus => self.builder.build_int_sub(left, right, "sub"),
                             TType::Star => self.builder.build_int_mul(left, right, "mul"),
                             TType::Slash => self.builder.build_int_signed_div(left, right, "div"),
-                            _ => self.builder.build_int_compare(get_predicate(*operator), left, right, "cmp")
+                            _ => self.builder.build_int_compare(
+                                get_predicate(*operator),
+                                left,
+                                right,
+                                "cmp",
+                            ),
                         })
-                    },
+                    }
 
                     BasicTypeEnum::FloatType(_) => {
                         let left = *left.as_float_value();
@@ -229,7 +248,14 @@ impl IRGenerator {
                             TType::Minus => self.builder.build_float_sub(left, right, "sub"),
                             TType::Star => self.builder.build_float_mul(left, right, "mul"),
                             TType::Slash => self.builder.build_float_div(left, right, "div"),
-                            _ => return BasicValueEnum::IntValue(self.builder.build_float_compare(get_float_predicate(*operator), left, right, "cmp"))
+                            _ => {
+                                return BasicValueEnum::IntValue(self.builder.build_float_compare(
+                                    get_float_predicate(*operator),
+                                    left,
+                                    right,
+                                    "cmp",
+                                ))
+                            }
                         })
                     }
 
@@ -348,7 +374,10 @@ impl IRGenerator {
 
             Expression::StructGet { object, index } => {
                 let struc = self.generate_expression(object);
-                let ptr = unsafe { self.builder.build_struct_gep(struc.into_pointer_value(), *index, "classgep") };
+                let ptr = unsafe {
+                    self.builder
+                        .build_struct_gep(struc.into_pointer_value(), *index, "classgep")
+                };
                 self.load_ptr(ptr)
             }
 
@@ -358,7 +387,10 @@ impl IRGenerator {
                 value,
             } => {
                 let struc = self.generate_expression(object);
-                let ptr = unsafe { self.builder.build_struct_gep(struc.into_pointer_value(), *index, "classgep") };
+                let ptr = unsafe {
+                    self.builder
+                        .build_struct_gep(struc.into_pointer_value(), *index, "classgep")
+                };
                 let value = self.generate_expression(value);
                 let value = self.unwrap_value_ptr(value);
                 self.builder.build_store(ptr, value);
@@ -482,7 +514,10 @@ impl IRGenerator {
 
     /// Converts a MIRType to the corresponding LLVM type. Structs are returned as StructType.
     fn to_ir_type_no_ptr(&mut self, mir: &Type) -> BasicTypeEnum {
-        self.types.get(mir).copied().unwrap_or_else(|| self.build_type(mir))
+        self.types
+            .get(mir)
+            .copied()
+            .unwrap_or_else(|| self.build_type(mir))
     }
 
     /// Generates the LLVM FunctionType of a MIR function.

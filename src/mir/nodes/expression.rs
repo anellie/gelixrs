@@ -1,4 +1,3 @@
-
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
  * Last modified on 11/4/19 8:03 PM.
@@ -39,10 +38,7 @@ pub enum Expression {
     Phi(Vec<(Expression, Rc<String>)>),
 
     /// Gets a member of a class struct.
-    StructGet {
-        object: Box<Expression>,
-        index: u32,
-    },
+    StructGet { object: Box<Expression>, index: u32 },
 
     /// Sets a member of a class struct.
     StructSet {
@@ -96,9 +92,7 @@ impl Expression {
 
             Expression::Phi(branches) => branches.first().unwrap().0.get_type(),
 
-            Expression::StructGet { object, index } => {
-                Self::type_from_struct_get(object, *index)
-            }
+            Expression::StructGet { object, index } => Self::type_from_struct_get(object, *index),
 
             Expression::StructSet { object, index, .. } => {
                 Self::type_from_struct_get(object, *index)
@@ -152,7 +146,11 @@ impl Expression {
 impl Display for Expression {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         match self {
-            Expression::Binary { left, operator, right } => write!(f, "({}) {:?} ({})", left, operator, right),
+            Expression::Binary {
+                left,
+                operator,
+                right,
+            } => write!(f, "({}) {:?} ({})", left, operator, right),
 
             Expression::Call { callee, arguments } => {
                 write!(f, "call ({}) with ", callee)?;
@@ -160,7 +158,7 @@ impl Display for Expression {
                     write!(f, "({})", arg)?;
                 }
                 Ok(())
-            },
+            }
 
             Expression::Flow(flow) => write!(f, "{}", flow),
 
@@ -170,11 +168,15 @@ impl Display for Expression {
                     write!(f, "{}: ({}), ", block, expr)?;
                 }
                 write!(f, "}}")
-            },
+            }
 
             Expression::StructGet { object, index } => write!(f, "get {} from ({})", index, object),
 
-            Expression::StructSet { object, index, value } => write!(f, "set {} of ({}) to ({})", index, object, value),
+            Expression::StructSet {
+                object,
+                index,
+                value,
+            } => write!(f, "set {} of ({}) to ({})", index, object, value),
 
             Expression::Literal(literal) => write!(f, "{}", literal),
 
@@ -223,7 +225,11 @@ impl Display for Flow {
 
             Flow::Jump(goal) => write!(f, "jump {}", goal),
 
-            Flow::Branch { condition, then_b, else_b } => write!(f, "jump {} if ({}) else {}", then_b, condition, else_b),
+            Flow::Branch {
+                condition,
+                then_b,
+                else_b,
+            } => write!(f, "jump {} if ({}) else {}", then_b, condition, else_b),
 
             Flow::Switch { cases, default } => {
                 write!(f, "switch {{ ")?;
@@ -232,7 +238,7 @@ impl Display for Flow {
                 }
                 write!(f, "else {}", default)?;
                 write!(f, "}}")
-            },
+            }
         }
     }
 }

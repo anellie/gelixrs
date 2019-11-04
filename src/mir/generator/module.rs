@@ -7,7 +7,6 @@
 use std::rc::Rc;
 
 use crate::ast::module::Module;
-use crate::mir::generator::{MIRError, MIRGenerator, Res};
 use crate::mir::generator::passes::declare_class::declare_class_pass;
 use crate::mir::generator::passes::declare_func::declare_func_pass;
 use crate::mir::generator::passes::declare_interface::declare_interface_pass;
@@ -16,6 +15,7 @@ use crate::mir::generator::passes::iface_impl::iface_impl_pass;
 use crate::mir::generator::passes::import::{
     class_imports, ensure_no_imports, function_imports, interface_imports,
 };
+use crate::mir::generator::{MIRError, MIRGenerator, Res};
 use crate::mir::MIRModule;
 
 /// A set of [MIRGenerator]s.

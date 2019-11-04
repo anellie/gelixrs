@@ -8,11 +8,11 @@ use std::rc::Rc;
 
 use indexmap::IndexMap;
 
-use crate::ast::declaration::{Interface as ASTIFace, Type as ASTType};
+use crate::ast::declaration::Interface as ASTIFace;
 use crate::ast::module::Module;
-use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::generator::passes::NONE_CONST;
-use crate::mir::nodes::{IFaceMethod, Interface, InterfacePrototype, Type};
+use crate::mir::generator::{MIRGenerator, Res};
+use crate::mir::nodes::{IFaceMethod, Interface, InterfacePrototype};
 use crate::mir::ToMIRResult;
 
 /// This pass declares all interfaces.
@@ -27,7 +27,10 @@ pub fn declare_interface_pass(gen: &mut MIRGenerator, module: &mut Module) -> Re
 fn create_interface(gen: &mut MIRGenerator, interface: &mut ASTIFace) -> Res<()> {
     gen.builder.try_reserve_name(&interface.name)?;
     gen.builder.add_this_alias(&interface.name);
-    interface.generics.as_ref().map(|g| gen.builder.set_generic_types(&g));
+    interface
+        .generics
+        .as_ref()
+        .map(|g| gen.builder.set_generic_types(&g));
 
     let mut methods = IndexMap::with_capacity(interface.methods.len());
     for method in interface.methods.iter_mut() {
@@ -39,10 +42,11 @@ fn create_interface(gen: &mut MIRGenerator, interface: &mut ASTIFace) -> Res<()>
 
         let mut parameters = Vec::with_capacity(method.sig.parameters.len());
         for param in method.sig.parameters.iter() {
-            let ty = gen
-                .builder
-                .find_type(&param.type_)
-                .or_err(gen, &param.name, "Unknown parameter type")?;
+            let ty = gen.builder.find_type(&param.type_).or_err(
+                gen,
+                &param.name,
+                "Unknown parameter type",
+            )?;
             parameters.push(ty);
         }
 

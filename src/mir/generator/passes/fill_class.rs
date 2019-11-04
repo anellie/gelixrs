@@ -33,7 +33,7 @@ fn fill_class(gen: &mut MIRGenerator, class: &mut Class) -> Res<()> {
             let mut class_mir = class_rc.borrow_mut();
             build_class(gen, class, &mut class_mir.members)?;
             check_duplicate(gen, &class.name, &class_mir.members, &class_mir.methods)
-        },
+        }
 
         Right(proto) => {
             let mut proto = proto.borrow_mut();
@@ -44,7 +44,7 @@ fn fill_class(gen: &mut MIRGenerator, class: &mut Class) -> Res<()> {
 
             gen.builder.generic_types.clear();
             Ok(())
-        },
+        }
     }
 }
 
@@ -60,7 +60,8 @@ fn build_class(
         .unwrap();
     let mut init_func = init_func_rc.borrow_mut();
     let class_parameter = Rc::clone(&init_func.parameters[0]);
-    gen.builder.set_pointer(Rc::clone(&init_func_rc), init_func.append_block("entry"));
+    gen.builder
+        .set_pointer(Rc::clone(&init_func_rc), init_func.append_block("entry"));
     drop(init_func);
 
     let offset = fields.len();

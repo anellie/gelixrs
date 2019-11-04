@@ -15,7 +15,6 @@ use crate::ast::declaration::{IFaceImpl, Interface, InterfaceFunc, Type};
 use crate::ast::module::Import;
 use crate::Error;
 
-use super::Parser;
 use super::super::{
     ast::{
         declaration::{Class, Enum, FuncSignature, Function, FunctionArg, Variable},
@@ -23,8 +22,9 @@ use super::super::{
         literal::Literal,
         module::Module,
     },
-    lexer::token::{Token, TType},
+    lexer::token::{TType, Token},
 };
+use super::Parser;
 
 // All expressions that require no semicolon when used as a higher expression.
 static NO_SEMICOLON: [TType; 3] = [TType::If, TType::LeftBrace, TType::When];
@@ -107,7 +107,7 @@ impl Parser {
             name,
             return_type,
             parameters,
-            generics
+            generics,
         })
     }
 
@@ -468,7 +468,7 @@ impl Parser {
                 name: Token::generic_identifier("closure".to_string()),
                 return_type,
                 parameters,
-                generics: None
+                generics: None,
             },
             body,
         }))))

@@ -11,9 +11,9 @@ use either::Either::{Left, Right};
 
 use crate::ast::declaration::FuncSignature;
 use crate::ast::module::Module;
-use crate::mir::{MutRc, mutrc_new, ToMIRResult};
 use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::nodes::{Function, FunctionPrototype, Type, Variable};
+use crate::mir::{mutrc_new, MutRc, ToMIRResult};
 
 /// This pass defines all functions in MIR.
 pub fn declare_func_pass(gen: &mut MIRGenerator, module: &mut Module) -> Res<()> {
@@ -33,13 +33,22 @@ pub(super) fn create_function(
     func_sig: &FuncSignature,
 ) -> Res<Either<Rc<Variable>, MutRc<FunctionPrototype>>> {
     gen.builder.try_reserve_name(&func_sig.name)?;
-    func_sig.generics.as_ref().map(|g| gen.builder.set_generic_types(&g));
+    func_sig
+        .generics
+        .as_ref()
+        .map(|g| gen.builder.set_generic_types(&g));
 
     let name = gen.builder.get_function_name(&func_sig.name.lexeme);
     let ret_type = func_sig
         .return_type
         .as_ref()
-        .map(|ty| gen.builder.find_type(ty).or_type_err(gen, &func_sig.return_type, "Unknown function return type"))
+        .map(|ty| {
+            gen.builder.find_type(ty).or_type_err(
+                gen,
+                &func_sig.return_type,
+                "Unknown function return type",
+            )
+        })
         .unwrap_or(Ok(Type::None))?;
 
     let mut parameters = Vec::with_capacity(func_sig.parameters.len());
@@ -64,7 +73,10 @@ pub(super) fn create_function(
             ..Default::default()
         });
 
-        gen.builder.prototypes.functions.insert(Rc::clone(&func_sig.name.lexeme), Rc::clone(&function));
+        gen.builder
+            .prototypes
+            .functions
+            .insert(Rc::clone(&func_sig.name.lexeme), Rc::clone(&function));
         Ok(Right(function))
     } else {
         let function = mutrc_new(Function {
@@ -80,7 +92,10 @@ pub(super) fn create_function(
             mutable: false,
         });
 
-        gen.builder.module.functions.insert(Rc::clone(&func_sig.name.lexeme), Rc::clone(&global));
+        gen.builder
+            .module
+            .functions
+            .insert(Rc::clone(&func_sig.name.lexeme), Rc::clone(&global));
         Ok(Left(global))
     }
 }

@@ -25,7 +25,7 @@ pub fn iface_impl_pass(gen: &mut MIRGenerator, list: &mut Module) -> Res<()> {
 
 fn iface_impl(gen: &mut MIRGenerator, iface_impl: &mut IFaceImpl) -> Res<()> {
     gen.builder.add_this_alias(&iface_impl.class);
-    iface_impl.class_generics.as_ref().and_then(|g| gen.builder.set_generic_types(&g));
+    iface_impl.class_generics.as_ref().map(|g| gen.builder.set_generic_types(&g));
 
     let class = gen
         .builder

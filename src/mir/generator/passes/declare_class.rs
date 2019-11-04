@@ -9,8 +9,8 @@ use std::rc::Rc;
 use crate::ast::declaration::{Class as ASTClass, FuncSignature, FunctionArg};
 use crate::ast::module::Module;
 use crate::lexer::token::Token;
-use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::generator::passes::declare_func::create_function;
+use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::nodes::{Class, ClassPrototype};
 
 /// This pass declares all classes.

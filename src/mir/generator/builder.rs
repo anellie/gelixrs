@@ -8,16 +8,19 @@ use std::collections::{HashMap, HashSet};
 use std::mem::discriminant;
 use std::rc::Rc;
 
-use either::Either::{Left, Right};
 use either::Either;
+use either::Either::{Left, Right};
 
-use crate::{module_path_to_string, ModulePath};
 use crate::ast::Type as ASTType;
 use crate::error::Error;
-use crate::lexer::token::{Token, TType};
-use crate::mir::{MIRModule, MutRc};
+use crate::lexer::token::{TType, Token};
 use crate::mir::generator::{MIRError, MIRGenerator, Res};
-use crate::mir::nodes::{Class, ClassMember, ClassPrototype, Expression, Flow, FunctionPrototype, Interface, InterfacePrototype, Variable};
+use crate::mir::nodes::{
+    Class, ClassMember, ClassPrototype, Expression, Flow, FunctionPrototype, Interface,
+    InterfacePrototype, Variable,
+};
+use crate::mir::{MIRModule, MutRc};
+use crate::{module_path_to_string, ModulePath};
 
 use super::super::nodes::{Function, Type};
 
@@ -64,7 +67,12 @@ impl MIRBuilder {
             Ok(())
         } else {
             Err(MIRError {
-                error: Error::new(tok, tok, "MIRGenerator", format!("Name {} already defined in this module", name)),
+                error: Error::new(
+                    tok,
+                    tok,
+                    "MIRGenerator",
+                    format!("Name {} already defined in this module", name),
+                ),
                 module: self.module_path(),
             })
         }
@@ -77,12 +85,7 @@ impl MIRBuilder {
             .insert_var(Rc::clone(&variable.name), variable);
     }
 
-    pub fn build_binary(
-        &self,
-        left: Expression,
-        operator: TType,
-        right: Expression,
-    ) -> Expression {
+    pub fn build_binary(&self, left: Expression, operator: TType, right: Expression) -> Expression {
         Expression::Binary {
             left: Box::new(left),
             operator,
@@ -152,11 +155,7 @@ impl MIRBuilder {
         Expression::Phi(filtered_nodes)
     }
 
-    pub fn build_struct_get(
-        &self,
-        object: Expression,
-        field: Rc<ClassMember>,
-    ) -> Expression {
+    pub fn build_struct_get(&self, object: Expression, field: Rc<ClassMember>) -> Expression {
         Expression::StructGet {
             object: Box::new(object),
             index: field.index,
@@ -271,8 +270,13 @@ impl MIRBuilder {
             .map(Rc::clone)
     }
 
-    pub fn find_func_or_proto(&self, name: &String) -> Option<Either<Rc<Variable>, MutRc<FunctionPrototype>>> {
-        self.find_function_var(name).map(Left).or_else(|| self.prototypes.functions.get(name).cloned().map(Right))
+    pub fn find_func_or_proto(
+        &self,
+        name: &String,
+    ) -> Option<Either<Rc<Variable>, MutRc<FunctionPrototype>>> {
+        self.find_function_var(name)
+            .map(Left)
+            .or_else(|| self.prototypes.functions.get(name).cloned().map(Right))
     }
 
     pub fn find_class(&self, name: &String) -> Option<MutRc<Class>> {
@@ -284,18 +288,31 @@ impl MIRBuilder {
         ))
     }
 
-    pub fn find_class_or_proto(&self, name: &String) -> Option<Either<MutRc<Class>, MutRc<ClassPrototype>>> {
-        self.find_class(name).map(Left).or_else(|| self.prototypes.classes.get(name).cloned().map(Right))
+    pub fn find_class_or_proto(
+        &self,
+        name: &String,
+    ) -> Option<Either<MutRc<Class>, MutRc<ClassPrototype>>> {
+        self.find_class(name)
+            .map(Left)
+            .or_else(|| self.prototypes.classes.get(name).cloned().map(Right))
     }
 
     pub fn find_interface(&self, name: &String) -> Option<MutRc<Interface>> {
         Some(Rc::clone(
-            self.module.interfaces.get(name).or_else(|| self.imports.interfaces.get(name))?
+            self.module
+                .interfaces
+                .get(name)
+                .or_else(|| self.imports.interfaces.get(name))?,
         ))
     }
 
-    pub fn find_iface_or_proto(&self, name: &String) -> Option<Either<MutRc<Interface>, MutRc<InterfacePrototype>>> {
-        self.find_interface(name).map(Left).or_else(|| self.prototypes.interfaces.get(name).cloned().map(Right))
+    pub fn find_iface_or_proto(
+        &self,
+        name: &String,
+    ) -> Option<Either<MutRc<Interface>, MutRc<InterfacePrototype>>> {
+        self.find_interface(name)
+            .map(Left)
+            .or_else(|| self.prototypes.interfaces.get(name).cloned().map(Right))
     }
 
     pub fn set_pointer(&mut self, function: MutRc<Function>, block: Rc<String>) {

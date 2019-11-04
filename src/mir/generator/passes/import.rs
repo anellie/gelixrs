@@ -4,17 +4,14 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::collections::HashMap;
 use std::rc::Rc;
 
-use either::Either;
 use either::Either::{Left, Right};
 
-use crate::{module_path_to_string, ModulePath};
 use crate::ast::module::{Import, Module};
-use crate::mir::{MutRc, ToMIRResult};
 use crate::mir::generator::{MIRError, MIRGenerator, Res};
-use crate::mir::nodes::{Class, Interface, Variable};
+use crate::mir::ToMIRResult;
+use crate::{module_path_to_string};
 
 type ModulesRef<'t> = &'t mut Vec<(Module, MIRGenerator)>;
 
@@ -35,24 +32,54 @@ mod import_macro {
 
                     Ok(match &import.symbol.lexeme[..] {
                         "+" => {
-                            gen.builder.prototypes.$name.extend(mod_gen.builder.prototypes.$name.iter().map(|(a, b)| (a.clone(), b.clone())));
-                            gen.builder.imports.$name.extend(mod_gen.builder.module.$name.iter().map(|(a, b)| (a.clone(), b.clone())));
-                            for name in mod_gen.builder.prototypes.$name.keys().chain(mod_gen.builder.module.$name.keys()) {
+                            gen.builder.prototypes.$name.extend(
+                                mod_gen
+                                    .builder
+                                    .prototypes
+                                    .$name
+                                    .iter()
+                                    .map(|(a, b)| (a.clone(), b.clone())),
+                            );
+                            gen.builder.imports.$name.extend(
+                                mod_gen
+                                    .builder
+                                    .module
+                                    .$name
+                                    .iter()
+                                    .map(|(a, b)| (a.clone(), b.clone())),
+                            );
+                            for name in mod_gen
+                                .builder
+                                .prototypes
+                                .$name
+                                .keys()
+                                .chain(mod_gen.builder.module.$name.keys())
+                            {
                                 gen.builder.try_reserve_name_rc(name, &import.symbol)?
                             }
                             false
-                        },
+                        }
 
                         _ => {
                             gen.builder.try_reserve_name(&import.symbol)?;
                             let class = mod_gen.builder.$getter(&import.symbol.lexeme);
 
                             match class {
-                                Some(Left(thing)) => gen.builder.imports.$name.insert(Rc::clone(&import.symbol.lexeme), thing).is_none(),
-                                Some(Right(proto)) => gen.builder.prototypes.$name.insert(Rc::clone(&import.symbol.lexeme), proto).is_none(),
-                                _ => false
+                                Some(Left(thing)) => gen
+                                    .builder
+                                    .imports
+                                    .$name
+                                    .insert(Rc::clone(&import.symbol.lexeme), thing)
+                                    .is_none(),
+                                Some(Right(proto)) => gen
+                                    .builder
+                                    .prototypes
+                                    .$name
+                                    .insert(Rc::clone(&import.symbol.lexeme), proto)
+                                    .is_none(),
+                                _ => false,
                             }
-                        },
+                        }
                     })
                 })
             }
@@ -75,7 +102,7 @@ pub fn ensure_no_imports(modules: &mut Vec<(Module, MIRGenerator)>) -> Result<()
                     "Symbol '{}' not found in module {:?}",
                     import.symbol.lexeme,
                     module_path_to_string(&import.path)
-                )
+                ),
             ))
         }
     }
@@ -91,7 +118,11 @@ pub fn ensure_no_imports(modules: &mut Vec<(Module, MIRGenerator)>) -> Result<()
 /// If the filter returns Err, the function exits prematurely and returns the error.
 fn drain_mod_imports(
     modules: &mut Vec<(Module, MIRGenerator)>,
-    cond: &mut dyn FnMut(&mut Vec<(Module, MIRGenerator)>, &mut MIRGenerator, &mut Import) -> Res<bool>,
+    cond: &mut dyn FnMut(
+        &mut Vec<(Module, MIRGenerator)>,
+        &mut MIRGenerator,
+        &mut Import,
+    ) -> Res<bool>,
 ) -> Result<(), Vec<MIRError>> {
     // This piece of black magic iterates every module.
     // To allow for mutating it while accessing other modules immutably,

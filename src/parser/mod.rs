@@ -6,11 +6,11 @@
 
 use std::{iter::Peekable, mem};
 
-use crate::{Error, module_path_to_string, ModulePath};
+use crate::{module_path_to_string, Error, ModulePath};
 
 use super::lexer::{
+    token::{TType, Token},
     Lexer,
-    token::{Token, TType},
 };
 
 mod parsing;

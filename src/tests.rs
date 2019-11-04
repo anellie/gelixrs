@@ -51,13 +51,27 @@ fn run_all() -> Result<(), ()> {
     let iter = test_path.read_dir().expect("Test path is a file?");
     for file in iter.map(|f| f.unwrap().path()) {
         match file.read_dir() {
-            Ok(iter) => iter.for_each(|file| run_test(file.expect("Couldn't get file.").path(), &mut test_total, &mut test_failed)),
-            Err(_) => run_test(file, &mut test_total, &mut test_failed)
+            Ok(iter) => iter.for_each(|file| {
+                run_test(
+                    file.expect("Couldn't get file.").path(),
+                    &mut test_total,
+                    &mut test_failed,
+                )
+            }),
+            Err(_) => run_test(file, &mut test_total, &mut test_failed),
         }
     }
 
-    println!("\n\nResult: {} out of {} tests succeeded.\n\n", (test_total - test_failed), test_total);
-    if test_failed == 0 { Ok(()) } else { Err(()) }
+    println!(
+        "\n\nResult: {} out of {} tests succeeded.\n\n",
+        (test_total - test_failed),
+        test_total
+    );
+    if test_failed == 0 {
+        Ok(())
+    } else {
+        Err(())
+    }
 }
 
 fn run_test(path: PathBuf, total: &mut usize, failed: &mut usize) {
@@ -126,5 +140,14 @@ fn get_expected_result(mut path: PathBuf) -> Result<String, Failure> {
 
 fn relative_path(path: &PathBuf) -> String {
     // Unwrap it all!
-    format!("{}/{}", path.parent().unwrap().file_name().unwrap().to_str().unwrap(), path.file_name().unwrap().to_str().unwrap())
+    format!(
+        "{}/{}",
+        path.parent()
+            .unwrap()
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap(),
+        path.file_name().unwrap().to_str().unwrap()
+    )
 }

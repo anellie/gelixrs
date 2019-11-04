@@ -12,15 +12,17 @@ use either::Either;
 
 use builder::MIRBuilder;
 
-use crate::{Error, ModulePath};
 use crate::ast::declaration::Function as ASTFunc;
 use crate::ast::expression::Expression as ASTExpr;
 use crate::ast::literal::Literal;
 use crate::ast::module::Module;
-use crate::lexer::token::{Token, TType};
+use crate::lexer::token::{TType, Token};
+use crate::mir::nodes::{
+    ArrayLiteral, Class, ClassMember, Expression, Flow, Function, Type, Variable,
+};
 use crate::mir::{MIRModule, MutRc, ToMIRResult};
-use crate::mir::nodes::{ArrayLiteral, Class, ClassMember, Expression, Flow, Function, Type, Variable};
 use crate::option::Flatten;
+use crate::{Error, ModulePath};
 
 mod builder;
 pub mod module;
@@ -140,15 +142,25 @@ impl MIRGenerator {
                 } else if let Type::Class(left_class) = left_ty {
                     let method_var = self
                         .get_operator_overloading_method(operator.t_type, left_class)
-                        .or_err(self, operator, "No implementation of operator found for type.")?;
+                        .or_err(
+                            self,
+                            operator,
+                            "No implementation of operator found for type.",
+                        )?;
                     let method_rc = Self::var_to_function(&method_var);
                     let method = method_rc.borrow();
                     if method.parameters[1].type_ != right_ty {
-                        return Err(self.error(operator, operator, "Right-hand side expression is wrong type."));
+                        return Err(self.error(
+                            operator,
+                            operator,
+                            "Right-hand side expression is wrong type.",
+                        ));
                     }
                     drop(method);
 
-                    let mut expr = self.builder.build_call(Expression::VarGet(method_var), vec![left, right]);
+                    let mut expr = self
+                        .builder
+                        .build_call(Expression::VarGet(method_var), vec![left, right]);
                     if operator.t_type == TType::BangEqual {
                         expr = self.builder.build_unary(expr, TType::Bang);
                     }
@@ -204,11 +216,15 @@ impl MIRGenerator {
                     // Method call
                     ASTExpr::Get { object, name } => {
                         let (object, field) = self.get_class_field(object, name)?;
-                        let func = field
+                        let func =
+                            field
                                 .right()
                                 .or_err(self, name, "Class members cannot be called.")?;
-                        let args =
-                            self.generate_func_args(Rc::clone(func.type_.as_function()), arguments, Some(object))?;
+                        let args = self.generate_func_args(
+                            Rc::clone(func.type_.as_function()),
+                            arguments,
+                            Some(object),
+                        )?;
                         return Ok(self.builder.build_call(Expression::VarGet(func), args));
                     }
 
@@ -301,7 +317,8 @@ impl MIRGenerator {
 
             ASTExpr::Get { object, name } => {
                 let (object, field) = self.get_class_field(&**object, name)?;
-                let field = field
+                let field =
+                    field
                         .left()
                         .or_err(self, name, "Cannot get class method (must be called)")?;
                 self.builder.build_struct_get(object, field)
@@ -388,9 +405,9 @@ impl MIRGenerator {
                     }
 
                     Expression::Literal(Literal::Array(Either::Right(ArrayLiteral {
-                            values: values_mir,
-                            type_: arr_type,
-                        })))
+                        values: values_mir,
+                        type_: arr_type,
+                    })))
                 } else {
                     Expression::Literal(literal.clone())
                 }
@@ -539,12 +556,7 @@ impl MIRGenerator {
 
     /// Inserts a variable into the topmost scope.
     /// Note that the variable does NOT get added to the function!
-    fn insert_variable(
-        &mut self,
-        var: Rc<Variable>,
-        allow_redefine: bool,
-        line: usize,
-    ) -> Res<()> {
+    fn insert_variable(&mut self, var: Rc<Variable>, allow_redefine: bool, line: usize) -> Res<()> {
         let cur_env = self.environments.last_mut().unwrap();
         let was_defined = cur_env
             .insert(Rc::clone(&var.name), Rc::clone(&var))
@@ -602,10 +614,7 @@ impl MIRGenerator {
         &mut self,
         object: &ASTExpr,
         name: &Token,
-    ) -> Res<(
-        Expression,
-        Either<Rc<ClassMember>, Rc<Variable>>,
-    )> {
+    ) -> Res<(Expression, Either<Rc<ClassMember>, Rc<Variable>>)> {
         let object = self.generate_expression(object)?;
 
         if let Type::Class(class) = object.get_type() {
@@ -695,7 +704,11 @@ impl MIRGenerator {
     /// Returns the method that corresponds to the operator given (operator overloading).
     /// Returns None if the given class does not implement overloading.
     /// TODO: This *really* needs to check the module the interface comes from...
-    fn get_operator_overloading_method(&mut self, op: TType, class: MutRc<Class>) -> Option<Rc<Variable>> {
+    fn get_operator_overloading_method(
+        &mut self,
+        op: TType,
+        class: MutRc<Class>,
+    ) -> Option<Rc<Variable>> {
         let class = class.borrow();
         let interface = match op {
             TType::Plus => class.interfaces.get(&"Add".to_string()),
@@ -703,7 +716,7 @@ impl MIRGenerator {
             TType::Star => class.interfaces.get(&"Mul".to_string()),
             TType::Slash => class.interfaces.get(&"Div".to_string()),
             TType::EqualEqual | TType::BangEqual => class.interfaces.get(&"Equal".to_string()),
-            _ => None
+            _ => None,
         }?;
         let interface = interface.borrow();
         let method_name = interface.methods.get_index(0)?.0;

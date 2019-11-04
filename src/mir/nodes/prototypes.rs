@@ -10,8 +10,10 @@ use std::rc::Rc;
 
 use indexmap::IndexMap;
 
-use crate::mir::{MutRc, mutrc_new};
-use crate::mir::nodes::{Block, Class, ClassMember, Function, IFaceMethod, Interface, Type, Variable};
+use crate::mir::nodes::{
+    Block, Class, ClassMember, Function, IFaceMethod, Interface, Type, Variable,
+};
+use crate::mir::{mutrc_new, MutRc};
 
 #[derive(Debug, Default)]
 pub struct ClassPrototype {
@@ -31,11 +33,15 @@ impl ClassPrototype {
 
         check_generic_arguments(&self.generic_args, arguments)?;
 
-        let members = self.members.iter().map(|(name, member)| {
-            let mut member = ClassMember::clone(member);
-            member.type_ = replace_generic(member.type_, arguments);
-            (Rc::clone(name), Rc::new(member))
-        }).collect();
+        let members = self
+            .members
+            .iter()
+            .map(|(name, member)| {
+                let mut member = ClassMember::clone(member);
+                member.type_ = replace_generic(member.type_, arguments);
+                (Rc::clone(name), Rc::new(member))
+            })
+            .collect();
 
         let methods = self
             .methods
@@ -52,9 +58,7 @@ impl ClassPrototype {
             .collect();
 
         // TODO: replace generic types in interfaces
-        let interfaces = self
-            .interfaces
-            .clone();
+        let interfaces = self.interfaces.clone();
 
         let class = mutrc_new(Class {
             name: Rc::clone(&self.name),
@@ -96,24 +100,34 @@ impl InterfacePrototype {
 
         check_generic_arguments(&self.generic_args, arguments)?;
 
-        let methods = self.methods.iter().map(|(name, method)| {
-            (
-                Rc::clone(&name),
-                IFaceMethod {
-                    name: Rc::clone(&method.name),
-                    parameters: method.parameters.iter().cloned().map(|p| replace_generic(p, arguments)).collect(),
-                    ret_type: replace_generic(method.ret_type.clone(), arguments),
-                    default_impl: method.default_impl.clone(),
-                }
-            )
-        }).collect();
+        let methods = self
+            .methods
+            .iter()
+            .map(|(name, method)| {
+                (
+                    Rc::clone(&name),
+                    IFaceMethod {
+                        name: Rc::clone(&method.name),
+                        parameters: method
+                            .parameters
+                            .iter()
+                            .cloned()
+                            .map(|p| replace_generic(p, arguments))
+                            .collect(),
+                        ret_type: replace_generic(method.ret_type.clone(), arguments),
+                        default_impl: method.default_impl.clone(),
+                    },
+                )
+            })
+            .collect();
 
         let interface = mutrc_new(Interface {
             name: Rc::clone(&self.name),
             methods,
         });
 
-        self.instances.insert(arguments.clone(), Rc::clone(&interface));
+        self.instances
+            .insert(arguments.clone(), Rc::clone(&interface));
         Ok(interface)
     }
 }
@@ -153,7 +167,8 @@ impl FunctionPrototype {
             ret_type: replace_generic(self.ret_type.clone(), arguments),
         });
 
-        self.instances.insert(arguments.clone(), Rc::clone(&function));
+        self.instances
+            .insert(arguments.clone(), Rc::clone(&function));
         Ok(function)
     }
 }
@@ -168,7 +183,10 @@ fn replace_generic(ty: Type, generics: &Vec<Type>) -> Type {
     }
 }
 
-fn check_generic_arguments(parameters: &Vec<Rc<String>>, arguments: &Vec<Type>) -> Result<(), String> {
+fn check_generic_arguments(
+    parameters: &Vec<Rc<String>>,
+    arguments: &Vec<Type>,
+) -> Result<(), String> {
     if parameters.len() != arguments.len() {
         return Err(format!(
             "Wrong amount of interface generic parameters (expected {}; got {})",

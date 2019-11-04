@@ -4,9 +4,9 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
+use super::super::lexer::token::{TType, Token};
 use super::declaration::Variable;
 use super::literal::Literal;
-use super::super::lexer::token::{Token, TType};
 
 /// All binary operand types that return a bool instead of the types of their values.
 pub static LOGICAL_BINARY: [TType; 6] = [

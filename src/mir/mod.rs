@@ -11,12 +11,12 @@ use std::rc::Rc;
 
 use nodes::{Class, Variable};
 
-use crate::{module_path_to_string, ModulePath};
 use crate::ast::declaration::Type;
 use crate::lexer::token::Token;
 use crate::mir::generator::{MIRError, MIRGenerator};
 use crate::mir::nodes::Interface;
 use crate::option::Flatten;
+use crate::{module_path_to_string, ModulePath};
 
 pub mod generator;
 pub mod nodes;
@@ -38,7 +38,7 @@ pub struct MIRModule {
     /// All interfaces.
     pub interfaces: HashMap<Rc<String>, MutRc<Interface>>,
     /// All functions.
-    pub functions: HashMap<Rc<String>, Rc<Variable>>
+    pub functions: HashMap<Rc<String>, Rc<Variable>>,
 }
 
 impl MIRModule {
@@ -59,7 +59,11 @@ impl Display for MIRModule {
         if !self.functions.is_empty() {
             writeln!(f, "---------- Functions ----------")?;
         }
-        for func in self.functions.iter().map(|f| MIRGenerator::var_to_function(f.1)) {
+        for func in self
+            .functions
+            .iter()
+            .map(|f| MIRGenerator::var_to_function(f.1))
+        {
             writeln!(f, "{}", func.borrow())?;
         }
 

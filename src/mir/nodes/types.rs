@@ -7,8 +7,8 @@
 use std::fmt::{Display, Error, Formatter};
 use std::hash::{Hash, Hasher};
 
-use crate::mir::MutRc;
 use crate::mir::nodes::{Class, Function, Interface};
+use crate::mir::MutRc;
 
 /// All types in Gelix.
 /// For all types that can have generic parameters, these parameters
@@ -68,7 +68,7 @@ impl Type {
     pub fn is_int(&self) -> bool {
         match self {
             Type::I8 | Type::I16 | Type::I32 | Type::I64 => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -76,7 +76,7 @@ impl Type {
     pub fn is_float(&self) -> bool {
         match self {
             Type::F32 | Type::F64 => true,
-            _ => false
+            _ => false,
         }
     }
 }
@@ -124,23 +124,11 @@ impl Hash for Type {
     fn hash<H: Hasher>(&self, state: &mut H) {
         // TODO: Is there really no other way than whatever the heck this is?
         match self {
-            Type::Function(v) => {
-                v.borrow().name.hash(state)
-            }
-
-            Type::Class(v) => {
-                v.borrow().name.hash(state)
-            }
-
-            Type::Interface(v) => {
-                v.borrow().name.hash(state)
-            }
-
-            Type::Generic(g) => {
-                g.hash(state)
-            }
-
-            _ => std::mem::discriminant(self).hash(state)
+            Type::Function(v) => v.borrow().name.hash(state),
+            Type::Class(v) => v.borrow().name.hash(state),
+            Type::Interface(v) => v.borrow().name.hash(state),
+            Type::Generic(g) => g.hash(state),
+            _ => std::mem::discriminant(self).hash(state),
         }
     }
 }

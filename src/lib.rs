@@ -17,8 +17,8 @@ use std::rc::Rc;
 use ast::module::Module;
 use error::Error;
 use ir::IRGenerator;
-use mir::generator::MIRError;
 use mir::generator::module::MIRModuleGenerator;
+use mir::generator::MIRError;
 use mir::MIRModule;
 use parser::ParserErrors;
 
