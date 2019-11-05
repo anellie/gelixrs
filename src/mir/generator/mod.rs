@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/5/19 5:54 PM.
+ * Last modified on 11/5/19 9:40 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 use either::Either;
+use either::Either::{Left, Right};
 
 use builder::MIRBuilder;
 
@@ -52,14 +53,23 @@ pub struct MIRGenerator {
 
 impl MIRGenerator {
     fn generate_mir(&mut self, module: &Module) -> Res<()> {
-        for func in module.functions.iter().chain(
+        // Note that this can eventually be replaced by Iterator::partition_in_place
+        // once it becomes stable: https://doc.rust-lang.org/std/iter/trait.Iterator.html#method.partition_in_place
+
+        let all_func_iter = module.functions.iter().chain(
             module
                 .classes
                 .iter()
                 .map(|class| &class.methods)
                 .flatten()
-                .chain(module.iface_impls.iter().map(|im| &im.methods).flatten()),
-        ) {
+                .chain(module.iface_impls.iter().map(|im| &im.methods).flatten())
+        );
+
+        for func in all_func_iter.clone().filter(|func| func.sig.generics.is_some()) {
+            self.generate_function(func)?;
+        }
+
+        for func in all_func_iter.clone().filter(|func| func.sig.generics.is_none()) {
             self.generate_function(func)?;
         }
 
@@ -67,19 +77,36 @@ impl MIRGenerator {
     }
 
     fn generate_function(&mut self, func: &ASTFunc) -> Res<()> {
-        let function_rc = self.builder.find_function(&func.sig.name.lexeme).unwrap();
-        let mut function = function_rc.borrow_mut();
+        let function = self.builder.find_func_or_proto(&func.sig.name.lexeme).unwrap().map_left(|var| Rc::clone(var.type_.as_function()));
 
-        let ret_type = function.ret_type.clone();
-        let entry_block = function.append_block("entry");
+        let (ret_type, entry_block) = match function.clone() {
+            Left(function_rc) => {
+                let mut function = function_rc.borrow_mut();
+                (function.ret_type.clone(), function.append_block("entry"))
+            }
+
+            Right(proto_rc) => {
+                let mut proto = proto_rc.borrow_mut();
+                (proto.ret_type.clone(), proto.append_block("entry"))
+            }
+        };
 
         self.builder
-            .set_pointer(Rc::clone(&function_rc), Rc::clone(&entry_block));
-        drop(function);
+            .set_pointer(function.clone(), Rc::clone(&entry_block));
 
         self.begin_scope();
-        for param in function_rc.borrow().parameters.iter() {
-            self.insert_variable(Rc::clone(param), false, func.sig.name.line)?;
+        match function {
+            Left(function_rc) => {
+                for param in function_rc.borrow().parameters.iter() {
+                    self.insert_variable(Rc::clone(param), false, func.sig.name.line)?;
+                }
+            }
+
+            Right(proto_rc) => {
+                for param in proto_rc.borrow().parameters.iter() {
+                    self.insert_variable(Rc::clone(param), false, func.sig.name.line)?;
+                }
+            }
         }
 
         let body = self.generate_expression(&func.body)?;
@@ -420,7 +447,7 @@ impl MIRGenerator {
                     .transpose()?
                     .unwrap_or_else(Self::none_const);
 
-                if value.get_type() != self.builder.cur_fn().borrow().ret_type {
+                if value.get_type() != self.builder.cur_fn().map_left(|f| f.borrow().ret_type.clone()).left_or_else(|f| f.borrow().ret_type.clone()) {
                     return Err(self.anon_err(
                         val.as_ref().map(|v| v.get_token()).flatten_(),
                         "Return expression in function has wrong type",

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/4/19 8:03 PM.
+ * Last modified on 11/5/19 9:14 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -61,7 +61,7 @@ fn build_class(
     let mut init_func = init_func_rc.borrow_mut();
     let class_parameter = Rc::clone(&init_func.parameters[0]);
     gen.builder
-        .set_pointer(Rc::clone(&init_func_rc), init_func.append_block("entry"));
+        .set_pointer(Left(Rc::clone(&init_func_rc)), init_func.append_block("entry"));
     drop(init_func);
 
     let offset = fields.len();

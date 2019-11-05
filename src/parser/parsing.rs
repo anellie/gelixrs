@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/4/19 11:02 PM.
+ * Last modified on 11/5/19 9:40 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -566,7 +566,7 @@ impl Parser {
             _ if self.match_token(TType::False) => Expression::Literal(Literal::Bool(false)),
             _ if self.match_token(TType::True) => Expression::Literal(Literal::Bool(true)),
             _ if self.match_token(TType::LeftParen) => self.grouping()?,
-            _ if self.check(TType::Identifier) => Expression::Variable(self.advance()),
+            _ if self.check(TType::Identifier) => self.identifier()?,
             _ if self.check(TType::Int) => self.integer()?,
             _ if self.check(TType::Float) => self.float()?,
             _ if self.check(TType::String) => self.string(),
@@ -577,6 +577,21 @@ impl Parser {
                 None?
             }
         })
+    }
+
+    fn identifier(&mut self) -> Option<Expression> {
+        // This uses the fact that identifiers as variable uses
+        // have the same parsing behavior as types;
+        // either just an identifier or an identifier followed
+        // by generic arguments
+        match self.type_("Internal compiler error.")? {
+            Type::Ident(var) => Some(Expression::Variable(var)),
+            Type::Generic { token, types } => Some(Expression::VarWithGenerics { name: token, generics: types }),
+            _ => {
+                self.error_at_current("Internal compiler error.");
+                None?
+            }
+        }
     }
 
     fn grouping(&mut self) -> Option<Expression> {

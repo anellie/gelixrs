@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/4/19 9:38 PM.
+ * Last modified on 11/5/19 9:40 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,16 +11,16 @@ use std::rc::Rc;
 use either::Either;
 use either::Either::{Left, Right};
 
+use crate::{module_path_to_string, ModulePath};
 use crate::ast::Type as ASTType;
 use crate::error::Error;
-use crate::lexer::token::{TType, Token};
+use crate::lexer::token::{Token, TType};
+use crate::mir::{MIRModule, MutRc};
 use crate::mir::generator::{MIRError, MIRGenerator, Res};
 use crate::mir::nodes::{
     Class, ClassMember, ClassPrototype, Expression, Flow, FunctionPrototype, Interface,
     InterfacePrototype, Variable,
 };
-use crate::mir::{MIRModule, MutRc};
-use crate::{module_path_to_string, ModulePath};
 
 use super::super::nodes::{Function, Type};
 
@@ -45,7 +45,7 @@ pub struct MIRBuilder {
     type_aliases: HashMap<Rc<String>, ASTType>,
     /// All generic types that should resolve to a generic MIR type.
     /// Used when compiling prototypes.
-    pub generic_types: HashSet<Rc<String>>,
+    pub generic_types: Vec<Rc<String>>,
 
     /// Simply a const of the string "tmp".
     /// Used for temporary variables needed for class init.
@@ -80,9 +80,9 @@ impl MIRBuilder {
 
     /// Will create the variable in the current function.
     pub fn add_function_variable(&mut self, variable: Rc<Variable>) {
-        let func = self.cur_fn();
-        func.borrow_mut()
-            .insert_var(Rc::clone(&variable.name), variable);
+        self.cur_fn()
+            .map_left(|f| f.borrow_mut().insert_var(Rc::clone(&variable.name), Rc::clone(&variable)))
+            .left_or_else(|f| f.borrow_mut().insert_var(Rc::clone(&variable.name), Rc::clone(&variable)));
     }
 
     pub fn build_binary(&self, left: Expression, operator: TType, right: Expression) -> Expression {
@@ -116,8 +116,8 @@ impl MIRBuilder {
         });
 
         self.cur_fn()
-            .borrow_mut()
-            .insert_var(Rc::clone(&self.tmp_const), Rc::clone(&var));
+            .map_left(|f| f.borrow_mut().insert_var(Rc::clone(&self.tmp_const), Rc::clone(&var)))
+            .left_or_else(|f| f.borrow_mut().insert_var(Rc::clone(&self.tmp_const), Rc::clone(&var)));
 
         let init_fn = self
             .find_function_var(&format!("{}-internal-init", &class.name))
@@ -199,7 +199,7 @@ impl MIRBuilder {
     }
 
     pub fn append_block(&mut self, name: &str) -> Rc<String> {
-        self.cur_fn().borrow_mut().append_block(name)
+        self.cur_fn().map_left(|f| f.borrow_mut().append_block(name)).left_or_else(|f| f.borrow_mut().append_block(name))
     }
 
     pub fn set_return(&mut self, ret: Flow) {
@@ -230,7 +230,8 @@ impl MIRBuilder {
                     _ => self
                         .find_class(&tok.lexeme)
                         .map(Type::Class)
-                        .or_else(|| Some(Type::Interface(self.find_interface(&tok.lexeme)?)))?,
+                        .or_else(|| Some(Type::Interface(self.find_interface(&tok.lexeme)?)))
+                        .or_else(|| Some(Type::Generic(self.generic_types.iter().position(|g| *g == tok.lexeme)?)))?,
                 }
             }
 
@@ -315,7 +316,7 @@ impl MIRBuilder {
             .or_else(|| self.prototypes.interfaces.get(name).cloned().map(Right))
     }
 
-    pub fn set_pointer(&mut self, function: MutRc<Function>, block: Rc<String>) {
+    pub fn set_pointer(&mut self, function: Either<MutRc<Function>, MutRc<FunctionPrototype>>, block: Rc<String>) {
         self.position = Some(Pointer { function, block })
     }
 
@@ -345,28 +346,35 @@ impl MIRBuilder {
     pub fn set_generic_types(&mut self, types: &Vec<Token>) {
         self.generic_types.clear();
         for ty in types.iter() {
-            self.generic_types.insert(Rc::clone(&ty.lexeme));
+            self.generic_types.push(Rc::clone(&ty.lexeme));
         }
     }
 
     pub fn set_generic_types_rc(&mut self, types: &Vec<Rc<String>>) {
         self.generic_types.clear();
         for ty in types.iter() {
-            self.generic_types.insert(Rc::clone(ty));
+            self.generic_types.push(Rc::clone(ty));
         }
     }
 
     pub fn insert_at_ptr(&mut self, expr: Expression) {
         let func = self.cur_fn();
-        let mut func = func.borrow_mut();
-        func.blocks
-            .get_mut(&self.position.as_ref().unwrap().block)
-            .unwrap()
-            .push(expr);
+        match func {
+            Left(func) => func.borrow_mut()
+                .blocks
+                .get_mut(&self.position.as_ref().unwrap().block)
+                .unwrap()
+                .push(expr),
+            Right(func) => func.borrow_mut()
+                .blocks
+                .get_mut(&self.position.as_ref().unwrap().block)
+                .unwrap()
+                .push(expr)
+        }
     }
 
-    pub fn cur_fn(&self) -> MutRc<Function> {
-        Rc::clone(&self.position.as_ref().unwrap().function)
+    pub fn cur_fn(&self) -> Either<MutRc<Function>, MutRc<FunctionPrototype>> {
+        self.position.as_ref().unwrap().function.clone()
     }
 
     pub fn cur_block_name(&self) -> Rc<String> {
@@ -389,7 +397,7 @@ impl MIRBuilder {
             prototypes: Prototypes::default(),
             used_names: HashSet::with_capacity(3),
             type_aliases: HashMap::new(),
-            generic_types: HashSet::with_capacity(3),
+            generic_types: Vec::with_capacity(3),
             tmp_const: Rc::new("tmp".to_string()),
             this_const: Rc::new("This".to_string()),
         }
@@ -397,7 +405,7 @@ impl MIRBuilder {
 }
 
 pub struct Pointer {
-    pub function: MutRc<Function>,
+    pub function: Either<MutRc<Function>, MutRc<FunctionPrototype>>,
     block: Rc<String>,
 }
 

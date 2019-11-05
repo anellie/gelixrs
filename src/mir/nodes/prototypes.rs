@@ -1,20 +1,21 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/5/19 5:54 PM.
+ * Last modified on 11/5/19 9:40 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
+use std::ptr::replace;
 use std::rc::Rc;
 
 use indexmap::IndexMap;
 
+use crate::ast::Literal;
+use crate::ir::PtrEqRc;
 use crate::mir::{MutRc, mutrc_new};
 use crate::mir::generator::MIRGenerator;
-use crate::mir::nodes::{
-    Block, Class, ClassMember, Function, IFaceMethod, Interface, Type, Variable,
-};
+use crate::mir::nodes::{Block, Class, ClassMember, Expression, Flow, Function, IFaceMethod, Interface, Type, Variable};
 
 #[derive(Debug, Default)]
 pub struct ClassPrototype {
@@ -154,13 +155,14 @@ impl FunctionPrototype {
         check_generic_arguments(&self.generic_args, arguments)?;
 
         let name = format!("{}-{}", self.name, self.instances.len());
-        let function = mutrc_new(Function {
+        let function = Function {
             name: name.clone(),
-            parameters: self.parameters.clone(), // TODO
+            parameters: self.parameters.clone(),
             blocks: self.blocks.clone(),
-            variables: self.variables.clone(), // TODO
+            variables: self.variables.clone(),
             ret_type: replace_generic(self.ret_type.clone(), arguments),
-        });
+        };
+        let function = mutrc_new(remove_generic_variables(function, arguments));
 
 
         let global = Rc::new(Variable {
@@ -176,6 +178,30 @@ impl FunctionPrototype {
 
         self.instances.insert(arguments.clone(), Rc::clone(&global));
         Ok(global)
+    }
+
+    // TODO: The 2 functions below are just copies of the same ones in mir::Function
+
+    /// Appends a new block; will returns the block name.
+    /// The name can be different than the given one when it was already in use.
+    pub fn append_block(&mut self, name: &str) -> Rc<String> {
+        let mut name = name.to_string();
+        if self.blocks.contains_key(&name) {
+            name = format!("{}-{}", name, self.blocks.len());
+        }
+        let rc = Rc::new(name);
+        self.blocks.insert(Rc::clone(&rc), Vec::with_capacity(5));
+        rc
+    }
+
+    /// Inserts a variable into the functions allocation table.
+    /// Returns the name of it (should be used since a change can be needed due to colliding names).
+    pub fn insert_var(&mut self, mut name: Rc<String>, var: Rc<Variable>) -> Rc<String> {
+        if self.variables.contains_key(&name) {
+            name = Rc::new(format!("{}-{}", name, self.variables.len()));
+        }
+        self.variables.insert(Rc::clone(&name), var);
+        name
     }
 }
 
@@ -201,4 +227,96 @@ fn check_generic_arguments(
         ));
     }
     Ok(())
+}
+
+fn remove_generic_variables(mut function: Function, generics: &Vec<Type>) -> Function {
+    function.ret_type = replace_generic(function.ret_type, generics);
+    let function_vars = function.parameters.iter().chain(function.variables.values());
+    let variables_map: HashMap<PtrEqRc<Variable>, Rc<Variable>> = function_vars
+        .map(|var| {
+            let mut clone = Variable::clone(var);
+            clone.type_ = replace_generic(clone.type_, generics);
+            (PtrEqRc::new(var), Rc::new(clone))
+        })
+        .collect();
+
+    function.parameters = function
+        .parameters
+        .iter()
+        .map(|p| Rc::clone(&variables_map[&PtrEqRc::new(p)]))
+        .collect();
+
+    for block in function.blocks.values_mut() {
+        for expr in block.iter_mut() {
+            replace_variables(expr, &variables_map)
+        }
+    }
+
+    function
+}
+
+fn replace_variables(expr: &mut Expression, var_map: &HashMap<PtrEqRc<Variable>, Rc<Variable>>) {
+    match expr {
+        Expression::Binary { left, right, .. } => {
+            replace_variables(left, var_map);
+            replace_variables(right, var_map);
+        },
+
+        Expression::Call { callee, arguments } => {
+            replace_variables(callee, var_map);
+            for arg in arguments {
+                replace_variables(arg, var_map)
+            }
+        },
+
+        Expression::Flow(flow) => {
+            match &mut **flow {
+                Flow::Return(expr) => replace_variables(expr, var_map),
+                Flow::Branch { condition, .. } => replace_variables(condition, var_map),
+
+                Flow::Switch { cases, .. } => {
+                    for (expr, _) in cases.iter_mut() {
+                        replace_variables(expr, var_map)
+                    }
+                },
+
+                Flow::None => (),
+                Flow::Jump(_) => (),
+            }
+        },
+
+        Expression::Phi(nodes) => {
+            for (node, _) in nodes {
+                replace_variables(node, var_map)
+            }
+        },
+
+        Expression::StructGet { object, .. } => replace_variables(object, var_map),
+
+        Expression::StructSet { object, value, .. } => {
+            replace_variables(object, var_map);
+            replace_variables(value, var_map);
+        },
+
+        Expression::Literal(_) => (),
+
+        Expression::Unary { right, .. } => replace_variables(right, var_map),
+
+        Expression::VarGet(ref var) => {
+            std::mem::replace(expr, Expression::VarGet(Rc::clone(&var_map[&PtrEqRc::new(var)])));
+        },
+
+        Expression::VarStore { ref var, value } => {
+            let mut owned_value = std::mem::replace(value, Box::new(Expression::Literal(Literal::None)));
+            replace_variables(&mut owned_value, var_map);
+
+            std::mem::replace(
+                expr,
+                Expression::VarStore {
+                    var: Rc::clone(&var_map[&PtrEqRc::new(var)]),
+                    value: owned_value,
+                },
+            );
+        },
+    }
 }

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/4/19 8:03 PM.
+ * Last modified on 11/5/19 9:40 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,22 +12,22 @@ use std::{
 };
 
 use inkwell::{
+    AddressSpace,
     basic_block::BasicBlock,
     builder::Builder,
     context::Context,
+    FloatPredicate,
+    IntPredicate,
     module::Module,
-    passes::PassManager,
-    types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType, StructType},
-    values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
-    AddressSpace, FloatPredicate, IntPredicate,
+    passes::PassManager, types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType, StructType}, values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
 };
 
 use super::{
     ast::literal::Literal,
     lexer::token::TType,
     mir::{
-        nodes::{Block, Class, Expression, Flow, Function, Type, Variable},
-        MIRModule, MutRc,
+        MIRModule,
+        MutRc, nodes::{Block, Class, Expression, Flow, Function, Type, Variable},
     },
 };
 
@@ -475,6 +475,8 @@ impl IRGenerator {
         match ptr.get_type().get_element_type() {
             AnyTypeEnum::FunctionType(_) => BasicValueEnum::PointerValue(ptr),
             AnyTypeEnum::StructType(_) => BasicValueEnum::PointerValue(ptr),
+            // TODO: This is a hack to allow string to work until they have a proper class.
+            AnyTypeEnum::IntType(ty) if ty.get_bit_width() == 8 => BasicValueEnum::PointerValue(ptr),
             _ => self.builder.build_load(ptr, "var"),
         }
     }
@@ -606,10 +608,10 @@ impl IRGenerator {
 
 /// A Rc that can be compared by checking for pointer equality.
 /// Used as a HashMap key to allow unique keys with the same data.
-struct PtrEqRc<T: Hash>(Rc<T>);
+pub struct PtrEqRc<T: Hash>(Rc<T>);
 
 impl<T: Hash> PtrEqRc<T> {
-    fn new(rc: &Rc<T>) -> PtrEqRc<T> {
+    pub fn new(rc: &Rc<T>) -> PtrEqRc<T> {
         PtrEqRc(Rc::clone(rc))
     }
 }
