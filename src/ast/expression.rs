@@ -6,9 +6,9 @@
 
 use crate::ast::Type;
 
+use super::super::lexer::token::{TType, Token};
 use super::declaration::Variable;
 use super::literal::Literal;
-use super::super::lexer::token::{Token, TType};
 
 /// All binary operand types that return a bool instead of the types of their values.
 pub static LOGICAL_BINARY: [TType; 6] = [
@@ -97,10 +97,7 @@ pub enum Expression {
 
     /// A variable use with generic parameters;
     /// usually a prototype instantiation
-    VarWithGenerics {
-        name: Token,
-        generics: Vec<Type>,
-    },
+    VarWithGenerics { name: Token, generics: Vec<Type> },
 
     /// A when expression.
     When {

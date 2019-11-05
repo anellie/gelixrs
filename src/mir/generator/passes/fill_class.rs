@@ -60,8 +60,10 @@ fn build_class(
         .unwrap();
     let mut init_func = init_func_rc.borrow_mut();
     let class_parameter = Rc::clone(&init_func.parameters[0]);
-    gen.builder
-        .set_pointer(Left(Rc::clone(&init_func_rc)), init_func.append_block("entry"));
+    gen.builder.set_pointer(
+        Left(Rc::clone(&init_func_rc)),
+        init_func.append_block("entry"),
+    );
     drop(init_func);
 
     let offset = fields.len();

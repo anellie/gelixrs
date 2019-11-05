@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/4/19 11:02 PM.
+ * Last modified on 11/5/19 9:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -8,10 +8,10 @@ use std::rc::Rc;
 
 use either::Either::{Left, Right};
 
-use crate::module_path_to_string;
 use crate::ast::module::{Import, Module};
 use crate::mir::generator::{MIRError, MIRGenerator, Res};
 use crate::mir::ToMIRResult;
+use crate::module_path_to_string;
 
 type ModulesRef<'t> = &'t mut Vec<(Module, MIRGenerator)>;
 
@@ -25,7 +25,7 @@ mod import_macro {
         ($fn_name: ident, $name:ident, $getter:ident) => {
             pub fn $fn_name(modules: ModulesRef) -> Result<(), Vec<MIRError>> {
                 drain_mod_imports(modules, &mut |modules, gen, import| {
-                    let (module, mod_gen) = modules
+                    let (_, mod_gen) = modules
                         .iter()
                         .find(|(module, _)| *module.path == import.path)
                         .or_err(gen, &import.symbol, "Unknown module.")?;
@@ -79,7 +79,7 @@ mod import_macro {
                             };
 
                             if success {
-                               gen.builder.try_reserve_name(&import.symbol)?
+                                gen.builder.try_reserve_name(&import.symbol)?
                             }
                             success
                         }
@@ -100,7 +100,7 @@ pub fn ensure_no_imports(modules: &mut Vec<(Module, MIRGenerator)>) -> Result<()
     for (module, gen) in modules.iter() {
         for import in &module.imports {
             if import.symbol.lexeme.as_ref() == "+" {
-                continue
+                continue;
             }
 
             errors.push(gen.anon_err(

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/4/19 11:02 PM.
+ * Last modified on 11/5/19 9:49 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,9 +11,9 @@ use either::Either::{Left, Right};
 
 use crate::ast::declaration::FuncSignature;
 use crate::ast::module::Module;
-use crate::mir::{MutRc, mutrc_new, ToMIRResult};
 use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::nodes::{Function, FunctionPrototype, Type, Variable};
+use crate::mir::{mutrc_new, MutRc, ToMIRResult};
 
 /// This pass defines all functions in MIR.
 pub fn declare_func_pass(gen: &mut MIRGenerator, module: &mut Module) -> Res<()> {
@@ -31,7 +31,7 @@ pub fn declare_func_pass(gen: &mut MIRGenerator, module: &mut Module) -> Res<()>
 pub(super) fn create_function(
     gen: &mut MIRGenerator,
     func_sig: &FuncSignature,
-    is_external: bool
+    is_external: bool,
 ) -> Res<Either<Rc<Variable>, MutRc<FunctionPrototype>>> {
     gen.builder.try_reserve_name(&func_sig.name)?;
     func_sig
@@ -73,7 +73,7 @@ pub(super) fn create_function(
         let function = mutrc_new(FunctionPrototype {
             name,
             parameters,
-            generic_args: gen.builder.generic_types.iter().cloned().collect(),
+            generic_args: gen.builder.generic_types.to_vec(),
             ret_type,
             ..Default::default()
         });

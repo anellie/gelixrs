@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/4/19 11:02 PM.
+ * Last modified on 11/5/19 9:46 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -9,8 +9,8 @@ use std::rc::Rc;
 use crate::ast::declaration::{Class as ASTClass, FuncSignature, FunctionArg};
 use crate::ast::module::Module;
 use crate::lexer::token::Token;
-use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::generator::passes::declare_func::create_function;
+use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::mutrc_new;
 use crate::mir::nodes::{Class, ClassPrototype};
 
@@ -42,12 +42,15 @@ fn create_class(gen: &mut MIRGenerator, class: &mut ASTClass) -> Res<()> {
     if let Some(generics) = &class.generics {
         gen.builder.set_generic_types(generics);
 
-        let mut mir_class = mutrc_new(ClassPrototype {
+        let mir_class = mutrc_new(ClassPrototype {
             name: Rc::clone(&class.name.lexeme),
-            generic_args: gen.builder.generic_types.iter().cloned().collect(),
+            generic_args: gen.builder.generic_types.to_vec(),
             ..Default::default()
         });
-        gen.builder.prototypes.classes.insert(Rc::clone(&class.name.lexeme), Rc::clone(&mir_class));
+        gen.builder
+            .prototypes
+            .classes
+            .insert(Rc::clone(&class.name.lexeme), Rc::clone(&mir_class));
         let mut mir_class = mir_class.borrow_mut();
 
         let init_fn = create_function(gen, &init_fn_sig, false)?.right().unwrap();
@@ -67,11 +70,14 @@ fn create_class(gen: &mut MIRGenerator, class: &mut ASTClass) -> Res<()> {
 
         gen.builder.generic_types.clear();
     } else {
-        let mut mir_class = mutrc_new(Class {
+        let mir_class = mutrc_new(Class {
             name: Rc::clone(&class.name.lexeme),
             ..Default::default()
         });
-        gen.builder.module.classes.insert(Rc::clone(&class.name.lexeme), Rc::clone(&mir_class));
+        gen.builder
+            .module
+            .classes
+            .insert(Rc::clone(&class.name.lexeme), Rc::clone(&mir_class));
         let mut mir_class = mir_class.borrow_mut();
 
         let init_fn = create_function(gen, &init_fn_sig, false)?.left().unwrap();

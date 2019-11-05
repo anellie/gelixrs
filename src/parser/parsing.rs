@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/5/19 9:40 PM.
+ * Last modified on 11/5/19 9:44 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -15,7 +15,6 @@ use crate::ast::declaration::{IFaceImpl, Interface, InterfaceFunc, Type};
 use crate::ast::module::Import;
 use crate::Error;
 
-use super::Parser;
 use super::super::{
     ast::{
         declaration::{Class, Enum, FuncSignature, Function, FunctionArg, Variable},
@@ -23,8 +22,9 @@ use super::super::{
         literal::Literal,
         module::Module,
     },
-    lexer::token::{Token, TType},
+    lexer::token::{TType, Token},
 };
+use super::Parser;
 
 // All expressions that require no semicolon when used as a higher expression.
 static NO_SEMICOLON: [TType; 3] = [TType::If, TType::LeftBrace, TType::When];
@@ -171,7 +171,6 @@ impl Parser {
     }
 
     fn import_declaration(&mut self) -> Option<Import> {
-        let import_token = self.current.clone();
         let mut path = Vec::new();
         if !self.check(TType::Identifier) {
             self.error_at_current("Expected path after 'import'.")?
@@ -268,7 +267,9 @@ impl Parser {
     fn higher_expression(&mut self) -> Option<Expression> {
         Some(match () {
             _ if self.match_token(TType::Var) => Expression::VarDef(Box::new(self.variable(true)?)),
-            _ if self.match_token(TType::Val) => Expression::VarDef(Box::new(self.variable(false)?)),
+            _ if self.match_token(TType::Val) => {
+                Expression::VarDef(Box::new(self.variable(false)?))
+            }
             _ => {
                 let requires_semicolon = !NO_SEMICOLON.contains(&self.current.t_type);
                 let expression = self.expression()?;
@@ -586,7 +587,10 @@ impl Parser {
         // by generic arguments
         match self.type_("Internal compiler error.")? {
             Type::Ident(var) => Some(Expression::Variable(var)),
-            Type::Generic { token, types } => Some(Expression::VarWithGenerics { name: token, generics: types }),
+            Type::Generic { token, types } => Some(Expression::VarWithGenerics {
+                name: token,
+                generics: types,
+            }),
             _ => {
                 self.error_at_current("Internal compiler error.");
                 None?

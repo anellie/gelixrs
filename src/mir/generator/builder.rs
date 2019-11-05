@@ -11,16 +11,16 @@ use std::rc::Rc;
 use either::Either;
 use either::Either::{Left, Right};
 
-use crate::{module_path_to_string, ModulePath};
 use crate::ast::Type as ASTType;
 use crate::error::Error;
-use crate::lexer::token::{Token, TType};
-use crate::mir::{MIRModule, MutRc};
+use crate::lexer::token::{TType, Token};
 use crate::mir::generator::{MIRError, MIRGenerator, Res};
 use crate::mir::nodes::{
     Class, ClassMember, ClassPrototype, Expression, Flow, FunctionPrototype, Interface,
     InterfacePrototype, Variable,
 };
+use crate::mir::{MIRModule, MutRc};
+use crate::{module_path_to_string, ModulePath};
 
 use super::super::nodes::{Function, Type};
 
@@ -81,8 +81,14 @@ impl MIRBuilder {
     /// Will create the variable in the current function.
     pub fn add_function_variable(&mut self, variable: Rc<Variable>) {
         self.cur_fn()
-            .map_left(|f| f.borrow_mut().insert_var(Rc::clone(&variable.name), Rc::clone(&variable)))
-            .left_or_else(|f| f.borrow_mut().insert_var(Rc::clone(&variable.name), Rc::clone(&variable)));
+            .map_left(|f| {
+                f.borrow_mut()
+                    .insert_var(Rc::clone(&variable.name), Rc::clone(&variable))
+            })
+            .left_or_else(|f| {
+                f.borrow_mut()
+                    .insert_var(Rc::clone(&variable.name), Rc::clone(&variable))
+            });
     }
 
     pub fn build_binary(&self, left: Expression, operator: TType, right: Expression) -> Expression {
@@ -116,8 +122,14 @@ impl MIRBuilder {
         });
 
         self.cur_fn()
-            .map_left(|f| f.borrow_mut().insert_var(Rc::clone(&self.tmp_const), Rc::clone(&var)))
-            .left_or_else(|f| f.borrow_mut().insert_var(Rc::clone(&self.tmp_const), Rc::clone(&var)));
+            .map_left(|f| {
+                f.borrow_mut()
+                    .insert_var(Rc::clone(&self.tmp_const), Rc::clone(&var))
+            })
+            .left_or_else(|f| {
+                f.borrow_mut()
+                    .insert_var(Rc::clone(&self.tmp_const), Rc::clone(&var))
+            });
 
         let init_fn = self
             .find_function_var(&format!("{}-internal-init", &class.name))
@@ -199,7 +211,9 @@ impl MIRBuilder {
     }
 
     pub fn append_block(&mut self, name: &str) -> Rc<String> {
-        self.cur_fn().map_left(|f| f.borrow_mut().append_block(name)).left_or_else(|f| f.borrow_mut().append_block(name))
+        self.cur_fn()
+            .map_left(|f| f.borrow_mut().append_block(name))
+            .left_or_else(|f| f.borrow_mut().append_block(name))
     }
 
     pub fn set_return(&mut self, ret: Flow) {
@@ -231,7 +245,11 @@ impl MIRBuilder {
                         .find_class(&tok.lexeme)
                         .map(Type::Class)
                         .or_else(|| Some(Type::Interface(self.find_interface(&tok.lexeme)?)))
-                        .or_else(|| Some(Type::Generic(self.generic_types.iter().position(|g| *g == tok.lexeme)?)))?,
+                        .or_else(|| {
+                            Some(Type::Generic(
+                                self.generic_types.iter().position(|g| *g == tok.lexeme)?,
+                            ))
+                        })?,
                 }
             }
 
@@ -316,7 +334,11 @@ impl MIRBuilder {
             .or_else(|| self.prototypes.interfaces.get(name).cloned().map(Right))
     }
 
-    pub fn set_pointer(&mut self, function: Either<MutRc<Function>, MutRc<FunctionPrototype>>, block: Rc<String>) {
+    pub fn set_pointer(
+        &mut self,
+        function: Either<MutRc<Function>, MutRc<FunctionPrototype>>,
+        block: Rc<String>,
+    ) {
         self.position = Some(Pointer { function, block })
     }
 
@@ -360,16 +382,18 @@ impl MIRBuilder {
     pub fn insert_at_ptr(&mut self, expr: Expression) {
         let func = self.cur_fn();
         match func {
-            Left(func) => func.borrow_mut()
+            Left(func) => func
+                .borrow_mut()
                 .blocks
                 .get_mut(&self.position.as_ref().unwrap().block)
                 .unwrap()
                 .push(expr),
-            Right(func) => func.borrow_mut()
+            Right(func) => func
+                .borrow_mut()
                 .blocks
                 .get_mut(&self.position.as_ref().unwrap().block)
                 .unwrap()
-                .push(expr)
+                .push(expr),
         }
     }
 

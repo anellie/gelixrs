@@ -13,17 +13,17 @@ use either::Either::{Left, Right};
 
 use builder::MIRBuilder;
 
-use crate::{Error, ModulePath};
 use crate::ast::declaration::Function as ASTFunc;
 use crate::ast::expression::Expression as ASTExpr;
 use crate::ast::literal::Literal;
 use crate::ast::module::Module;
-use crate::lexer::token::{Token, TType};
-use crate::mir::{MIRModule, MutRc, ToMIRResult};
+use crate::lexer::token::{TType, Token};
 use crate::mir::nodes::{
     ArrayLiteral, Class, ClassMember, Expression, Flow, Function, Type, Variable,
 };
+use crate::mir::{MIRModule, MutRc, ToMIRResult};
 use crate::option::Flatten;
+use crate::{Error, ModulePath};
 
 mod builder;
 pub mod module;
@@ -62,14 +62,20 @@ impl MIRGenerator {
                 .iter()
                 .map(|class| &class.methods)
                 .flatten()
-                .chain(module.iface_impls.iter().map(|im| &im.methods).flatten())
+                .chain(module.iface_impls.iter().map(|im| &im.methods).flatten()),
         );
 
-        for func in all_func_iter.clone().filter(|func| func.sig.generics.is_some()) {
+        for func in all_func_iter
+            .clone()
+            .filter(|func| func.sig.generics.is_some())
+        {
             self.generate_function(func)?;
         }
 
-        for func in all_func_iter.clone().filter(|func| func.sig.generics.is_none()) {
+        for func in all_func_iter
+            .clone()
+            .filter(|func| func.sig.generics.is_none())
+        {
             self.generate_function(func)?;
         }
 
@@ -77,7 +83,11 @@ impl MIRGenerator {
     }
 
     fn generate_function(&mut self, func: &ASTFunc) -> Res<()> {
-        let function = self.builder.find_func_or_proto(&func.sig.name.lexeme).unwrap().map_left(|var| Rc::clone(var.type_.as_function()));
+        let function = self
+            .builder
+            .find_func_or_proto(&func.sig.name.lexeme)
+            .unwrap()
+            .map_left(|var| Rc::clone(var.type_.as_function()));
 
         let (ret_type, entry_block) = match function.clone() {
             Left(function_rc) => {
@@ -447,7 +457,13 @@ impl MIRGenerator {
                     .transpose()?
                     .unwrap_or_else(Self::none_const);
 
-                if value.get_type() != self.builder.cur_fn().map_left(|f| f.borrow().ret_type.clone()).left_or_else(|f| f.borrow().ret_type.clone()) {
+                if value.get_type()
+                    != self
+                        .builder
+                        .cur_fn()
+                        .map_left(|f| f.borrow().ret_type.clone())
+                        .left_or_else(|f| f.borrow().ret_type.clone())
+                {
                     return Err(self.anon_err(
                         val.as_ref().map(|v| v.get_token()).flatten_(),
                         "Return expression in function has wrong type",
@@ -508,13 +524,21 @@ impl MIRGenerator {
                     .or_err(self, &name, "Unknown function.")?
                     .right()
                     .or_err(self, &name, "Function does not take generic parameters.")?;
-                let types = generics.iter().map(|ty| self.builder.find_type(ty).or_type_err(
-                    self,
-                    &Some(ty.clone()),
-                    "Function parameter has unknown type",
-                )).collect::<Result<Vec<Type>, MIRError>>()?;
+                let types = generics
+                    .iter()
+                    .map(|ty| {
+                        self.builder.find_type(ty).or_type_err(
+                            self,
+                            &Some(ty.clone()),
+                            "Function parameter has unknown type",
+                        )
+                    })
+                    .collect::<Result<Vec<Type>, MIRError>>()?;
 
-                let function = prototype.borrow_mut().build(self, &types).map_err(|msg| self.error(name, name, &msg))?;
+                let function = prototype
+                    .borrow_mut()
+                    .build(self, &types)
+                    .map_err(|msg| self.error(name, name, &msg))?;
                 self.builder.build_load(function)
             }
 

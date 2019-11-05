@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/4/19 9:32 PM.
+ * Last modified on 11/5/19 9:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -13,7 +13,7 @@ use crate::ast::module::Module;
 use crate::mir::generator::passes::NONE_CONST;
 use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::nodes::{IFaceMethod, Interface, InterfacePrototype};
-use crate::mir::ToMIRResult;
+use crate::mir::{mutrc_new, ToMIRResult};
 
 /// This pass declares all interfaces.
 pub fn declare_interface_pass(gen: &mut MIRGenerator, module: &mut Module) -> Res<()> {
@@ -64,17 +64,25 @@ fn create_interface(gen: &mut MIRGenerator, interface: &mut ASTIFace) -> Res<()>
     if let Some(generics) = &interface.generics {
         gen.builder.set_generic_types(generics);
 
-        let mut interface = InterfacePrototype {
+        let interface = InterfacePrototype {
             name: Rc::clone(&interface.name.lexeme),
             methods,
-            generic_args: gen.builder.generic_types.iter().cloned().collect(),
+            generic_args: gen.builder.generic_types.to_vec(),
             ..Default::default()
         };
+        gen.builder
+            .prototypes
+            .interfaces
+            .insert(Rc::clone(&interface.name), mutrc_new(interface));
     } else {
-        let mut interface = Interface {
+        let interface = Interface {
             name: Rc::clone(&interface.name.lexeme),
             methods,
         };
+        gen.builder
+            .module
+            .interfaces
+            .insert(Rc::clone(&interface.name), mutrc_new(interface));
     }
 
     gen.builder.remove_this_alias();
