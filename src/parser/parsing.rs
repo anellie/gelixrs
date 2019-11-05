@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/5/19 9:44 PM.
+ * Last modified on 11/5/19 10:09 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -15,6 +15,7 @@ use crate::ast::declaration::{IFaceImpl, Interface, InterfaceFunc, Type};
 use crate::ast::module::Import;
 use crate::Error;
 
+use super::Parser;
 use super::super::{
     ast::{
         declaration::{Class, Enum, FuncSignature, Function, FunctionArg, Variable},
@@ -22,9 +23,8 @@ use super::super::{
         literal::Literal,
         module::Module,
     },
-    lexer::token::{TType, Token},
+    lexer::token::{Token, TType},
 };
-use super::Parser;
 
 // All expressions that require no semicolon when used as a higher expression.
 static NO_SEMICOLON: [TType; 3] = [TType::If, TType::LeftBrace, TType::When];
@@ -581,21 +581,23 @@ impl Parser {
     }
 
     fn identifier(&mut self) -> Option<Expression> {
-        // This uses the fact that identifiers as variable uses
-        // have the same parsing behavior as types;
-        // either just an identifier or an identifier followed
-        // by generic arguments
-        match self.type_("Internal compiler error.")? {
-            Type::Ident(var) => Some(Expression::Variable(var)),
-            Type::Generic { token, types } => Some(Expression::VarWithGenerics {
-                name: token,
-                generics: types,
-            }),
-            _ => {
-                self.error_at_current("Internal compiler error.");
-                None?
+        let name = self.advance();
+
+        Some(if self.match_token(TType::ColonColon) {
+            self.consume(TType::Less, "Expected '<' after '::'.")?;
+            let mut generics = Vec::new();
+            loop {
+                generics.push(self.type_("Expected generic type.")?);
+                if !self.match_token(TType::Comma) {
+                    break;
+                }
             }
-        }
+            self.consume(TType::Greater, "Expected '>' after type parameters.")?;
+
+            Expression::VarWithGenerics { name, generics }
+        } else {
+            Expression::Variable(name)
+        })
     }
 
     fn grouping(&mut self) -> Option<Expression> {

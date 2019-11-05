@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/5/19 9:40 PM.
+ * Last modified on 11/5/19 10:09 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -13,17 +13,17 @@ use either::Either::{Left, Right};
 
 use builder::MIRBuilder;
 
+use crate::{Error, ModulePath};
 use crate::ast::declaration::Function as ASTFunc;
 use crate::ast::expression::Expression as ASTExpr;
 use crate::ast::literal::Literal;
 use crate::ast::module::Module;
-use crate::lexer::token::{TType, Token};
+use crate::lexer::token::{Token, TType};
+use crate::mir::{MIRModule, MutRc, ToMIRResult};
 use crate::mir::nodes::{
     ArrayLiteral, Class, ClassMember, Expression, Flow, Function, Type, Variable,
 };
-use crate::mir::{MIRModule, MutRc, ToMIRResult};
 use crate::option::Flatten;
-use crate::{Error, ModulePath};
 
 mod builder;
 pub mod module;
@@ -675,7 +675,7 @@ impl MIRGenerator {
         self.cur_loop().result_var = Some(Rc::clone(&var));
 
         if &var.type_ != type_ {
-            Err(self.anon_err(None, "Break expressions + for body must have same type"))
+            Err(self.anon_err(None, "Break expressions and for body must have same type"))
         } else {
             Ok(var)
         }
