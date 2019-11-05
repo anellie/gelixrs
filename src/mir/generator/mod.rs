@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/2/19 10:46 PM.
+ * Last modified on 11/5/19 5:54 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,17 +12,17 @@ use either::Either;
 
 use builder::MIRBuilder;
 
+use crate::{Error, ModulePath};
 use crate::ast::declaration::Function as ASTFunc;
 use crate::ast::expression::Expression as ASTExpr;
 use crate::ast::literal::Literal;
 use crate::ast::module::Module;
-use crate::lexer::token::{TType, Token};
+use crate::lexer::token::{Token, TType};
+use crate::mir::{MIRModule, MutRc, ToMIRResult};
 use crate::mir::nodes::{
     ArrayLiteral, Class, ClassMember, Expression, Flow, Function, Type, Variable,
 };
-use crate::mir::{MIRModule, MutRc, ToMIRResult};
 use crate::option::Flatten;
-use crate::{Error, ModulePath};
 
 mod builder;
 pub mod module;
@@ -39,7 +39,7 @@ type Res<T> = Result<T, MIRError>;
 /// for correctness (type-checking, scoping, etc.).
 pub struct MIRGenerator {
     /// The builder used to build the MIR.
-    builder: MIRBuilder,
+    pub builder: MIRBuilder,
 
     /// An environment is a scope that variables live in.
     /// This variable is used like a stack.
@@ -469,6 +469,26 @@ impl MIRGenerator {
             ASTExpr::Variable(var) => {
                 let var = self.find_var(&var)?;
                 self.builder.build_load(var)
+            }
+
+            ASTExpr::VarWithGenerics { name, generics } => {
+                // All valid cases of this are function prototypes.
+                // Class prototypes can only be called and not assigned;
+                // which would be handled in the ASTExpr::Call branch.
+                let prototype = self
+                    .builder
+                    .find_func_or_proto(&name.lexeme)
+                    .or_err(self, &name, "Unknown function.")?
+                    .right()
+                    .or_err(self, &name, "Function does not take generic parameters.")?;
+                let types = generics.iter().map(|ty| self.builder.find_type(ty).or_type_err(
+                    self,
+                    &Some(ty.clone()),
+                    "Function parameter has unknown type",
+                )).collect::<Result<Vec<Type>, MIRError>>()?;
+
+                let function = prototype.borrow_mut().build(self, &types).map_err(|msg| self.error(name, name, &msg))?;
+                self.builder.build_load(function)
             }
 
             ASTExpr::When {

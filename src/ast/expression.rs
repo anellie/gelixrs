@@ -1,12 +1,14 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/3/19 3:19 PM.
+ * Last modified on 11/5/19 5:54 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use super::super::lexer::token::{TType, Token};
+use crate::ast::Type;
+
 use super::declaration::Variable;
 use super::literal::Literal;
+use super::super::lexer::token::{Token, TType};
 
 /// All binary operand types that return a bool instead of the types of their values.
 pub static LOGICAL_BINARY: [TType; 6] = [
@@ -93,6 +95,13 @@ pub enum Expression {
     /// Simply a variable use.
     Variable(Token),
 
+    /// A variable use with generic parameters;
+    /// usually a prototype instantiation
+    VarWithGenerics {
+        name: Token,
+        generics: Vec<Type>,
+    },
+
     /// A when expression.
     When {
         value: Box<Expression>,
@@ -125,6 +134,7 @@ impl Expression {
             Expression::Set { name, .. } => name,
             Expression::Unary { operator, .. } => operator,
             Expression::Variable(name) => name,
+            Expression::VarWithGenerics { name, .. } => name,
             Expression::When { value, .. } => value.get_token()?,
             Expression::VarDef(var) => &var.name,
         })

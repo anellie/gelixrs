@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/4/19 8:03 PM.
+ * Last modified on 11/5/19 5:54 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -10,10 +10,11 @@ use std::rc::Rc;
 
 use indexmap::IndexMap;
 
+use crate::mir::{MutRc, mutrc_new};
+use crate::mir::generator::MIRGenerator;
 use crate::mir::nodes::{
     Block, Class, ClassMember, Function, IFaceMethod, Interface, Type, Variable,
 };
-use crate::mir::{mutrc_new, MutRc};
 
 #[derive(Debug, Default)]
 pub struct ClassPrototype {
@@ -26,7 +27,7 @@ pub struct ClassPrototype {
 }
 
 impl ClassPrototype {
-    pub fn build(&mut self, arguments: &Vec<Type>) -> Result<MutRc<Class>, String> {
+    pub fn build(&mut self, gen: &mut MIRGenerator, arguments: &Vec<Type>) -> Result<MutRc<Class>, String> {
         if let Some(class) = self.instances.get(arguments) {
             return Ok(Rc::clone(&class));
         }
@@ -47,13 +48,7 @@ impl ClassPrototype {
             .methods
             .iter()
             .map(|(name, method)| {
-                let method = method.borrow_mut().build(arguments).unwrap();
-                let var = Variable {
-                    mutable: false,
-                    type_: Type::Function(method),
-                    name: Rc::clone(name),
-                };
-                (Rc::clone(name), Rc::new(var))
+                (Rc::clone(name), method.borrow_mut().build(gen, arguments).unwrap())
             })
             .collect();
 
@@ -147,11 +142,11 @@ pub struct FunctionPrototype {
     pub variables: HashMap<Rc<String>, Rc<Variable>>,
     pub ret_type: Type,
     pub generic_args: Vec<Rc<String>>,
-    pub instances: HashMap<Vec<Type>, MutRc<Function>>,
+    pub instances: HashMap<Vec<Type>, Rc<Variable>>,
 }
 
 impl FunctionPrototype {
-    pub fn build(&mut self, arguments: &Vec<Type>) -> Result<MutRc<Function>, String> {
+    pub fn build(&mut self, gen: &mut MIRGenerator, arguments: &Vec<Type>) -> Result<Rc<Variable>, String> {
         if let Some(func) = self.instances.get(arguments) {
             return Ok(Rc::clone(&func));
         }
@@ -160,16 +155,27 @@ impl FunctionPrototype {
 
         let name = format!("{}-{}", self.name, self.instances.len());
         let function = mutrc_new(Function {
-            name,
+            name: name.clone(),
             parameters: self.parameters.clone(), // TODO
             blocks: self.blocks.clone(),
             variables: self.variables.clone(), // TODO
             ret_type: replace_generic(self.ret_type.clone(), arguments),
         });
 
-        self.instances
-            .insert(arguments.clone(), Rc::clone(&function));
-        Ok(function)
+
+        let global = Rc::new(Variable {
+            name: Rc::new(name),
+            type_: Type::Function(Rc::clone(&function)),
+            mutable: false,
+        });
+
+        gen.builder
+            .module
+            .functions
+            .insert(Rc::clone(&global.name), Rc::clone(&global));
+
+        self.instances.insert(arguments.clone(), Rc::clone(&global));
+        Ok(global)
     }
 }
 
