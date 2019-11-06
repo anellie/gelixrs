@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/5/19 9:40 PM.
+ * Last modified on 11/6/19 5:47 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,16 +11,16 @@ use std::rc::Rc;
 use either::Either;
 use either::Either::{Left, Right};
 
+use crate::{module_path_to_string, ModulePath};
 use crate::ast::Type as ASTType;
 use crate::error::Error;
-use crate::lexer::token::{TType, Token};
+use crate::lexer::token::{Token, TType};
+use crate::mir::{MIRModule, MutRc};
 use crate::mir::generator::{MIRError, MIRGenerator, Res};
 use crate::mir::nodes::{
     Class, ClassMember, ClassPrototype, Expression, Flow, FunctionPrototype, Interface,
     InterfacePrototype, Variable,
 };
-use crate::mir::{MIRModule, MutRc};
-use crate::{module_path_to_string, ModulePath};
 
 use super::super::nodes::{Function, Type};
 
@@ -131,16 +131,14 @@ impl MIRBuilder {
                     .insert_var(Rc::clone(&self.tmp_const), Rc::clone(&var))
             });
 
-        let init_fn = self
-            .find_function_var(&format!("{}-internal-init", &class.name))
-            .unwrap();
+        let init_fn = Rc::clone(&class.methods[&"internal-init".to_string()]);
         let init_call = Expression::Call {
             callee: Box::new(Expression::VarGet(init_fn)),
             arguments: vec![Expression::VarGet(Rc::clone(&var))],
         };
         self.insert_at_ptr(init_call);
 
-        let user_init = self.find_function_var(&format!("{}-init", &class.name));
+        let user_init = class.methods.get(&"init".to_string()).cloned();
         if let Some(user_init) = user_init {
             let init_call = Expression::Call {
                 callee: Box::new(Expression::VarGet(user_init)),

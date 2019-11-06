@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/5/19 10:09 PM.
+ * Last modified on 11/6/19 4:04 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -55,27 +55,22 @@ impl MIRGenerator {
     fn generate_mir(&mut self, module: &Module) -> Res<()> {
         // Note that this can eventually be replaced by Iterator::partition_in_place
         // once it becomes stable: https://doc.rust-lang.org/std/iter/trait.Iterator.html#method.partition_in_place
+        // Until then, this will just have to look terrible I guess...
 
-        let all_func_iter = module.functions.iter().chain(
-            module
-                .classes
-                .iter()
-                .map(|class| &class.methods)
-                .flatten()
-                .chain(module.iface_impls.iter().map(|im| &im.methods).flatten()),
-        );
-
-        for func in all_func_iter
-            .clone()
-            .filter(|func| func.sig.generics.is_some())
-        {
+        for method in module.classes.iter().filter(|c| c.generics.is_some()).map(|class| &class.methods).flatten() {
+            self.generate_function(method)?;
+        }
+        for func in module.functions.iter().filter(|func| func.sig.generics.is_some()) {
             self.generate_function(func)?;
         }
 
-        for func in all_func_iter
-            .clone()
-            .filter(|func| func.sig.generics.is_none())
-        {
+        for method in module.iface_impls.iter().map(|i| &i.methods).flatten() {
+            self.generate_function(method)?;
+        }
+        for method in module.classes.iter().filter(|c| c.generics.is_none()).map(|class| &class.methods).flatten() {
+            self.generate_function(method)?;
+        }
+        for func in module.functions.iter().filter(|func| func.sig.generics.is_none()) {
             self.generate_function(func)?;
         }
 
@@ -269,6 +264,28 @@ impl MIRGenerator {
                     ASTExpr::Variable(name) => {
                         if let Some(class) = self.builder.find_class(&name.lexeme) {
                             return Ok(self.builder.build_constructor(class));
+                        }
+                    }
+
+                    ASTExpr::VarWithGenerics { name, generics } => {
+                        if let Some(proto) = self.builder.find_class_or_proto(&name.lexeme).map(|o| o.right()).flatten_() {
+                            let types = generics
+                                .iter()
+                                .map(|ty| {
+                                    self.builder.find_type(ty).or_type_err(
+                                        self,
+                                        &Some(ty.clone()),
+                                        "Class generic parameter has unknown type",
+                                    )
+                                })
+                                .collect::<Result<Vec<Type>, MIRError>>()?;
+
+                            let class = proto
+                                .borrow_mut()
+                                .build(self, types)
+                                .map_err(|msg| self.error(name, name, &msg))?;
+
+                            return Ok(self.builder.build_constructor(class))
                         }
                     }
 
@@ -521,7 +538,7 @@ impl MIRGenerator {
                 let prototype = self
                     .builder
                     .find_func_or_proto(&name.lexeme)
-                    .or_err(self, &name, "Unknown function.")?
+                    .or_err(self, &name, "Unknown variable.")?
                     .right()
                     .or_err(self, &name, "Function does not take generic parameters.")?;
                 let types = generics

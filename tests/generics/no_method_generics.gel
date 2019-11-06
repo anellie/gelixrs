@@ -1,0 +1,13 @@
+// C-ERR
+
+func main() {
+    Test::<i64>().whoAmI::<i64>(12)
+    Test::<String>().whoAmI::<String>("bye")
+}
+
+class Test<A> {
+    func bad<T>(a: A) -> T {
+        print("I'm a method!")
+        a
+    }
+}

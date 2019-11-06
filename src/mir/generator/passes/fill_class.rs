@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/5/19 9:14 PM.
+ * Last modified on 11/5/19 10:41 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -56,15 +56,28 @@ fn build_class(
 ) -> Res<()> {
     let init_func_rc = gen
         .builder
-        .find_function(&format!("{}-internal-init", &class.name.lexeme))
-        .unwrap();
-    let mut init_func = init_func_rc.borrow_mut();
-    let class_parameter = Rc::clone(&init_func.parameters[0]);
-    gen.builder.set_pointer(
-        Left(Rc::clone(&init_func_rc)),
-        init_func.append_block("entry"),
-    );
-    drop(init_func);
+        .find_func_or_proto(&format!("{}-internal-init", &class.name.lexeme))
+        .unwrap()
+        .map_left(|f| f.type_.as_function().clone());
+
+    let class_parameter = match &init_func_rc {
+        Left(func) => {
+            let mut init_func = func.borrow_mut();
+            gen.builder.set_pointer(
+                init_func_rc.clone(),
+                init_func.append_block("entry"),
+            );
+            Rc::clone(&init_func.parameters[0])
+        },
+        Right(proto) => {
+            let mut init_func = proto.borrow_mut();
+            gen.builder.set_pointer(
+                init_func_rc.clone(),
+                init_func.append_block("entry"),
+            );
+            Rc::clone(&init_func.parameters[0])
+        },
+    };
 
     let offset = fields.len();
     for (i, field) in class.variables.drain(..).enumerate() {

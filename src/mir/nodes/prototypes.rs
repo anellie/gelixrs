@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/5/19 9:48 PM.
+ * Last modified on 11/6/19 5:47 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,11 +12,11 @@ use indexmap::IndexMap;
 
 use crate::ast::Literal;
 use crate::ir::PtrEqRc;
+use crate::mir::{MutRc, mutrc_new};
 use crate::mir::generator::MIRGenerator;
 use crate::mir::nodes::{
     Block, Class, ClassMember, Expression, Flow, Function, IFaceMethod, Interface, Type, Variable,
 };
-use crate::mir::{mutrc_new, MutRc};
 
 #[derive(Debug, Default)]
 pub struct ClassPrototype {
@@ -32,23 +32,30 @@ impl ClassPrototype {
     pub fn build(
         &mut self,
         gen: &mut MIRGenerator,
-        arguments: &Vec<Type>,
+        mut arguments: Vec<Type>,
     ) -> Result<MutRc<Class>, String> {
-        if let Some(class) = self.instances.get(arguments) {
+        if let Some(class) = self.instances.get(&arguments) {
             return Ok(Rc::clone(&class));
         }
 
-        check_generic_arguments(&self.generic_args, arguments)?;
+        let class_rc = mutrc_new(Class {
+            name: Rc::clone(&self.name),
+            ..Default::default()
+        });
+        let mut class = class_rc.borrow_mut();
 
-        let members = self
+        arguments.push(Type::Class(Rc::clone(&class_rc)));
+        check_generic_arguments(&self.generic_args, &arguments)?;
+
+        class.members.extend(self
             .members
             .iter()
             .map(|(name, member)| {
                 let mut member = ClassMember::clone(member);
-                member.type_ = replace_generic(member.type_, arguments);
+                member.type_ = replace_generic(member.type_, &arguments);
                 (Rc::clone(name), Rc::new(member))
-            })
-            .collect();
+            }));
+        drop(class);
 
         let methods = self
             .methods
@@ -56,23 +63,19 @@ impl ClassPrototype {
             .map(|(name, method)| {
                 (
                     Rc::clone(name),
-                    method.borrow_mut().build(gen, arguments).unwrap(),
+                    method.borrow_mut().build(gen, &arguments).unwrap(),
                 )
             })
             .collect();
 
         // TODO: replace generic types in interfaces
-        let interfaces = self.interfaces.clone();
+        //class.interfaces.extend(self.interfaces.clone().into_iter());
 
-        let class = mutrc_new(Class {
-            name: Rc::clone(&self.name),
-            members,
-            methods,
-            interfaces,
-        });
+        class_rc.borrow_mut().methods = methods;
 
-        self.instances.insert(arguments.clone(), Rc::clone(&class));
-        Ok(class)
+        arguments.pop();
+        self.instances.insert(arguments.clone(), Rc::clone(&class_rc));
+        Ok(class_rc)
     }
 }
 
@@ -232,7 +235,7 @@ fn check_generic_arguments(
 ) -> Result<(), String> {
     if parameters.len() != arguments.len() {
         return Err(format!(
-            "Wrong amount of interface generic parameters (expected {}; got {})",
+            "Wrong amount of generic parameters (expected {}; got {})",
             parameters.len(),
             arguments.len()
         ));
@@ -316,23 +319,26 @@ fn replace_variables(expr: &mut Expression, var_map: &HashMap<PtrEqRc<Variable>,
 
         Expression::VarGet(ref var) => {
             let var_rc = PtrEqRc::new(var);
-            std::mem::replace(expr, Expression::VarGet(Rc::clone(&var_map[&var_rc])));
+            if let Some(var) = var_map.get(&var_rc) {
+                std::mem::replace(expr, Expression::VarGet(Rc::clone(&var)));
+            }
         }
 
         Expression::VarStore { ref var, value } => {
             let var_rc = PtrEqRc::new(var);
+            if let Some(var) = var_map.get(&var_rc) {
+                let mut owned_value =
+                    std::mem::replace(value, Box::new(Expression::Literal(Literal::None)));
+                replace_variables(&mut owned_value, var_map);
 
-            let mut owned_value =
-                std::mem::replace(value, Box::new(Expression::Literal(Literal::None)));
-            replace_variables(&mut owned_value, var_map);
-
-            std::mem::replace(
-                expr,
-                Expression::VarStore {
-                    var: Rc::clone(&var_map[&var_rc]),
-                    value: owned_value,
-                },
-            );
+                std::mem::replace(
+                    expr,
+                    Expression::VarStore {
+                        var: Rc::clone(&var),
+                        value: owned_value,
+                    },
+                );
+            }
         }
     }
 }

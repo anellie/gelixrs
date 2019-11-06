@@ -1,0 +1,18 @@
+/*
+I'm a method!
+12
+I'm a method!
+bye
+*/
+
+func main() {
+    printnum(Test::<i64>().whoAmI(12))
+    print(Test::<String>().whoAmI("bye"))
+}
+
+class Test<A> {
+    func whoAmI(a: A) -> A {
+        print("I'm a method!")
+        a
+    }
+}
