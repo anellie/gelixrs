@@ -1,0 +1,11 @@
+// C-ERR
+
+func main() {
+    printnum(Test::<i64>().whoAmI(12))
+}
+
+class Test<A> {
+    func whoAmI(a: A) -> A {
+        453
+    }
+}

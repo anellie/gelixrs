@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/6/19 5:47 PM.
+ * Last modified on 11/15/19 4:47 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -8,6 +8,8 @@ use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
+use either::Either;
+use either::Either::{Left, Right};
 use indexmap::IndexMap;
 
 use crate::ast::Literal;
@@ -23,7 +25,7 @@ pub struct ClassPrototype {
     pub name: Rc<String>,
     pub members: IndexMap<Rc<String>, Rc<ClassMember>>,
     pub methods: HashMap<Rc<String>, MutRc<FunctionPrototype>>,
-    pub interfaces: IndexMap<Rc<String>, MutRc<Interface>>,
+    pub interfaces: IndexMap<Rc<String>, Either<MutRc<Interface>, MutRc<InterfacePrototype>>>,
     pub generic_args: Vec<Rc<String>>,
     pub instances: HashMap<Vec<Type>, MutRc<Class>>,
 }
@@ -68,10 +70,20 @@ impl ClassPrototype {
             })
             .collect();
 
-        // TODO: replace generic types in interfaces
-        //class.interfaces.extend(self.interfaces.clone().into_iter());
+        let interfaces = self
+            .interfaces
+            .iter()
+            .map(|(name, iface)| {
+                let iface = match iface {
+                    Left(iface) => Ok(iface.clone()),
+                    Right(proto) => proto.borrow_mut().build(&arguments),
+                };
+                iface.map(|iface| (Rc::clone(name), iface))
+            })
+            .collect::<Result<IndexMap<Rc<String>, MutRc<Interface>>, String>>()?;
 
         class_rc.borrow_mut().methods = methods;
+        class_rc.borrow_mut().interfaces = interfaces;
 
         arguments.pop();
         self.instances.insert(arguments.clone(), Rc::clone(&class_rc));
