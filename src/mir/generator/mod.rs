@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/26/19 10:08 PM.
+ * Last modified on 11/26/19 10:44 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -22,7 +22,7 @@ use crate::lexer::token::{Token, TType};
 use crate::mir::{MIRModule, MutRc, ToMIRResult};
 use crate::mir::generator::intrinsics::INTRINSICS;
 use crate::mir::nodes::{
-    ArrayLiteral, Class, ClassMember, Expression, Flow, Function, Type, Variable,
+    ArrayLiteral, ClassMember, Expression, Flow, Function, Type, Variable,
 };
 use crate::option::Flatten;
 
@@ -59,20 +59,40 @@ impl MIRGenerator {
         // once it becomes stable: https://doc.rust-lang.org/std/iter/trait.Iterator.html#method.partition_in_place
         // Until then, this will just have to look terrible I guess...
 
-        for method in module.classes.iter().filter(|c| c.generics.is_some()).map(|class| &class.methods).flatten() {
+        for method in module
+            .classes
+            .iter()
+            .filter(|c| c.generics.is_some())
+            .map(|class| &class.methods)
+            .flatten()
+            {
             self.generate_function(method)?;
         }
-        for func in module.functions.iter().filter(|func| func.sig.generics.is_some()) {
+        for func in module
+            .functions
+            .iter()
+            .filter(|func| func.sig.generics.is_some())
+            {
             self.generate_function(func)?;
         }
 
         for method in module.iface_impls.iter().map(|i| &i.methods).flatten() {
             self.generate_function(method)?;
         }
-        for method in module.classes.iter().filter(|c| c.generics.is_none()).map(|class| &class.methods).flatten() {
+        for method in module
+            .classes
+            .iter()
+            .filter(|c| c.generics.is_none())
+            .map(|class| &class.methods)
+            .flatten()
+            {
             self.generate_function(method)?;
         }
-        for func in module.functions.iter().filter(|func| func.sig.generics.is_none()) {
+        for func in module
+            .functions
+            .iter()
+            .filter(|func| func.sig.generics.is_none())
+            {
             self.generate_function(func)?;
         }
 
@@ -264,7 +284,12 @@ impl MIRGenerator {
                     }
 
                     ASTExpr::VarWithGenerics { name, generics } => {
-                        if let Some(proto) = self.builder.find_class_or_proto(&name.lexeme).map(|o| o.right()).flatten_() {
+                        if let Some(proto) = self
+                            .builder
+                            .find_class_or_proto(&name.lexeme)
+                            .map(|o| o.right())
+                            .flatten_()
+                        {
                             let types = generics
                                 .iter()
                                 .map(|ty| {
@@ -281,7 +306,7 @@ impl MIRGenerator {
                                 .build(self, types)
                                 .map_err(|msg| self.error(name, name, &msg))?;
 
-                            return Ok(self.builder.build_constructor(class))
+                            return Ok(self.builder.build_constructor(class));
                         }
                     }
 
@@ -710,7 +735,10 @@ impl MIRGenerator {
             }
         }
 
-        self.builder.find_associated_method(ty, name).map(|m| (object, Either::Right(m))).or_err(self, name, "Unknown field or method.")
+        self.builder
+            .find_associated_method(ty, name)
+            .map(|m| (object, Either::Right(m)))
+            .or_err(self, name, "Unknown field or method.")
     }
 
     pub fn var_to_function(var: &Rc<Variable>) -> MutRc<Function> {
@@ -777,17 +805,20 @@ impl MIRGenerator {
         &mut self,
         op: TType,
         left_ty: &Type,
-        right_ty: &Type
+        right_ty: &Type,
     ) -> Option<Rc<Variable>> {
         let proto = INTRINSICS.with(|i| i.borrow().get_op_iface(op));
         let iface_impls = self.builder.module.iface_impls.get(left_ty)?;
         let iface_impls = iface_impls.borrow();
-        let op_impls = iface_impls.interfaces.iter().filter(|im| im.iface.borrow().proto == Some(Rc::clone(&proto)));
+        let op_impls = iface_impls
+            .interfaces
+            .iter()
+            .filter(|im| im.iface.borrow().proto == Some(Rc::clone(&proto)));
 
         for im in op_impls {
             let method = im.methods.get_index(0).unwrap().1;
             if &method.type_.as_function().borrow().parameters[1].type_ == right_ty {
-                return Some(method).cloned()
+                return Some(method).cloned();
             }
         }
 

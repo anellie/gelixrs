@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/26/19 8:40 PM.
+ * Last modified on 11/26/19 10:44 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -9,7 +9,6 @@ use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
 use either::Either;
-use either::Either::{Left, Right};
 use indexmap::IndexMap;
 
 use crate::ast::Literal;
@@ -49,10 +48,9 @@ impl ClassPrototype {
         arguments.push(Type::Class(Rc::clone(&class_rc)));
         check_generic_arguments(&self.generic_args, &arguments)?;
 
-        class.members.extend(self
+        class
             .members
-            .iter()
-            .map(|(name, member)| {
+            .extend(self.members.iter().map(|(name, member)| {
                 let mut member = ClassMember::clone(member);
                 member.type_ = replace_generic(member.type_, &arguments);
                 (Rc::clone(name), Rc::new(member))
@@ -73,7 +71,8 @@ impl ClassPrototype {
         class_rc.borrow_mut().methods = methods;
 
         arguments.pop();
-        self.instances.insert(arguments.clone(), Rc::clone(&class_rc));
+        self.instances
+            .insert(arguments.clone(), Rc::clone(&class_rc));
         Ok(class_rc)
     }
 }
@@ -130,7 +129,7 @@ impl InterfacePrototype {
         let interface = mutrc_new(Interface {
             name: Rc::clone(&self.name),
             methods,
-            proto: None
+            proto: None,
         });
 
         self.instances

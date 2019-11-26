@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/26/19 10:04 PM.
+ * Last modified on 11/26/19 10:44 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -15,7 +15,9 @@ use crate::lexer::token::Token;
 use crate::mir::{MIRModule, MutRc, mutrc_new, ToMIRResult};
 use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::generator::passes::declare_func::create_function;
-use crate::mir::nodes::{IFaceImpl as MIRImpl, IFaceImpls, IFaceMethod, Interface, InterfacePrototype, Type, Variable};
+use crate::mir::nodes::{
+    IFaceImpl as MIRImpl, IFaceImpls, IFaceMethod, Interface, InterfacePrototype, Type, Variable,
+};
 use crate::option::Flatten;
 
 /// This pass checks and defines all interface impl blocks.
@@ -28,21 +30,28 @@ pub fn iface_impl_pass(gen: &mut MIRGenerator, list: &mut Module) -> Res<()> {
 
 fn iface_impl(gen: &mut MIRGenerator, iface_impl: &mut IFaceImpl) -> Res<()> {
     if let ASTType::Generic { token, .. } = &iface_impl.implementor {
-        return Err(gen.error(&token, &token, "Generic arguments on implementor not supported yet."))
+        return Err(gen.error(
+            &token,
+            &token,
+            "Generic arguments on implementor not supported yet.",
+        ));
     }
 
-    let implementor = gen
-        .builder
-        .find_type(&iface_impl.implementor)
-        .or_type_err(gen, &Some(iface_impl.implementor.clone()), "Unknown type")?;
+    let implementor = gen.builder.find_type(&iface_impl.implementor).or_type_err(
+        gen,
+        &Some(iface_impl.implementor.clone()),
+        "Unknown type",
+    )?;
     let iface_impls = get_or_create_iface_impls(&mut gen.builder.module, &implementor);
 
     let iface = gen
         .builder
         .find_iface_or_proto(&iface_impl.iface.lexeme)
         .or_err(gen, &iface_impl.iface, "Unknown interface.")?
-        .map_left(|l| Ok(l))
-        .left_or_else(|proto| iface_from_proto(gen, proto, &iface_impl.iface_generics, &iface_impl.iface))?;
+        .map_left(Ok)
+        .left_or_else(|proto| {
+            iface_from_proto(gen, proto, &iface_impl.iface_generics, &iface_impl.iface)
+        })?;
 
     let mut mir_impl = MIRImpl {
         implementor,
@@ -68,12 +77,19 @@ fn iface_impl(gen: &mut MIRGenerator, iface_impl: &mut IFaceImpl) -> Res<()> {
         ));
         method.sig.parameters.insert(0, this_arg);
 
-        let mir_method = create_function(gen, &method.sig, false, None)?.left().unwrap();
-        mir_impl.methods.insert(Rc::clone(&old_name), Rc::clone(&mir_method));
+        let mir_method = create_function(gen, &method.sig, false, None)?
+            .left()
+            .unwrap();
+        mir_impl
+            .methods
+            .insert(Rc::clone(&old_name), Rc::clone(&mir_method));
         if iface_impls.borrow().methods.contains_key(&old_name) {
             iface_impls.borrow_mut().methods.remove(&old_name);
         } else {
-            iface_impls.borrow_mut().methods.insert(old_name, Rc::clone(&mir_method));
+            iface_impls
+                .borrow_mut()
+                .methods
+                .insert(old_name, Rc::clone(&mir_method));
         }
         // TODO: Check if class type
 
@@ -92,12 +108,23 @@ fn iface_impl(gen: &mut MIRGenerator, iface_impl: &mut IFaceImpl) -> Res<()> {
     }
 }
 
-fn iface_from_proto(gen: &mut MIRGenerator, proto: MutRc<InterfacePrototype>, args: &Option<Vec<Token>>, error_tok: &Token) -> Res<MutRc<Interface>> {
-    let args = args.as_ref().or_err(gen, error_tok, "Missing generic arguments on interface prototype.")?;
+fn iface_from_proto(
+    gen: &mut MIRGenerator,
+    proto: MutRc<InterfacePrototype>,
+    args: &Option<Vec<Token>>,
+    error_tok: &Token,
+) -> Res<MutRc<Interface>> {
+    let args = args.as_ref().or_err(
+        gen,
+        error_tok,
+        "Missing generic arguments on interface prototype.",
+    )?;
     let args = args
         .iter()
         .map(|tok| {
-            gen.builder.find_type(&ASTType::Ident(tok.clone())).or_err(gen, tok, "Unknown type.")
+            gen.builder
+                .find_type(&ASTType::Ident(tok.clone()))
+                .or_err(gen, tok, "Unknown type.")
         })
         .collect::<Res<Vec<Type>>>()?;
 
@@ -112,11 +139,14 @@ fn get_or_create_iface_impls(module: &mut MIRModule, ty: &Type) -> MutRc<IFaceIm
     match module.iface_impls.get(ty) {
         Some(impls) => Rc::clone(impls),
         None => {
-            module.iface_impls.insert(ty.clone(), mutrc_new(IFaceImpls {
-                implementor: ty.clone(),
-                interfaces: HashSet::with_capacity(2),
-                methods: HashMap::with_capacity(2),
-            }));
+            module.iface_impls.insert(
+                ty.clone(),
+                mutrc_new(IFaceImpls {
+                    implementor: ty.clone(),
+                    interfaces: HashSet::with_capacity(2),
+                    methods: HashMap::with_capacity(2),
+                }),
+            );
             Rc::clone(&module.iface_impls[ty])
         }
     }
@@ -139,10 +169,7 @@ fn check_equal_signature(
             .as_ref()
             .map(|t| t.get_token())
             .flatten_();
-        return Err(gen.anon_err(
-            tok,
-            "Incorrect return type on interface method.",
-        ));
+        return Err(gen.anon_err(tok, "Incorrect return type on interface method."));
     }
 
     for (i, (method_param, iface_param)) in mir_method
@@ -156,7 +183,10 @@ fn check_equal_signature(
             return Err(gen.error(
                 tok,
                 tok,
-                &format!("Incorrect parameter type on interface method (Expected {}).", iface_param),
+                &format!(
+                    "Incorrect parameter type on interface method (Expected {}).",
+                    iface_param
+                ),
             ));
         }
     }

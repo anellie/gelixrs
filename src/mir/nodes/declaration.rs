@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/26/19 10:08 PM.
+ * Last modified on 11/26/19 10:44 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -78,7 +78,7 @@ pub struct Interface {
     pub methods: IndexMap<Rc<String>, IFaceMethod>,
     /// The prototype this interface was built from, if any.
     /// Only used for some intrinsics.
-    pub proto: Option<MutRc<InterfacePrototype>>
+    pub proto: Option<MutRc<InterfacePrototype>>,
 }
 
 impl Hash for Interface {

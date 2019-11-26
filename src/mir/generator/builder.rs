@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/26/19 4:38 PM.
+ * Last modified on 11/26/19 10:44 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -341,7 +341,13 @@ impl MIRBuilder {
             None
         };
 
-        class_method.or_else(|| self.module.iface_impls[&ty].borrow().methods.get(&name.lexeme).cloned())
+        class_method.or_else(|| {
+            self.module.iface_impls[&ty]
+                .borrow()
+                .methods
+                .get(&name.lexeme)
+                .cloned()
+        })
     }
 
     pub fn set_pointer(

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/26/19 10:08 PM.
+ * Last modified on 11/26/19 10:44 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -78,7 +78,7 @@ fn create_interface(gen: &mut MIRGenerator, interface: &mut ASTIFace) -> Res<()>
         let interface = Interface {
             name: Rc::clone(&interface.name.lexeme),
             methods,
-            proto: None
+            proto: None,
         };
         gen.builder
             .module

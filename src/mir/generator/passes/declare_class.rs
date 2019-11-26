@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/6/19 5:47 PM.
+ * Last modified on 11/26/19 10:44 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -31,7 +31,11 @@ fn create_class(gen: &mut MIRGenerator, class: &mut ASTClass) -> Res<()> {
     gen.builder.add_this_alias(&class.name);
 
     if class.methods.iter().any(|m| m.sig.generics.is_some()) {
-        return Err(gen.error(&class.name, &class.name, "Class method may not contain generic parameters"))
+        return Err(gen.error(
+            &class.name,
+            &class.name,
+            "Class method may not contain generic parameters",
+        ));
     }
 
     let this_arg = FunctionArg::this_arg(&class.name);
@@ -60,8 +64,12 @@ fn create_class(gen: &mut MIRGenerator, class: &mut ASTClass) -> Res<()> {
             .insert(Rc::clone(&class.name.lexeme), Rc::clone(&mir_class));
         let mut mir_class = mir_class.borrow_mut();
 
-        let init_fn = create_function(gen, &init_fn_sig, false, Some(generics))?.right().unwrap();
-        mir_class.methods.insert(INIT_CONST.with(|c| c.clone()), init_fn);
+        let init_fn = create_function(gen, &init_fn_sig, false, Some(generics))?
+            .right()
+            .unwrap();
+        mir_class
+            .methods
+            .insert(INIT_CONST.with(|c| c.clone()), init_fn);
 
         // Do all user-defined methods
         for method in class.methods.iter_mut() {
@@ -71,7 +79,9 @@ fn create_class(gen: &mut MIRGenerator, class: &mut ASTClass) -> Res<()> {
                 Rc::new(format!("{}-{}", class.name.lexeme, method.sig.name.lexeme));
             method.sig.parameters.insert(0, this_arg.clone());
 
-            let mir_method = create_function(gen, &method.sig, false, Some(generics))?.right().unwrap();
+            let mir_method = create_function(gen, &method.sig, false, Some(generics))?
+                .right()
+                .unwrap();
             mir_class.methods.insert(method_name, mir_method);
         }
 
@@ -87,8 +97,12 @@ fn create_class(gen: &mut MIRGenerator, class: &mut ASTClass) -> Res<()> {
             .insert(Rc::clone(&class.name.lexeme), Rc::clone(&mir_class));
         let mut mir_class = mir_class.borrow_mut();
 
-        let init_fn = create_function(gen, &init_fn_sig, false, None)?.left().unwrap();
-        mir_class.methods.insert(INIT_CONST.with(|c| c.clone()), init_fn);
+        let init_fn = create_function(gen, &init_fn_sig, false, None)?
+            .left()
+            .unwrap();
+        mir_class
+            .methods
+            .insert(INIT_CONST.with(|c| c.clone()), init_fn);
 
         // Do all user-defined methods
         for method in class.methods.iter_mut() {
@@ -98,7 +112,9 @@ fn create_class(gen: &mut MIRGenerator, class: &mut ASTClass) -> Res<()> {
                 Rc::new(format!("{}-{}", class.name.lexeme, method.sig.name.lexeme));
             method.sig.parameters.insert(0, this_arg.clone());
 
-            let mir_method = create_function(gen, &method.sig, false, None)?.left().unwrap();
+            let mir_method = create_function(gen, &method.sig, false, None)?
+                .left()
+                .unwrap();
             mir_class.methods.insert(method_name, mir_method);
         }
     }

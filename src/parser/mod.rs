@@ -1,16 +1,16 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/24/19 3:58 PM.
+ * Last modified on 11/26/19 10:44 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::{iter::Peekable, mem};
 
-use crate::{module_path_to_string, Error, ModulePath};
+use crate::{Error, module_path_to_string, ModulePath};
 
 use super::lexer::{
-    token::{TType, Token},
     Lexer,
+    token::{Token, TType},
 };
 
 mod parsing;

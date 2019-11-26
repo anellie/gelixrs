@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/26/19 10:08 PM.
+ * Last modified on 11/26/19 10:44 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -13,14 +13,13 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::Mutex;
 
 use crate::ast::Module;
 use crate::lexer::token::TType;
-use crate::mir::{MIRModule, MutRc};
 use crate::mir::generator::builder::MIRBuilder;
 use crate::mir::generator::MIRGenerator;
-use crate::mir::nodes::{Interface, InterfacePrototype};
+use crate::mir::MutRc;
+use crate::mir::nodes::InterfacePrototype;
 
 thread_local! {
     pub static INTRINSICS: RefCell<Intrinsics> = RefCell::new(Intrinsics::default());
@@ -29,7 +28,7 @@ thread_local! {
 /// Contains all data structures that require some sort of special treatment.
 #[derive(Default)]
 pub struct Intrinsics {
-    ops: HashMap<TType, MutRc<InterfacePrototype>>
+    ops: HashMap<TType, MutRc<InterfacePrototype>>,
 }
 
 impl Intrinsics {
@@ -58,7 +57,7 @@ impl Intrinsics {
                     self.ops.insert(TType::EqualEqual, Rc::clone(&iface));
                     self.ops.insert(TType::BangEqual, iface)
                 }
-                _ => None
+                _ => None,
             };
         }
     }
