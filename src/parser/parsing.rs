@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/26/19 3:12 PM.
+ * Last modified on 11/26/19 11:09 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,7 +11,7 @@ use std::rc::Rc;
 
 use either::Either;
 
-use crate::ast::declaration::{IFaceImpl, Interface, InterfaceFunc, Type};
+use crate::ast::declaration::{ClassMember, Constructor, ConstructorParam, IFaceImpl, Interface, InterfaceFunc, Type};
 use crate::ast::module::Import;
 use crate::Error;
 
@@ -134,13 +134,15 @@ impl Parser {
         self.consume(TType::LeftBrace, "Expected '{' before class body.");
 
         let mut methods: Vec<Function> = Vec::new();
-        let mut variables: Vec<Variable> = Vec::new();
+        let mut variables: Vec<ClassMember> = Vec::new();
+        let mut constructors: Vec<Constructor> = Vec::new();
 
         while !self.check(TType::RightBrace) && !self.is_at_end() {
             match self.advance().t_type {
                 TType::Func => methods.push(self.function()?),
-                TType::Var => variables.push(self.variable(true)?),
-                TType::Val => variables.push(self.variable(false)?),
+                TType::Var => variables.push(self.class_variable(true)?),
+                TType::Val => variables.push(self.class_variable(false)?),
+                TType::Construct => constructors.push(self.constructor()?),
                 _ => self.error_at_current("Encountered invalid declaration inside class.")?,
             }
         }
@@ -151,7 +153,59 @@ impl Parser {
             generics,
             methods,
             variables,
+            constructors
         })
+    }
+
+    fn class_variable(&mut self, mutable: bool) -> Option<ClassMember> {
+        let name = self.consume(TType::Identifier, "Expected variable name.")?;
+
+        let mut ty = None;
+        let mut initializer = None;
+        match self.advance().t_type {
+            TType::Equal => {
+                initializer = Some(self.expression()?);
+            },
+
+            TType::Colon => {
+                ty = Some(self.type_("Expected class member type.")?);
+            },
+
+            _ => {
+                self.error_at_current("Expected ':' or '=' after class member name.")?;
+            }
+        }
+        self.consume_semi_or_nl("Expected newline or ';' after variable declaration.");
+
+        Some(ClassMember {
+            name,
+            mutable,
+            ty,
+            initializer,
+        })
+    }
+
+    fn constructor(&mut self) -> Option<Constructor> {
+        self.consume(TType::LeftParen, "Expected '(' after 'construct'.");
+        let mut parameters: Vec<ConstructorParam> = Vec::new();
+        if !self.check(TType::RightParen) {
+            loop {
+                let name = self.consume(TType::Identifier, "Expected parameter name.")?;
+                let ty = if self.match_token(TType::Colon) {
+                    Some(self.type_("Expected parameter type.")?)
+                } else {
+                    None
+                };
+                parameters.push((name, ty));
+                if !self.match_token(TType::Comma) {
+                    break;
+                }
+            }
+        }
+        self.consume(TType::RightParen, "Expected ')' after parameters.");
+
+        let body = self.expression()?;
+        Some(Constructor { parameters, body })
     }
 
     fn enum_declaration(&mut self) -> Option<Enum> {

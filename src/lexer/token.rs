@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/26/19 6:54 PM.
+ * Last modified on 11/26/19 11:00 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -91,6 +91,7 @@ pub enum TType {
     And,
     Break,
     Class,
+    Construct,
     Else,
     Enum,
     Error,

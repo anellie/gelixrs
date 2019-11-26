@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/26/19 10:39 PM.
+ * Last modified on 11/26/19 11:08 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -77,7 +77,7 @@ fn build_class(
 
     let offset = fields.len();
     for (i, field) in class.variables.drain(..).enumerate() {
-        let value = gen.generate_expression(&field.initializer)?;
+        let value = gen.generate_expression(&field.initializer.unwrap())?;
         let member = Rc::new(ClassMember {
             mutable: field.mutable,
             type_: value.get_type(),

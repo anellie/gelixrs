@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/26/19 4:26 PM.
+ * Last modified on 11/26/19 11:09 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -16,8 +16,27 @@ use super::super::lexer::token::Token;
 pub struct Class {
     pub name: Token,
     pub generics: Option<Vec<Token>>,
-    pub variables: Vec<Variable>,
+    pub variables: Vec<ClassMember>,
     pub methods: Vec<Function>,
+    pub constructors: Vec<Constructor>
+}
+
+pub type ConstructorParam = (Token, Option<Type>);
+
+/// A constructor in a class.
+#[derive(Debug)]
+pub struct Constructor {
+    pub parameters: Vec<ConstructorParam>,
+    pub body: Expression,
+}
+
+/// A member of a class.
+#[derive(Debug, Clone)]
+pub struct ClassMember {
+    pub name: Token,
+    pub mutable: bool,
+    pub ty: Option<Type>,
+    pub initializer: Option<Expression>,
 }
 
 // An interface definition.

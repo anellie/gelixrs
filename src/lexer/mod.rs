@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/24/19 3:53 PM.
+ * Last modified on 11/26/19 11:09 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -8,7 +8,7 @@ use std::convert::TryInto;
 use std::iter::FromIterator;
 use std::rc::Rc;
 
-use token::{TType, Token};
+use token::{Token, TType};
 
 pub mod token;
 
@@ -92,6 +92,7 @@ impl Lexer {
             "and" => TType::And,
             "break" => TType::Break,
             "class" => TType::Class,
+            "construct" => TType::Construct,
             "else" => TType::Else,
             "enum" => TType::Enum,
             "error" => TType::Error,
