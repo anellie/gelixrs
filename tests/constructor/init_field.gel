@@ -6,11 +6,11 @@ func main() {
     Test("easy!").simple()
 }
 
-class Test(a: String) {
+class Test {
 
     val a: String
 
-    construct {
+    construct(a: String) {
         this.a = a
     }
 

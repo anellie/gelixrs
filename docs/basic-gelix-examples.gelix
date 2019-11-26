@@ -1,0 +1,152 @@
+// Comments can be two slashes...
+/* Or a C-style multiline.
+    /* Multiline comments nest, so be careful not to miss any. */
+*/
+
+
+// Gelix does not allow code directly in the file. The code needs to be in declarations.
+// Functions are declared like so:
+func add(x: i64, y: i64) -> i64 { // Note the type annotations iX are ints where X is the size in bits
+    if (x > y) return y
+    x + y // Everything in Gelix is an expression - blocks return the value of the last expression.
+}
+
+// Function bodies don't have to be blocks, and can be any expression:
+func add(i32 x, i64 y) -> i64 x + y
+
+// The return type can be omitted:
+func printLine(s: String) print(s.push('\n'))
+// The return type will then be the None type,
+// which is the type and value of all expressions that do not have a reasonable value to give.
+
+
+// main() is the program's entry point.
+func main() {
+    // Variables are declared with var:
+    var x = 5
+    // val makes them immutable:
+    val y = 78
+
+
+    // vars can be reassigned:
+    x = 8
+    // vals can't:
+    y = 7 // Compile Error
+
+    // Gelix is statically typed:
+    x = "String" // Compile Error
+
+    // Gelix has if statements:
+    var z = 0
+    if (x == 5) {
+        z = z + 1
+    } else {
+        z = z - 1
+    }
+
+    // if statements can be expressions:
+    print(if (2 > 3) "Math is weird!" else "All good.")
+    // Both branches must return the same type when used as expression.
+    // If they don't, the type of the expression is None.
+
+    // Gelix also has a when (switch) expression:
+    val isNumberTen = when (10) {
+        10 -> true
+        20 -> {
+            print("But it was 20 instead!")
+            false
+        }
+        else -> {
+            print("It was neither.")
+            false
+        }
+    }
+
+    // For is the only looping construct in Gelix:
+    var i = 0
+    for (i > 10) { // Conditional loop; like 'while' in other languages
+        printnum(i)
+        i = i + 1
+    }
+
+    for (i from 0 to 10) printnum(i) // Shorthand for looping integer ranges
+
+    var sum = 0
+    for (i in [0, 1, 2]) { // Looping an array literal
+        sum = sum + i
+    }
+}
+
+
+// Classes are declared like this:
+class Animal {
+
+    var alive = true
+    var name = "a kitten"
+
+    func speak() {
+        // print is a function in the standard library prelude, which is auto-imported
+        if (this.alive) print("I'm ".push(name))
+        else print("No response...")
+    }
+}
+
+class Pet {
+
+    var name = "kitten"
+    var owner: String
+
+    // To allow for constructor parameters, use this syntax:
+    construct(owner: String) {
+        // In construct, you can initialize all fields that do not have a
+        // value specified. However, you can only access them after
+        // assigning them a value.
+
+        print(this.name) // Fine, as name is already assigned
+        print(this.owner) // Error, assign first
+
+        this.owner = owner
+        print(this.owner) // Now you can access it!
+
+        // Note that all fields need to be initialized in the constructor.
+        // Also, you may not have multiple constructors with the same parameters.
+    }
+
+    // It is possible to shorten the 'this.a = a' syntax in constructors.
+    // To do so, leave out the type:
+    construct(owner) {
+        // The constructor parameter 'owner' is now automatically
+        // assigned to this.owner before the constructor runs.
+        print(this.owner)
+    }
+}
+
+
+// Interfaces can be declared like so:
+interface Talk {
+    func speak(to: String) -> String
+}
+
+// And implemented by any type like so:
+impl Talk for Pet {
+    func speak(to: String) -> String "I'm a pet!"
+}
+
+// Interfaces can be used like any other type, and implementors can be cast to them.
+
+
+// FFI:
+exfn sin(i64 a) -> i64
+// Allows defining functions inside libraries/external code.
+// Currently requires you to use the --ir option to output LLVM IR,
+// which you must then link yourself.
+
+/* Lastly, a look at all inbuilt types in Gelix:                            Literals:
+ * None                 -> A constant used to represent no value.           None
+ * Any                  -> Stands for any type; used for branching exprs.
+ * bool                 -> Simple true/false bool.                          true | false
+ * i8, i16, i32, i64    -> Integers of varying bit sizes.                   12
+ * f32, f64             -> Single and double-precision floats.              24f | 564.03    (f denotes single-precision)
+ * char                 -> A text character.  TODO: Determine encoding.     'c'
+ * String               -> A simple sequence of chars.                      "Hello"
+ */
