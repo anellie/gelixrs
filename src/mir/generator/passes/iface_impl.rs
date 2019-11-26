@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/26/19 4:26 PM.
+ * Last modified on 11/26/19 10:04 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -103,6 +103,7 @@ fn iface_from_proto(gen: &mut MIRGenerator, proto: MutRc<InterfacePrototype>, ar
 
     let iface = proto.borrow_mut().build(&args);
     let iface = iface.map_err(|msg| gen.error(error_tok, error_tok, &msg))?;
+    iface.borrow_mut().proto = Some(proto);
     Ok(iface)
 }
 

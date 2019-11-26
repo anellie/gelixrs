@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/5/19 9:50 PM.
+ * Last modified on 11/26/19 10:08 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -10,10 +10,10 @@ use indexmap::IndexMap;
 
 use crate::ast::declaration::Interface as ASTIFace;
 use crate::ast::module::Module;
-use crate::mir::generator::passes::NONE_CONST;
-use crate::mir::generator::{MIRGenerator, Res};
-use crate::mir::nodes::{IFaceMethod, Interface, InterfacePrototype};
 use crate::mir::{mutrc_new, ToMIRResult};
+use crate::mir::generator::{MIRGenerator, Res};
+use crate::mir::generator::passes::NONE_CONST;
+use crate::mir::nodes::{IFaceMethod, Interface, InterfacePrototype};
 
 /// This pass declares all interfaces.
 pub fn declare_interface_pass(gen: &mut MIRGenerator, module: &mut Module) -> Res<()> {
@@ -78,6 +78,7 @@ fn create_interface(gen: &mut MIRGenerator, interface: &mut ASTIFace) -> Res<()>
         let interface = Interface {
             name: Rc::clone(&interface.name.lexeme),
             methods,
+            proto: None
         };
         gen.builder
             .module

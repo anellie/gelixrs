@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/26/19 4:26 PM.
+ * Last modified on 11/26/19 10:08 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -13,7 +13,7 @@ use indexmap::IndexMap;
 
 use crate::ast::expression::Expression as ASTExpr;
 use crate::mir::MutRc;
-use crate::mir::nodes::{Expression, Type};
+use crate::mir::nodes::{Expression, InterfacePrototype, Type};
 
 /// A full class including all members and methods.
 /// Members are ordered, as the class is represented as a struct in IR;
@@ -26,8 +26,6 @@ pub struct Class {
     pub members: IndexMap<Rc<String>, Rc<ClassMember>>,
     /// All class methods. Inserted as "doThing", not "Class-doThing".
     pub methods: HashMap<Rc<String>, Rc<Variable>>,
-    /// All interfaces implemented by this class.
-    pub interfaces: IndexMap<Rc<String>, MutRc<Interface>>,
 }
 
 impl PartialEq for Class {
@@ -78,6 +76,9 @@ pub struct Interface {
     /// A map of all methods.
     /// Indexed due to the vtable in IR being a struct.
     pub methods: IndexMap<Rc<String>, IFaceMethod>,
+    /// The prototype this interface was built from, if any.
+    /// Only used for some intrinsics.
+    pub proto: Option<MutRc<InterfacePrototype>>
 }
 
 impl Hash for Interface {

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/26/19 4:26 PM.
+ * Last modified on 11/26/19 10:08 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -8,6 +8,7 @@ use std::rc::Rc;
 
 use crate::ast::module::Module;
 use crate::mir::generator::{MIRError, MIRGenerator, Res};
+use crate::mir::generator::intrinsics::INTRINSICS;
 use crate::mir::generator::passes::declare_class::declare_class_pass;
 use crate::mir::generator::passes::declare_func::declare_func_pass;
 use crate::mir::generator::passes::declare_interface::declare_interface_pass;
@@ -36,6 +37,7 @@ impl MIRModuleGenerator {
         function_imports(&mut self.modules)?;
         ensure_no_imports(&mut self.modules)?;
         self.run_for_all(&fill_class_pass)?;
+        INTRINSICS.with(|i| i.borrow_mut().populate(&mut self.modules));
 
         self.modules
             .into_iter()

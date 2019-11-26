@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/24/19 3:53 PM.
+ * Last modified on 11/26/19 6:54 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -54,7 +54,7 @@ impl Token {
 /// All types of tokens available. Most are keywords or special chars.
 /// The ScanError token is a special token signifying a syntax error.
 /// Its lexeme is an error message to be displayed to the user.
-#[derive(PartialEq, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy, Hash)]
 pub enum TType {
     LeftParen,
     RightParen,

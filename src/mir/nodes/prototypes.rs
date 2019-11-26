@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/15/19 4:47 PM.
+ * Last modified on 11/26/19 8:40 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -70,20 +70,7 @@ impl ClassPrototype {
             })
             .collect();
 
-        let interfaces = self
-            .interfaces
-            .iter()
-            .map(|(name, iface)| {
-                let iface = match iface {
-                    Left(iface) => Ok(iface.clone()),
-                    Right(proto) => proto.borrow_mut().build(&arguments),
-                };
-                iface.map(|iface| (Rc::clone(name), iface))
-            })
-            .collect::<Result<IndexMap<Rc<String>, MutRc<Interface>>, String>>()?;
-
         class_rc.borrow_mut().methods = methods;
-        class_rc.borrow_mut().interfaces = interfaces;
 
         arguments.pop();
         self.instances.insert(arguments.clone(), Rc::clone(&class_rc));
@@ -143,6 +130,7 @@ impl InterfacePrototype {
         let interface = mutrc_new(Interface {
             name: Rc::clone(&self.name),
             methods,
+            proto: None
         });
 
         self.instances

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/26/19 4:37 PM.
+ * Last modified on 11/26/19 10:08 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -20,12 +20,14 @@ use crate::ast::literal::Literal;
 use crate::ast::module::Module;
 use crate::lexer::token::{Token, TType};
 use crate::mir::{MIRModule, MutRc, ToMIRResult};
+use crate::mir::generator::intrinsics::INTRINSICS;
 use crate::mir::nodes::{
     ArrayLiteral, Class, ClassMember, Expression, Flow, Function, Type, Variable,
 };
 use crate::option::Flatten;
 
 mod builder;
+mod intrinsics;
 pub mod module;
 mod passes;
 
@@ -171,13 +173,13 @@ impl MIRGenerator {
 
                 if (left_ty == right_ty) && (left_ty.is_int() || left_ty.is_float()) {
                     self.builder.build_binary(left, operator.t_type, right)
-                } else if let Type::Class(left_class) = left_ty {
+                } else {
                     let method_var = self
-                        .get_operator_overloading_method(operator.t_type, left_class)
+                        .get_operator_overloading_method(operator.t_type, &left_ty, &right_ty)
                         .or_err(
                             self,
                             operator,
-                            "No implementation of operator found for type.",
+                            "No implementation of operator found for types.",
                         )?;
                     let method_rc = Self::var_to_function(&method_var);
                     let method = method_rc.borrow();
@@ -197,12 +199,6 @@ impl MIRGenerator {
                         expr = self.builder.build_unary(expr, TType::Bang);
                     }
                     expr
-                } else {
-                    return Err(self.error(
-                        &operator,
-                        &operator,
-                        "Binary operations are only allowed on numbers or class that overload them.",
-                    ));
                 }
             }
 
@@ -777,25 +773,25 @@ impl MIRGenerator {
 
     /// Returns the method that corresponds to the operator given (operator overloading).
     /// Returns None if the given class does not implement overloading.
-    /// TODO: This *really* needs to check the module the interface comes from...
-    /// TODO: Properly get the interface method again
     fn get_operator_overloading_method(
         &mut self,
         op: TType,
-        class: MutRc<Class>,
+        left_ty: &Type,
+        right_ty: &Type
     ) -> Option<Rc<Variable>> {
-        let class = class.borrow();
-        let interface = match op {
-            TType::Plus => class.interfaces.get(&"Add".to_string()),
-            TType::Minus => class.interfaces.get(&"Sub".to_string()),
-            TType::Star => class.interfaces.get(&"Mul".to_string()),
-            TType::Slash => class.interfaces.get(&"Div".to_string()),
-            TType::EqualEqual | TType::BangEqual => class.interfaces.get(&"Equal".to_string()),
-            _ => None,
-        }?;
-        let interface = interface.borrow();
-        let method_name = interface.methods.get_index(0)?.0;
-        class.methods.get(method_name).cloned()
+        let proto = INTRINSICS.with(|i| i.borrow().get_op_iface(op));
+        let iface_impls = self.builder.module.iface_impls.get(left_ty)?;
+        let iface_impls = iface_impls.borrow();
+        let op_impls = iface_impls.interfaces.iter().filter(|im| im.iface.borrow().proto == Some(Rc::clone(&proto)));
+
+        for im in op_impls {
+            let method = im.methods.get_index(0).unwrap().1;
+            if &method.type_.as_function().borrow().parameters[1].type_ == right_ty {
+                return Some(method).cloned()
+            }
+        }
+
+        None
     }
 
     /// Checks if the arg parameter is of the given type ty.
