@@ -1,0 +1,25 @@
+/*
+ok
+42
+*/
+
+interface Test {
+    func test() -> String
+}
+
+impl Test for i64 {
+    func test() -> String "ok"
+}
+
+interface Lower {
+    func inherit() -> i64
+}
+
+impl Lower for Test {
+    func inherit() -> i64 42
+}
+
+func main() {
+    print(24.test())
+    print(24.inherit())
+}

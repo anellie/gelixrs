@@ -1,0 +1,15 @@
+/*
+ok
+*/
+
+interface Test {
+    func test() -> String
+}
+
+impl Test for i64 {
+    func test() -> String "ok"
+}
+
+func main() {
+    print(24.test())
+}

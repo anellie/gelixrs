@@ -1,8 +1,8 @@
 // C-ERR
 
 func main() {
-    Test::<i64>().whoAmI::<i64>(12)
-    Test::<String>().whoAmI::<String>("bye")
+    Test::<i64>().bad::<i64>(12)
+    Test::<String>().bad::<String>("bye")
 }
 
 class Test<A> {

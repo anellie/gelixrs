@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/5/19 10:09 PM.
+ * Last modified on 11/26/19 3:12 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -221,7 +221,7 @@ impl Parser {
     fn iface_impl(&mut self) -> Option<IFaceImpl> {
         let (iface, iface_generics) = self.generic_ident()?;
         self.consume(TType::For, "Expected 'for' after interface name.");
-        let (class, class_generics) = self.generic_ident()?;
+        let implementor = self.type_("Expected interface implementor type.")?;
         self.consume(TType::LeftBrace, "Expected '{' before impl body.");
 
         let mut methods: Vec<Function> = Vec::new();
@@ -235,9 +235,8 @@ impl Parser {
 
         Some(IFaceImpl {
             iface,
-            class,
+            implementor,
             iface_generics,
-            class_generics,
             methods,
         })
     }

@@ -1,5 +1,3 @@
-/*
-
 /// An interface that allows overriding the behavior of the '+' operator on a type.
 /// Implementing this interface will cause the following translation:
 /// (a + b) -> (a.add(b))
@@ -9,7 +7,7 @@
 ///
 /// The recommended way to use this operator is exclusively on numbers, like a
 /// 3D vector or a matrix.
-/// Using it for removing to a collection, for example,
+/// Using it for adding to a collection, for example,
 /// is not recommended as doing so can be confusing to read.
 interface Add<O, T> {
     func add(other: O) -> T
@@ -24,7 +22,7 @@ interface Add<O, T> {
 ///
 /// The recommended way to use this operator is exclusively on numbers, like a
 /// 3D vector or a matrix.
-/// Using it for removing to a collection, for example,
+/// Using it for removing from a collection, for example,
 /// is not recommended as doing so can be confusing to read.
 interface Sub<O, T> {
     func sub(other: O) -> T
@@ -78,8 +76,8 @@ interface Equal<O> {
 /// (a[243]) -> (a.index(243))
 ///
 /// This operation should not modify parameters.
+///
+/// If no suitable element is found at the given index, panicking is appropriate.
 interface Index<I, T> {
     func index(index: I) -> T
 }
-
-*/

@@ -1,10 +1,10 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/4/19 8:03 PM.
+ * Last modified on 11/26/19 4:26 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Error, Formatter};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
@@ -12,8 +12,8 @@ use std::rc::Rc;
 use indexmap::IndexMap;
 
 use crate::ast::expression::Expression as ASTExpr;
-use crate::mir::nodes::{Expression, Type};
 use crate::mir::MutRc;
+use crate::mir::nodes::{Expression, Type};
 
 /// A full class including all members and methods.
 /// Members are ordered, as the class is represented as a struct in IR;
@@ -80,9 +80,59 @@ pub struct Interface {
     pub methods: IndexMap<Rc<String>, IFaceMethod>,
 }
 
+impl Hash for Interface {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.name.hash(state)
+    }
+}
+
 impl PartialEq for Interface {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name
+    }
+}
+
+/// An implementation of an interface.
+#[derive(Debug)]
+pub struct IFaceImpl {
+    pub implementor: Type,
+    pub iface: MutRc<Interface>,
+    pub methods: IndexMap<Rc<String>, Rc<Variable>>,
+}
+
+impl PartialEq for IFaceImpl {
+    fn eq(&self, other: &Self) -> bool {
+        self.implementor == other.implementor && Rc::ptr_eq(&self.iface, &other.iface)
+    }
+}
+
+impl Eq for IFaceImpl {}
+
+impl Hash for IFaceImpl {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.iface.borrow().hash(state)
+    }
+}
+
+/// A struct representing all interfaces implemented by a type.
+/// A simple map of interfaces is not enough, as it does not
+/// prevent naming collisions.
+#[derive(Debug)]
+pub struct IFaceImpls {
+    pub implementor: Type,
+    pub interfaces: HashSet<IFaceImpl>,
+    pub methods: HashMap<Rc<String>, Rc<Variable>>,
+}
+
+impl PartialEq for IFaceImpls {
+    fn eq(&self, other: &Self) -> bool {
+        self.implementor == other.implementor
+    }
+}
+
+impl Hash for IFaceImpls {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.implementor.hash(state)
     }
 }
 

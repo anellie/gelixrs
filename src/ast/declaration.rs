@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/4/19 6:49 PM.
+ * Last modified on 11/26/19 4:26 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -8,8 +8,8 @@ use std::fmt;
 
 use crate::option::Flatten;
 
-use super::super::lexer::token::Token;
 use super::expression::Expression;
+use super::super::lexer::token::Token;
 
 /// A class definition.
 #[derive(Debug)]
@@ -32,9 +32,8 @@ pub struct Interface {
 #[derive(Debug)]
 pub struct IFaceImpl {
     pub iface: Token,
-    pub class: Token,
+    pub implementor: Type,
     pub iface_generics: Option<Vec<Token>>,
-    pub class_generics: Option<Vec<Token>>,
     pub methods: Vec<Function>,
 }
 
@@ -68,6 +67,14 @@ impl FunctionArg {
         FunctionArg {
             name: Token::generic_identifier("this".to_string()),
             type_: Type::Ident(ty.clone()),
+        }
+    }
+
+    /// See above.
+    pub fn this_arg_(ty: &Type) -> FunctionArg {
+        FunctionArg {
+            name: Token::generic_identifier("this".to_string()),
+            type_: ty.clone(),
         }
     }
 }

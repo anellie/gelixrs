@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/6/19 4:04 PM.
+ * Last modified on 11/26/19 4:15 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -792,6 +792,7 @@ impl MIRGenerator {
     /// Returns the method that corresponds to the operator given (operator overloading).
     /// Returns None if the given class does not implement overloading.
     /// TODO: This *really* needs to check the module the interface comes from...
+    /// TODO: Properly get the interface method again
     fn get_operator_overloading_method(
         &mut self,
         op: TType,
