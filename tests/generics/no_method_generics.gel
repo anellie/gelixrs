@@ -1,4 +1,4 @@
-// C-ERR
+// P-ERR
 
 func main() {
     Test::<i64>().bad::<i64>(12)

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/26/19 4:15 PM.
+ * Last modified on 11/26/19 4:37 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -247,7 +247,7 @@ impl MIRGenerator {
                 match &**callee {
                     // Method call
                     ASTExpr::Get { object, name } => {
-                        let (object, field) = self.get_class_field(object, name)?;
+                        let (object, field) = self.get_field(object, name)?;
                         let func =
                             field
                                 .right()
@@ -370,7 +370,7 @@ impl MIRGenerator {
             }
 
             ASTExpr::Get { object, name } => {
-                let (object, field) = self.get_class_field(&**object, name)?;
+                let (object, field) = self.get_field(&**object, name)?;
                 let field =
                     field
                         .left()
@@ -496,7 +496,7 @@ impl MIRGenerator {
                 name,
                 value,
             } => {
-                let (object, field) = self.get_class_field(&**object, name)?;
+                let (object, field) = self.get_field(&**object, name)?;
                 let field = field.left().or_err(self, name, "Cannot set class method")?;
                 let value = self.generate_expression(&**value)?;
 
@@ -698,37 +698,23 @@ impl MIRGenerator {
         }
     }
 
-    fn get_class_field(
+    fn get_field(
         &mut self,
         object: &ASTExpr,
         name: &Token,
     ) -> Res<(Expression, Either<Rc<ClassMember>, Rc<Variable>>)> {
         let object = self.generate_expression(object)?;
+        let ty = object.get_type();
 
-        if let Type::Class(class) = object.get_type() {
+        if let Type::Class(class) = &ty {
             let class = class.borrow();
-
-            // Class fields
             let field = class.members.get(&name.lexeme);
             if let Some(field) = field {
                 return Ok((object, Either::Left(Rc::clone(field))));
             }
-
-            // Class methods
-            let method = class.methods.get(&name.lexeme);
-            if let Some(method) = method {
-                return Ok((object, Either::Right(Rc::clone(method))));
-            }
-
-            // Nothing found...
-            Err(self.error(name, name, "Unknown class field"))
-        } else {
-            Err(self.error(
-                name,
-                name,
-                "Get syntax is only supported on class instances",
-            ))
         }
+
+        self.builder.find_associated_method(ty, name).map(|m| (object, Either::Right(m))).or_err(self, name, "Unknown field or method.")
     }
 
     pub fn var_to_function(var: &Rc<Variable>) -> MutRc<Function> {

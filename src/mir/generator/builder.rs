@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/6/19 5:47 PM.
+ * Last modified on 11/26/19 4:38 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -330,6 +330,18 @@ impl MIRBuilder {
         self.find_interface(name)
             .map(Left)
             .or_else(|| self.prototypes.interfaces.get(name).cloned().map(Right))
+    }
+
+    /// Searches for an associated method on a type. Can be either an interface
+    /// method or a class method.
+    pub fn find_associated_method(&self, ty: Type, name: &Token) -> Option<Rc<Variable>> {
+        let class_method = if let Type::Class(class) = &ty {
+            class.borrow().methods.get(&name.lexeme).cloned()
+        } else {
+            None
+        };
+
+        class_method.or_else(|| self.module.iface_impls[&ty].borrow().methods.get(&name.lexeme).cloned())
     }
 
     pub fn set_pointer(
