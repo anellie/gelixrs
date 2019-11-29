@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/26/19 11:09 PM.
+ * Last modified on 11/30/19 12:00 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -18,7 +18,7 @@ pub struct Class {
     pub generics: Option<Vec<Token>>,
     pub variables: Vec<ClassMember>,
     pub methods: Vec<Function>,
-    pub constructors: Vec<Constructor>
+    pub constructors: Vec<Constructor>,
 }
 
 pub type ConstructorParam = (Token, Option<Type>);

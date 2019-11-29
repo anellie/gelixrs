@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/29/19 11:21 PM.
+ * Last modified on 11/30/19 12:00 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -106,8 +106,8 @@ impl MIRGenerator {
 
         let (ret_type, entry_block) = match function.clone() {
             Left(function_rc) => {
-                let mut function = function_rc.borrow_mut();
-                (function.ret_type.clone(), function.append_block("entry", false))
+                let mut func = function_rc.borrow_mut();
+                (func.ret_type.clone(), func.append_block("entry", false))
             }
 
             Right(proto_rc) => {

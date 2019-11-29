@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/29/19 10:53 PM.
+ * Last modified on 11/30/19 12:00 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -32,7 +32,7 @@ pub struct ClassPrototype {
     pub generic_args: Vec<Rc<String>>,
     pub instances: HashMap<Vec<Type>, MutRc<Class>>,
     pub instantiator: MutRc<FunctionPrototype>,
-    pub constructors: Vec<MutRc<FunctionPrototype>>
+    pub constructors: Vec<MutRc<FunctionPrototype>>,
 }
 
 impl ClassPrototype {
@@ -81,7 +81,11 @@ impl ClassPrototype {
             .collect();
 
         class_rc.borrow_mut().methods = methods;
-        class_rc.borrow_mut().instantiator = self.instantiator.borrow_mut().build(gen, &arguments).unwrap();
+        class_rc.borrow_mut().instantiator = self
+            .instantiator
+            .borrow_mut()
+            .build(gen, &arguments)
+            .unwrap();
         class_rc.borrow_mut().constructors = constructors;
 
         arguments.pop();
@@ -218,7 +222,7 @@ impl FunctionPrototype {
             if force_new {
                 name = format!("{}-{}", name, self.blocks.len());
             } else {
-                return Rc::new(name)
+                return Rc::new(name);
             }
         }
         let rc = Rc::new(name);

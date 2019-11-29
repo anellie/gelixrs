@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/29/19 11:22 PM.
+ * Last modified on 11/30/19 12:00 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -314,7 +314,8 @@ impl MIRBuilder {
         };
 
         class_method.or_else(|| {
-            self.module.iface_impls
+            self.module
+                .iface_impls
                 .get(&ty)?
                 .borrow()
                 .methods

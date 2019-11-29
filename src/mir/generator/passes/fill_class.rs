@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/29/19 11:25 PM.
+ * Last modified on 11/30/19 12:00 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -15,7 +15,7 @@ use crate::ast::declaration::Type as ASTType;
 use crate::ast::module::Module;
 use crate::lexer::token::Token;
 use crate::mir::generator::{MIRGenerator, Res};
-use crate::mir::nodes::{ClassMember, Variable};
+use crate::mir::nodes::{ClassMember, Flow, Variable};
 use crate::mir::ToMIRResult;
 
 /// This pass fills all classes with their members
@@ -65,37 +65,44 @@ fn build_class(
     match &init_func_rc {
         Left(func) => {
             let mut func = func.borrow_mut();
-            gen.builder.set_pointer(init_func_rc.clone(), func.append_block("entry", false));
+            gen.builder
+                .set_pointer(init_func_rc.clone(), func.append_block("entry", false));
         }
         Right(proto) => {
             let mut func = proto.borrow_mut();
-            gen.builder.set_pointer(init_func_rc.clone(), func.append_block("entry", false));
+            gen.builder
+                .set_pointer(init_func_rc.clone(), func.append_block("entry", false));
         }
     };
 
     let class_variable = Rc::new(Variable {
         mutable: true,
-        type_: gen.builder.find_type(&ASTType::Ident(class.name.clone())).unwrap(),
+        type_: gen
+            .builder
+            .find_type(&ASTType::Ident(class.name.clone()))
+            .unwrap(),
         name: Rc::new("this".to_string()),
     });
-    gen.builder.add_function_variable(Rc::clone(&class_variable));
+    gen.builder
+        .add_function_variable(Rc::clone(&class_variable));
 
     let offset = fields.len();
     for (i, field) in class.variables.drain(..).enumerate() {
-        let value = field.initializer.as_ref().map(|e| gen.generate_expression(e));
+        let value = field
+            .initializer
+            .as_ref()
+            .map(|e| gen.generate_expression(e));
         let value = match value {
             Some(v) => Some(v?),
-            None => None
+            None => None,
         };
         let type_ = value
             .as_ref()
             .map(|v| Ok(v.get_type()))
             .unwrap_or_else(|| {
-                gen.builder.find_type(field.ty.as_ref().unwrap()).or_type_err(
-                    gen,
-                    &field.ty,
-                    "Unknown class member type",
-                )
+                gen.builder
+                    .find_type(field.ty.as_ref().unwrap())
+                    .or_type_err(gen, &field.ty, "Unknown class member type")
             })?;
 
         let member = Rc::new(ClassMember {
@@ -123,6 +130,7 @@ fn build_class(
         }
     }
 
+    gen.builder.set_return(Flow::Return(gen.builder.build_load(Rc::clone(&class_variable))));
     Ok(())
 }
 

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/29/19 10:04 PM.
+ * Last modified on 11/30/19 12:00 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,7 +11,9 @@ use std::rc::Rc;
 
 use either::Either;
 
-use crate::ast::declaration::{ClassMember, Constructor, ConstructorParam, IFaceImpl, Interface, InterfaceFunc, Type};
+use crate::ast::declaration::{
+    ClassMember, Constructor, ConstructorParam, IFaceImpl, Interface, InterfaceFunc, Type,
+};
 use crate::ast::module::Import;
 use crate::Error;
 
@@ -149,7 +151,7 @@ impl Parser {
                         self.error_at_current("Methods may not have generic parameters.")?
                     }
                     methods.push(func);
-                },
+                }
 
                 _ => self.error_at_current("Encountered invalid declaration inside class.")?,
             }
@@ -161,7 +163,7 @@ impl Parser {
             generics,
             methods,
             variables,
-            constructors
+            constructors,
         })
     }
 
@@ -173,11 +175,11 @@ impl Parser {
         match self.advance().t_type {
             TType::Equal => {
                 initializer = Some(self.expression()?);
-            },
+            }
 
             TType::Colon => {
                 ty = Some(self.type_("Expected class member type.")?);
-            },
+            }
 
             _ => {
                 self.error_at_current("Expected ':' or '=' after class member name.")?;

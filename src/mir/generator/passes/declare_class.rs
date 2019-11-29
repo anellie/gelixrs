@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/29/19 11:25 PM.
+ * Last modified on 11/30/19 12:00 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -52,22 +52,22 @@ fn create_class(gen: &mut MIRGenerator, class: &mut ASTClass) -> Res<()> {
             .insert(Rc::clone(&class.name.lexeme), Rc::clone(&mir_class));
         let mut mir_class = mir_class.borrow_mut();
 
-        mir_class.instantiator = create_function(gen, &init_fn_sig, false, Some(generics))?.right().unwrap();
+        mir_class.instantiator = create_function(gen, &init_fn_sig, false, Some(generics))?
+            .right()
+            .unwrap();
 
         // Do all user-defined methods
         for method in class.methods.iter_mut() {
-            modify_method_sig(&class.name.lexeme, &mut method.sig, &this_arg);
+            let method_name = modify_method_sig(&class.name.lexeme, &mut method.sig, &this_arg);
             let mir_method = create_function(gen, &method.sig, false, Some(generics))?
                 .right()
                 .unwrap();
-            mir_class.methods.insert(Rc::clone(&method.sig.name.lexeme), mir_method);
+            mir_class.methods.insert(method_name, mir_method);
         }
 
         for (i, constructor) in class.constructors.iter().enumerate() {
             let sig = get_constructor_sig(gen, &class, constructor, &this_arg, i)?;
-            let mir_rc = create_function(gen, &sig, false, None)?
-                .right()
-                .unwrap();
+            let mir_rc = create_function(gen, &sig, false, None)?.right().unwrap();
             let mut mir_fn = mir_rc.borrow_mut();
             let block = insert_constructor_setters(gen, &class, constructor, &mir_fn.parameters)?;
             mir_fn.blocks.insert(Rc::new("entry".to_string()), block);
@@ -84,22 +84,22 @@ fn create_class(gen: &mut MIRGenerator, class: &mut ASTClass) -> Res<()> {
             .insert(Rc::clone(&class.name.lexeme), Rc::clone(&mir_class));
         let mut mir_class = mir_class.borrow_mut();
 
-        mir_class.instantiator = create_function(gen, &init_fn_sig, false, None)?.left().unwrap();
+        mir_class.instantiator = create_function(gen, &init_fn_sig, false, None)?
+            .left()
+            .unwrap();
 
         // Do all user-defined methods
         for method in class.methods.iter_mut() {
-            modify_method_sig(&class.name.lexeme, &mut method.sig, &this_arg);
+            let method_name = modify_method_sig(&class.name.lexeme, &mut method.sig, &this_arg);
             let mir_method = create_function(gen, &method.sig, false, None)?
                 .left()
                 .unwrap();
-            mir_class.methods.insert(Rc::clone(&method.sig.name.lexeme), mir_method);
+            mir_class.methods.insert(method_name, mir_method);
         }
 
         for (i, constructor) in class.constructors.iter().enumerate() {
             let sig = get_constructor_sig(gen, &class, constructor, &this_arg, i)?;
-            let mir_var = create_function(gen, &sig, false, None)?
-                .left()
-                .unwrap();
+            let mir_var = create_function(gen, &sig, false, None)?.left().unwrap();
             let mir_fn = mir_var.type_.as_function();
             let mut mir_fn = mir_fn.borrow_mut();
             let block = insert_constructor_setters(gen, &class, constructor, &mir_fn.parameters)?;
@@ -118,8 +118,8 @@ fn get_instantiator_fn_sig(class: &mut ASTClass) -> FuncSignature {
     FuncSignature {
         name: fn_name,
         generics: None,
-        return_type: None,
-        parameters: vec![FunctionArg::this_arg(&class.name)],
+        return_type: Some(Type::Ident(class.name.clone())),
+        parameters: vec![],
     }
 }
 
@@ -138,8 +138,15 @@ fn get_constructor_sig(
             let type_ = ty
                 .clone()
                 .or_else(|| get_field_by_name(class, name).map(|(_, ty)| ty).flatten_())
-                .or_err(gen, name, "Cannot infer type of field with default value (specify type explicitly.)")?;
-            Ok(FunctionArg { type_, name: name.clone() })
+                .or_err(
+                    gen,
+                    name,
+                    "Cannot infer type of field with default value (specify type explicitly.)",
+                )?;
+            Ok(FunctionArg {
+                type_,
+                name: name.clone(),
+            })
         })
         .collect::<Res<Vec<FunctionArg>>>()?;
     parameters.insert(0, this_arg.clone());
@@ -152,13 +159,29 @@ fn get_constructor_sig(
 }
 
 fn get_field_by_name(class: &ASTClass, name: &Token) -> Option<(usize, Option<Type>)> {
-    class.variables.iter().enumerate().find(|(_, mem)| mem.name.lexeme == name.lexeme).map(|(i, mem)| (i, mem.ty.clone()))
+    class
+        .variables
+        .iter()
+        .enumerate()
+        .find(|(_, mem)| mem.name.lexeme == name.lexeme)
+        .map(|(i, mem)| (i, mem.ty.clone()))
 }
 
-fn insert_constructor_setters(gen: &mut MIRGenerator, class: &ASTClass, constructor: &Constructor, mir_fn_params: &Vec<Rc<Variable>>) -> Res<Block> {
+fn insert_constructor_setters(
+    gen: &mut MIRGenerator,
+    class: &ASTClass,
+    constructor: &Constructor,
+    mir_fn_params: &Vec<Rc<Variable>>,
+) -> Res<Block> {
     let mut block = Vec::new();
-    for (index, (param, _)) in constructor.parameters.iter().enumerate().filter(|(_, (_, ty))| ty.is_none()) {
-        let (field_index, _) = get_field_by_name(class, param).or_err(gen, param, "Unknown class field.")?;
+    for (index, (param, _)) in constructor
+        .parameters
+        .iter()
+        .enumerate()
+        .filter(|(_, (_, ty))| ty.is_none())
+        {
+            let (field_index, _) =
+                get_field_by_name(class, param).or_err(gen, param, "Unknown class field.")?;
         block.push(Expression::StructSet {
             object: Box::new(Expression::VarGet(Rc::clone(&mir_fn_params[0]))),
             index: field_index as u32,
@@ -168,10 +191,11 @@ fn insert_constructor_setters(gen: &mut MIRGenerator, class: &ASTClass, construc
     Ok(block)
 }
 
-fn modify_method_sig(class_name: &Rc<String>, method: &mut FuncSignature, this_arg: &FunctionArg) {
+fn modify_method_sig(class_name: &Rc<String>, method: &mut FuncSignature, this_arg: &FunctionArg) -> Rc<String> {
+    let old_name = Rc::clone(&method.name.lexeme);
     // Change the method name to $class-$method to prevent name collisions
-    method.name.lexeme =
-        Rc::new(format!("{}-{}", class_name, method.name.lexeme));
+    method.name.lexeme = Rc::new(format!("{}-{}", class_name, method.name.lexeme));
     // Add implicit this arg
     method.parameters.insert(0, this_arg.clone());
+    old_name
 }

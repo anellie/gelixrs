@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/29/19 10:53 PM.
+ * Last modified on 11/30/19 12:00 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -34,7 +34,7 @@ pub struct Class {
     /// All constructors of the class. They are simply methods
     /// with special constraints to enforce safety.
     /// Only call on instances produced by the instantiator function.
-    pub constructors: Vec<Rc<Variable>>
+    pub constructors: Vec<Rc<Variable>>,
 }
 
 impl PartialEq for Class {
@@ -183,7 +183,7 @@ impl Function {
             if force_new {
                 name = format!("{}-{}", name, self.blocks.len());
             } else {
-                return Rc::new(name)
+                return Rc::new(name);
             }
         }
         let rc = Rc::new(name);
