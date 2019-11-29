@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/26/19 10:44 PM.
+ * Last modified on 11/29/19 10:53 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -19,6 +19,10 @@ use crate::mir::nodes::{
     Block, Class, ClassMember, Expression, Flow, Function, IFaceMethod, Interface, Type, Variable,
 };
 
+/// A prototype that classes can be instantiated from.
+/// For information on the fields of this struct, check out the
+/// [crate::mir::nodes::declaration::Class] struct, as it contains
+/// almost identical fields except for types.
 #[derive(Debug, Default)]
 pub struct ClassPrototype {
     pub name: Rc<String>,
@@ -27,6 +31,8 @@ pub struct ClassPrototype {
     pub interfaces: IndexMap<Rc<String>, Either<MutRc<Interface>, MutRc<InterfacePrototype>>>,
     pub generic_args: Vec<Rc<String>>,
     pub instances: HashMap<Vec<Type>, MutRc<Class>>,
+    pub instantiator: MutRc<FunctionPrototype>,
+    pub constructors: Vec<MutRc<FunctionPrototype>>
 }
 
 impl ClassPrototype {
@@ -68,7 +74,15 @@ impl ClassPrototype {
             })
             .collect();
 
+        let constructors = self
+            .constructors
+            .iter()
+            .map(|method| method.borrow_mut().build(gen, &arguments).unwrap())
+            .collect();
+
         class_rc.borrow_mut().methods = methods;
+        class_rc.borrow_mut().instantiator = self.instantiator.borrow_mut().build(gen, &arguments).unwrap();
+        class_rc.borrow_mut().constructors = constructors;
 
         arguments.pop();
         self.instances
@@ -195,12 +209,17 @@ impl FunctionPrototype {
 
     // TODO: The 2 functions below are just copies of the same ones in mir::Function
 
-    /// Appends a new block; will returns the block name.
-    /// The name can be different than the given one when it was already in use.
-    pub fn append_block(&mut self, name: &str) -> Rc<String> {
+    /// Either appends a new block or returns the one already present with the given name.
+    /// When force_new is true, a new block is always created.
+    /// Because of this, the name can be different than the given one when it was already in use.
+    pub fn append_block(&mut self, name: &str, force_new: bool) -> Rc<String> {
         let mut name = name.to_string();
         if self.blocks.contains_key(&name) {
-            name = format!("{}-{}", name, self.blocks.len());
+            if force_new {
+                name = format!("{}-{}", name, self.blocks.len());
+            } else {
+                return Rc::new(name)
+            }
         }
         let rc = Rc::new(name);
         self.blocks.insert(Rc::clone(&rc), Vec::with_capacity(5));

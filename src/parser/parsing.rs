@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/26/19 11:09 PM.
+ * Last modified on 11/29/19 10:04 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -139,10 +139,18 @@ impl Parser {
 
         while !self.check(TType::RightBrace) && !self.is_at_end() {
             match self.advance().t_type {
-                TType::Func => methods.push(self.function()?),
                 TType::Var => variables.push(self.class_variable(true)?),
                 TType::Val => variables.push(self.class_variable(false)?),
                 TType::Construct => constructors.push(self.constructor()?),
+
+                TType::Func => {
+                    let func = self.function()?;
+                    if func.sig.generics.is_some() {
+                        self.error_at_current("Methods may not have generic parameters.")?
+                    }
+                    methods.push(func);
+                },
+
                 _ => self.error_at_current("Encountered invalid declaration inside class.")?,
             }
         }

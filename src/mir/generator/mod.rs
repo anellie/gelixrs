@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/26/19 10:44 PM.
+ * Last modified on 11/29/19 11:21 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -21,9 +21,7 @@ use crate::ast::module::Module;
 use crate::lexer::token::{Token, TType};
 use crate::mir::{MIRModule, MutRc, ToMIRResult};
 use crate::mir::generator::intrinsics::INTRINSICS;
-use crate::mir::nodes::{
-    ArrayLiteral, ClassMember, Expression, Flow, Function, Type, Variable,
-};
+use crate::mir::nodes::{ArrayLiteral, ClassMember, Expression, Flow, Function, Type, Variable};
 use crate::option::Flatten;
 
 mod builder;
@@ -109,12 +107,12 @@ impl MIRGenerator {
         let (ret_type, entry_block) = match function.clone() {
             Left(function_rc) => {
                 let mut function = function_rc.borrow_mut();
-                (function.ret_type.clone(), function.append_block("entry"))
+                (function.ret_type.clone(), function.append_block("entry", false))
             }
 
             Right(proto_rc) => {
                 let mut proto = proto_rc.borrow_mut();
-                (proto.ret_type.clone(), proto.append_block("entry"))
+                (proto.ret_type.clone(), proto.append_block("entry", false))
             }
         };
 

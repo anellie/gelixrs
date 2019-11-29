@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/26/19 10:44 PM.
+ * Last modified on 11/29/19 11:22 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -47,9 +47,6 @@ pub struct MIRBuilder {
     /// Used when compiling prototypes.
     pub generic_types: Vec<Rc<String>>,
 
-    /// Simply a const of the string "tmp".
-    /// Used for temporary variables needed for class init.
-    tmp_const: Rc<String>,
     /// Simply a const of the string "This".
     /// Used for the This alias inside classes/interfaces.
     this_const: Rc<String>,
@@ -115,39 +112,13 @@ impl MIRBuilder {
 
     pub fn build_constructor(&mut self, class_ref: MutRc<Class>) -> Expression {
         let class = class_ref.borrow();
-        let var = Rc::new(Variable {
-            name: Rc::clone(&self.tmp_const),
-            type_: Type::Class(Rc::clone(&class_ref)),
-            mutable: false,
-        });
-
-        self.cur_fn()
-            .map_left(|f| {
-                f.borrow_mut()
-                    .insert_var(Rc::clone(&self.tmp_const), Rc::clone(&var))
-            })
-            .left_or_else(|f| {
-                f.borrow_mut()
-                    .insert_var(Rc::clone(&self.tmp_const), Rc::clone(&var))
-            });
-
-        let init_fn = Rc::clone(&class.methods[&"internal-init".to_string()]);
-        let init_call = Expression::Call {
-            callee: Box::new(Expression::VarGet(init_fn)),
-            arguments: vec![Expression::VarGet(Rc::clone(&var))],
+        let create_call = Expression::Call {
+            callee: Box::new(Expression::VarGet(Rc::clone(&class.instantiator))),
+            arguments: vec![],
         };
-        self.insert_at_ptr(init_call);
 
-        let user_init = class.methods.get(&"init".to_string()).cloned();
-        if let Some(user_init) = user_init {
-            let init_call = Expression::Call {
-                callee: Box::new(Expression::VarGet(user_init)),
-                arguments: vec![Expression::VarGet(Rc::clone(&var))],
-            };
-            self.insert_at_ptr(init_call);
-        }
-
-        Expression::VarGet(var)
+        // TODO: Build calls to constructors.
+        create_call
     }
 
     pub fn build_phi(&self, nodes: Vec<(Expression, Rc<String>)>) -> Expression {
@@ -208,10 +179,11 @@ impl MIRBuilder {
         self.set_return(Flow::Jump(Rc::clone(to)))
     }
 
+    /// Will append a block to the given function, always creating a new one.
     pub fn append_block(&mut self, name: &str) -> Rc<String> {
         self.cur_fn()
-            .map_left(|f| f.borrow_mut().append_block(name))
-            .left_or_else(|f| f.borrow_mut().append_block(name))
+            .map_left(|f| f.borrow_mut().append_block(name, true))
+            .left_or_else(|f| f.borrow_mut().append_block(name, true))
     }
 
     pub fn set_return(&mut self, ret: Flow) {
@@ -342,7 +314,8 @@ impl MIRBuilder {
         };
 
         class_method.or_else(|| {
-            self.module.iface_impls[&ty]
+            self.module.iface_impls
+                .get(&ty)?
                 .borrow()
                 .methods
                 .get(&name.lexeme)
@@ -438,7 +411,6 @@ impl MIRBuilder {
             used_names: HashSet::with_capacity(3),
             type_aliases: HashMap::new(),
             generic_types: Vec::with_capacity(3),
-            tmp_const: Rc::new("tmp".to_string()),
             this_const: Rc::new("This".to_string()),
         }
     }

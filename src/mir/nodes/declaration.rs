@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/26/19 10:44 PM.
+ * Last modified on 11/29/19 10:53 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -26,6 +26,15 @@ pub struct Class {
     pub members: IndexMap<Rc<String>, Rc<ClassMember>>,
     /// All class methods. Inserted as "doThing", not "Class-doThing".
     pub methods: HashMap<Rc<String>, Rc<Variable>>,
+    /// An internal function that creates an instance of the class
+    /// and populates all fields with a user-given default value.
+    /// When the user wants to create an instance by calling a constructor,
+    /// this function is called first, followed by one of the constructor methods.
+    pub instantiator: Rc<Variable>,
+    /// All constructors of the class. They are simply methods
+    /// with special constraints to enforce safety.
+    /// Only call on instances produced by the instantiator function.
+    pub constructors: Vec<Rc<Variable>>
 }
 
 impl PartialEq for Class {
@@ -165,12 +174,17 @@ pub struct Function {
 }
 
 impl Function {
-    /// Appends a new block; will returns the block name.
-    /// The name can be different than the given one when it was already in use.
-    pub fn append_block(&mut self, name: &str) -> Rc<String> {
+    /// Either appends a new block or returns the one already present with the given name.
+    /// When force_new is true, a new block is always created.
+    /// Because of this, the name can be different than the given one when it was already in use.
+    pub fn append_block(&mut self, name: &str, force_new: bool) -> Rc<String> {
         let mut name = name.to_string();
         if self.blocks.contains_key(&name) {
-            name = format!("{}-{}", name, self.blocks.len());
+            if force_new {
+                name = format!("{}-{}", name, self.blocks.len());
+            } else {
+                return Rc::new(name)
+            }
         }
         let rc = Rc::new(name);
         self.blocks.insert(Rc::clone(&rc), Vec::with_capacity(5));
@@ -227,7 +241,7 @@ impl Display for Function {
 pub type Block = Vec<Expression>;
 
 /// A variable. Used for function variables as well as for referencing functions.
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct Variable {
     pub mutable: bool,
     pub type_: Type,

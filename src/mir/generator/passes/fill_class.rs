@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/26/19 11:08 PM.
+ * Last modified on 11/29/19 11:25 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,10 +11,12 @@ use either::Either::{Left, Right};
 use indexmap::IndexMap;
 
 use crate::ast::declaration::Class;
+use crate::ast::declaration::Type as ASTType;
 use crate::ast::module::Module;
 use crate::lexer::token::Token;
 use crate::mir::generator::{MIRGenerator, Res};
-use crate::mir::nodes::ClassMember;
+use crate::mir::nodes::{ClassMember, Variable};
+use crate::mir::ToMIRResult;
 
 /// This pass fills all classes with their members
 /// and creates their internal init function.
@@ -56,31 +58,49 @@ fn build_class(
 ) -> Res<()> {
     let init_func_rc = gen
         .builder
-        .find_func_or_proto(&format!("{}-internal-init", &class.name.lexeme))
+        .find_func_or_proto(&format!("create-{}-instance", &class.name.lexeme))
         .unwrap()
         .map_left(|f| f.type_.as_function().clone());
 
-    let class_parameter = match &init_func_rc {
+    match &init_func_rc {
         Left(func) => {
-            let mut init_func = func.borrow_mut();
-            gen.builder
-                .set_pointer(init_func_rc.clone(), init_func.append_block("entry"));
-            Rc::clone(&init_func.parameters[0])
+            let mut func = func.borrow_mut();
+            gen.builder.set_pointer(init_func_rc.clone(), func.append_block("entry", false));
         }
         Right(proto) => {
-            let mut init_func = proto.borrow_mut();
-            gen.builder
-                .set_pointer(init_func_rc.clone(), init_func.append_block("entry"));
-            Rc::clone(&init_func.parameters[0])
+            let mut func = proto.borrow_mut();
+            gen.builder.set_pointer(init_func_rc.clone(), func.append_block("entry", false));
         }
     };
 
+    let class_variable = Rc::new(Variable {
+        mutable: true,
+        type_: gen.builder.find_type(&ASTType::Ident(class.name.clone())).unwrap(),
+        name: Rc::new("this".to_string()),
+    });
+    gen.builder.add_function_variable(Rc::clone(&class_variable));
+
     let offset = fields.len();
     for (i, field) in class.variables.drain(..).enumerate() {
-        let value = gen.generate_expression(&field.initializer.unwrap())?;
+        let value = field.initializer.as_ref().map(|e| gen.generate_expression(e));
+        let value = match value {
+            Some(v) => Some(v?),
+            None => None
+        };
+        let type_ = value
+            .as_ref()
+            .map(|v| Ok(v.get_type()))
+            .unwrap_or_else(|| {
+                gen.builder.find_type(field.ty.as_ref().unwrap()).or_type_err(
+                    gen,
+                    &field.ty,
+                    "Unknown class member type",
+                )
+            })?;
+
         let member = Rc::new(ClassMember {
             mutable: field.mutable,
-            type_: value.get_type(),
+            type_,
             index: (i + offset) as u32,
         });
 
@@ -94,11 +114,13 @@ fn build_class(
             ));
         }
 
-        gen.builder.insert_at_ptr(gen.builder.build_struct_set(
-            gen.builder.build_load(Rc::clone(&class_parameter)),
-            member,
-            value,
-        ));
+        if let Some(value) = value {
+            gen.builder.insert_at_ptr(gen.builder.build_struct_set(
+                gen.builder.build_load(Rc::clone(&class_variable)),
+                member,
+                value,
+            ));
+        }
     }
 
     Ok(())
