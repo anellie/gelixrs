@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 10/26/19 7:28 PM.
+ * Last modified on 11/30/19 3:29 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -35,7 +35,7 @@ extern "C" fn test_print(string: *const c_char) {
     RESULT
         .lock()
         .unwrap()
-        .push_str(&format!("{}\n", string.to_str().unwrap()));
+        .push_str(&format!("{}\n", string.to_str().unwrap_or("INVALID_UTF8")));
 }
 #[no_mangle]
 extern "C" fn test_printnum(num: i64) {
