@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/30/19 12:00 AM.
+ * Last modified on 11/30/19 6:04 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -15,7 +15,7 @@ use crate::{module_path_to_string, ModulePath};
 use crate::ast::Type as ASTType;
 use crate::error::Error;
 use crate::lexer::token::{Token, TType};
-use crate::mir::{MIRModule, MutRc};
+use crate::mir::{IFACE_IMPLS, MIRModule, MutRc};
 use crate::mir::generator::{MIRError, MIRGenerator, Res};
 use crate::mir::nodes::{
     Class, ClassMember, ClassPrototype, Expression, Flow, FunctionPrototype, Interface,
@@ -314,9 +314,8 @@ impl MIRBuilder {
         };
 
         class_method.or_else(|| {
-            self.module
-                .iface_impls
-                .get(&ty)?
+            IFACE_IMPLS
+                .with(|impls| impls.borrow().get(&ty).cloned())?
                 .borrow()
                 .methods
                 .get(&name.lexeme)

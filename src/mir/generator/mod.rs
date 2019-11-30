@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/30/19 12:00 AM.
+ * Last modified on 11/30/19 6:04 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -19,7 +19,7 @@ use crate::ast::expression::Expression as ASTExpr;
 use crate::ast::literal::Literal;
 use crate::ast::module::Module;
 use crate::lexer::token::{Token, TType};
-use crate::mir::{MIRModule, MutRc, ToMIRResult};
+use crate::mir::{IFACE_IMPLS, MIRModule, MutRc, ToMIRResult};
 use crate::mir::generator::intrinsics::INTRINSICS;
 use crate::mir::nodes::{ArrayLiteral, ClassMember, Expression, Flow, Function, Type, Variable};
 use crate::option::Flatten;
@@ -806,7 +806,7 @@ impl MIRGenerator {
         right_ty: &Type,
     ) -> Option<Rc<Variable>> {
         let proto = INTRINSICS.with(|i| i.borrow().get_op_iface(op));
-        let iface_impls = self.builder.module.iface_impls.get(left_ty)?;
+        let iface_impls = IFACE_IMPLS.with(|impls| impls.borrow().get(left_ty).cloned())?;
         let iface_impls = iface_impls.borrow();
         let op_impls = iface_impls
             .interfaces

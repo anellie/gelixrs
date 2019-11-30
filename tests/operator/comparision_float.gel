@@ -9,38 +9,24 @@ false
 false
 true
 false
-false
-false
-false
-true
-true
 true
 true
 */
 
 func main() {
-    print(1.0 < 2.0)
-    print(2.0 < 2.0)
-    print(2.0 < 1.0)
+    print((1.0 < 2.0).toString())
+    print((2.0 < 2.0).toString())
+    print((2.0 < 1.0).toString())
 
-    print(1.0 <= 2.0)
-    print(2.0 <= 2.0)
-    print(2.0 <= 1.0)
+    print((1.0 <= 2.0).toString())
+    print((2.0 <= 2.0).toString())
+    print((2.0 <= 1.0).toString())
 
-    print(1.0 > 2.0)
-    print(2.0 > 2.0)
-    print(2.0 > 1.0)
+    print((1.0 > 2.0).toString())
+    print((2.0 > 2.0).toString())
+    print((2.0 > 1.0).toString())
 
-    print(1.0 >= 2.0)
-    print(2.0 >= 2.0)
-    print(2.0 >= 1.0)
-
-    print(0.0 < -0.0)
-    print(-0.0 < 0.0)
-    print(0.0 > -0.0)
-    print(-0.0 > 0.0)
-    print(0.0 <= -0.0)
-    print(-0.0 <= 0.0)
-    print(0.0 >= -0.0)
-    print(-0.0 >= 0.0)
+    print((1.0 >= 2.0).toString())
+    print((2.0 >= 2.0).toString())
+    print((2.0 >= 1.0).toString())
 }

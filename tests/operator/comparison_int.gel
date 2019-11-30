@@ -9,6 +9,9 @@ false
 false
 true
 false
+true
+true
+false
 false
 false
 false
@@ -19,28 +22,28 @@ true
 */
 
 func main() {
-    print(1 < 2)
-    print(2 < 2)
-    print(2 < 1)
+    print((1 < 2).toString())
+    print((2 < 2).toString())
+    print((2 < 1).toString())
 
-    print(1 <= 2)
-    print(2 <= 2)
-    print(2 <= 1)
+    print((1 <= 2).toString())
+    print((2 <= 2).toString())
+    print((2 <= 1).toString())
 
-    print(1 > 2)
-    print(2 > 2)
-    print(2 > 1)
+    print((1 > 2).toString())
+    print((2 > 2).toString())
+    print((2 > 1).toString())
 
-    print(1 >= 2)
-    print(2 >= 2)
-    print(2 >= 1)
+    print((1 >= 2).toString())
+    print((2 >= 2).toString())
+    print((2 >= 1).toString())
 
-    print(0 < -0)
-    print(-0 < 0)
-    print(0 > -0)
-    print(-0 > 0)
-    print(0 <= -0)
-    print(-0 <= 0)
-    print(0 >= -0)
-    print(-0 >= 0)
+    print((0 < -0).toString())
+    print((-0 < 0).toString())
+    print((0 > -0).toString())
+    print((-0 > 0).toString())
+    print((0 <= -0).toString())
+    print((-0 <= 0).toString())
+    print((0 >= -0).toString())
+    print((-0 >= 0).toString())
 }

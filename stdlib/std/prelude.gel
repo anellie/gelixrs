@@ -34,3 +34,24 @@ class String {
     func len() -> i64 this.chars.len
 }
 */
+
+// An interface for types that can be represented as a string.
+// Note that generally, toString should not expose the implementation
+// of the type, but instead be information relevant to the user.
+//
+// For example, a 'Person' class might return its name and age
+// in a human-readable format.
+interface ToString {
+    func toString() -> String
+}
+
+impl ToString for None {
+    func toString() -> String "None"
+}
+
+impl ToString for bool {
+    func toString() -> String {
+        if (this) "true"
+        else "false"
+    }
+}

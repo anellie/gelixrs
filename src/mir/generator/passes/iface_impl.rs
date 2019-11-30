@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/26/19 10:44 PM.
+ * Last modified on 11/30/19 6:04 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,7 +12,7 @@ use indexmap::IndexMap;
 use crate::ast::declaration::{Function, FunctionArg, IFaceImpl, Type as ASTType};
 use crate::ast::module::Module;
 use crate::lexer::token::Token;
-use crate::mir::{MIRModule, MutRc, mutrc_new, ToMIRResult};
+use crate::mir::{IFACE_IMPLS, MIRModule, MutRc, mutrc_new, ToMIRResult};
 use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::generator::passes::declare_func::create_function;
 use crate::mir::nodes::{
@@ -42,7 +42,7 @@ fn iface_impl(gen: &mut MIRGenerator, iface_impl: &mut IFaceImpl) -> Res<()> {
         &Some(iface_impl.implementor.clone()),
         "Unknown type",
     )?;
-    let iface_impls = get_or_create_iface_impls(&mut gen.builder.module, &implementor);
+    let iface_impls = get_or_create_iface_impls(&implementor);
 
     let iface = gen
         .builder
@@ -91,7 +91,6 @@ fn iface_impl(gen: &mut MIRGenerator, iface_impl: &mut IFaceImpl) -> Res<()> {
                 .methods
                 .insert(old_name, Rc::clone(&mir_method));
         }
-        // TODO: Check if class type
 
         check_equal_signature(gen, method, mir_method, iface_method)?;
     }
@@ -135,19 +134,22 @@ fn iface_from_proto(
 }
 
 /// Gets the interfaces implemented by a type.
-fn get_or_create_iface_impls(module: &mut MIRModule, ty: &Type) -> MutRc<IFaceImpls> {
-    match module.iface_impls.get(ty) {
-        Some(impls) => Rc::clone(impls),
+fn get_or_create_iface_impls(ty: &Type) -> MutRc<IFaceImpls> {
+    match IFACE_IMPLS.with(|impls| impls.borrow().get(ty).cloned()) {
+        Some(impls) => impls,
         None => {
-            module.iface_impls.insert(
-                ty.clone(),
-                mutrc_new(IFaceImpls {
+            IFACE_IMPLS.with(|impls| {
+                let iface_impls = mutrc_new(IFaceImpls {
                     implementor: ty.clone(),
                     interfaces: HashSet::with_capacity(2),
                     methods: HashMap::with_capacity(2),
-                }),
-            );
-            Rc::clone(&module.iface_impls[ty])
+                });
+                impls.borrow_mut().insert(
+                    ty.clone(),
+                    Rc::clone(&iface_impls),
+                );
+                iface_impls
+            })
         }
     }
 }

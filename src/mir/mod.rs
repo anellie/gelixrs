@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/26/19 4:26 PM.
+ * Last modified on 11/30/19 5:53 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -21,6 +21,14 @@ use crate::option::Flatten;
 pub mod generator;
 pub mod nodes;
 
+thread_local! {
+    /// A map containing all interface implementations.
+    /// This is global state since it is shared across modules.
+    /// TODO: This would be better implemented as a lazy_static,
+    /// but the compiler does not currently support multithreading.
+    static IFACE_IMPLS: RefCell<HashMap<Type, MutRc<IFaceImpls>>> = RefCell::new(HashMap::with_capacity(20));
+}
+
 pub type MutRc<T> = Rc<RefCell<T>>;
 
 fn mutrc_new<T>(value: T) -> MutRc<T> {
@@ -38,8 +46,6 @@ pub struct MIRModule {
     pub classes: HashMap<Rc<String>, MutRc<Class>>,
     /// All interfaces.
     pub interfaces: HashMap<Rc<String>, MutRc<Interface>>,
-    /// All interface implementations of all types.
-    pub iface_impls: HashMap<Type, MutRc<IFaceImpls>>,
     /// All functions.
     pub functions: HashMap<Rc<String>, Rc<Variable>>,
 }
