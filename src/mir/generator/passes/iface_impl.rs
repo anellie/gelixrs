@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/30/19 6:04 PM.
+ * Last modified on 12/1/19 3:37 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,7 +12,7 @@ use indexmap::IndexMap;
 use crate::ast::declaration::{Function, FunctionArg, IFaceImpl, Type as ASTType};
 use crate::ast::module::Module;
 use crate::lexer::token::Token;
-use crate::mir::{IFACE_IMPLS, MIRModule, MutRc, mutrc_new, ToMIRResult};
+use crate::mir::{IFACE_IMPLS, MutRc, mutrc_new, ToMIRResult};
 use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::generator::passes::declare_func::create_function;
 use crate::mir::nodes::{
@@ -59,8 +59,6 @@ fn iface_impl(gen: &mut MIRGenerator, iface_impl: &mut IFaceImpl) -> Res<()> {
         methods: IndexMap::with_capacity(iface.borrow().methods.len()),
     };
 
-    // TODO: Check for duplicate impls
-
     for method in iface_impl.methods.iter_mut() {
         let iface = iface.borrow();
         let iface_method = iface.methods.get(&method.sig.name.lexeme).or_err(
@@ -102,8 +100,11 @@ fn iface_impl(gen: &mut MIRGenerator, iface_impl: &mut IFaceImpl) -> Res<()> {
             "Missing methods in interface impl.",
         ))
     } else {
-        iface_impls.borrow_mut().interfaces.insert(mir_impl);
-        Ok(())
+        if iface_impls.borrow_mut().interfaces.insert(mir_impl) {
+            Ok(())
+        } else {
+            Err(gen.error(&iface_impl.iface, &iface_impl.iface, "Interface already implemented for type."))
+        }
     }
 }
 

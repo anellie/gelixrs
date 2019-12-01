@@ -1,9 +1,10 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/30/19 12:00 AM.
+ * Last modified on 12/1/19 4:17 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
+use std::collections::HashSet;
 use std::rc::Rc;
 
 use crate::ast::declaration::{Class as ASTClass, Constructor, FuncSignature, FunctionArg};
@@ -13,7 +14,7 @@ use crate::lexer::token::Token;
 use crate::mir::{mutrc_new, ToMIRResult};
 use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::generator::passes::declare_func::create_function;
-use crate::mir::nodes::{Block, Class, ClassPrototype, Expression, Variable};
+use crate::mir::nodes::{Block, Class, ClassPrototype, Expression, Type as MType, Variable};
 use crate::option::Flatten;
 
 /// This pass declares all classes.
@@ -65,13 +66,19 @@ fn create_class(gen: &mut MIRGenerator, class: &mut ASTClass) -> Res<()> {
             mir_class.methods.insert(method_name, mir_method);
         }
 
+        let mut constructor_list = HashSet::with_capacity(class.constructors.len());
         for (i, constructor) in class.constructors.iter().enumerate() {
             let sig = get_constructor_sig(gen, &class, constructor, &this_arg, i)?;
-            let mir_rc = create_function(gen, &sig, false, None)?.right().unwrap();
+            let mir_rc = create_function(gen, &sig, false, Some(generics))?.right().unwrap();
             let mut mir_fn = mir_rc.borrow_mut();
             let block = insert_constructor_setters(gen, &class, constructor, &mir_fn.parameters)?;
             mir_fn.blocks.insert(Rc::new("entry".to_string()), block);
-            mir_class.constructors.push(Rc::clone(&mir_rc))
+            mir_class.constructors.push(Rc::clone(&mir_rc));
+
+            let params = mir_fn.parameters.iter().skip(1).map(|p| &p.type_).cloned().collect::<Vec<MType>>();
+            if !constructor_list.insert(params) {
+                return Err(gen.error(&class.name, &class.name, "Class contains constructors with duplicate signatures."))
+            }
         }
     } else {
         let mir_class = mutrc_new(Class {
@@ -97,6 +104,7 @@ fn create_class(gen: &mut MIRGenerator, class: &mut ASTClass) -> Res<()> {
             mir_class.methods.insert(method_name, mir_method);
         }
 
+        let mut constructor_list = HashSet::with_capacity(class.constructors.len());
         for (i, constructor) in class.constructors.iter().enumerate() {
             let sig = get_constructor_sig(gen, &class, constructor, &this_arg, i)?;
             let mir_var = create_function(gen, &sig, false, None)?.left().unwrap();
@@ -104,7 +112,12 @@ fn create_class(gen: &mut MIRGenerator, class: &mut ASTClass) -> Res<()> {
             let mut mir_fn = mir_fn.borrow_mut();
             let block = insert_constructor_setters(gen, &class, constructor, &mir_fn.parameters)?;
             mir_fn.blocks.insert(Rc::new("entry".to_string()), block);
-            mir_class.constructors.push(Rc::clone(&mir_var))
+            mir_class.constructors.push(Rc::clone(&mir_var));
+
+            let params = mir_fn.parameters.iter().skip(1).map(|p| &p.type_).cloned().collect::<Vec<MType>>();
+            if !constructor_list.insert(params) {
+                return Err(gen.error(&class.name, &class.name, "Class contains constructors with duplicate signatures."))
+            }
         }
     }
 

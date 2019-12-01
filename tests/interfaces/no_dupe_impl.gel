@@ -1,0 +1,20 @@
+// C-ERR
+
+interface Test {
+    func test() -> String
+}
+
+class Implementor {
+    val a = "ok"
+}
+
+impl Test for Implementor {
+    func test() -> String this.a
+}
+impl Test for Implementor {
+    func test() -> String this.a
+}
+
+func main() {
+    print(Implementor().test())
+}
