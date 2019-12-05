@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/5/19 9:23 AM.
+ * Last modified on 12/5/19 9:32 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -8,6 +8,7 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use crate::ast::declaration::{Class as ASTClass, Constructor, FuncSignature, FunctionArg};
+use crate::ast::Expression as ASTExpr;
 use crate::ast::module::Module;
 use crate::ast::Type;
 use crate::lexer::token::Token;
@@ -36,6 +37,7 @@ fn create_class(gen: &mut MIRGenerator, class: &mut ASTClass) -> Res<()> {
 
     let init_fn_sig = get_instantiator_fn_sig(class);
     let this_arg = FunctionArg::this_arg(&class.name);
+    maybe_add_default_constructor(class);
 
     // If the AST class has generic parameters, it must be compiled to
     // a class prototype instead of an actual class.
@@ -126,6 +128,7 @@ fn create_class(gen: &mut MIRGenerator, class: &mut ASTClass) -> Res<()> {
     Ok(())
 }
 
+/// Returns signature of the class instantiator.
 fn get_instantiator_fn_sig(class: &mut ASTClass) -> FuncSignature {
     let fn_name = Token::generic_identifier(format!("create-{}-instance", &class.name.lexeme));
     FuncSignature {
@@ -136,6 +139,7 @@ fn get_instantiator_fn_sig(class: &mut ASTClass) -> FuncSignature {
     }
 }
 
+/// Returns the MIR function signature of a class constructor.
 fn get_constructor_sig(
     gen: &mut MIRGenerator,
     class: &ASTClass,
@@ -180,6 +184,8 @@ fn get_field_by_name(class: &ASTClass, name: &Token) -> Option<(usize, Option<Ty
         .map(|(i, mem)| (i, mem.ty.clone()))
 }
 
+/// Insert all constructor 'setter' parameters into the entry
+/// block of the MIR function.
 fn insert_constructor_setters(
     gen: &mut MIRGenerator,
     class: &ASTClass,
@@ -204,6 +210,18 @@ fn insert_constructor_setters(
     Ok(block)
 }
 
+/// Will add a default constructor with no parameters
+/// should the class not contain any other constructors.
+fn maybe_add_default_constructor(class: &mut ASTClass) {
+    if class.constructors.is_empty() {
+        class.constructors.push(Constructor {
+            parameters: vec![],
+            body: ASTExpr::Block(vec![]),
+        })
+    }
+}
+
+/// Modify the AST method signature to fit MIR codegen requirements.
 fn modify_method_sig(class_name: &Rc<String>, method: &mut FuncSignature, this_arg: &FunctionArg) -> Rc<String> {
     let old_name = Rc::clone(&method.name.lexeme);
     // Change the method name to $class-$method to prevent name collisions

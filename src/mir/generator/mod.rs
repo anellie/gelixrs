@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/5/19 9:23 AM.
+ * Last modified on 12/5/19 9:30 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -145,7 +145,7 @@ impl MIRGenerator {
         let body = match mir_class {
             Left(class_rc) => {
                 for (constructor, mir_fn) in class.constructors.iter().zip(class_rc.borrow().constructors.iter().map(|v| v.type_.as_function())) {
-                    self.prepare_function(Either::Left(Rc::clone(mir_fn)), constructor.parameters[0].0.line)?;
+                    self.prepare_function(Either::Left(Rc::clone(mir_fn)), constructor.parameters.get(0).map(|l| l.0.line).unwrap_or(0))?;
                     let body = self.generate_expression(&constructor.body)?;
                     self.builder.insert_at_ptr(body);
                     self.end_scope();
@@ -154,7 +154,7 @@ impl MIRGenerator {
 
             Right(proto_rc) => {
                 for (constructor, mir_fn) in class.constructors.iter().zip(proto_rc.borrow().constructors.iter()) {
-                    self.prepare_function(Either::Right(Rc::clone(mir_fn)), constructor.parameters[0].0.line)?;
+                    self.prepare_function(Either::Right(Rc::clone(mir_fn)), constructor.parameters.get(0).map(|l| l.0.line).unwrap_or(0))?;
                     let body = self.generate_expression(&constructor.body)?;
                     self.builder.insert_at_ptr(body);
                     self.end_scope();
