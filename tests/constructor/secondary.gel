@@ -1,12 +1,16 @@
 /*
-second
 easy!
 All right!
 easy!
+thanks
+good
+All right!
+good
 */
 
 func main() {
     Test("easy!").simple()
+    Test("good", "thanks").simple()
 }
 
 class Test {
@@ -18,7 +22,7 @@ class Test {
         print("All right!")
     }
 
-    constructor(b: String, c: String) {
+    construct(b: String, c: String) {
         print(c)
         this(b)
     }

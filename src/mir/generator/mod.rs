@@ -1,10 +1,10 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/30/19 6:04 PM.
+ * Last modified on 12/5/19 9:23 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::rc::Rc;
 
@@ -14,14 +14,14 @@ use either::Either::{Left, Right};
 use builder::MIRBuilder;
 
 use crate::{Error, ModulePath};
-use crate::ast::declaration::Function as ASTFunc;
+use crate::ast::declaration::{Class as ASTClass, Constructor, Function as ASTFunc};
 use crate::ast::expression::Expression as ASTExpr;
 use crate::ast::literal::Literal;
 use crate::ast::module::Module;
 use crate::lexer::token::{Token, TType};
 use crate::mir::{IFACE_IMPLS, MIRModule, MutRc, ToMIRResult};
 use crate::mir::generator::intrinsics::INTRINSICS;
-use crate::mir::nodes::{ArrayLiteral, ClassMember, Expression, Flow, Function, Type, Variable};
+use crate::mir::nodes::{ArrayLiteral, Class, ClassMember, Expression, Flow, Function, FunctionPrototype, Type, Variable};
 use crate::option::Flatten;
 
 mod builder;
@@ -49,6 +49,12 @@ pub struct MIRGenerator {
 
     /// The current loop, if in one.
     current_loop: Option<ForLoop>,
+
+    /// All class members that are not initialized yet.
+    /// This is only used when generating constructors to check
+    /// that all constructors don't access uninitialized fields,
+    /// and initialize all fields when finished.
+    uninitialized_this_members: HashSet<Rc<ClassMember>>
 }
 
 impl MIRGenerator {
@@ -57,6 +63,9 @@ impl MIRGenerator {
         // once it becomes stable: https://doc.rust-lang.org/std/iter/trait.Iterator.html#method.partition_in_place
         // Until then, this will just have to look terrible I guess...
 
+        for class in module.classes.iter() {
+            self.generate_constructors(class);
+        }
         for method in module
             .classes
             .iter()
@@ -104,6 +113,59 @@ impl MIRGenerator {
             .unwrap()
             .map_left(|var| Rc::clone(var.type_.as_function()));
 
+        let ret_type = self.prepare_function(function, func.sig.name.line)?;
+        let body = self.generate_expression(&func.body)?;
+
+        match () {
+            _ if ret_type == Type::None => self.builder.insert_at_ptr(body),
+            _ if ret_type == body.get_type() => self.builder.set_return(Flow::Return(body)),
+            _ => {
+                return Err(self.error(
+                    &func.sig.name,
+                    &func.sig.name,
+                    &format!(
+                        "Function return type ({}) does not match body type ({}).",
+                        ret_type,
+                        body.get_type()
+                    ),
+                ));
+            }
+        };
+
+        self.end_scope();
+        Ok(())
+    }
+
+    fn generate_constructors(&mut self, class: &ASTClass) -> Res<()> {
+        let mir_class = self
+            .builder
+            .find_class_or_proto(&class.name.lexeme)
+            .unwrap();
+
+        let body = match mir_class {
+            Left(class_rc) => {
+                for (constructor, mir_fn) in class.constructors.iter().zip(class_rc.borrow().constructors.iter().map(|v| v.type_.as_function())) {
+                    self.prepare_function(Either::Left(Rc::clone(mir_fn)), constructor.parameters[0].0.line)?;
+                    let body = self.generate_expression(&constructor.body)?;
+                    self.builder.insert_at_ptr(body);
+                    self.end_scope();
+                }
+            },
+
+            Right(proto_rc) => {
+                for (constructor, mir_fn) in class.constructors.iter().zip(proto_rc.borrow().constructors.iter()) {
+                    self.prepare_function(Either::Right(Rc::clone(mir_fn)), constructor.parameters[0].0.line)?;
+                    let body = self.generate_expression(&constructor.body)?;
+                    self.builder.insert_at_ptr(body);
+                    self.end_scope();
+                }
+            }
+        };
+
+        Ok(())
+    }
+
+    fn prepare_function(&mut self, function: Either<MutRc<Function>, MutRc<FunctionPrototype>>, err_line: usize) -> Res<Type> {
         let (ret_type, entry_block) = match function.clone() {
             Left(function_rc) => {
                 let mut func = function_rc.borrow_mut();
@@ -123,36 +185,18 @@ impl MIRGenerator {
         match function {
             Left(function_rc) => {
                 for param in function_rc.borrow().parameters.iter() {
-                    self.insert_variable(Rc::clone(param), false, func.sig.name.line)?;
+                    self.insert_variable(Rc::clone(param), false, err_line)?;
                 }
             }
 
             Right(proto_rc) => {
                 for param in proto_rc.borrow().parameters.iter() {
-                    self.insert_variable(Rc::clone(param), false, func.sig.name.line)?;
+                    self.insert_variable(Rc::clone(param), false, err_line)?;
                 }
             }
         }
 
-        let body = self.generate_expression(&func.body)?;
-        match () {
-            _ if ret_type == Type::None => self.builder.insert_at_ptr(body),
-            _ if ret_type == body.get_type() => self.builder.set_return(Flow::Return(body)),
-            _ => {
-                return Err(self.error(
-                    &func.sig.name,
-                    &func.sig.name,
-                    &format!(
-                        "Function return type ({}) does not match body type ({}).",
-                        ret_type,
-                        body.get_type()
-                    ),
-                ));
-            }
-        };
-
-        self.end_scope();
-        Ok(())
+        Ok(ret_type)
     }
 
     fn generate_expression(&mut self, expression: &ASTExpr) -> Res<Expression> {
@@ -199,7 +243,7 @@ impl MIRGenerator {
                             operator,
                             "No implementation of operator found for types.",
                         )?;
-                    let method_rc = Self::var_to_function(&method_var);
+                    let method_rc = method_var.type_.as_function();
                     let method = method_rc.borrow();
                     if method.parameters[1].type_ != right_ty {
                         return Err(self.error(
@@ -277,7 +321,7 @@ impl MIRGenerator {
                     // Might be class constructor
                     ASTExpr::Variable(name) => {
                         if let Some(class) = self.builder.find_class(&name.lexeme) {
-                            return Ok(self.builder.build_constructor(class));
+                            return self.generate_class_instantiation(class, arguments, name);
                         }
                     }
 
@@ -304,7 +348,7 @@ impl MIRGenerator {
                                 .build(self, types)
                                 .map_err(|msg| self.error(name, name, &msg))?;
 
-                            return Ok(self.builder.build_constructor(class));
+                            return self.generate_class_instantiation(class, arguments, name);
                         }
                     }
 
@@ -739,12 +783,26 @@ impl MIRGenerator {
             .or_err(self, name, "Unknown field or method.")
     }
 
-    pub fn var_to_function(var: &Rc<Variable>) -> MutRc<Function> {
-        if let Type::Function(f) = &var.type_ {
-            Rc::clone(&f)
-        } else {
-            panic!()
-        }
+    fn generate_class_instantiation(&mut self, class: MutRc<Class>, args: &Vec<ASTExpr>, err_tok: &Token) -> Res<Expression> {
+        let mut args = args.iter().map(|arg| self.generate_expression(arg)).collect::<Res<Vec<Expression>>>()?;
+        let inst = self.builder.build_class_inst(Rc::clone(&class));
+        args.insert(0, inst.clone());
+
+        let class = class.borrow();
+        let constructor = class.constructors.iter().find(|constructor| {
+            let constructor = constructor.type_.as_function().borrow();
+            if constructor.parameters.len() != args.len() { return false; }
+            for (param, arg) in constructor.parameters.iter().zip(args.iter()) {
+                if param.type_ != arg.get_type() {
+                    return false;
+                }
+            }
+            true
+        }).or_err(self, err_tok, "No matching constructor found for arguments.")?;
+
+        let call = self.builder.build_call(self.builder.build_load(Rc::clone(&constructor)), args);
+        self.builder.insert_at_ptr(call);
+        Ok(inst)
     }
 
     fn generate_func_args(
@@ -890,6 +948,7 @@ impl MIRGenerator {
             builder: MIRBuilder::new(MIRModule::new(path)),
             environments: Vec::with_capacity(5),
             current_loop: None,
+            uninitialized_this_members: HashSet::with_capacity(10)
         }
     }
 }

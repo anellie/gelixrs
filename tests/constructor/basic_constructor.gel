@@ -10,7 +10,9 @@ class Test {
 
     val a: String
 
-    construct(a) {}
+    construct(a) {
+        print("oof")
+    }
 
     func simple() {
         print(this.a)

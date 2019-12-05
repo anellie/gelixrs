@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/30/19 5:53 PM.
+ * Last modified on 12/4/19 9:55 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -71,7 +71,7 @@ impl Display for MIRModule {
         for func in self
             .functions
             .iter()
-            .map(|f| MIRGenerator::var_to_function(f.1))
+            .map(|f| f.1.type_.as_function())
         {
             writeln!(f, "{}", func.borrow())?;
         }

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/30/19 12:00 AM.
+ * Last modified on 12/4/19 9:55 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -66,7 +66,7 @@ impl Hash for Class {
 }
 
 /// A member of a class.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ClassMember {
     pub mutable: bool,
     pub type_: Type,

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/30/19 6:04 PM.
+ * Last modified on 12/5/19 9:23 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -16,7 +16,7 @@ use crate::ast::Type as ASTType;
 use crate::error::Error;
 use crate::lexer::token::{Token, TType};
 use crate::mir::{IFACE_IMPLS, MIRModule, MutRc};
-use crate::mir::generator::{MIRError, MIRGenerator, Res};
+use crate::mir::generator::{MIRError, Res};
 use crate::mir::nodes::{
     Class, ClassMember, ClassPrototype, Expression, Flow, FunctionPrototype, Interface,
     InterfacePrototype, Variable,
@@ -110,15 +110,23 @@ impl MIRBuilder {
         }
     }
 
-    pub fn build_constructor(&mut self, class_ref: MutRc<Class>) -> Expression {
-        let class = class_ref.borrow();
-        let create_call = Expression::Call {
-            callee: Box::new(Expression::VarGet(Rc::clone(&class.instantiator))),
-            arguments: vec![],
+    /// Builds a class instance and returns an expression that loads the instance.
+    /// The expression returned can be safely cloned to reuse the instance.
+    pub fn build_class_inst(&mut self, class_ref: MutRc<Class>) -> Expression {
+        let call = {
+            let class = class_ref.borrow();
+            self.build_call(self.build_load(Rc::clone(&class.instantiator)), vec![])
         };
 
-        // TODO: Build calls to constructors.
-        create_call
+        let var = Rc::new(Variable {
+            mutable: true,
+            type_: Type::Class(class_ref),
+            name: Rc::new("tmp-constructor-var".to_string()),
+        });
+        self.add_function_variable(Rc::clone(&var));
+        self.insert_at_ptr(self.build_store(Rc::clone(&var), call));
+
+        self.build_load(var)
     }
 
     pub fn build_phi(&self, nodes: Vec<(Expression, Rc<String>)>) -> Expression {
@@ -248,7 +256,7 @@ impl MIRBuilder {
             .functions
             .get(name)
             .or_else(|| self.imports.functions.get(name))
-            .map(|f| MIRGenerator::var_to_function(f))
+            .map(|f| Rc::clone(f.type_.as_function()))
     }
 
     pub fn find_function_var(&self, name: &String) -> Option<Rc<Variable>> {

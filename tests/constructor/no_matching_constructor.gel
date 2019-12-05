@@ -1,0 +1,12 @@
+// C-ERR
+
+func main() {
+    Test("hmm")
+}
+
+class Test {
+
+    val a: i64
+
+    construct(a) {}
+}

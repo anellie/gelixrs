@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/26/19 10:08 PM.
+ * Last modified on 12/4/19 9:55 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -32,12 +32,12 @@ impl MIRModuleGenerator {
         class_imports(&mut self.modules)?;
         self.run_for_all(&declare_interface_pass)?;
         interface_imports(&mut self.modules)?;
-        self.run_for_all(&iface_impl_pass)?;
         self.run_for_all(&declare_func_pass)?;
         function_imports(&mut self.modules)?;
         ensure_no_imports(&mut self.modules)?;
-        self.run_for_all(&fill_class_pass)?;
+        self.run_for_all(&iface_impl_pass)?;
         INTRINSICS.with(|i| i.borrow_mut().populate(&mut self.modules));
+        self.run_for_all(&fill_class_pass)?;
 
         self.modules
             .into_iter()

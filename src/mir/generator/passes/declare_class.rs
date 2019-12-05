@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/1/19 4:17 PM.
+ * Last modified on 12/5/19 9:23 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -198,7 +198,7 @@ fn insert_constructor_setters(
         block.push(Expression::StructSet {
             object: Box::new(Expression::VarGet(Rc::clone(&mir_fn_params[0]))),
             index: field_index as u32,
-            value: Box::new(Expression::VarGet(Rc::clone(&mir_fn_params[index]))),
+            value: Box::new(Expression::VarGet(Rc::clone(&mir_fn_params[index + 1]))),
         })
     }
     Ok(block)
