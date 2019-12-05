@@ -1,0 +1,8 @@
+// C-ERR
+
+class A {
+    var a = 0
+    func a() {}
+}
+
+func main() {}
