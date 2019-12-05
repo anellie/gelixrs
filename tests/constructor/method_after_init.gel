@@ -1,0 +1,24 @@
+/*
+easy!
+oof
+easy!
+*/
+
+func main() {
+    Test("easy!").simple()
+}
+
+class Test {
+
+    val a: String
+
+    construct(a: String) {
+        this.a = a
+        this.simple()
+        print("oof")
+    }
+
+    func simple() {
+        print(this.a)
+    }
+}

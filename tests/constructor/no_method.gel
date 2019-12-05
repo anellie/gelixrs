@@ -1,0 +1,19 @@
+// C-ERR
+
+func main() {
+    Test("easy!").simple()
+}
+
+class Test {
+
+    val a: String
+
+    construct(a: String) {
+        this.simple()
+        this.a = a
+    }
+
+    func simple() {
+        print(this.a)
+    }
+}

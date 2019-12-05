@@ -1,10 +1,9 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/5/19 11:01 AM.
+ * Last modified on 12/5/19 5:11 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::borrow::BorrowMut;
 use std::rc::Rc;
 
 use crate::ast::module::Module;

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/30/19 12:00 AM.
+ * Last modified on 12/5/19 6:17 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -109,6 +109,7 @@ fn build_class(
             mutable: field.mutable,
             type_,
             index: (i + offset) as u32,
+            has_default_value: field.initializer.is_some()
         });
 
         let existing_entry = fields.insert(Rc::clone(&field.name.lexeme), Rc::clone(&member));

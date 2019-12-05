@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/5/19 10:53 AM.
+ * Last modified on 12/5/19 6:24 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -10,6 +10,7 @@ use std::rc::Rc;
 
 use either::Either;
 use either::Either::{Left, Right};
+use indexmap::IndexMap;
 
 use builder::MIRBuilder;
 
@@ -54,6 +55,15 @@ pub struct MIRGenerator {
     /// This is only used when generating constructors to check
     /// that all constructors don't access uninitialized fields,
     /// and initialize all fields when finished.
+    ///
+    /// Because of this, calling is_empty() on this set
+    /// can be used to determine if 'this' is fully
+    /// initialized yet and if methods can be used.
+    ///
+    /// TODO: The code checking for illegal uninitialized access
+    /// does not validate that the object the access occurs on is 'this'.
+    /// Because of this, accesses of members on other objects of the same type
+    /// (that ARE initialized) will be considered illegal.
     uninitialized_this_members: HashSet<Rc<ClassMember>>
 }
 
@@ -142,27 +152,50 @@ impl MIRGenerator {
             .find_class_or_proto(&class.name.lexeme)
             .unwrap();
 
-        let body = match mir_class {
+        match mir_class {
             Left(class_rc) => {
                 for (constructor, mir_fn) in class.constructors.iter().zip(class_rc.borrow().constructors.iter().map(|v| v.type_.as_function())) {
                     self.prepare_function(Either::Left(Rc::clone(mir_fn)), constructor.parameters.get(0).map(|l| l.0.line).unwrap_or(0))?;
+                    self.set_uninitialized_members(constructor, &class_rc.borrow().members);
                     let body = self.generate_expression(&constructor.body)?;
                     self.builder.insert_at_ptr(body);
                     self.end_scope();
+                    self.check_no_uninitialized(&class.name)?;
                 }
             },
 
             Right(proto_rc) => {
                 for (constructor, mir_fn) in class.constructors.iter().zip(proto_rc.borrow().constructors.iter()) {
                     self.prepare_function(Either::Right(Rc::clone(mir_fn)), constructor.parameters.get(0).map(|l| l.0.line).unwrap_or(0))?;
+                    self.set_uninitialized_members(constructor, &proto_rc.borrow().members);
                     let body = self.generate_expression(&constructor.body)?;
                     self.builder.insert_at_ptr(body);
                     self.end_scope();
+                    self.check_no_uninitialized(&class.name)?;
                 }
             }
         };
 
+        self.uninitialized_this_members.clear();
         Ok(())
+    }
+
+    fn set_uninitialized_members(&mut self, constructor: &Constructor, class_mems: &IndexMap<Rc<String>, Rc<ClassMember>>) {
+        self.uninitialized_this_members.clear();
+        for (name, mem) in class_mems.iter() {
+            let initialized = constructor.parameters.iter().filter(|p| p.1.is_none()).any(|p| &p.0.lexeme == name);
+            if !initialized && !mem.has_default_value {
+                self.uninitialized_this_members.insert(Rc::clone(&mem));
+            }
+        }
+    }
+
+    fn check_no_uninitialized(&mut self, err_tok: &Token) -> Res<()> {
+        if self.uninitialized_this_members.is_empty() {
+            Ok(())
+        } else {
+            Err(self.error(err_tok, err_tok, "Cannot have uninitialized fields after constructor."))
+        }
     }
 
     fn prepare_function(&mut self, function: Either<MutRc<Function>, MutRc<FunctionPrototype>>, err_line: usize) -> Res<Type> {
@@ -305,11 +338,16 @@ impl MIRGenerator {
                 match &**callee {
                     // Method call
                     ASTExpr::Get { object, name } => {
+                        if !self.uninitialized_this_members.is_empty() {
+                            return Err(self.error(name, name, "Cannot call methods in constructors until all class members are initialized."));
+                        }
+
                         let (object, field) = self.get_field(object, name)?;
                         let func =
                             field
                                 .right()
                                 .or_err(self, name, "Class members cannot be called.")?;
+
                         let args = self.generate_func_args(
                             Rc::clone(func.type_.as_function()),
                             arguments,
@@ -438,6 +476,10 @@ impl MIRGenerator {
                     field
                         .left()
                         .or_err(self, name, "Cannot get class method (must be called)")?;
+
+                if self.uninitialized_this_members.contains(&field) {
+                    return Err(self.error(name, name, "Cannot get uninitialized class member."))
+                }
                 self.builder.build_struct_get(object, field)
             }
 
@@ -566,10 +608,11 @@ impl MIRGenerator {
                 if value.get_type() != field.type_ {
                     return Err(self.error(name, name, "Class member is a different type"));
                 }
-                if !field.mutable {
+                if !field.mutable && !self.uninitialized_this_members.contains(&field) {
                     return Err(self.error(name, name, "Cannot set immutable class member"));
                 }
 
+                self.uninitialized_this_members.remove(&field);
                 self.builder.build_struct_set(object, field, value)
             }
 

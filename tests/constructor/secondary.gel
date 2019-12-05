@@ -24,7 +24,9 @@ class Test {
 
     construct(b: String, c: String) {
         print(c)
-        this(b)
+        this.a = b
+        print(this.a)
+        print("All right!")
     }
 
     func simple() {
