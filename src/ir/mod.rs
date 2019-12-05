@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/5/19 9:43 PM.
+ * Last modified on 12/5/19 9:32 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -10,24 +10,25 @@ use std::{
     hash::{Hash, Hasher},
     rc::Rc,
 };
+use std::path::Path;
 
 use inkwell::{
+    AddressSpace,
     basic_block::BasicBlock,
     builder::Builder,
     context::Context,
+    FloatPredicate,
+    IntPredicate,
     module::Module,
-    passes::PassManager,
-    types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType, StructType},
-    values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
-    AddressSpace, FloatPredicate, IntPredicate,
+    passes::PassManager, types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType, StructType}, values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
 };
 
 use super::{
     ast::literal::Literal,
     lexer::token::TType,
     mir::{
-        nodes::{Block, Class, Expression, Flow, Function, Type, Variable},
-        MIRModule, MutRc,
+        MIRModule,
+        MutRc, nodes::{Block, Class, Expression, Flow, Function, Type, Variable},
     },
 };
 
@@ -78,7 +79,14 @@ impl IRGenerator {
 
         self.module
             .verify()
-            .map_err(|e| println!("{}", e.to_string()))
+            .map_err(|e| {
+                self.module.print_to_file(Path::new("invalid_code.ll")).unwrap_or(());
+                println!("The compiler generated invalid code, which can be found in the 'invalid_code.ll'.");
+                println!("This is a bug, and should be reported (please include the code when doing so).");
+                println!("The error message reported by LLVM:\n");
+                println!("{}\n", e);
+                std::process::exit(1);
+            })
             .unwrap();
         self.mpm.run_on(&self.module);
         self.module
