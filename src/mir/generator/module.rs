@@ -1,9 +1,10 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/5/19 10:50 AM.
+ * Last modified on 12/5/19 11:01 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
+use std::borrow::BorrowMut;
 use std::rc::Rc;
 
 use crate::ast::module::Module;
@@ -17,6 +18,7 @@ use crate::mir::generator::passes::iface_impl::iface_impl_pass;
 use crate::mir::generator::passes::import::{
     class_imports, ensure_no_imports, function_imports, interface_imports,
 };
+use crate::mir::IFACE_IMPLS;
 use crate::mir::MIRModule;
 
 /// A set of [MIRGenerator]s.
@@ -28,7 +30,7 @@ pub struct MIRModuleGenerator {
 
 impl MIRModuleGenerator {
     pub fn execute(mut self) -> Result<Vec<MIRModule>, Vec<MIRError>> {
-        INTRINSICS.with(|i| i.borrow_mut().reset());
+        reset_mir();
         self.run_for_all(&declare_class_pass)?;
         class_imports(&mut self.modules)?;
         self.run_for_all(&declare_interface_pass)?;
@@ -81,4 +83,11 @@ impl MIRModuleGenerator {
             modules: modules.collect(),
         }
     }
+}
+
+/// This function resets MIR global state.
+/// Called before starting a new compile.
+fn reset_mir() {
+    INTRINSICS.with(|i| i.borrow_mut().reset());
+    IFACE_IMPLS.with(|i| i.borrow_mut().clear());
 }

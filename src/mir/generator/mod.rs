@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/5/19 9:30 AM.
+ * Last modified on 12/5/19 10:53 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -64,7 +64,7 @@ impl MIRGenerator {
         // Until then, this will just have to look terrible I guess...
 
         for class in module.classes.iter() {
-            self.generate_constructors(class);
+            self.generate_constructors(class)?;
         }
         for method in module
             .classes
