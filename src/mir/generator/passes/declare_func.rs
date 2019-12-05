@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/26/19 10:44 PM.
+ * Last modified on 12/5/19 10:52 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -14,6 +14,7 @@ use crate::ast::module::Module;
 use crate::lexer::token::Token;
 use crate::mir::{MutRc, mutrc_new, ToMIRResult};
 use crate::mir::generator::{MIRGenerator, Res};
+use crate::mir::generator::intrinsics::INTRINSICS;
 use crate::mir::nodes::{Function, FunctionPrototype, Type, Variable};
 
 /// This pass defines all functions in MIR.
@@ -97,6 +98,12 @@ pub(super) fn create_function(
             type_: Type::Function(Rc::clone(&function)),
             mutable: false,
         });
+
+        if &func_sig.name.lexeme[..] == "main" {
+            INTRINSICS
+                .with(|i| i.borrow_mut().set_main_fn(&global))
+                .or_err(&gen, &func_sig.name, "Can't define main multiple times.")?;
+        }
 
         gen.builder
             .module

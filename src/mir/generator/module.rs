@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/4/19 9:55 PM.
+ * Last modified on 12/5/19 10:50 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -28,6 +28,7 @@ pub struct MIRModuleGenerator {
 
 impl MIRModuleGenerator {
     pub fn execute(mut self) -> Result<Vec<MIRModule>, Vec<MIRError>> {
+        INTRINSICS.with(|i| i.borrow_mut().reset());
         self.run_for_all(&declare_class_pass)?;
         class_imports(&mut self.modules)?;
         self.run_for_all(&declare_interface_pass)?;
@@ -39,14 +40,17 @@ impl MIRModuleGenerator {
         INTRINSICS.with(|i| i.borrow_mut().populate(&mut self.modules));
         self.run_for_all(&fill_class_pass)?;
 
-        self.modules
+        let modules = self.modules
             .into_iter()
             .map(|(module, mut gen)| {
                 gen.generate_mir(&module)?;
                 Ok(gen.builder.consume_module())
             })
             .collect::<Result<Vec<MIRModule>, MIRError>>()
-            .map_err(|e| vec![e])
+            .map_err(|e| vec![e]);
+
+        INTRINSICS.with(|i| i.borrow_mut().validate())?;
+        modules
     }
 
     fn run_for_all(

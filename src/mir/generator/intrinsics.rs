@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/26/19 10:44 PM.
+ * Last modified on 12/5/19 10:52 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -15,11 +15,12 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::ast::Module;
+use crate::error::Error;
 use crate::lexer::token::TType;
+use crate::mir::generator::{MIRError, MIRGenerator};
 use crate::mir::generator::builder::MIRBuilder;
-use crate::mir::generator::MIRGenerator;
 use crate::mir::MutRc;
-use crate::mir::nodes::InterfacePrototype;
+use crate::mir::nodes::{InterfacePrototype, Variable};
 
 thread_local! {
     pub static INTRINSICS: RefCell<Intrinsics> = RefCell::new(Intrinsics::default());
@@ -29,6 +30,7 @@ thread_local! {
 #[derive(Default)]
 pub struct Intrinsics {
     ops: HashMap<TType, MutRc<InterfacePrototype>>,
+    pub main_fn: Option<Rc<Variable>>,
 }
 
 impl Intrinsics {
@@ -60,5 +62,36 @@ impl Intrinsics {
                 _ => None,
             };
         }
+    }
+
+    pub fn set_main_fn(&mut self, func: &Rc<Variable>) -> Option<()> {
+        match self.main_fn {
+            Some(_) => None,
+            None => {
+                self.main_fn = Some(Rc::clone(func));
+                Some(())
+            }
+        }
+    }
+
+    pub fn validate(&mut self) -> Result<(), Vec<MIRError>> {
+        if self.main_fn.is_none() {
+            return Err(vec![MIRError {
+                error: Error {
+                    lines: (0, 0),
+                    start: 0,
+                    len: 0,
+                    producer: "MIRChecker",
+                    message: "Could not find main function.".to_string(),
+                },
+                module: Rc::new(vec![]),
+            }])
+        }
+        Ok(())
+    }
+
+    pub fn reset(&mut self) {
+        self.ops.clear();
+        self.main_fn = None;
     }
 }
