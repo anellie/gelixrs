@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/4/19 9:55 PM.
+ * Last modified on 12/5/19 9:47 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -227,6 +227,10 @@ impl Display for Function {
         }
 
         writeln!(f, ") {{")?;
+        for (name, var) in &self.variables {
+            writeln!(f, "    {} {}: {}", if var.mutable { "var" } else { "val" }, name, var.type_)?;
+        }
+        writeln!(f, "")?;
         for (name, block) in self.blocks.iter() {
             writeln!(f, "{}:", name)?;
             for inst in block.iter() {

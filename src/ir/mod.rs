@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/5/19 9:32 AM.
+ * Last modified on 12/5/19 9:41 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -102,7 +102,7 @@ impl IRGenerator {
 
             Type::Class(class) => self.build_class(Rc::clone(class)).as_basic_type_enum(),
 
-            _ => panic!("Unknown type to build"),
+            _ => panic!(format!("Unknown type '{}' to build", ty)),
         };
         self.types.insert(ty.clone(), ir_ty);
         ir_ty

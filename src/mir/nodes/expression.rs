@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/4/19 8:03 PM.
+ * Last modified on 12/5/19 9:46 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -153,9 +153,12 @@ impl Display for Expression {
             } => write!(f, "({}) {:?} ({})", left, operator, right),
 
             Expression::Call { callee, arguments } => {
-                write!(f, "call ({}) with ", callee)?;
+                write!(f, "call {}", callee)?;
+                if !arguments.is_empty() {
+                    write!(f, " with ")?;
+                }
                 for arg in arguments.iter() {
-                    write!(f, "({})", arg)?;
+                    write!(f, "({}) ", arg)?;
                 }
                 Ok(())
             }
@@ -182,7 +185,7 @@ impl Display for Expression {
 
             Expression::Unary { right, .. } => write!(f, "neg ({})", right),
 
-            Expression::VarGet(var) => write!(f, "load {}", var.name),
+            Expression::VarGet(var) => write!(f, "{}", var.name),
 
             Expression::VarStore { var, value } => write!(f, "store ({}) in {}", value, var.name),
         }
