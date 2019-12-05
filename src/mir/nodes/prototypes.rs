@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/30/19 12:00 AM.
+ * Last modified on 12/5/19 10:03 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -283,6 +283,11 @@ fn remove_generic_variables(mut function: Function, generics: &Vec<Type>) -> Fun
         .parameters
         .iter()
         .map(|p| Rc::clone(&variables_map[&PtrEqRc::new(p)]))
+        .collect();
+    function.variables = function
+        .variables
+        .iter()
+        .map(|(n, p)| (Rc::clone(n), Rc::clone(&variables_map[&PtrEqRc::new(p)])))
         .collect();
 
     for block in function.blocks.values_mut() {
