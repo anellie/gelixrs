@@ -1,0 +1,20 @@
+/*
+ok
+*/
+
+interface Test<A> {
+    func test() -> A
+}
+
+class Implementor<A> {
+    val a: A
+    construct(a)
+}
+
+impl Test<A> for Implementor<A> {
+    func test() -> String this.a
+}
+
+func main() {
+    print(Implementor::<String>("ok").test())
+}
