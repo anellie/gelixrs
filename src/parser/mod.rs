@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/26/19 10:44 PM.
+ * Last modified on 12/12/19 10:48 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -28,6 +28,9 @@ pub struct Parser {
     /// If an error occurred while creating a declaration, it will be put in this Vec.
     /// If it is empty, parsing was successful.
     errors: Vec<Error>,
+
+    /// Stores the modifiers of the current global declaration.
+    modifiers: Vec<Token>
 }
 
 /// This impl block contains all 'helper' functions of the parser.
@@ -165,7 +168,8 @@ impl Parser {
             current: Token::eof_token(0),
             previous_line: 0,
 
-            errors: Vec::new(),
+            errors: vec![],
+            modifiers: vec![]
         };
 
         // Set state correctly.

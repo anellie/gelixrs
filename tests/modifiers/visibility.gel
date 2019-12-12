@@ -1,0 +1,13 @@
+/*
+*/
+
+func main() {}
+
+public func puts(a: String) {}
+
+public class A {
+    private val a = "it's a secret"
+    private func t() {}
+}
+
+public interface B {}

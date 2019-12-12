@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/30/19 3:42 PM.
+ * Last modified on 12/12/19 11:02 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,9 +11,7 @@ use std::rc::Rc;
 
 use either::Either;
 
-use crate::ast::declaration::{
-    ClassMember, Constructor, ConstructorParam, IFaceImpl, Interface, InterfaceFunc, Type,
-};
+use crate::ast::declaration::{ClassMember, Constructor, ConstructorParam, IFaceImpl, Interface, InterfaceFunc, Type, Visibility};
 use crate::ast::module::Import;
 use crate::Error;
 
@@ -33,6 +31,26 @@ static NO_SEMICOLON: [TType; 3] = [TType::If, TType::LeftBrace, TType::When];
 
 // All tokens that indicate that an interface function does not have a body (bodies are optional).
 static IFACE_END_OF_FUNCTION: [TType; 2] = [TType::Func, TType::RightBrace];
+
+// All tokens that can be modifiers at all.
+static MODIFIERS: [TType; 3] = [TType::Public, TType::Private, TType::Extern];
+
+// All tokens that can be modifiers on any declaration.
+static GLOBAL_MODIFIERS: [TType; 2] = [TType::Public, TType::Private];
+
+// All tokens that can be modifiers on a class.
+static CLASS_MODIFIERS: [TType; 0] = [];
+// All tokens that can be modifiers on a class member.
+static MEMBER_MODIFIERS: [TType; 0] = [];
+// All tokens that can be modifiers on a method.
+static METHOD_MODIFIERS: [TType; 0] = [];
+
+// All tokens that can be modifiers on a function.
+static FUNC_MODIFIERS: [TType; 1] = [TType::Extern];
+// All tokens that can be modifiers on an interface.
+static IFACE_MODIFIERS: [TType; 0] = [];
+// All tokens that can be modifiers on an import declaration.
+static IMPORT_MODIFIERS: [TType; 0] = [];
 
 #[macro_use]
 mod bin_macro {
@@ -80,6 +98,7 @@ impl Parser {
     /// declaration when illegal syntax is encountered.
     /// Note that synchronization is not done on error, and is done by the caller.
     pub fn declaration(&mut self, module: &mut Module) -> Option<()> {
+        self.consume_mods();
         match self.advance().t_type {
             TType::Class => module.classes.push(self.class_declaration()?),
             TType::Enum => module.enums.push(self.enum_declaration()?),
@@ -95,6 +114,7 @@ impl Parser {
     }
 
     fn ex_func_declaration(&mut self) -> Option<FuncSignature> {
+        self.check_mods(&FUNC_MODIFIERS, "function");
         let (name, generics) = self.generic_ident()?;
         self.consume(TType::LeftParen, "Expected '(' after function name.");
 
@@ -107,6 +127,7 @@ impl Parser {
 
         Some(FuncSignature {
             name,
+            visibility: self.get_visibility()?,
             return_type,
             parameters,
             generics,
@@ -131,6 +152,8 @@ impl Parser {
     }
 
     fn class_declaration(&mut self) -> Option<Class> {
+        self.check_mods(&CLASS_MODIFIERS, "class")?;
+        let visibility = self.get_visibility()?;
         let (name, generics) = self.generic_ident()?;
 
         self.consume(TType::LeftBrace, "Expected '{' before class body.");
@@ -140,6 +163,7 @@ impl Parser {
         let mut constructors: Vec<Constructor> = Vec::new();
 
         while !self.check(TType::RightBrace) && !self.is_at_end() {
+            self.consume_mods();
             match self.advance().t_type {
                 TType::Var => variables.push(self.class_variable(true)?),
                 TType::Val => variables.push(self.class_variable(false)?),
@@ -160,6 +184,7 @@ impl Parser {
         self.consume(TType::RightBrace, "Expected '}' after class body.");
         Some(Class {
             name,
+            visibility,
             generics,
             methods,
             variables,
@@ -168,6 +193,7 @@ impl Parser {
     }
 
     fn class_variable(&mut self, mutable: bool) -> Option<ClassMember> {
+        self.check_mods(&MEMBER_MODIFIERS, "class member")?;
         let name = self.consume(TType::Identifier, "Expected variable name.")?;
 
         let mut ty = None;
@@ -189,6 +215,7 @@ impl Parser {
 
         Some(ClassMember {
             name,
+            visibility: self.get_visibility()?,
             mutable,
             ty,
             initializer,
@@ -196,6 +223,9 @@ impl Parser {
     }
 
     fn constructor(&mut self) -> Option<Constructor> {
+        self.check_mods(&METHOD_MODIFIERS, "class constructor")?;
+        let visibility = self.get_visibility()?;
+
         self.consume(TType::LeftParen, "Expected '(' after 'construct'.");
         let mut parameters: Vec<ConstructorParam> = Vec::new();
         if !self.check(TType::RightParen) {
@@ -215,7 +245,7 @@ impl Parser {
         self.consume(TType::RightParen, "Expected ')' after parameters.");
 
         let body = self.expression()?;
-        Some(Constructor { parameters, body })
+        Some(Constructor { visibility, parameters, body })
     }
 
     fn enum_declaration(&mut self) -> Option<Enum> {
@@ -235,6 +265,7 @@ impl Parser {
     }
 
     fn import_declaration(&mut self) -> Option<Import> {
+        self.check_mods(&IMPORT_MODIFIERS, "import")?;
         let mut path = Vec::new();
         if !self.check(TType::Identifier) {
             self.error_at_current("Expected path after 'import'.")?
@@ -254,6 +285,8 @@ impl Parser {
     }
 
     fn iface_declaration(&mut self) -> Option<Interface> {
+        self.check_mods(&IFACE_MODIFIERS, "interface")?;
+        let visibility = self.get_visibility()?;
         let (name, generics) = self.generic_ident()?;
 
         self.consume(TType::LeftBrace, "Expected '{' before interface body.");
@@ -277,6 +310,7 @@ impl Parser {
         self.consume(TType::RightBrace, "Expected '}' after interface body.");
         Some(Interface {
             name,
+            visibility,
             generics,
             methods,
         })
@@ -530,6 +564,7 @@ impl Parser {
         Some(Expression::Literal(Literal::Closure(Rc::new(Function {
             sig: FuncSignature {
                 name: Token::generic_identifier("closure".to_string()),
+                visibility: Visibility::Module,
                 return_type,
                 parameters,
                 generics: None,
@@ -735,6 +770,45 @@ impl Parser {
             generics = Some(generics_vec)
         }
         Some((name, generics))
+    }
+
+    fn consume_mods(&mut self) -> Option<()> {
+        self.modifiers.clear();
+        while MODIFIERS.contains(&self.current.t_type) {
+            let tok = self.advance();
+            self.modifiers.push(tok)
+        }
+        Some(())
+    }
+
+    fn check_mods(&mut self, allowed: &'static [TType], name: &'static str) -> Option<()> {
+        let mut msgs = vec![];
+        for mod_ in self.modifiers.iter().filter(|m| !allowed.contains(&m.t_type) && !GLOBAL_MODIFIERS.contains(&m.t_type)) {
+            msgs.push(format!("Cannot have '{}' modifier on {}.", mod_.lexeme, name));
+        }
+        msgs.into_iter().try_for_each(|m| self.error_at_current(&m))
+    }
+
+    fn get_visibility(&mut self) -> Option<Visibility> {
+        let mut count = 0;
+        let mut visibility = Visibility::Module;
+        for tok in self.modifiers.iter() {
+            let vis = match tok.t_type {
+                TType::Public => Visibility::Public,
+                TType::Private => Visibility::Private,
+                _ => Visibility::Module
+            };
+            if vis != Visibility::Module {
+                count += 1;
+                visibility = vis;
+            }
+        }
+        if count > 1 {
+            self.error_at_current("Cannot have more than 1 visibility modifier.")?;
+            None
+        } else {
+            Some(visibility)
+        }
     }
 
     /// Reads a type name.

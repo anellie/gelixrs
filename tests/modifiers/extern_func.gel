@@ -1,0 +1,9 @@
+/*
+libc says hello!
+*/
+
+func main() {
+    puts("libc says hello!")
+}
+
+extern func puts(a: String)

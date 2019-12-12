@@ -1,13 +1,13 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/5/19 9:32 AM.
+ * Last modified on 12/12/19 10:48 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::collections::HashSet;
 use std::rc::Rc;
 
-use crate::ast::declaration::{Class as ASTClass, Constructor, FuncSignature, FunctionArg};
+use crate::ast::declaration::{Class as ASTClass, Constructor, FuncSignature, FunctionArg, Visibility};
 use crate::ast::Expression as ASTExpr;
 use crate::ast::module::Module;
 use crate::ast::Type;
@@ -133,6 +133,7 @@ fn get_instantiator_fn_sig(class: &mut ASTClass) -> FuncSignature {
     let fn_name = Token::generic_identifier(format!("create-{}-instance", &class.name.lexeme));
     FuncSignature {
         name: fn_name,
+        visibility: Visibility::Public,
         generics: None,
         return_type: Some(Type::Ident(class.name.clone())),
         parameters: vec![],
@@ -169,6 +170,7 @@ fn get_constructor_sig(
     parameters.insert(0, this_arg.clone());
     Ok(FuncSignature {
         name,
+        visibility: constructor.visibility,
         generics: None,
         return_type: None,
         parameters,
@@ -216,6 +218,7 @@ fn maybe_add_default_constructor(class: &mut ASTClass) {
     if class.constructors.is_empty() {
         class.constructors.push(Constructor {
             parameters: vec![],
+            visibility: Visibility::Public,
             body: ASTExpr::Block(vec![]),
         })
     }

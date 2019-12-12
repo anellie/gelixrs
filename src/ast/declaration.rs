@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/30/19 12:00 AM.
+ * Last modified on 12/12/19 11:08 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,10 +11,23 @@ use crate::option::Flatten;
 use super::expression::Expression;
 use super::super::lexer::token::Token;
 
+/// Visibilities of a declaration.
+/// Most declaration default to 'module'
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Visibility {
+    /// Visible and importable from anywhere.
+    Public,
+    /// Local to the given file/submodule.
+    Private,
+    /// Local to the given base module, 'std' for example.
+    Module,
+}
+
 /// A class definition.
 #[derive(Debug)]
 pub struct Class {
     pub name: Token,
+    pub visibility: Visibility,
     pub generics: Option<Vec<Token>>,
     pub variables: Vec<ClassMember>,
     pub methods: Vec<Function>,
@@ -26,6 +39,7 @@ pub type ConstructorParam = (Token, Option<Type>);
 /// A constructor in a class.
 #[derive(Debug)]
 pub struct Constructor {
+    pub visibility: Visibility,
     pub parameters: Vec<ConstructorParam>,
     pub body: Expression,
 }
@@ -34,6 +48,7 @@ pub struct Constructor {
 #[derive(Debug, Clone)]
 pub struct ClassMember {
     pub name: Token,
+    pub visibility: Visibility,
     pub mutable: bool,
     pub ty: Option<Type>,
     pub initializer: Option<Expression>,
@@ -43,6 +58,7 @@ pub struct ClassMember {
 #[derive(Debug)]
 pub struct Interface {
     pub name: Token,
+    pub visibility: Visibility,
     pub generics: Option<Vec<Token>>,
     pub methods: Vec<InterfaceFunc>,
 }
@@ -68,6 +84,7 @@ pub struct Enum {
 #[derive(Debug)]
 pub struct FuncSignature {
     pub name: Token,
+    pub visibility: Visibility,
     pub generics: Option<Vec<Token>>,
     pub return_type: Option<Type>,
     pub parameters: Vec<FunctionArg>,

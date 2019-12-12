@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/26/19 11:09 PM.
+ * Last modified on 12/12/19 10:53 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -115,6 +115,10 @@ impl Lexer {
             "val" => TType::Val,
             "var" => TType::Var,
             "when" => TType::When,
+
+            "public" => TType::Public,
+            "private" => TType::Private,
+            "extern" => TType::Extern,
 
             _ => TType::Identifier,
         };

@@ -1,0 +1,5 @@
+// P-ERR
+
+func main() {}
+
+public private func test() {}
