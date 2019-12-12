@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/30/19 3:29 PM.
+ * Last modified on 12/12/19 11:19 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -25,7 +25,7 @@ lazy_static! {
 enum Failure {
     Parse,
     Compile,
-    IR,
+    IR(String),
     Panic,
 }
 
@@ -100,18 +100,18 @@ fn exec_jit(path: PathBuf) -> Result<String, Failure> {
     let engine = module
         .create_jit_execution_engine(OptimizationLevel::None)
         .ok()
-        .ok_or(Failure::IR)?;
+        .ok_or(Failure::IR("Failed to create JIT".to_string()))?;
     engine.add_global_mapping(
-        &module.get_function("print").ok_or(Failure::IR)?,
+        &module.get_function("print").ok_or(Failure::IR("No print fn".to_string()))?,
         test_print as usize,
     );
     engine.add_global_mapping(
-        &module.get_function("printnum").ok_or(Failure::IR)?,
+        &module.get_function("printnum").ok_or(Failure::IR("No printnum fn".to_string()))?,
         test_printnum as usize,
     );
 
     unsafe {
-        let main_fn: JitFunction<MainFn> = engine.get_function("main").ok().ok_or(Failure::IR)?;
+        let main_fn: JitFunction<MainFn> = engine.get_function("main").ok().ok_or(Failure::IR("No main fn".to_string()))?;
         main_fn.call();
     }
 

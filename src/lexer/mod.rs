@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/12/19 10:53 AM.
+ * Last modified on 12/12/19 11:10 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -96,7 +96,6 @@ impl Lexer {
             "else" => TType::Else,
             "enum" => TType::Enum,
             "error" => TType::Error,
-            "exfn" => TType::ExFn,
             "ext" => TType::Ext,
             "false" => TType::False,
             "for" => TType::For,

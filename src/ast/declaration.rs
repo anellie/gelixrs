@@ -80,7 +80,6 @@ pub struct Enum {
 }
 
 /// A function signature.
-/// Also doubles as the node for an external function, as a signature is all it consists of.
 #[derive(Debug)]
 pub struct FuncSignature {
     pub name: Token,
@@ -119,7 +118,7 @@ impl FunctionArg {
 #[derive(Debug)]
 pub struct Function {
     pub sig: FuncSignature,
-    pub body: Expression,
+    pub body: Option<Expression>,
 }
 
 /// A function inside an interface, where the body is the default implementation and optional

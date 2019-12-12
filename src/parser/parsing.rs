@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/12/19 11:02 AM.
+ * Last modified on 12/12/19 11:15 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -33,7 +33,7 @@ static NO_SEMICOLON: [TType; 3] = [TType::If, TType::LeftBrace, TType::When];
 static IFACE_END_OF_FUNCTION: [TType; 2] = [TType::Func, TType::RightBrace];
 
 // All tokens that can be modifiers at all.
-static MODIFIERS: [TType; 3] = [TType::Public, TType::Private, TType::Extern];
+pub static MODIFIERS: [TType; 3] = [TType::Public, TType::Private, TType::Extern];
 
 // All tokens that can be modifiers on any declaration.
 static GLOBAL_MODIFIERS: [TType; 2] = [TType::Public, TType::Private];
@@ -102,7 +102,6 @@ impl Parser {
         match self.advance().t_type {
             TType::Class => module.classes.push(self.class_declaration()?),
             TType::Enum => module.enums.push(self.enum_declaration()?),
-            TType::ExFn => module.ext_functions.push(self.ex_func_declaration()?),
             TType::Func => module.functions.push(self.function()?),
             TType::Import => module.imports.push(self.import_declaration()?),
             TType::Interface => module.interfaces.push(self.iface_declaration()?),
@@ -113,7 +112,7 @@ impl Parser {
         Some(())
     }
 
-    fn ex_func_declaration(&mut self) -> Option<FuncSignature> {
+    fn func_signature(&mut self) -> Option<FuncSignature> {
         self.check_mods(&FUNC_MODIFIERS, "function");
         let (name, generics) = self.generic_ident()?;
         self.consume(TType::LeftParen, "Expected '(' after function name.");
@@ -295,7 +294,7 @@ impl Parser {
         while !self.check(TType::RightBrace) && !self.is_at_end() {
             match self.advance().t_type {
                 TType::Func => {
-                    let sig = self.ex_func_declaration()?;
+                    let sig = self.func_signature()?;
                     let body = if !IFACE_END_OF_FUNCTION.contains(&self.current.t_type) {
                         Some(self.expression()?)
                     } else {
@@ -340,8 +339,14 @@ impl Parser {
     }
 
     fn function(&mut self) -> Option<Function> {
-        let sig = self.ex_func_declaration()?;
-        let body = self.expression()?;
+        let sig = self.func_signature()?;
+
+        let body = if self.modifiers.iter().any(|t| t.t_type == TType::Extern) {
+            None
+        } else {
+            Some(self.expression()?)
+        };
+
         Some(Function { sig, body })
     }
 
@@ -569,7 +574,7 @@ impl Parser {
                 parameters,
                 generics: None,
             },
-            body,
+            body: Some(body),
         }))))
     }
 

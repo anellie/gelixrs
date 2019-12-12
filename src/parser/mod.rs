@@ -1,12 +1,13 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/12/19 10:48 AM.
+ * Last modified on 12/12/19 11:25 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::{iter::Peekable, mem};
 
 use crate::{Error, module_path_to_string, ModulePath};
+use crate::parser::parsing::MODIFIERS;
 
 use super::lexer::{
     Lexer,
@@ -153,7 +154,8 @@ impl Parser {
 
         while !self.is_at_end() {
             match self.current.t_type {
-                TType::ExFn | TType::Class | TType::Enum | TType::Func => return,
+                TType::Impl | TType::Import | TType::Class | TType::Enum | TType::Func => return,
+                _ if MODIFIERS.contains(&self.current.t_type) => return,
                 _ => (),
             }
             self.advance();

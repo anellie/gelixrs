@@ -1,6 +1,6 @@
-exfn print(a: String)
+extern func print(a: String)
 
-exfn printnum(a: i64)
+extern func printnum(a: i64)
 
 /*
 // A simple, fixed-size array type.

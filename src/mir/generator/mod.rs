@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/5/19 6:24 PM.
+ * Last modified on 12/12/19 11:15 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -117,6 +117,13 @@ impl MIRGenerator {
     }
 
     fn generate_function(&mut self, func: &ASTFunc) -> Res<()> {
+        // Don't have to generate anything for external functions
+        // which do not have a body
+        let body = match func.body.as_ref() {
+            None => return Ok(()),
+            Some(body) => body,
+        };
+
         let function = self
             .builder
             .find_func_or_proto(&func.sig.name.lexeme)
@@ -124,7 +131,7 @@ impl MIRGenerator {
             .map_left(|var| Rc::clone(var.type_.as_function()));
 
         let ret_type = self.prepare_function(function, func.sig.name.line)?;
-        let body = self.generate_expression(&func.body)?;
+        let body = self.generate_expression(body)?;
 
         match () {
             _ if ret_type == Type::None => self.builder.insert_at_ptr(body),

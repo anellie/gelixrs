@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/5/19 10:52 AM.
+ * Last modified on 12/12/19 11:20 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -19,12 +19,8 @@ use crate::mir::nodes::{Function, FunctionPrototype, Type, Variable};
 
 /// This pass defines all functions in MIR.
 pub fn declare_func_pass(gen: &mut MIRGenerator, module: &mut Module) -> Res<()> {
-    for function in module.ext_functions.iter() {
-        create_function(gen, &function, true, None)?;
-    }
-
     for function in module.functions.iter() {
-        create_function(gen, &function.sig, false, None)?;
+        create_function(gen, &function.sig, function.body.is_none(), None)?;
     }
 
     Ok(())

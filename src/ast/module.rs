@@ -1,12 +1,12 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/4/19 9:44 PM.
+ * Last modified on 12/12/19 11:15 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::rc::Rc;
 
-use crate::ast::declaration::{Class, Enum, FuncSignature, Function, IFaceImpl, Interface};
+use crate::ast::declaration::{Class, Enum, Function, IFaceImpl, Interface};
 use crate::lexer::token::Token;
 use crate::ModulePath;
 
@@ -18,7 +18,6 @@ pub struct Module {
     pub interfaces: Vec<Interface>,
     pub iface_impls: Vec<IFaceImpl>,
     pub enums: Vec<Enum>,
-    pub ext_functions: Vec<FuncSignature>,
     pub functions: Vec<Function>,
     pub imports: Vec<Import>,
 }
