@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/1/19 3:37 PM.
+ * Last modified on 12/13/19 10:15 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -37,11 +37,7 @@ fn iface_impl(gen: &mut MIRGenerator, iface_impl: &mut IFaceImpl) -> Res<()> {
         ));
     }
 
-    let implementor = gen.builder.find_type(&iface_impl.implementor).or_type_err(
-        gen,
-        &Some(iface_impl.implementor.clone()),
-        "Unknown type",
-    )?;
+    let implementor = gen.find_type(&iface_impl.implementor)?;
     let iface_impls = get_or_create_iface_impls(&implementor);
 
     let iface = gen
@@ -121,11 +117,7 @@ fn iface_from_proto(
     )?;
     let args = args
         .iter()
-        .map(|tok| {
-            gen.builder
-                .find_type(&ASTType::Ident(tok.clone()))
-                .or_err(gen, tok, "Unknown type.")
-        })
+        .map(|tok| gen.find_type(&ASTType::Ident(tok.clone())))
         .collect::<Res<Vec<Type>>>()?;
 
     let iface = proto.borrow_mut().build(&args);

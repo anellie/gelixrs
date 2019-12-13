@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/5/19 6:17 PM.
+ * Last modified on 12/13/19 10:16 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -16,7 +16,6 @@ use crate::ast::module::Module;
 use crate::lexer::token::Token;
 use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::nodes::{ClassMember, Flow, Variable};
-use crate::mir::ToMIRResult;
 
 /// This pass fills all classes with their members
 /// and creates their internal init function.
@@ -77,10 +76,7 @@ fn build_class(
 
     let class_variable = Rc::new(Variable {
         mutable: true,
-        type_: gen
-            .builder
-            .find_type(&ASTType::Ident(class.name.clone()))
-            .unwrap(),
+        type_: gen.find_type(&ASTType::Ident(class.name.clone())).ok().unwrap(),
         name: Rc::new("this".to_string()),
     });
     gen.builder
@@ -99,11 +95,7 @@ fn build_class(
         let type_ = value
             .as_ref()
             .map(|v| Ok(v.get_type()))
-            .unwrap_or_else(|| {
-                gen.builder
-                    .find_type(field.ty.as_ref().unwrap())
-                    .or_type_err(gen, &field.ty, "Unknown class member type")
-            })?;
+            .unwrap_or_else(|| gen.find_type(field.ty.as_ref().unwrap()))?;
 
         let member = Rc::new(ClassMember {
             mutable: field.mutable,

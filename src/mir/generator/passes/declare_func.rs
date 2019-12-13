@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/12/19 11:20 AM.
+ * Last modified on 12/13/19 10:15 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -45,13 +45,7 @@ pub(super) fn create_function(
     let ret_type = func_sig
         .return_type
         .as_ref()
-        .map(|ty| {
-            gen.builder.find_type(ty).or_type_err(
-                gen,
-                &func_sig.return_type,
-                "Unknown function return type",
-            )
-        })
+        .map(|ty| gen.find_type(ty))
         .unwrap_or(Ok(Type::None))?;
 
     let mut parameters = Vec::with_capacity(func_sig.parameters.len());
@@ -59,11 +53,7 @@ pub(super) fn create_function(
         parameters.push(Rc::new(Variable {
             mutable: false,
             name: Rc::clone(&param.name.lexeme),
-            type_: gen.builder.find_type(&param.type_).or_err(
-                gen,
-                &param.name,
-                "Function parameter has unknown type",
-            )?,
+            type_: gen.find_type(&param.type_)?,
         }));
     }
 

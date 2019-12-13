@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/5/19 9:23 AM.
+ * Last modified on 12/13/19 10:17 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,7 +12,6 @@ use either::Either;
 use either::Either::{Left, Right};
 
 use crate::{module_path_to_string, ModulePath};
-use crate::ast::Type as ASTType;
 use crate::error::Error;
 use crate::lexer::token::{Token, TType};
 use crate::mir::{IFACE_IMPLS, MIRModule, MutRc};
@@ -40,16 +39,9 @@ pub struct MIRBuilder {
     /// A list of all global names (classes/interfaces/functions) in this module.
     /// Used to ensure that no naming collision occurs.
     used_names: HashSet<Rc<String>>,
-    /// A list of type aliases, where the key is a type that will be translated to the value.
-    /// Currently only used for the 'This' type alias inside classes/interfaces.
-    type_aliases: HashMap<Rc<String>, ASTType>,
     /// All generic types that should resolve to a generic MIR type.
     /// Used when compiling prototypes.
     pub generic_types: Vec<Rc<String>>,
-
-    /// Simply a const of the string "This".
-    /// Used for the This alias inside classes/interfaces.
-    this_const: Rc<String>,
 }
 
 impl MIRBuilder {
@@ -198,44 +190,30 @@ impl MIRBuilder {
         self.insert_at_ptr(Expression::Flow(Box::new(ret)));
     }
 
-    pub fn find_type(&self, ast: &ASTType) -> Option<Type> {
-        Some(match ast {
-            ASTType::Ident(tok) => {
-                if let Some(alias) = self.type_aliases.get(&tok.lexeme) {
-                    return self.find_type(alias);
-                }
+    pub fn find_type_by_name(&self, tok: &Token) -> Option<Type> {
+        Some(match &tok.lexeme[..] {
+            "None" => Type::None,
+            "bool" => Type::Bool,
 
-                match &tok.lexeme[..] {
-                    "None" => Type::None,
-                    "bool" => Type::Bool,
+            "i8" => Type::I8,
+            "i16" => Type::I16,
+            "i32" => Type::I32,
+            "i64" => Type::I64,
 
-                    "i8" => Type::I8,
-                    "i16" => Type::I16,
-                    "i32" => Type::I32,
-                    "i64" => Type::I64,
+            "f32" => Type::F32,
+            "f64" => Type::F64,
 
-                    "f32" => Type::F32,
-                    "f64" => Type::F64,
+            "String" => Type::String,
 
-                    "String" => Type::String,
-
-                    _ => self
-                        .find_class(&tok.lexeme)
-                        .map(Type::Class)
-                        .or_else(|| Some(Type::Interface(self.find_interface(&tok.lexeme)?)))
-                        .or_else(|| {
-                            Some(Type::Generic(
-                                self.generic_types.iter().position(|g| *g == tok.lexeme)?,
-                            ))
-                        })?,
-                }
-            }
-
-            ASTType::Array(_) => unimplemented!(),
-
-            ASTType::Closure { .. } => unimplemented!(),
-
-            ASTType::Generic { .. } => unimplemented!(),
+            _ => self
+                .find_class(&tok.lexeme)
+                .map(Type::Class)
+                .or_else(|| Some(Type::Interface(self.find_interface(&tok.lexeme)?)))
+                .or_else(|| {
+                    Some(Type::Generic(
+                        self.generic_types.iter().position(|g| *g == tok.lexeme)?,
+                    ))
+                })?,
         })
     }
 
@@ -345,23 +323,6 @@ impl MIRBuilder {
         }
     }
 
-    pub fn add_alias(&mut self, key: &Rc<String>, val: &ASTType) {
-        self.type_aliases.insert(Rc::clone(key), val.clone());
-    }
-
-    pub fn add_this_alias(&mut self, name: &Token) {
-        self.type_aliases
-            .insert(Rc::clone(&self.this_const), ASTType::Ident(name.clone()));
-    }
-
-    pub fn remove_alias(&mut self, name: &Rc<String>) {
-        self.type_aliases.remove(name);
-    }
-
-    pub fn remove_this_alias(&mut self) {
-        self.type_aliases.remove(&self.this_const);
-    }
-
     pub fn set_generic_types(&mut self, types: &Vec<Token>) {
         self.generic_types.clear();
         for ty in types.iter() {
@@ -417,9 +378,7 @@ impl MIRBuilder {
             imports: Imports::default(),
             prototypes: Prototypes::default(),
             used_names: HashSet::with_capacity(3),
-            type_aliases: HashMap::new(),
             generic_types: Vec::with_capacity(3),
-            this_const: Rc::new("This".to_string()),
         }
     }
 }

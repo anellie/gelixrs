@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/12/19 10:48 AM.
+ * Last modified on 12/13/19 10:11 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -30,7 +30,6 @@ pub fn declare_class_pass(gen: &mut MIRGenerator, module: &mut Module) -> Res<()
 
 fn create_class(gen: &mut MIRGenerator, class: &mut ASTClass) -> Res<()> {
     gen.builder.try_reserve_name(&class.name)?;
-    gen.builder.add_this_alias(&class.name);
     if let Some(generics) = &mut class.generics {
         generics.push(class.name.clone()); // The class itself is treated as a generic parameter that is substituted
     }
@@ -123,7 +122,6 @@ fn create_class(gen: &mut MIRGenerator, class: &mut ASTClass) -> Res<()> {
         }
     }
 
-    gen.builder.remove_this_alias();
     gen.builder.generic_types.clear();
     Ok(())
 }

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/12/19 11:15 AM.
+ * Last modified on 12/13/19 10:22 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -19,6 +19,7 @@ use crate::ast::declaration::{Class as ASTClass, Constructor, Function as ASTFun
 use crate::ast::expression::Expression as ASTExpr;
 use crate::ast::literal::Literal;
 use crate::ast::module::Module;
+use crate::ast::Type as ASTType;
 use crate::lexer::token::{Token, TType};
 use crate::mir::{IFACE_IMPLS, MIRModule, MutRc, ToMIRResult};
 use crate::mir::generator::intrinsics::INTRINSICS;
@@ -379,13 +380,7 @@ impl MIRGenerator {
                         {
                             let types = generics
                                 .iter()
-                                .map(|ty| {
-                                    self.builder.find_type(ty).or_type_err(
-                                        self,
-                                        &Some(ty.clone()),
-                                        "Class generic parameter has unknown type",
-                                    )
-                                })
+                                .map(|ty| self.find_type(ty))
                                 .collect::<Result<Vec<Type>, MIRError>>()?;
 
                             let class = proto
@@ -656,13 +651,7 @@ impl MIRGenerator {
                     .or_err(self, &name, "Function does not take generic parameters.")?;
                 let types = generics
                     .iter()
-                    .map(|ty| {
-                        self.builder.find_type(ty).or_type_err(
-                            self,
-                            &Some(ty.clone()),
-                            "Function parameter has unknown type",
-                        )
-                    })
+                    .map(|ty| self.find_type(ty))
                     .collect::<Result<Vec<Type>, MIRError>>()?;
 
                 let function = prototype
@@ -791,6 +780,35 @@ impl MIRGenerator {
             token,
             &format!("Variable '{}' is not defined", token.lexeme),
         )
+    }
+
+    pub fn find_type(&mut self, ast: &ASTType) -> Res<Type> {
+        Ok(match ast {
+            ASTType::Ident(tok) => self.builder.find_type_by_name(&tok).or_anon_err(self, ast.get_token(), "Unknown type.")?,
+
+            ASTType::Array(_) => unimplemented!(),
+
+            ASTType::Closure { .. } => unimplemented!(),
+
+            ASTType::Generic { token, types } => {
+                let proto = self
+                    .builder
+                    .find_class_or_proto(&token.lexeme)
+                    .or_anon_err(self, ast.get_token(), "Unknown class prototype.")?
+                    .right()
+                    .or_anon_err(self, ast.get_token(), "Class does not take generic arguments.")?;
+
+                let types = types
+                    .iter()
+                    .map(|ty| self.find_type(ty))
+                    .collect::<Result<Vec<Type>, MIRError>>()?;
+
+                let mut proto = proto.borrow_mut();
+                Type::Class(proto
+                    .build(self, types)
+                    .map_err(|e| self.anon_err(ast.get_token(), &e))?)
+            },
+        })
     }
 
     /// Returns the variable of the current loop or creates it if it does not exist yet
@@ -1046,7 +1064,7 @@ impl MIRError {
         format!(
             "Error in file {}:\n{}",
             root.display(),
-            self.error.to_string(&code.unwrap())
+            self.error.to_string(&code.unwrap_or("".to_string()))
         )
     }
 }

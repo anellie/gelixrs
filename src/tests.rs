@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/12/19 11:19 AM.
+ * Last modified on 12/12/19 7:21 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -109,6 +109,9 @@ fn exec_jit(path: PathBuf) -> Result<String, Failure> {
         &module.get_function("printnum").ok_or(Failure::IR("No printnum fn".to_string()))?,
         test_printnum as usize,
     );
+    if let Some(fun) = &module.get_function("puts") {
+        engine.add_global_mapping(fun, test_print as usize);
+    }
 
     unsafe {
         let main_fn: JitFunction<MainFn> = engine.get_function("main").ok().ok_or(Failure::IR("No main fn".to_string()))?;
