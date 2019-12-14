@@ -1,0 +1,20 @@
+/*
+*/
+
+class A<B, C> {
+
+    func b_(b: B) -> B {
+        "waste the compiler's time"
+        if (false) b else b
+    }
+
+    func c_(c: C) -> C {
+        ((c))
+    }
+}
+
+func main() {
+    val a = A::<i16, i16>()
+    val b = A::<i64, i64>()
+    val c = A::<String, i64>()
+}

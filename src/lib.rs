@@ -1,8 +1,10 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/4/19 9:30 PM.
+ * Last modified on 12/14/19 2:34 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
+
+#![feature(test)]
 
 #[macro_use]
 extern crate enum_methods;
@@ -17,8 +19,8 @@ use std::rc::Rc;
 use ast::module::Module;
 use error::Error;
 use ir::IRGenerator;
-use mir::generator::module::MIRModuleGenerator;
 use mir::generator::MIRError;
+use mir::generator::module::MIRModuleGenerator;
 use mir::MIRModule;
 use parser::ParserErrors;
 
@@ -26,6 +28,8 @@ use crate::ast::module::Import;
 use crate::lexer::token::Token;
 
 pub mod ast;
+#[cfg(test)]
+pub mod bench;
 pub mod error;
 pub mod ir;
 pub mod lexer;
