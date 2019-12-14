@@ -6,9 +6,21 @@
 
 use std::rc::Rc;
 
-use crate::ast::declaration::{Class, Enum, Function, IFaceImpl, Interface};
+use crate::ast::declaration::{Class, Function, IFaceImpl, Interface};
 use crate::lexer::token::Token;
-use crate::ModulePath;
+use std::fmt::{Display, Formatter, Error};
+
+#[derive(Clone, Debug, Default, PartialOrd, PartialEq)]
+pub struct ModulePath(pub Vec<Rc<String>>);
+
+impl Display for ModulePath {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+        write!(f, "{}", self.0.iter()
+            .map(|rc| (&**rc).clone())
+            .collect::<Vec<String>>()
+            .join("/"))
+    }
+}
 
 #[derive(Debug, Default)]
 pub struct Module {
@@ -17,7 +29,6 @@ pub struct Module {
     pub classes: Vec<Class>,
     pub interfaces: Vec<Interface>,
     pub iface_impls: Vec<IFaceImpl>,
-    pub enums: Vec<Enum>,
     pub functions: Vec<Function>,
     pub imports: Vec<Import>,
 }
@@ -33,6 +44,6 @@ impl Module {
 
 #[derive(Debug, Clone)]
 pub struct Import {
-    pub path: ModulePath,
+    pub path: Rc<ModulePath>,
     pub symbol: Token,
 }

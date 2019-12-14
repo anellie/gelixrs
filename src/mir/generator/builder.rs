@@ -5,19 +5,19 @@
  */
 
 use std::collections::{HashMap, HashSet};
-use std::mem::discriminant;
+
 use std::rc::Rc;
 
 use either::Either;
 use either::Either::{Left, Right};
 
 use crate::{module_path_to_string, ModulePath};
-use crate::error::Error;
-use crate::lexer::token::{Token, TType};
-use crate::mir::{IFACE_IMPLS, MIRModule, MutRc};
-use crate::mir::generator::{MIRError, Res};
+
+use crate::lexer::token::{Token};
+use crate::mir::{IFACE_IMPLS, MModule, MutRc};
+use crate::mir::generator::{MIRError};
 use crate::mir::nodes::{
-    Class, ClassMember, ClassPrototype, Expression, Flow, FunctionPrototype, Interface,
+    Class, ClassPrototype, Expr, Flow, FunctionPrototype, Interface,
     InterfacePrototype, Variable,
 };
 
@@ -37,157 +37,28 @@ pub struct MIRBuilder {
     saved_positions: Vec<Pointer>,
 
     /// The module the builder is inserting into.
-    pub module: MIRModule,
-
-    /// Things imported into this module by 'import' declarations.
-    pub imports: Imports,
-    /// All prototypes in this module.
-    pub prototypes: Prototypes,
-
-    /// A list of all global names (classes/interfaces/functions) in this module.
-    /// Used to ensure that no naming collision occurs.
-    used_names: HashSet<Rc<String>>,
-    /// All generic types that should resolve to a generic MIR type.
-    /// Used when compiling prototypes.
-    pub generic_types: Vec<Rc<String>>,
+    pub module: MModule,
 }
 
 impl MIRBuilder {
-    /// Tries to reserve the given name for the current module. If the name
-    /// is already used, returns an error.
-    pub fn try_reserve_name(&mut self, name: &Token) -> Res<()> {
-        self.try_reserve_name_rc(&name.lexeme, name)
-    }
-
-    pub fn try_reserve_name_rc(&mut self, name: &Rc<String>, tok: &Token) -> Res<()> {
-        if self.used_names.insert(Rc::clone(name)) {
-            Ok(())
-        } else {
-            Err(MIRError {
-                error: Error::new(
-                    tok,
-                    tok,
-                    "MIRGenerator",
-                    format!("Name {} already defined in this module", name),
-                ),
-                module: self.module_path(),
-            })
-        }
-    }
-
-    /// Will create the variable in the current function.
-    pub fn add_function_variable(&mut self, variable: Rc<Variable>) {
-        self.cur_fn()
-            .borrow_mut()
-            .insert_var(Rc::clone(&variable.name), Rc::clone(&variable));
-    }
-
-    pub fn build_binary(&self, left: Expression, operator: TType, right: Expression) -> Expression {
-        Expression::Binary {
-            left: Box::new(left),
-            operator,
-            right: Box::new(right),
-        }
-    }
-
-    pub fn build_unary(&self, right: Expression, op: TType) -> Expression {
-        Expression::Unary {
-            operator: op,
-            right: Box::new(right),
-        }
-    }
-
-    pub fn build_call(&mut self, callee: Expression, args: Vec<Expression>) -> Expression {
-        Expression::Call {
-            callee: Box::new(callee),
-            arguments: args,
-        }
-    }
-
     /// Builds a class instance and returns an expression that loads the instance.
     /// The expression returned can be safely cloned to reuse the instance.
-    pub fn build_class_inst(&mut self, class_ref: MutRc<Class>) -> Expression {
+    pub fn build_class_inst(&mut self, class_ref: MutRc<Class>) -> Expr {
         let call = {
             let class = class_ref.borrow();
-            self.build_call(self.build_load(Rc::clone(&class.instantiator)), vec![])
+            Expr::call(Expr::load(&class.instantiator), vec![])
         };
 
-        let var = Rc::new(Variable {
-            mutable: true,
-            type_: Type::Class(class_ref),
-            name: Rc::new("tmp-constructor-var".to_string()),
-        });
+        let var = Variable::new(true, Type::Class(class_ref), &Rc::new("tmp-constructor-var".to_string()));
         self.add_function_variable(Rc::clone(&var));
-        self.insert_at_ptr(self.build_store(Rc::clone(&var), call));
+        self.insert_at_ptr(Expr::store(&var, call));
 
-        self.build_load(var)
-    }
-
-    pub fn build_phi(&self, nodes: Vec<(Expression, Rc<String>)>) -> Expression {
-        // Filter all nodes that return Any.
-        // A node might return Any if it does not produce a value;
-        // but instead branches away from the phi.
-        let filtered_nodes = nodes
-            .into_iter()
-            .filter(|node| {
-                let type_ = node.0.get_type();
-                discriminant(&Type::Any) != discriminant(&type_)
-            })
-            .collect();
-
-        Expression::Phi(filtered_nodes)
-    }
-
-    pub fn build_struct_get(&self, object: Expression, field: Rc<ClassMember>) -> Expression {
-        Expression::StructGet {
-            object: Box::new(object),
-            index: field.index,
-        }
-    }
-
-    pub fn build_struct_set(
-        &self,
-        object: Expression,
-        field: Rc<ClassMember>,
-        value: Expression,
-    ) -> Expression {
-        Expression::StructSet {
-            object: Box::new(object),
-            index: field.index,
-            value: Box::new(value),
-        }
-    }
-
-    pub fn build_store(&self, var: Rc<Variable>, value: Expression) -> Expression {
-        Expression::VarStore {
-            var,
-            value: Box::new(value),
-        }
-    }
-
-    pub fn build_load(&self, var: Rc<Variable>) -> Expression {
-        Expression::VarGet(var)
-    }
-
-    pub fn build_branch(&mut self, cond: Expression, then: &Rc<String>, else_: &Rc<String>) {
-        self.set_return(Flow::Branch {
-            condition: cond,
-            then_b: Rc::clone(&then),
-            else_b: Rc::clone(&else_),
-        });
-    }
-
-    pub fn build_jump(&mut self, to: &Rc<String>) {
-        self.set_return(Flow::Jump(Rc::clone(to)))
+        Expr::load(&var)
     }
 
     /// Will append a block to the given function, always creating a new one.
     pub fn append_block(&mut self, name: &str) -> Rc<String> {
         self.cur_fn().borrow_mut().append_block(name, true)
-    }
-
-    pub fn set_return(&mut self, ret: Flow) {
-        self.insert_at_ptr(Expression::Flow(Box::new(ret)));
     }
 
     pub fn find_type_by_name(&self, tok: &Token) -> Option<Type> {
@@ -343,7 +214,7 @@ impl MIRBuilder {
         }
     }
 
-    pub fn insert_at_ptr(&mut self, expr: Expression) {
+    pub fn insert_at_ptr(&mut self, expr: Expr) {
         let func = self.cur_fn();
         let mut func = func.borrow_mut();
         func.blocks
@@ -360,7 +231,7 @@ impl MIRBuilder {
         Rc::clone(&self.position.as_ref().unwrap().block)
     }
 
-    pub fn consume_module(self) -> MIRModule {
+    pub fn consume_module(self) -> MModule {
         self.module
     }
 
@@ -368,7 +239,7 @@ impl MIRBuilder {
         Rc::clone(&self.module.path)
     }
 
-    pub fn new(module: MIRModule) -> MIRBuilder {
+    pub fn new(module: MModule) -> MIRBuilder {
         MIRBuilder {
             position: None,
             saved_positions: Vec::with_capacity(3),

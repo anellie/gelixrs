@@ -20,10 +20,10 @@ use crate::ast::literal::Literal;
 use crate::ast::module::Module;
 use crate::ast::Type as ASTType;
 use crate::lexer::token::{Token, TType};
-use crate::mir::{IFACE_IMPLS, MIRModule, MutRc, ToMIRResult};
+use crate::mir::{IFACE_IMPLS, MModule, MutRc, ToMIRResult};
 use crate::mir::generator::intrinsics::INTRINSICS;
 use crate::mir::nodes::{
-    ArrayLiteral, Class, ClassMember, Expression, Flow, Function, Type, Variable,
+    ArrayLiteral, Class, ClassMember, Expr, Flow, Function, Type, Variable,
 };
 use crate::option::Flatten;
 
@@ -199,7 +199,7 @@ impl MIRGenerator {
         Ok(ret_type)
     }
 
-    fn generate_expression(&mut self, expression: &ASTExpr) -> Res<Expression> {
+    fn generate_expression(&mut self, expression: &ASTExpr) -> Res<Expr> {
         Ok(match expression {
             ASTExpr::Assignment { name, value } => {
                 let var = self.find_var(&name)?;
@@ -256,7 +256,7 @@ impl MIRGenerator {
 
                     let mut expr = self
                         .builder
-                        .build_call(Expression::VarGet(method_var), vec![left, right]);
+                        .build_call(Expr::VarGet(method_var), vec![left, right]);
                     if operator.t_type == TType::BangEqual {
                         expr = self.builder.build_unary(expr, TType::Bang);
                     }
@@ -320,7 +320,7 @@ impl MIRGenerator {
                             arguments,
                             Some(object),
                         )?;
-                        return Ok(self.builder.build_call(Expression::VarGet(func), args));
+                        return Ok(self.builder.build_call(Expr::VarGet(func), args));
                     }
 
                     // Might be class constructor
@@ -520,12 +520,12 @@ impl MIRGenerator {
                         values_mir.push(mir_val);
                     }
 
-                    Expression::Literal(Literal::Array(Either::Right(ArrayLiteral {
+                    Expr::Literal(Literal::Array(Either::Right(ArrayLiteral {
                         values: values_mir,
                         type_: arr_type,
                     })))
                 } else {
-                    Expression::Literal(literal.clone())
+                    Expr::Literal(literal.clone())
                 }
             }
 
@@ -816,7 +816,7 @@ impl MIRGenerator {
         &mut self,
         object: &ASTExpr,
         name: &Token,
-    ) -> Res<(Expression, Either<Rc<ClassMember>, Rc<Variable>>)> {
+    ) -> Res<(Expr, Either<Rc<ClassMember>, Rc<Variable>>)> {
         let object = self.generate_expression(object)?;
         let ty = object.get_type();
 
@@ -839,11 +839,11 @@ impl MIRGenerator {
         class: MutRc<Class>,
         args: &Vec<ASTExpr>,
         err_tok: &Token,
-    ) -> Res<Expression> {
+    ) -> Res<Expr> {
         let mut args = args
             .iter()
             .map(|arg| self.generate_expression(arg))
-            .collect::<Res<Vec<Expression>>>()?;
+            .collect::<Res<Vec<Expr>>>()?;
         let inst = self.builder.build_class_inst(Rc::clone(&class));
         args.insert(0, inst.clone());
 
@@ -880,8 +880,8 @@ impl MIRGenerator {
         &mut self,
         func_ref: MutRc<Function>,
         arguments: &[ASTExpr],
-        first_arg: Option<Expression>,
-    ) -> Res<Vec<Expression>> {
+        first_arg: Option<Expr>,
+    ) -> Res<Vec<Expr>> {
         let func = func_ref.borrow();
 
         let args_len = arguments.len() + (first_arg.is_some() as usize);
@@ -955,7 +955,7 @@ impl MIRGenerator {
     /// Checks if the arg parameter is of the given type ty.
     /// Will do casts if needed to make the types match;
     /// returns the new expression that should be used in case a cast happened.
-    fn check_call_arg_type(&self, arg: Expression, ty: &Type) -> Option<Expression> {
+    fn check_call_arg_type(&self, arg: Expr, ty: &Type) -> Option<Expr> {
         let arg_type = arg.get_type();
         if &arg_type == ty {
             Some(arg)
@@ -988,35 +988,17 @@ impl MIRGenerator {
         self.current_loop.as_mut().unwrap()
     }
 
-    fn any_const() -> Expression {
-        Expression::Literal(Literal::Any)
+    fn any_const() -> Expr {
+        Expr::Literal(Literal::Any)
     }
 
-    fn none_const() -> Expression {
-        Expression::Literal(Literal::None)
-    }
-
-    pub fn error(&self, start: &Token, end: &Token, message: &str) -> MIRError {
-        MIRError {
-            error: Error::new(start, end, "MIRGenerator", message.to_string()),
-            module: self.builder.module_path(),
-        }
-    }
-
-    /// Produces an error when the caller cannot guarantee that the expression contains a token.
-    /// If it doesn't, the function creates a generic "unknown location" token.
-    pub fn anon_err(&self, tok: Option<&Token>, message: &str) -> MIRError {
-        let generic = Token::generic_token(TType::Identifier);
-        let tok = tok.unwrap_or_else(|| &generic);
-        MIRError {
-            error: Error::new(tok, tok, "MIRGenerator", message.to_string()),
-            module: self.builder.module_path(),
-        }
+    fn none_const() -> Expr {
+        Expr::Literal(Literal::None)
     }
 
     pub fn new(path: Rc<ModulePath>) -> Self {
         MIRGenerator {
-            builder: MIRBuilder::new(MIRModule::new(path)),
+            builder: MIRBuilder::new(MModule::new(path)),
             environments: Vec::with_capacity(5),
             current_loop: None,
             type_aliases: Vec::with_capacity(3),
@@ -1032,7 +1014,7 @@ struct ForLoop {
     /// The block to jump to when the current loop finishes.
     cont_block: Rc<String>,
     /// The phi nodes of the loop (loops are expressions).
-    phi_nodes: Vec<(Expression, Rc<String>)>,
+    phi_nodes: Vec<(Expr, Rc<String>)>,
 }
 
 impl ForLoop {
@@ -1042,33 +1024,5 @@ impl ForLoop {
             cont_block: Rc::clone(cont_block),
             phi_nodes: vec![],
         }
-    }
-}
-
-pub struct MIRError {
-    pub error: Error,
-    pub module: Rc<ModulePath>,
-}
-
-impl MIRError {
-    pub fn to_string(&self, mut root: PathBuf) -> String {
-        // skip(1): Skip the root of the module to prevent having it in the path twice
-        for path in self.module.iter().skip(1) {
-            root.push(&*path.clone());
-        }
-        if root.is_dir() {
-            // Can be a dir if the module is named module.gel, in which case its path
-            // will be its containing directory.
-            root.push("module.gel")
-        }
-        root.set_extension("gel");
-
-        let code = std::fs::read_to_string(root.clone());
-
-        format!(
-            "Error in file {}:\n{}",
-            root.display(),
-            self.error.to_string(&code.unwrap_or("".to_string()))
-        )
     }
 }

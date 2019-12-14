@@ -7,17 +7,22 @@
 use std::{iter::Peekable, mem};
 
 use crate::parser::parsing::MODIFIERS;
-use crate::{module_path_to_string, Error, ModulePath};
+use crate::{Error, ModulePath};
 
 use super::lexer::{
     token::{TType, Token},
     Lexer,
 };
+use std::rc::Rc;
 
 mod parsing;
 
 /// A parser that turns a stream of [Token]s into an AST.
 pub struct Parser {
+    /// The path of the module this parser is parsing.
+    /// Required for error display.
+    module_path: Rc<ModulePath>,
+
     /// The token stream used.
     tokens: Peekable<Lexer>,
 
@@ -70,11 +75,14 @@ impl Parser {
     /// Same as consume, but consumes semicolons or newlines.
     /// Also does not return a token, since newlines are not tokens.
     /// (This special function is needed because of this)
-    fn consume_semi_or_nl(&mut self, message: &'static str) {
+    fn consume_semi_or_nl(&mut self, message: &'static str) -> Option<Option<Token>> {
         if self.check(TType::Semicolon) {
-            self.advance();
+            Some(Some(self.advance()))
         } else if self.previous_line == self.current.line {
-            self.error_at_current(message); // No newline
+            self.error_at_current(message);
+            None
+        } else {
+            Some(None)
         }
     }
 
@@ -122,14 +130,7 @@ impl Parser {
     /// Will set appropriate state.
     /// Returns None; allows returning from calling function with ?
     fn error_at_current(&mut self, message: &str) -> Option<()> {
-        let mut error = Error::new(&self.current, &self.current, "Parser", message.to_string());
-
-        // Display the last line as well if the error happened right after a newline;
-        // most errors after newline would be meaningless otherwise
-        if self.previous_line != self.current.line && self.current.t_type != TType::EndOfFile {
-            error.lines.0 -= 1;
-        }
-
+        let error = Error::new(&self.current, "Parser", message.to_string(), &self.module_path);
         self.errors.push(error);
         None
     }
@@ -138,9 +139,9 @@ impl Parser {
     fn lexer_error(&mut self) {
         let error = Error::new(
             &self.current,
-            &self.current,
             "Lexer",
             (*self.current.lexeme).clone(),
+            &self.module_path
         );
         self.errors.push(error);
     }
@@ -163,8 +164,9 @@ impl Parser {
     }
 
     /// Creates a new parser for parsing the given tokens.
-    pub fn new(tokens: Lexer) -> Parser {
+    pub fn new(tokens: Lexer, module_path: Rc<ModulePath>) -> Parser {
         let mut parser = Parser {
+            module_path,
             tokens: tokens.peekable(),
 
             current: Token::eof_token(0),
@@ -177,22 +179,5 @@ impl Parser {
         // Set state correctly.
         parser.advance();
         parser
-    }
-}
-
-/// A collection of errors inside a file.
-pub struct ParserErrors {
-    pub errors: Vec<Error>,
-    pub source: String,
-    pub file_name: String,
-}
-
-impl ParserErrors {
-    pub fn new(errors: Vec<Error>, source: &str, module: &ModulePath) -> ParserErrors {
-        ParserErrors {
-            errors,
-            source: source.to_string(),
-            file_name: module_path_to_string(module),
-        }
     }
 }

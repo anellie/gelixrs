@@ -17,7 +17,7 @@ use crate::lexer::token::Token;
 use crate::mir::{MutRc, mutrc_new, ToMIRResult};
 use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::generator::passes::declare_func::create_function;
-use crate::mir::nodes::{Block, Class, ClassPrototype, Expression, Type as MType, Variable};
+use crate::mir::nodes::{Block, Class, ClassPrototype, Expr, Type as MType, Variable};
 use crate::option::Flatten;
 
 /// This pass declares all classes.
@@ -175,10 +175,10 @@ fn insert_constructor_setters(
     {
         let (field_index, _) =
             get_field_by_name(class, param).or_err(gen, param, "Unknown class field.")?;
-        block.push(Expression::StructSet {
-            object: Box::new(Expression::VarGet(Rc::clone(&mir_fn_params[0]))),
+        block.push(Expr::StructSet {
+            object: Box::new(Expr::VarGet(Rc::clone(&mir_fn_params[0]))),
             index: field_index as u32,
-            value: Box::new(Expression::VarGet(Rc::clone(&mir_fn_params[index + 1]))),
+            value: Box::new(Expr::VarGet(Rc::clone(&mir_fn_params[index + 1]))),
         })
     }
     Ok(block)

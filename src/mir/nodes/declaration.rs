@@ -12,7 +12,7 @@ use std::rc::Rc;
 use indexmap::IndexMap;
 
 use crate::ast::expression::Expression as ASTExpr;
-use crate::mir::nodes::{Expression, InterfacePrototype, Type};
+use crate::mir::nodes::{Expr, InterfacePrototype, Type};
 use crate::mir::MutRc;
 
 /// A full class including all members and methods.
@@ -251,7 +251,7 @@ impl Display for Function {
 }
 
 /// A block inside a function.
-pub type Block = Vec<Expression>;
+pub type Block = Vec<Expr>;
 
 /// A variable. Used for function variables as well as for referencing functions.
 #[derive(Debug, Default, Clone)]
@@ -259,6 +259,16 @@ pub struct Variable {
     pub mutable: bool,
     pub type_: Type,
     pub name: Rc<String>,
+}
+
+impl Variable {
+    pub fn new(mutable: bool, type_: Type, name: &Rc<String>) -> Rc<Variable> {
+        Rc::new(Variable {
+            mutable,
+            type_,
+            name: Rc::clone(name)
+        })
+    }
 }
 
 impl Hash for Variable {

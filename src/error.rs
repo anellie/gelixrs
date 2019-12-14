@@ -5,64 +5,65 @@
  */
 
 use crate::lexer::token::Token;
+use std::rc::Rc;
+use std::fmt::{Display, Formatter, Error as FmtErr};
+use crate::ast::module::ModulePath;
+
+pub type Res<T> = Result<T, Error>;
+
+/// A struct for a list of errors that occurred along with the source.
+pub struct Errors(pub Vec<Error>, pub String);
+
+impl Display for Errors {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), FmtErr> {
+        for err in self.0.iter() {
+            writeln!(f, "{}", err.to_string(&self.1))
+        }
+        Ok(())
+    }
+}
 
 /// An error produced by all parts of the compiler.
 pub struct Error {
-    pub lines: (usize, usize),
+    pub line: usize,
     pub start: usize,
     pub len: usize,
     pub producer: &'static str,
     pub message: String,
+    pub module: Rc<ModulePath>,
 }
 
 impl Error {
     pub fn new(
-        start_tok: &Token,
-        end_tok: &Token,
+        tok: &Token,
         producer: &'static str,
         message: String,
+        module: &Rc<ModulePath>
     ) -> Error {
         Error {
-            lines: (start_tok.line, end_tok.line),
-            start: start_tok.index - start_tok.lexeme.len(),
-            len: end_tok.index - (start_tok.index - start_tok.lexeme.len()),
+            line: tok.line,
+            start: tok.index - tok.lexeme.len(),
+            len: tok.lexeme.len(),
             producer,
             message,
+            module: Rc::clone(module)
         }
     }
 
     /// Produces a nice looking string representation to be shown to the user.
     pub fn to_string(&self, source: &str) -> String {
-        let (start_line, end_line) = self.lines;
-        let mut result = format!("[{}] {}", self.producer, self.message);
-
-        if start_line == 0 {
-            // Line 0 means there is nothing relevant to show
-            result = format!("{}\n  ?? | <unknown>", result);
-        } else if start_line == end_line {
-            let line = source
-                .lines()
-                .nth(start_line - 1)
-                .unwrap_or("<end of file>");
-            result = format!(
-                "{}\n     |\n{:04} | {}\n     |{}{}",
-                result,
-                start_line,
-                line,
-                std::iter::repeat(' ').take(self.start).collect::<String>(),
-                std::iter::repeat('^').take(self.len).collect::<String>(),
-            )
-        } else {
-            for (i, line) in source
-                .lines()
-                .skip(start_line - 1)
-                .take((end_line - start_line) + 1)
-                .enumerate()
-            {
-                result = format!("{}\n{:04} | {}", result, (i + start_line), line);
-            }
-        }
-
-        result
+        let mut result = format!("[{}] {}\n--> {} L{}:{}", self.producer, self.message, self.module, self.line, self.start);
+        let line = source
+            .lines()
+            .nth(self.line - 1)
+            .unwrap_or("<unexpected end of file>");
+        format!(
+            "{}\n     |\n{:04} | {}\n     |{}{}",
+            result,
+            self.line,
+            line,
+            std::iter::repeat(' ').take(self.start).collect::<String>(),
+            std::iter::repeat('^').take(self.len).collect::<String>(),
+        )
     }
 }

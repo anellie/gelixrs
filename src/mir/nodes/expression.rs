@@ -4,6 +4,7 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
+use std::mem;
 use std::cell::RefCell;
 use std::fmt::{Display, Error, Formatter};
 use std::rc::Rc;
@@ -11,23 +12,23 @@ use std::rc::Rc;
 use crate::ast::expression::LOGICAL_BINARY;
 use crate::ast::Literal;
 use crate::lexer::token::TType;
-use crate::mir::nodes::{Type, Variable};
+use crate::mir::nodes::{Type, Variable, ClassMember};
 
 /// All expressions in MIR. All of them produce a value.
 /// Expressions are in blocks in functions. Gelix does not have statements.
 #[derive(Debug, Clone)]
-pub enum Expression {
+pub enum Expr {
     /// Simply a binary operation between numbers.
     Binary {
-        left: Box<Expression>,
+        left: Box<Expr>,
         operator: TType,
-        right: Box<Expression>,
+        right: Box<Expr>,
     },
 
     /// A function call.
     Call {
-        callee: Box<Expression>,
-        arguments: Vec<Expression>,
+        callee: Box<Expr>,
+        arguments: Vec<Expr>,
     },
 
     /// A 'flow' expression, which changes control flow. See [Flow] enum
@@ -35,16 +36,16 @@ pub enum Expression {
 
     /// A Phi node. Returns a different value based on
     /// which block the current block was reached from.
-    Phi(Vec<(Expression, Rc<String>)>),
+    Phi(Vec<(Expr, Rc<String>)>),
 
     /// Gets a member of a class struct.
-    StructGet { object: Box<Expression>, index: u32 },
+    StructGet { object: Box<Expr>, index: u32 },
 
     /// Sets a member of a class struct.
     StructSet {
-        object: Box<Expression>,
+        object: Box<Expr>,
         index: u32,
-        value: Box<Expression>,
+        value: Box<Expr>,
     },
 
     /// Simply produces the literal as value.
@@ -53,7 +54,7 @@ pub enum Expression {
     /// A unary expression on numbers.
     Unary {
         operator: TType,
-        right: Box<Expression>,
+        right: Box<Expr>,
     },
 
     /// Returns a variable.
@@ -62,17 +63,96 @@ pub enum Expression {
     /// Stores a value inside a variable.
     VarStore {
         var: Rc<Variable>,
-        value: Box<Expression>,
+        value: Box<Expr>,
     },
 }
 
-impl Expression {
+impl Expr {
+    pub fn binary(left: Expr, operator: TType, right: Expr) -> Expr {
+        Expr::Binary {
+            left: Box::new(left),
+            operator,
+            right: Box::new(right),
+        }
+    }
+
+    pub fn unary(right: Expr, op: TType) -> Expr {
+        Expr::Unary {
+            operator: op,
+            right: Box::new(right),
+        }
+    }
+
+    pub fn call(callee: Expr, args: Vec<Expr>) -> Expr {
+        Expr::Call {
+            callee: Box::new(callee),
+            arguments: args,
+        }
+    }
+
+    pub fn phi(nodes: Vec<(Expr, Rc<String>)>) -> Expr {
+        // Filter all nodes that return Any.
+        // A node might return Any if it does not produce a value;
+        // but instead branches away from the phi.
+        let filtered_nodes = nodes
+            .into_iter()
+            .filter(|node| {
+                let type_ = node.0.get_type();
+                mem::discriminant(&Type::Any) != mem::discriminant(&type_)
+            })
+            .collect();
+
+        Expr::Phi(filtered_nodes)
+    }
+
+    pub fn struct_get(object: Expr, field: &Rc<ClassMember>) -> Expr {
+        Expr::StructGet {
+            object: Box::new(object),
+            index: field.index,
+        }
+    }
+
+    pub fn struct_set(
+        object: Expr,
+        field: Rc<ClassMember>,
+        value: Expr,
+    ) -> Expr {
+        Expr::StructSet {
+            object: Box::new(object),
+            index: field.index,
+            value: Box::new(value),
+        }
+    }
+
+    pub fn store(var: &Rc<Variable>, value: Expr) -> Expr {
+        Expr::VarStore {
+            var: Rc::clone(var),
+            value: Box::new(value),
+        }
+    }
+
+    pub fn load(var: &Rc<Variable>) -> Expr {
+        Expr::VarGet(Rc::clone(var))
+    }
+
+    pub fn branch(cond: Expr, then: &Rc<String>, else_: &Rc<String>) -> Expr {
+        Expr::Flow(Box::new(Flow::Branch {
+            condition: cond,
+            then_b: Rc::clone(&then),
+            else_b: Rc::clone(&else_),
+        }))
+    }
+
+    pub fn jump(to: &Rc<String>) -> Expr {
+        Expr::Flow(Box::new(Flow::Jump(Rc::clone(to))))
+    }
+
     /// Returns the type of this MIRExpression.
     /// Note that this function does not do type validation, and calling this function
     /// on malformed expressions is undefined behavior that can lead to panics.
     pub fn get_type(&self) -> Type {
         match self {
-            Expression::Binary { left, operator, .. } => {
+            Expr::Binary { left, operator, .. } => {
                 if LOGICAL_BINARY.contains(&operator) {
                     Type::Bool
                 } else {
@@ -80,7 +160,7 @@ impl Expression {
                 }
             }
 
-            Expression::Call { callee, .. } => {
+            Expr::Call { callee, .. } => {
                 if let Type::Function(func) = callee.get_type() {
                     RefCell::borrow(&func).ret_type.clone()
                 } else {
@@ -88,17 +168,17 @@ impl Expression {
                 }
             }
 
-            Expression::Flow(_) => Type::None,
+            Expr::Flow(_) => Type::None,
 
-            Expression::Phi(branches) => branches.first().unwrap().0.get_type(),
+            Expr::Phi(branches) => branches.first().unwrap().0.get_type(),
 
-            Expression::StructGet { object, index } => Self::type_from_struct_get(object, *index),
+            Expr::StructGet { object, index } => Self::type_from_struct_get(object, *index),
 
-            Expression::StructSet { object, index, .. } => {
+            Expr::StructSet { object, index, .. } => {
                 Self::type_from_struct_get(object, *index)
             }
 
-            Expression::Literal(literal) => match literal {
+            Expr::Literal(literal) => match literal {
                 Literal::Any => Type::Any,
                 Literal::None => Type::None,
                 Literal::Bool(_) => Type::Bool,
@@ -112,20 +192,20 @@ impl Expression {
                 _ => panic!("unknown literal"),
             },
 
-            Expression::Unary { operator, right } => match operator {
+            Expr::Unary { operator, right } => match operator {
                 TType::Bang => Type::Bool,
                 TType::Minus => right.get_type(),
                 _ => panic!("invalid unary"),
             },
 
-            Expression::VarGet(var) => var.type_.clone(),
+            Expr::VarGet(var) => var.type_.clone(),
 
-            Expression::VarStore { var, .. } => var.type_.clone(),
+            Expr::VarStore { var, .. } => var.type_.clone(),
         }
     }
 
     /// Returns the type of a struct member.
-    fn type_from_struct_get(object: &Expression, index: u32) -> Type {
+    fn type_from_struct_get(object: &Expr, index: u32) -> Type {
         let object = object.get_type();
         if let Type::Class(class) = object {
             class
@@ -143,16 +223,16 @@ impl Expression {
     }
 }
 
-impl Display for Expression {
+impl Display for Expr {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         match self {
-            Expression::Binary {
+            Expr::Binary {
                 left,
                 operator,
                 right,
             } => write!(f, "({}) {:?} ({})", left, operator, right),
 
-            Expression::Call { callee, arguments } => {
+            Expr::Call { callee, arguments } => {
                 write!(f, "call {}", callee)?;
                 if !arguments.is_empty() {
                     write!(f, " with ")?;
@@ -163,9 +243,9 @@ impl Display for Expression {
                 Ok(())
             }
 
-            Expression::Flow(flow) => write!(f, "{}", flow),
+            Expr::Flow(flow) => write!(f, "{}", flow),
 
-            Expression::Phi(nodes) => {
+            Expr::Phi(nodes) => {
                 write!(f, "phi {{ ")?;
                 for (expr, block) in nodes.iter() {
                     write!(f, "{}: ({}), ", block, expr)?;
@@ -173,21 +253,21 @@ impl Display for Expression {
                 write!(f, "}}")
             }
 
-            Expression::StructGet { object, index } => write!(f, "get {} from ({})", index, object),
+            Expr::StructGet { object, index } => write!(f, "get {} from ({})", index, object),
 
-            Expression::StructSet {
+            Expr::StructSet {
                 object,
                 index,
                 value,
             } => write!(f, "set {} of ({}) to ({})", index, object, value),
 
-            Expression::Literal(literal) => write!(f, "{}", literal),
+            Expr::Literal(literal) => write!(f, "{}", literal),
 
-            Expression::Unary { right, .. } => write!(f, "neg ({})", right),
+            Expr::Unary { right, .. } => write!(f, "neg ({})", right),
 
-            Expression::VarGet(var) => write!(f, "{}", var.name),
+            Expr::VarGet(var) => write!(f, "{}", var.name),
 
-            Expression::VarStore { var, value } => write!(f, "store ({}) in {}", value, var.name),
+            Expr::VarStore { var, value } => write!(f, "store ({}) in {}", value, var.name),
         }
     }
 }
@@ -199,14 +279,14 @@ pub enum Flow {
     None,
 
     /// Return a value from function
-    Return(Expression),
+    Return(Expr),
 
     /// Jump to another block
     Jump(Rc<String>),
 
     /// Jump to another block conditionally
     Branch {
-        condition: Expression,
+        condition: Expr,
         then_b: Rc<String>,
         else_b: Rc<String>,
     },
@@ -214,7 +294,7 @@ pub enum Flow {
     /// Same as branch, but with a list of conditions.
     /// Jumps to the first that matches.
     Switch {
-        cases: Vec<(Expression, Rc<String>)>,
+        cases: Vec<(Expr, Rc<String>)>,
         default: Rc<String>,
     },
 }
@@ -249,6 +329,6 @@ impl Display for Flow {
 /// An array literal in MIR. See ast/literal.rs for usage.
 #[derive(Debug, Clone)]
 pub struct ArrayLiteral {
-    pub values: Vec<Expression>,
+    pub values: Vec<Expr>,
     pub type_: Type,
 }

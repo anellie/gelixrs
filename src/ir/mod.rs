@@ -27,8 +27,8 @@ use super::{
     ast::literal::Literal,
     lexer::token::TType,
     mir::{
-        nodes::{Block, Class, Expression, Flow, Function, Type, Variable},
-        MIRModule, MutRc,
+        nodes::{Block, Class, Expr, Flow, Function, Type, Variable},
+        MModule, MutRc,
     },
 };
 
@@ -64,15 +64,15 @@ pub struct IRGenerator {
 
 impl IRGenerator {
     /// Generates IR. Will process all MIR modules given.
-    pub fn generate(mut self, mir: Vec<MIRModule>) -> Module {
+    pub fn generate(mut self, mir: Vec<MModule>) -> Module {
         for module in &mir {
-            for function in module.functions.values() {
+            for function in module.globals.values() {
                 self.declare_function(function);
             }
         }
 
         for module in mir {
-            for (_, function) in module.functions {
+            for (_, function) in module.globals {
                 self.function(function);
             }
         }
@@ -220,9 +220,9 @@ impl IRGenerator {
             .unwrap_or_else(|| self.functions[&wrap].as_global_value().as_pointer_value())
     }
 
-    fn generate_expression(&mut self, expression: &Expression) -> BasicValueEnum {
+    fn generate_expression(&mut self, expression: &Expr) -> BasicValueEnum {
         match expression {
-            Expression::Binary {
+            Expr::Binary {
                 left,
                 operator,
                 right,
@@ -271,7 +271,7 @@ impl IRGenerator {
                 }
             }
 
-            Expression::Call { callee, arguments } => {
+            Expr::Call { callee, arguments } => {
                 let callee = self.generate_expression(callee);
                 let ptr = callee.into_pointer_value();
                 let arguments: Vec<BasicValueEnum> = arguments
@@ -286,7 +286,7 @@ impl IRGenerator {
                 ret.left().unwrap_or(self.none_const)
             }
 
-            Expression::Flow(flow) => {
+            Expr::Flow(flow) => {
                 // If still inserting, set insertion position to the end of the block.
                 // It might not be at the end if a Phi node in another block was compiled first,
                 // in which case the insertion position is before that phi expression.
@@ -349,7 +349,7 @@ impl IRGenerator {
                 self.none_const
             }
 
-            Expression::Phi(branches) => {
+            Expr::Phi(branches) => {
                 // Block inserting into might be None if block return was hit
                 let cur_block = match self.builder.get_insert_block() {
                     Some(b) => b,
@@ -380,7 +380,7 @@ impl IRGenerator {
                 phi.as_basic_value()
             }
 
-            Expression::StructGet { object, index } => {
+            Expr::StructGet { object, index } => {
                 let struc = self.generate_expression(object);
                 let ptr = unsafe {
                     self.builder
@@ -389,7 +389,7 @@ impl IRGenerator {
                 self.load_ptr(ptr)
             }
 
-            Expression::StructSet {
+            Expr::StructSet {
                 object,
                 index,
                 value,
@@ -405,7 +405,7 @@ impl IRGenerator {
                 value
             }
 
-            Expression::Literal(literal) => match literal {
+            Expr::Literal(literal) => match literal {
                 Literal::Any | Literal::None => self.none_const,
                 Literal::Bool(value) => self
                     .context
@@ -438,7 +438,7 @@ impl IRGenerator {
                 _ => panic!("unknown literal"),
             },
 
-            Expression::Unary { right, operator } => {
+            Expr::Unary { right, operator } => {
                 let expr = self.generate_expression(right);
 
                 match expr {
@@ -458,9 +458,9 @@ impl IRGenerator {
                 }
             }
 
-            Expression::VarGet(var) => self.load_ptr(self.get_variable(var)),
+            Expr::VarGet(var) => self.load_ptr(self.get_variable(var)),
 
-            Expression::VarStore { var, value } => {
+            Expr::VarStore { var, value } => {
                 let variable = self.get_variable(var);
                 let value = self.generate_expression(value);
 

@@ -33,7 +33,7 @@ use crate::option::Flatten;
 /// Instead of that, prototypes are simply compiled on demand -
 /// whenever they are instanced by using them somewhere,
 /// the MIR generator takes the AST and generates it like
-/// a regular class, with the generic parameters substituted
+/// a regular node, with the generic parameters substituted
 /// for their arguments.
 ///
 /// The mayor drawback of this is that prototypes will
@@ -42,6 +42,10 @@ use crate::option::Flatten;
 /// of handling prototypes another way.
 /// (Also, this missing check does not lead to unsound compiled code -
 /// not producing unsound code is the most important reason of type checking.)
+pub trait Prototype {
+    fn build(&self, arguments: Vec<Type>, err_tok: &Token) -> Res<Type>;
+}
+
 #[derive(Debug)]
 pub struct ClassPrototype {
     pub ast: ASTClass,
@@ -49,13 +53,8 @@ pub struct ClassPrototype {
     pub instances: RefCell<HashMap<Vec<Type>, MutRc<Class>>>,
 }
 
-impl ClassPrototype {
-    pub fn build(
-        &self,
-        gen: &mut MIRGenerator,
-        arguments: Vec<Type>,
-        err_tok: &Token
-    ) -> Result<MutRc<Class>, MIRError> {
+impl Prototype for ClassPrototype {
+    fn build(&self,arguments: Vec<Type>, err_tok: &Token) -> Res<Type> {
         if let Some(inst) = self.instances.borrow().get(&arguments) {
             return Ok(Rc::clone(&inst))
         }
@@ -85,7 +84,7 @@ impl ClassPrototype {
 
         gen.builder.load_last_pointer();
         gen.clear_type_aliases();
-        Ok(class)
+        Ok(Type::Class(class))
     }
 }
 
@@ -109,13 +108,8 @@ pub struct InterfacePrototype {
     pub instances: RefCell<HashMap<Vec<Type>, MutRc<Interface>>>,
 }
 
-impl InterfacePrototype {
-    pub fn build(
-        &self,
-        gen: &mut MIRGenerator,
-        arguments: Vec<Type>,
-        err_tok: &Token
-    ) -> Result<MutRc<Interface>, MIRError> {
+impl Prototype for InterfacePrototype {
+    fn build(&self,arguments: Vec<Type>, err_tok: &Token) -> Res<Type> {
         if let Some(inst) = self.instances.borrow().get(&arguments) {
             return Ok(Rc::clone(&inst))
         }
@@ -133,7 +127,7 @@ impl InterfacePrototype {
         gen.builder.load_last_pointer();
         gen.clear_type_aliases();
         self.instances.borrow_mut().insert(arguments, Rc::clone(&iface));
-        Ok(iface)
+        Ok(Type::Interface(iface))
     }
 }
 
@@ -150,13 +144,8 @@ pub struct FunctionPrototype {
     pub instances: RefCell<HashMap<Vec<Type>, Rc<Variable>>>,
 }
 
-impl FunctionPrototype {
-    pub fn build(
-        &mut self,
-        gen: &mut MIRGenerator,
-        arguments: Vec<Type>,
-        err_tok: &Token
-    ) -> Result<Rc<Variable>, MIRError> {
+impl Prototype for FunctionPrototype {
+    fn build(&mut self, arguments: Vec<Type>, err_tok: &Token) -> Res<Type> {
         if let Some(inst) = self.instances.borrow().get(&arguments) {
             return Ok(Rc::clone(&inst))
         }
@@ -176,7 +165,7 @@ impl FunctionPrototype {
         gen.builder.load_last_pointer();
         gen.clear_type_aliases();
         self.instances.borrow_mut().insert(arguments, Rc::clone(&func));
-        Ok(func)
+        Ok(Type::Function(func.type_.as_function()))
     }
 }
 

@@ -17,7 +17,7 @@ use crate::mir::generator::passes::import::{
     class_imports, ensure_no_imports, function_imports, interface_imports,
 };
 use crate::mir::generator::{MIRError, MIRGenerator, Res};
-use crate::mir::MIRModule;
+use crate::mir::MModule;
 use crate::mir::IFACE_IMPLS;
 
 /// A set of [MIRGenerator]s.
@@ -28,7 +28,7 @@ pub struct MIRModuleGenerator {
 }
 
 impl MIRModuleGenerator {
-    pub fn execute(mut self) -> Result<Vec<MIRModule>, Vec<MIRError>> {
+    pub fn execute(mut self) -> Result<Vec<MModule>, Vec<MIRError>> {
         reset_mir();
         self.run_for_all(&declare_class_pass)?;
         class_imports(&mut self.modules)?;
@@ -48,7 +48,7 @@ impl MIRModuleGenerator {
                 gen.generate_mir(&module)?;
                 Ok(gen.builder.consume_module())
             })
-            .collect::<Result<Vec<MIRModule>, MIRError>>()
+            .collect::<Result<Vec<MModule>, MIRError>>()
             .map_err(|e| vec![e]);
 
         INTRINSICS.with(|i| i.borrow_mut().validate())?;

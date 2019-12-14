@@ -6,9 +6,9 @@
 
 use std::convert::TryInto;
 use std::iter::FromIterator;
-use std::rc::Rc;
 
 use token::{TType, Token};
+use std::rc::Rc;
 
 pub mod token;
 
