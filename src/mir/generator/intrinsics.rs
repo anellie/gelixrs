@@ -17,10 +17,10 @@ use std::rc::Rc;
 use crate::ast::Module;
 use crate::error::Error;
 use crate::lexer::token::TType;
-use crate::mir::generator::{MIRError, MIRGenerator};
 use crate::mir::generator::builder::MIRBuilder;
-use crate::mir::MutRc;
+use crate::mir::generator::{MIRError, MIRGenerator};
 use crate::mir::nodes::{InterfacePrototype, Variable};
+use crate::mir::MutRc;
 
 thread_local! {
     pub static INTRINSICS: RefCell<Intrinsics> = RefCell::new(Intrinsics::default());
@@ -85,7 +85,7 @@ impl Intrinsics {
                     message: "Could not find main function.".to_string(),
                 },
                 module: Rc::new(vec![]),
-            }])
+            }]);
         }
         Ok(())
     }

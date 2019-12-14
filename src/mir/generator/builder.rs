@@ -11,15 +11,15 @@ use std::rc::Rc;
 use either::Either;
 use either::Either::{Left, Right};
 
-use crate::{module_path_to_string, ModulePath};
 use crate::error::Error;
-use crate::lexer::token::{Token, TType};
-use crate::mir::{IFACE_IMPLS, MIRModule, MutRc};
+use crate::lexer::token::{TType, Token};
 use crate::mir::generator::{MIRError, Res};
 use crate::mir::nodes::{
     Class, ClassMember, ClassPrototype, Expression, Flow, FunctionPrototype, Interface,
     InterfacePrototype, Variable,
 };
+use crate::mir::{MIRModule, MutRc, IFACE_IMPLS};
+use crate::{module_path_to_string, ModulePath};
 
 use super::super::nodes::{Function, Type};
 
@@ -69,7 +69,9 @@ impl MIRBuilder {
 
     /// Will create the variable in the current function.
     pub fn add_function_variable(&mut self, variable: Rc<Variable>) {
-        self.cur_fn().borrow_mut().insert_var(Rc::clone(&variable.name), Rc::clone(&variable));
+        self.cur_fn()
+            .borrow_mut()
+            .insert_var(Rc::clone(&variable.name), Rc::clone(&variable));
     }
 
     pub fn build_binary(&self, left: Expression, operator: TType, right: Expression) -> Expression {
@@ -299,11 +301,7 @@ impl MIRBuilder {
         })
     }
 
-    pub fn set_pointer(
-        &mut self,
-        function: MutRc<Function>,
-        block: Rc<String>,
-    ) {
+    pub fn set_pointer(&mut self, function: MutRc<Function>, block: Rc<String>) {
         self.position = Some(Pointer { function, block })
     }
 

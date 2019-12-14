@@ -6,12 +6,12 @@
 
 use std::{iter::Peekable, mem};
 
-use crate::{Error, module_path_to_string, ModulePath};
 use crate::parser::parsing::MODIFIERS;
+use crate::{module_path_to_string, Error, ModulePath};
 
 use super::lexer::{
+    token::{TType, Token},
     Lexer,
-    token::{Token, TType},
 };
 
 mod parsing;
@@ -31,7 +31,7 @@ pub struct Parser {
     errors: Vec<Error>,
 
     /// Stores the modifiers of the current global declaration.
-    modifiers: Vec<Token>
+    modifiers: Vec<Token>,
 }
 
 /// This impl block contains all 'helper' functions of the parser.
@@ -171,7 +171,7 @@ impl Parser {
             previous_line: 0,
 
             errors: vec![],
-            modifiers: vec![]
+            modifiers: vec![],
         };
 
         // Set state correctly.

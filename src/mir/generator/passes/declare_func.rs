@@ -6,27 +6,27 @@
 
 use std::rc::Rc;
 
-
-
-
 use crate::ast::declaration::FuncSignature;
 use crate::ast::module::Module;
 
-use crate::mir::{mutrc_new, ToMIRResult};
-use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::generator::intrinsics::INTRINSICS;
+use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::nodes::{Function, FunctionPrototype, Type, Variable};
+use crate::mir::{mutrc_new, ToMIRResult};
 
 /// This pass defines all functions in MIR.
 pub fn declare_func_pass(gen: &mut MIRGenerator, module: &mut Module) -> Res<()> {
     // Remove all functions that contain generics from the list
     // so the generator won't bother trying to compile it later.
     for func in module.functions.drain_filter(|f| f.sig.generics.is_some()) {
-        gen.builder.prototypes.functions.insert(Rc::clone(&func.sig.name.lexeme), mutrc_new(FunctionPrototype {
-            ast: func,
-            impls: vec![],
-            instances: Default::default()
-        }));
+        gen.builder.prototypes.functions.insert(
+            Rc::clone(&func.sig.name.lexeme),
+            mutrc_new(FunctionPrototype {
+                ast: func,
+                impls: vec![],
+                instances: Default::default(),
+            }),
+        );
     }
 
     for func in module.functions.iter_mut() {
@@ -39,7 +39,7 @@ pub fn declare_func_pass(gen: &mut MIRGenerator, module: &mut Module) -> Res<()>
 pub(super) fn create_function(
     gen: &mut MIRGenerator,
     func_sig: &FuncSignature,
-    is_external: bool
+    is_external: bool,
 ) -> Res<Rc<Variable>> {
     gen.builder.try_reserve_name(&func_sig.name)?;
 

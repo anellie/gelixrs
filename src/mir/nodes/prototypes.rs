@@ -9,14 +9,12 @@ use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
 use crate::ast::Class as ASTClass;
+use crate::ast::Function as ASTFunc;
 use crate::ast::IFaceImpl as ASTImpl;
 use crate::ast::Interface as ASTIFace;
-use crate::ast::Function as ASTFunc;
-use crate::mir::{MutRc};
-use crate::mir::generator::{MIRGenerator, MIRError};
-use crate::mir::nodes::{
-    Class, Interface, Type, Variable,
-};
+use crate::mir::generator::{MIRError, MIRGenerator};
+use crate::mir::nodes::{Class, Interface, Type, Variable};
+use crate::mir::MutRc;
 
 /// A prototype that classes can be instantiated from.
 /// This prototype is kept in AST form,
@@ -39,7 +37,7 @@ use crate::mir::nodes::{
 pub struct ClassPrototype {
     pub ast: ASTClass,
     pub impls: Vec<ASTImpl>,
-    pub instances: HashMap<Vec<Type>, MutRc<Class>>
+    pub instances: HashMap<Vec<Type>, MutRc<Class>>,
 }
 
 impl ClassPrototype {
@@ -69,13 +67,14 @@ impl Hash for ClassPrototype {
 pub struct InterfacePrototype {
     pub ast: ASTIFace,
     pub impls: Vec<ASTImpl>,
-    pub instances: HashMap<Vec<Type>, MutRc<Interface>>
+    pub instances: HashMap<Vec<Type>, MutRc<Interface>>,
 }
 
 impl InterfacePrototype {
-    pub fn build(&mut self,
-         _gen: &mut MIRGenerator,
-         _arguments: &Vec<Type>
+    pub fn build(
+        &mut self,
+        _gen: &mut MIRGenerator,
+        _arguments: &Vec<Type>,
     ) -> Result<MutRc<Interface>, String> {
         unimplemented!()
     }
@@ -92,7 +91,7 @@ impl PartialEq for InterfacePrototype {
 pub struct FunctionPrototype {
     pub ast: ASTFunc,
     pub impls: Vec<ASTImpl>,
-    pub instances: HashMap<Vec<Type>, Rc<Variable>>
+    pub instances: HashMap<Vec<Type>, Rc<Variable>>,
 }
 
 impl FunctionPrototype {

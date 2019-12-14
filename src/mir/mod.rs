@@ -11,12 +11,12 @@ use std::rc::Rc;
 
 use nodes::{Class, Variable};
 
-use crate::{module_path_to_string, ModulePath};
 use crate::ast::declaration::Type as ASTType;
 use crate::lexer::token::Token;
 use crate::mir::generator::{MIRError, MIRGenerator};
 use crate::mir::nodes::{IFaceImpls, Interface, Type};
 use crate::option::Flatten;
+use crate::{module_path_to_string, ModulePath};
 
 pub mod generator;
 pub mod nodes;
@@ -68,11 +68,7 @@ impl Display for MIRModule {
         if !self.functions.is_empty() {
             writeln!(f, "---------- Functions ----------")?;
         }
-        for func in self
-            .functions
-            .iter()
-            .map(|f| f.1.type_.as_function())
-        {
+        for func in self.functions.iter().map(|f| f.1.type_.as_function()) {
             writeln!(f, "{}", func.borrow())?;
         }
 

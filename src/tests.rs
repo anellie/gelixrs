@@ -102,11 +102,15 @@ fn exec_jit(path: PathBuf) -> Result<String, Failure> {
         .ok()
         .ok_or(Failure::IR("Failed to create JIT".to_string()))?;
     engine.add_global_mapping(
-        &module.get_function("print").ok_or(Failure::IR("No print fn".to_string()))?,
+        &module
+            .get_function("print")
+            .ok_or(Failure::IR("No print fn".to_string()))?,
         test_print as usize,
     );
     engine.add_global_mapping(
-        &module.get_function("printnum").ok_or(Failure::IR("No printnum fn".to_string()))?,
+        &module
+            .get_function("printnum")
+            .ok_or(Failure::IR("No printnum fn".to_string()))?,
         test_printnum as usize,
     );
     if let Some(fun) = &module.get_function("puts") {
@@ -114,7 +118,10 @@ fn exec_jit(path: PathBuf) -> Result<String, Failure> {
     }
 
     unsafe {
-        let main_fn: JitFunction<MainFn> = engine.get_function("main").ok().ok_or(Failure::IR("No main fn".to_string()))?;
+        let main_fn: JitFunction<MainFn> = engine
+            .get_function("main")
+            .ok()
+            .ok_or(Failure::IR("No main fn".to_string()))?;
         main_fn.call();
     }
 

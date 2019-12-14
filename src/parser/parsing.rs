@@ -11,11 +11,13 @@ use std::rc::Rc;
 
 use either::Either;
 
-use crate::ast::declaration::{ClassMember, Constructor, ConstructorParam, IFaceImpl, Interface, InterfaceFunc, Type, Visibility};
+use crate::ast::declaration::{
+    ClassMember, Constructor, ConstructorParam, IFaceImpl, Interface, InterfaceFunc, Type,
+    Visibility,
+};
 use crate::ast::module::Import;
 use crate::Error;
 
-use super::Parser;
 use super::super::{
     ast::{
         declaration::{Class, Enum, FuncSignature, Function, FunctionArg, Variable},
@@ -23,8 +25,9 @@ use super::super::{
         literal::Literal,
         module::Module,
     },
-    lexer::token::{Token, TType},
+    lexer::token::{TType, Token},
 };
+use super::Parser;
 
 // All expressions that require no semicolon when used as a higher expression.
 static NO_SEMICOLON: [TType; 3] = [TType::If, TType::LeftBrace, TType::When];
@@ -244,7 +247,11 @@ impl Parser {
         self.consume(TType::RightParen, "Expected ')' after parameters.");
 
         let body = self.expression()?;
-        Some(Constructor { visibility, parameters, body })
+        Some(Constructor {
+            visibility,
+            parameters,
+            body,
+        })
     }
 
     fn enum_declaration(&mut self) -> Option<Enum> {
@@ -788,8 +795,15 @@ impl Parser {
 
     fn check_mods(&mut self, allowed: &'static [TType], name: &'static str) -> Option<()> {
         let mut msgs = vec![];
-        for mod_ in self.modifiers.iter().filter(|m| !allowed.contains(&m.t_type) && !GLOBAL_MODIFIERS.contains(&m.t_type)) {
-            msgs.push(format!("Cannot have '{}' modifier on {}.", mod_.lexeme, name));
+        for mod_ in self
+            .modifiers
+            .iter()
+            .filter(|m| !allowed.contains(&m.t_type) && !GLOBAL_MODIFIERS.contains(&m.t_type))
+        {
+            msgs.push(format!(
+                "Cannot have '{}' modifier on {}.",
+                mod_.lexeme, name
+            ));
         }
         msgs.into_iter().try_for_each(|m| self.error_at_current(&m))
     }
@@ -801,7 +815,7 @@ impl Parser {
             let vis = match tok.t_type {
                 TType::Public => Visibility::Public,
                 TType::Private => Visibility::Private,
-                _ => Visibility::Module
+                _ => Visibility::Module,
             };
             if vis != Visibility::Module {
                 count += 1;

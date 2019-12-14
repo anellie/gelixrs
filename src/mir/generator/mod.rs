@@ -14,17 +14,19 @@ use indexmap::IndexMap;
 
 use builder::MIRBuilder;
 
-use crate::{Error, ModulePath};
 use crate::ast::declaration::{Class as ASTClass, Constructor, Function as ASTFunc};
 use crate::ast::expression::Expression as ASTExpr;
 use crate::ast::literal::Literal;
 use crate::ast::module::Module;
 use crate::ast::Type as ASTType;
-use crate::lexer::token::{Token, TType};
-use crate::mir::{IFACE_IMPLS, MIRModule, MutRc, ToMIRResult};
+use crate::lexer::token::{TType, Token};
 use crate::mir::generator::intrinsics::INTRINSICS;
-use crate::mir::nodes::{ArrayLiteral, Class, ClassMember, Expression, Flow, Function, Type, Variable};
+use crate::mir::nodes::{
+    ArrayLiteral, Class, ClassMember, Expression, Flow, Function, Type, Variable,
+};
+use crate::mir::{MIRModule, MutRc, ToMIRResult, IFACE_IMPLS};
 use crate::option::Flatten;
+use crate::{Error, ModulePath};
 
 mod builder;
 mod intrinsics;
@@ -65,7 +67,7 @@ pub struct MIRGenerator {
     /// does not validate that the object the access occurs on is 'this'.
     /// Because of this, accesses of members on other objects of the same type
     /// (that ARE initialized) will be considered illegal.
-    uninitialized_this_members: HashSet<Rc<ClassMember>>
+    uninitialized_this_members: HashSet<Rc<ClassMember>>,
 }
 
 impl MIRGenerator {
@@ -74,15 +76,13 @@ impl MIRGenerator {
             self.generate_constructors(class)?;
         }
 
-        let method_iter = module
-            .classes
-            .iter()
-            .map(|class| &class.methods)
-            .flatten();
+        let method_iter = module.classes.iter().map(|class| &class.methods).flatten();
         let func_iter = module.functions.iter();
         let _impl_fn_iter = module.iface_impls.iter().map(|i| &i.methods).flatten();
 
-        for func in method_iter.chain(func_iter) /*.chain(impl_fn_iter)*/ {
+        for func in method_iter.chain(func_iter)
+        /*.chain(impl_fn_iter)*/
+        {
             self.generate_function(func)?;
         }
 
@@ -97,10 +97,7 @@ impl MIRGenerator {
             Some(body) => body,
         };
 
-        let function = self
-            .builder
-            .find_function(&func.sig.name.lexeme)
-            .unwrap();
+        let function = self.builder.find_function(&func.sig.name.lexeme).unwrap();
 
         let ret_type = self.prepare_function(function, func.sig.name.line)?;
         let body = self.generate_expression(body)?;
@@ -126,13 +123,19 @@ impl MIRGenerator {
     }
 
     fn generate_constructors(&mut self, class: &ASTClass) -> Res<()> {
-        let class_rc = self
-            .builder
-            .find_class(&class.name.lexeme)
-            .unwrap();
+        let class_rc = self.builder.find_class(&class.name.lexeme).unwrap();
 
-        for (constructor, mir_fn) in class.constructors.iter().zip(class_rc.borrow().constructors.iter().map(|v| v.type_.as_function())) {
-            self.prepare_function(Rc::clone(mir_fn), constructor.parameters.get(0).map(|l| l.0.line).unwrap_or(0))?;
+        for (constructor, mir_fn) in class.constructors.iter().zip(
+            class_rc
+                .borrow()
+                .constructors
+                .iter()
+                .map(|v| v.type_.as_function()),
+        ) {
+            self.prepare_function(
+                Rc::clone(mir_fn),
+                constructor.parameters.get(0).map(|l| l.0.line).unwrap_or(0),
+            )?;
             self.set_uninitialized_members(constructor, &class_rc.borrow().members);
             let body = self.generate_expression(&constructor.body)?;
             self.builder.insert_at_ptr(body);
@@ -144,10 +147,18 @@ impl MIRGenerator {
         Ok(())
     }
 
-    fn set_uninitialized_members(&mut self, constructor: &Constructor, class_mems: &IndexMap<Rc<String>, Rc<ClassMember>>) {
+    fn set_uninitialized_members(
+        &mut self,
+        constructor: &Constructor,
+        class_mems: &IndexMap<Rc<String>, Rc<ClassMember>>,
+    ) {
         self.uninitialized_this_members.clear();
         for (name, mem) in class_mems.iter() {
-            let initialized = constructor.parameters.iter().filter(|p| p.1.is_none()).any(|p| &p.0.lexeme == name);
+            let initialized = constructor
+                .parameters
+                .iter()
+                .filter(|p| p.1.is_none())
+                .any(|p| &p.0.lexeme == name);
             if !initialized && !mem.has_default_value {
                 self.uninitialized_this_members.insert(Rc::clone(&mem));
             }
@@ -158,7 +169,11 @@ impl MIRGenerator {
         if self.uninitialized_this_members.is_empty() {
             Ok(())
         } else {
-            Err(self.error(err_tok, err_tok, "Cannot have uninitialized fields after constructor."))
+            Err(self.error(
+                err_tok,
+                err_tok,
+                "Cannot have uninitialized fields after constructor.",
+            ))
         }
     }
 
@@ -413,7 +428,7 @@ impl MIRGenerator {
                         .or_err(self, name, "Cannot get class method (must be called)")?;
 
                 if self.uninitialized_this_members.contains(&field) {
-                    return Err(self.error(name, name, "Cannot get uninitialized class member."))
+                    return Err(self.error(name, name, "Cannot get uninitialized class member."));
                 }
                 self.builder.build_struct_get(object, field)
             }
@@ -514,14 +529,7 @@ impl MIRGenerator {
                     .transpose()?
                     .unwrap_or_else(Self::none_const);
 
-                if value.get_type()
-                    != self
-                        .builder
-                        .cur_fn()
-                        .borrow()
-                        .ret_type
-                        .clone()
-                {
+                if value.get_type() != self.builder.cur_fn().borrow().ret_type.clone() {
                     return Err(self.anon_err(
                         val.as_ref().map(|v| v.get_token()).flatten_(),
                         "Return expression in function has wrong type",
@@ -718,7 +726,11 @@ impl MIRGenerator {
 
     pub fn find_type(&mut self, ast: &ASTType) -> Res<Type> {
         Ok(match ast {
-            ASTType::Ident(tok) => self.builder.find_type_by_name(&tok).or_anon_err(self, ast.get_token(), "Unknown type.")?,
+            ASTType::Ident(tok) => self.builder.find_type_by_name(&tok).or_anon_err(
+                self,
+                ast.get_token(),
+                "Unknown type.",
+            )?,
 
             ASTType::Array(_) => unimplemented!(),
 
@@ -730,7 +742,11 @@ impl MIRGenerator {
                     .find_class_or_proto(&token.lexeme)
                     .or_anon_err(self, ast.get_token(), "Unknown class prototype.")?
                     .right()
-                    .or_anon_err(self, ast.get_token(), "Class does not take generic arguments.")?;
+                    .or_anon_err(
+                        self,
+                        ast.get_token(),
+                        "Class does not take generic arguments.",
+                    )?;
 
                 let types = types
                     .iter()
@@ -739,7 +755,7 @@ impl MIRGenerator {
 
                 let mut proto = proto.borrow_mut();
                 Type::Class(proto.build(self, types)?)
-            },
+            }
         })
     }
 
@@ -783,24 +799,44 @@ impl MIRGenerator {
             .or_err(self, name, "Unknown field or method.")
     }
 
-    fn generate_class_instantiation(&mut self, class: MutRc<Class>, args: &Vec<ASTExpr>, err_tok: &Token) -> Res<Expression> {
-        let mut args = args.iter().map(|arg| self.generate_expression(arg)).collect::<Res<Vec<Expression>>>()?;
+    fn generate_class_instantiation(
+        &mut self,
+        class: MutRc<Class>,
+        args: &Vec<ASTExpr>,
+        err_tok: &Token,
+    ) -> Res<Expression> {
+        let mut args = args
+            .iter()
+            .map(|arg| self.generate_expression(arg))
+            .collect::<Res<Vec<Expression>>>()?;
         let inst = self.builder.build_class_inst(Rc::clone(&class));
         args.insert(0, inst.clone());
 
         let class = class.borrow();
-        let constructor = class.constructors.iter().find(|constructor| {
-            let constructor = constructor.type_.as_function().borrow();
-            if constructor.parameters.len() != args.len() { return false; }
-            for (param, arg) in constructor.parameters.iter().zip(args.iter()) {
-                if param.type_ != arg.get_type() {
+        let constructor = class
+            .constructors
+            .iter()
+            .find(|constructor| {
+                let constructor = constructor.type_.as_function().borrow();
+                if constructor.parameters.len() != args.len() {
                     return false;
                 }
-            }
-            true
-        }).or_err(self, err_tok, "No matching constructor found for arguments.")?;
+                for (param, arg) in constructor.parameters.iter().zip(args.iter()) {
+                    if param.type_ != arg.get_type() {
+                        return false;
+                    }
+                }
+                true
+            })
+            .or_err(
+                self,
+                err_tok,
+                "No matching constructor found for arguments.",
+            )?;
 
-        let call = self.builder.build_call(self.builder.build_load(Rc::clone(&constructor)), args);
+        let call = self
+            .builder
+            .build_call(self.builder.build_load(Rc::clone(&constructor)), args);
         self.builder.insert_at_ptr(call);
         Ok(inst)
     }
@@ -948,7 +984,7 @@ impl MIRGenerator {
             builder: MIRBuilder::new(MIRModule::new(path)),
             environments: Vec::with_capacity(5),
             current_loop: None,
-            uninitialized_this_members: HashSet::with_capacity(10)
+            uninitialized_this_members: HashSet::with_capacity(10),
         }
     }
 }

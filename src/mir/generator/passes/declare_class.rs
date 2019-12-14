@@ -7,15 +7,17 @@
 use std::collections::HashSet;
 use std::rc::Rc;
 
-use crate::ast::declaration::{Class as ASTClass, Constructor, FuncSignature, FunctionArg, Visibility};
-use crate::ast::Expression as ASTExpr;
+use crate::ast::declaration::{
+    Class as ASTClass, Constructor, FuncSignature, FunctionArg, Visibility,
+};
 use crate::ast::module::Module;
+use crate::ast::Expression as ASTExpr;
 use crate::ast::Type;
 use crate::lexer::token::Token;
-use crate::mir::{mutrc_new, ToMIRResult};
-use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::generator::passes::declare_func::create_function;
+use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::nodes::{Block, Class, ClassPrototype, Expression, Type as MType, Variable};
+use crate::mir::{mutrc_new, ToMIRResult};
 use crate::option::Flatten;
 
 /// This pass declares all classes.
@@ -24,11 +26,14 @@ pub fn declare_class_pass(gen: &mut MIRGenerator, module: &mut Module) -> Res<()
     // Remove all classes that contain generics from the list
     // so the generator won't bother trying to compile it later.
     for class in module.classes.drain_filter(|c| c.generics.is_some()) {
-        gen.builder.prototypes.classes.insert(Rc::clone(&class.name.lexeme), mutrc_new(ClassPrototype {
-            ast: class,
-            impls: vec![],
-            instances: Default::default()
-        }));
+        gen.builder.prototypes.classes.insert(
+            Rc::clone(&class.name.lexeme),
+            mutrc_new(ClassPrototype {
+                ast: class,
+                impls: vec![],
+                instances: Default::default(),
+            }),
+        );
     }
 
     for class in module.classes.iter_mut() {
@@ -74,9 +79,19 @@ fn create_class(gen: &mut MIRGenerator, class: &mut ASTClass) -> Res<()> {
         mir_fn.blocks.insert(Rc::new("entry".to_string()), block);
         mir_class.constructors.push(Rc::clone(&mir_var));
 
-        let params = mir_fn.parameters.iter().skip(1).map(|p| &p.type_).cloned().collect::<Vec<MType>>();
+        let params = mir_fn
+            .parameters
+            .iter()
+            .skip(1)
+            .map(|p| &p.type_)
+            .cloned()
+            .collect::<Vec<MType>>();
         if !constructor_list.insert(params) {
-            return Err(gen.error(&class.name, &class.name, "Class contains constructors with duplicate signatures."))
+            return Err(gen.error(
+                &class.name,
+                &class.name,
+                "Class contains constructors with duplicate signatures.",
+            ));
         }
     }
 
@@ -156,9 +171,9 @@ fn insert_constructor_setters(
         .iter()
         .enumerate()
         .filter(|(_, (_, ty))| ty.is_none())
-        {
-            let (field_index, _) =
-                get_field_by_name(class, param).or_err(gen, param, "Unknown class field.")?;
+    {
+        let (field_index, _) =
+            get_field_by_name(class, param).or_err(gen, param, "Unknown class field.")?;
         block.push(Expression::StructSet {
             object: Box::new(Expression::VarGet(Rc::clone(&mir_fn_params[0]))),
             index: field_index as u32,
@@ -181,7 +196,11 @@ fn maybe_add_default_constructor(class: &mut ASTClass) {
 }
 
 /// Modify the AST method signature to fit MIR codegen requirements.
-fn modify_method_sig(class_name: &Rc<String>, method: &mut FuncSignature, this_arg: &FunctionArg) -> Rc<String> {
+fn modify_method_sig(
+    class_name: &Rc<String>,
+    method: &mut FuncSignature,
+    this_arg: &FunctionArg,
+) -> Rc<String> {
     let old_name = Rc::clone(&method.name.lexeme);
     // Change the method name to $class-$method to prevent name collisions
     method.name.lexeme = Rc::new(format!("{}-{}", class_name, method.name.lexeme));

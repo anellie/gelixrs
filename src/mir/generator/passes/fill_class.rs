@@ -7,7 +7,6 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-
 use indexmap::IndexMap;
 
 use crate::ast::declaration::Class;
@@ -52,7 +51,10 @@ fn build_class(
 
     let class_variable = Rc::new(Variable {
         mutable: true,
-        type_: gen.find_type(&ASTType::Ident(class.name.clone())).ok().unwrap(),
+        type_: gen
+            .find_type(&ASTType::Ident(class.name.clone()))
+            .ok()
+            .unwrap(),
         name: Rc::new("this".to_string()),
     });
     gen.builder
@@ -77,7 +79,7 @@ fn build_class(
             mutable: field.mutable,
             type_,
             index: (i + offset) as u32,
-            has_default_value: field.initializer.is_some()
+            has_default_value: field.initializer.is_some(),
         });
 
         let existing_entry = fields.insert(Rc::clone(&field.name.lexeme), Rc::clone(&member));
@@ -99,7 +101,9 @@ fn build_class(
         }
     }
 
-    gen.builder.set_return(Flow::Return(gen.builder.build_load(Rc::clone(&class_variable))));
+    gen.builder.set_return(Flow::Return(
+        gen.builder.build_load(Rc::clone(&class_variable)),
+    ));
     Ok(())
 }
 

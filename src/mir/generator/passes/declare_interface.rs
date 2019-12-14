@@ -10,8 +10,8 @@ use indexmap::IndexMap;
 
 use crate::ast::declaration::Interface as ASTIFace;
 use crate::ast::module::Module;
-use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::generator::passes::NONE_CONST;
+use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::mutrc_new;
 use crate::mir::nodes::{IFaceMethod, Interface, InterfacePrototype};
 
@@ -20,11 +20,14 @@ pub fn declare_interface_pass(gen: &mut MIRGenerator, module: &mut Module) -> Re
     // Remove all interfaces that contain generics from the list
     // so the generator won't bother trying to compile it later.
     for interface in module.interfaces.drain_filter(|f| f.generics.is_some()) {
-        gen.builder.prototypes.interfaces.insert(Rc::clone(&interface.name.lexeme), mutrc_new(InterfacePrototype {
-            ast: interface,
-            impls: vec![],
-            instances: Default::default()
-        }));
+        gen.builder.prototypes.interfaces.insert(
+            Rc::clone(&interface.name.lexeme),
+            mutrc_new(InterfacePrototype {
+                ast: interface,
+                impls: vec![],
+                instances: Default::default(),
+            }),
+        );
     }
 
     for interface in module.interfaces.iter_mut() {

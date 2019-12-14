@@ -7,7 +7,6 @@
 use std::rc::Rc;
 
 use crate::ast::module::Module;
-use crate::mir::generator::{MIRError, MIRGenerator, Res};
 use crate::mir::generator::intrinsics::INTRINSICS;
 use crate::mir::generator::passes::declare_class::declare_class_pass;
 use crate::mir::generator::passes::declare_func::declare_func_pass;
@@ -17,8 +16,9 @@ use crate::mir::generator::passes::iface_impl::iface_impl_pass;
 use crate::mir::generator::passes::import::{
     class_imports, ensure_no_imports, function_imports, interface_imports,
 };
-use crate::mir::IFACE_IMPLS;
+use crate::mir::generator::{MIRError, MIRGenerator, Res};
 use crate::mir::MIRModule;
+use crate::mir::IFACE_IMPLS;
 
 /// A set of [MIRGenerator]s.
 /// Takes a list of module ASTs and transforms them into
@@ -41,7 +41,8 @@ impl MIRModuleGenerator {
         INTRINSICS.with(|i| i.borrow_mut().populate(&mut self.modules));
         self.run_for_all(&fill_class_pass)?;
 
-        let modules = self.modules
+        let modules = self
+            .modules
             .into_iter()
             .map(|(module, mut gen)| {
                 gen.generate_mir(&module)?;

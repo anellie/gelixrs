@@ -12,8 +12,8 @@ use std::rc::Rc;
 use indexmap::IndexMap;
 
 use crate::ast::expression::Expression as ASTExpr;
-use crate::mir::MutRc;
 use crate::mir::nodes::{Expression, InterfacePrototype, Type};
+use crate::mir::MutRc;
 
 /// A full class including all members and methods.
 /// Members are ordered, as the class is represented as a struct in IR;
@@ -75,7 +75,7 @@ pub struct ClassMember {
     pub index: u32,
     /// If this member has a default value set before constructors run.
     /// Used to determine if a constructor needs to initialize a member.
-    pub has_default_value: bool
+    pub has_default_value: bool,
 }
 
 /// An interface consisting of methods a type can implement.
@@ -231,7 +231,13 @@ impl Display for Function {
 
         writeln!(f, ") {{")?;
         for (name, var) in &self.variables {
-            writeln!(f, "    {} {}: {}", if var.mutable { "var" } else { "val" }, name, var.type_)?;
+            writeln!(
+                f,
+                "    {} {}: {}",
+                if var.mutable { "var" } else { "val" },
+                name,
+                var.type_
+            )?;
         }
         writeln!(f, "")?;
         for (name, block) in self.blocks.iter() {

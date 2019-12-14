@@ -4,31 +4,31 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
+use std::path::Path;
 use std::{
     cell::{Ref, RefMut},
     collections::HashMap,
     hash::{Hash, Hasher},
     rc::Rc,
 };
-use std::path::Path;
 
 use inkwell::{
-    AddressSpace,
     basic_block::BasicBlock,
     builder::Builder,
     context::Context,
-    FloatPredicate,
-    IntPredicate,
     module::Module,
-    passes::PassManager, types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType, StructType}, values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
+    passes::PassManager,
+    types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType, StructType},
+    values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
+    AddressSpace, FloatPredicate, IntPredicate,
 };
 
 use super::{
     ast::literal::Literal,
     lexer::token::TType,
     mir::{
-        MIRModule,
-        MutRc, nodes::{Block, Class, Expression, Flow, Function, Type, Variable},
+        nodes::{Block, Class, Expression, Flow, Function, Type, Variable},
+        MIRModule, MutRc,
     },
 };
 
