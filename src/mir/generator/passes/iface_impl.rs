@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/14/19 5:40 PM.
+ * Last modified on 12/14/19 6:14 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -33,14 +33,14 @@ pub fn iface_impl_pass(gen: &mut MIRGenerator, list: &mut Module) -> Res<()> {
     }
 
     for iface in list.iface_impls.iter_mut() {
-        iface_impl(gen, iface)?;
+        iface_impl(gen, iface, None)?;
     }
 
     Ok(())
 }
 
-fn iface_impl(gen: &mut MIRGenerator, iface_impl: &mut IFaceImpl) -> Res<()> {
-    let implementor = gen.find_type(&iface_impl.implementor)?;
+pub fn iface_impl(gen: &mut MIRGenerator, iface_impl: &mut IFaceImpl, override_implementor: Option<Type>) -> Res<()> {
+    let implementor = if let Some(i) = override_implementor { i } else { gen.find_type(&iface_impl.implementor)? };
     let iface_impls = get_or_create_iface_impls(&implementor);
 
     let iface = gen.find_type(&iface_impl.iface)?;
@@ -50,7 +50,7 @@ fn iface_impl(gen: &mut MIRGenerator, iface_impl: &mut IFaceImpl) -> Res<()> {
     };
 
     let mut mir_impl = MIRImpl {
-        implementor,
+        implementor: implementor.clone(),
         iface: Rc::clone(&iface),
         methods: IndexMap::with_capacity(iface.borrow().methods.len()),
     };
@@ -67,7 +67,7 @@ fn iface_impl(gen: &mut MIRGenerator, iface_impl: &mut IFaceImpl) -> Res<()> {
         let old_name = Rc::clone(&method.sig.name.lexeme);
         method.sig.name.lexeme = Rc::new(format!(
             "{}-{}",
-            iface_impl.implementor, method.sig.name.lexeme
+            implementor, method.sig.name.lexeme
         ));
         method.sig.parameters.insert(0, this_arg);
 

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/14/19 5:40 PM.
+ * Last modified on 12/14/19 5:51 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -64,7 +64,7 @@ pub struct Interface {
 }
 
 /// An interface implementation for a class.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IFaceImpl {
     pub iface: Type,
     pub implementor: Type,

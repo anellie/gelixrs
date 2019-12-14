@@ -1,9 +1,10 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/14/19 5:40 PM.
+ * Last modified on 12/14/19 6:34 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
@@ -19,6 +20,7 @@ use crate::mir::generator::passes::declare_class::create_class;
 use crate::mir::generator::passes::declare_func::create_function;
 use crate::mir::generator::passes::declare_interface::create_interface;
 use crate::mir::generator::passes::fill_class::fill_class;
+use crate::mir::generator::passes::iface_impl::iface_impl;
 use crate::mir::MutRc;
 use crate::mir::nodes::{Class, Interface, Type, Variable};
 use crate::option::Flatten;
@@ -44,16 +46,20 @@ use crate::option::Flatten;
 pub struct ClassPrototype {
     pub ast: ASTClass,
     pub impls: Vec<ASTImpl>,
-    pub instances: HashMap<Vec<Type>, MutRc<Class>>,
+    pub instances: RefCell<HashMap<Vec<Type>, MutRc<Class>>>,
 }
 
 impl ClassPrototype {
     pub fn build(
-        &mut self,
+        &self,
         gen: &mut MIRGenerator,
         arguments: Vec<Type>,
         err_tok: &Token
     ) -> Result<MutRc<Class>, MIRError> {
+        if let Some(inst) = self.instances.borrow().get(&arguments) {
+            return Ok(Rc::clone(&inst))
+        }
+
         gen.builder.push_current_pointer();
 
         let generics = self.ast.generics.as_ref().unwrap();
@@ -61,18 +67,24 @@ impl ClassPrototype {
         gen.set_type_aliases(generics, &arguments);
 
         let mut ast = self.ast.clone();
-        ast.name.lexeme = Rc::new(format!("{}-{}", ast.name.lexeme, self.instances.len()));
+        ast.name.lexeme = Rc::new(format!("{}-{}", ast.name.lexeme, self.instances.borrow().len()));
 
         let class = create_class(gen, &mut ast)?;
+        self.instances.borrow_mut().insert(arguments, Rc::clone(&class));
         fill_class(gen, &ast)?;
+
+        let mut impls = self.impls.clone();
+        for im in impls.iter_mut() {
+            iface_impl(gen, im, Some(Type::Class(Rc::clone(&class))))?;
+        }
+
         gen.generate_constructors(&ast)?;
-        for func in ast.methods.iter() {
+        for func in ast.methods.iter().chain(impls.iter().map(|i| i.methods.iter()).flatten()) {
             gen.generate_function(func)?;
         }
 
         gen.builder.load_last_pointer();
         gen.clear_type_aliases();
-        self.instances.insert(arguments, Rc::clone(&class));
         Ok(class)
     }
 }
@@ -94,16 +106,20 @@ impl Hash for ClassPrototype {
 pub struct InterfacePrototype {
     pub ast: ASTIFace,
     pub impls: Vec<ASTImpl>,
-    pub instances: HashMap<Vec<Type>, MutRc<Interface>>,
+    pub instances: RefCell<HashMap<Vec<Type>, MutRc<Interface>>>,
 }
 
 impl InterfacePrototype {
     pub fn build(
-        &mut self,
+        &self,
         gen: &mut MIRGenerator,
         arguments: Vec<Type>,
         err_tok: &Token
     ) -> Result<MutRc<Interface>, MIRError> {
+        if let Some(inst) = self.instances.borrow().get(&arguments) {
+            return Ok(Rc::clone(&inst))
+        }
+
         gen.builder.push_current_pointer();
 
         let generics = self.ast.generics.as_ref().unwrap();
@@ -111,12 +127,12 @@ impl InterfacePrototype {
         gen.set_type_aliases(generics, &arguments);
 
         let mut ast = self.ast.clone();
-        ast.name.lexeme = Rc::new(format!("{}-{}", ast.name.lexeme, self.instances.len()));
+        ast.name.lexeme = Rc::new(format!("{}-{}", ast.name.lexeme, self.instances.borrow().len()));
         let iface = create_interface(gen, &mut ast)?;
 
         gen.builder.load_last_pointer();
         gen.clear_type_aliases();
-        self.instances.insert(arguments, Rc::clone(&iface));
+        self.instances.borrow_mut().insert(arguments, Rc::clone(&iface));
         Ok(iface)
     }
 }
@@ -131,8 +147,7 @@ impl PartialEq for InterfacePrototype {
 #[derive(Debug)]
 pub struct FunctionPrototype {
     pub ast: ASTFunc,
-    pub impls: Vec<ASTImpl>,
-    pub instances: HashMap<Vec<Type>, Rc<Variable>>,
+    pub instances: RefCell<HashMap<Vec<Type>, Rc<Variable>>>,
 }
 
 impl FunctionPrototype {
@@ -142,6 +157,10 @@ impl FunctionPrototype {
         arguments: Vec<Type>,
         err_tok: &Token
     ) -> Result<Rc<Variable>, MIRError> {
+        if let Some(inst) = self.instances.borrow().get(&arguments) {
+            return Ok(Rc::clone(&inst))
+        }
+
         gen.builder.push_current_pointer();
 
         let generics = self.ast.sig.generics.as_ref().unwrap();
@@ -149,14 +168,14 @@ impl FunctionPrototype {
         gen.set_type_aliases(generics, &arguments);
 
         let old_name = Rc::clone(&self.ast.sig.name.lexeme);
-        self.ast.sig.name.lexeme = Rc::new(format!("{}-{}", old_name, self.instances.len()));
+        self.ast.sig.name.lexeme = Rc::new(format!("{}-{}", old_name, self.instances.borrow().len()));
         let func = create_function(gen, &self.ast.sig, self.ast.body.is_none())?;
         gen.generate_function(&self.ast)?;
         self.ast.sig.name.lexeme = old_name;
 
         gen.builder.load_last_pointer();
         gen.clear_type_aliases();
-        self.instances.insert(arguments, Rc::clone(&func));
+        self.instances.borrow_mut().insert(arguments, Rc::clone(&func));
         Ok(func)
     }
 }

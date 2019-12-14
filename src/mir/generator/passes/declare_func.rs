@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/14/19 5:40 PM.
+ * Last modified on 12/14/19 5:47 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -22,7 +22,6 @@ pub fn declare_func_pass(gen: &mut MIRGenerator, module: &mut Module) -> Res<()>
             Rc::clone(&func.sig.name.lexeme),
             mutrc_new(FunctionPrototype {
                 ast: func,
-                impls: vec![],
                 instances: Default::default(),
             }),
         );

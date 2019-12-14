@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/14/19 5:40 PM.
+ * Last modified on 12/14/19 6:34 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -58,7 +58,10 @@ pub struct MIRGenerator {
     /// as a type. Used for instantiating generic stuff
     /// where the key is the parameter name (like T)
     /// and the value the type to use in its place.
-    type_aliases: HashMap<Rc<String>, Type>,
+    ///
+    /// This is a vector since generic instantiation
+    /// can nest, so it's used as a stack.
+    type_aliases: Vec<HashMap<Rc<String>, Type>>,
 
     /// All class members that are not initialized yet.
     /// This is only used when generating constructors to check
@@ -339,7 +342,7 @@ impl MIRGenerator {
                                 .map(|ty| self.find_type(ty))
                                 .collect::<Result<Vec<Type>, MIRError>>()?;
 
-                            let class = proto.borrow_mut().build(self, types, &name)?;
+                            let class = proto.borrow().build(self, types, &name)?;
                             return self.generate_class_instantiation(class, arguments, name);
                         }
                     }
@@ -731,7 +734,7 @@ impl MIRGenerator {
         Ok(match ast {
             ASTType::Ident(tok) => {
                 let ty = self.builder.find_type_by_name(&tok);
-                let ty = ty.or_else(|| Some(self.type_aliases.get(&tok.lexeme)?.clone()));
+                let ty = ty.or_else(|| Some(self.type_aliases.last().map(|l| l.get(&tok.lexeme)).flatten_()?.clone()));
                 ty.or_anon_err(
                     self,
                     ast.get_token(),
@@ -760,7 +763,7 @@ impl MIRGenerator {
                         "Class does not take generic arguments.",
                     )?;
 
-                    let mut proto = proto.borrow_mut();
+                    let mut proto = proto.borrow();
                     return Ok(Type::Class(proto.build(self, types, &token)?))
                 }
 
@@ -775,7 +778,7 @@ impl MIRGenerator {
                         "Interface does not take generic arguments.",
                     )?;
 
-                let mut proto = iface_proto.borrow_mut();
+                let mut proto = iface_proto.borrow();
                 let iface = proto.build(self, types, &token)?;
                 iface.borrow_mut().proto = Some(Rc::clone(&iface_proto));
                 Type::Interface(iface)
@@ -784,13 +787,11 @@ impl MIRGenerator {
     }
 
     pub fn set_type_aliases(&mut self, params: &Vec<Token>, args: &Vec<Type>) {
-        for (param, arg) in params.iter().zip(args.into_iter()) {
-            self.type_aliases.insert(Rc::clone(&param.lexeme), arg.clone());
-        }
+        self.type_aliases.push(params.iter().map(|t| &t.lexeme).cloned().zip(args.iter().cloned()).collect());
     }
 
     pub fn clear_type_aliases(&mut self) {
-        self.type_aliases.clear()
+        self.type_aliases.pop();
     }
 
     /// Returns the variable of the current loop or creates it if it does not exist yet
@@ -1018,7 +1019,7 @@ impl MIRGenerator {
             builder: MIRBuilder::new(MIRModule::new(path)),
             environments: Vec::with_capacity(5),
             current_loop: None,
-            type_aliases: HashMap::with_capacity(4),
+            type_aliases: Vec::with_capacity(3),
             uninitialized_this_members: HashSet::with_capacity(10),
         }
     }
