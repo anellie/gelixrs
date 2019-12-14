@@ -1,40 +1,53 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/13/19 10:15 PM.
+ * Last modified on 12/14/19 5:40 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
+use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
+
+use indexmap::IndexMap;
+
+use crate::ast::declaration::{Function, FunctionArg, IFaceImpl};
 use crate::ast::module::Module;
+use crate::mir::{IFACE_IMPLS, MutRc, mutrc_new, ToMIRResult};
 use crate::mir::generator::{MIRGenerator, Res};
+use crate::mir::generator::passes::declare_func::create_function;
+use crate::mir::nodes::{
+    IFaceImpl as MIRImpl, IFaceImpls, IFaceMethod, Type, Variable,
+};
+use crate::option::Flatten;
 
 /// This pass checks and defines all interface impl blocks.
-pub fn iface_impl_pass(_gen: &mut MIRGenerator, list: &mut Module) -> Res<()> {
-    for _iface in list.iface_impls.iter_mut() {
-        //    iface_impl(gen, iface)?;
-    }
-    Ok(())
-}
-/*
-fn iface_impl(gen: &mut MIRGenerator, iface_impl: &mut IFaceImpl) -> Res<()> {
-    if let ASTType::Generic { token, .. } = &iface_impl.implementor {
-        return Err(gen.error(
-            &token,
-            &token,
-            "Generic arguments on implementor not supported yet.",
-        ));
+pub fn iface_impl_pass(gen: &mut MIRGenerator, list: &mut Module) -> Res<()> {
+    // Remove all impls where the implementor contains a generic
+    // argument; Tack those to the prototype instead.
+    for iface in list.iface_impls.drain_filter(|i| i.implementor.is_generic()) {
+        let class = gen.builder
+            .find_class_or_proto(&iface.implementor.get_token().unwrap().lexeme)
+            .map(|o| o.right())
+            .flatten_()
+            .or_type_err(gen, &Some(iface.implementor.clone()), "Unknown prototype.")?;
+        class.borrow_mut().impls.push(iface);
     }
 
+    for iface in list.iface_impls.iter_mut() {
+        iface_impl(gen, iface)?;
+    }
+
+    Ok(())
+}
+
+fn iface_impl(gen: &mut MIRGenerator, iface_impl: &mut IFaceImpl) -> Res<()> {
     let implementor = gen.find_type(&iface_impl.implementor)?;
     let iface_impls = get_or_create_iface_impls(&implementor);
 
-    let iface = gen
-        .builder
-        .find_iface_or_proto(&iface_impl.iface.lexeme)
-        .or_err(gen, &iface_impl.iface, "Unknown interface.")?
-        .map_left(Ok)
-        .left_or_else(|proto| {
-            iface_from_proto(gen, proto, &iface_impl.iface_generics, &iface_impl.iface)
-        })?;
+    let iface = gen.find_type(&iface_impl.iface)?;
+    let iface = match iface {
+        Type::Interface(iface) => iface,
+        _ => return None.or_type_err(gen, &Some(iface_impl.iface.clone()), "Not an interface.")
+    };
 
     let mut mir_impl = MIRImpl {
         implementor,
@@ -58,9 +71,7 @@ fn iface_impl(gen: &mut MIRGenerator, iface_impl: &mut IFaceImpl) -> Res<()> {
         ));
         method.sig.parameters.insert(0, this_arg);
 
-        let mir_method = create_function(gen, &method.sig, false, None)?
-            .left()
-            .unwrap();
+        let mir_method = create_function(gen, &method.sig, false)?;
         mir_impl
             .methods
             .insert(Rc::clone(&old_name), Rc::clone(&mir_method));
@@ -77,40 +88,17 @@ fn iface_impl(gen: &mut MIRGenerator, iface_impl: &mut IFaceImpl) -> Res<()> {
     }
 
     if iface.borrow().methods.len() > iface_impl.methods.len() {
-        Err(gen.error(
-            &iface_impl.iface,
-            &iface_impl.iface,
+        Err(gen.anon_err(
+            iface_impl.iface.get_token(),
             "Missing methods in interface impl.",
         ))
     } else {
         if iface_impls.borrow_mut().interfaces.insert(mir_impl) {
             Ok(())
         } else {
-            Err(gen.error(&iface_impl.iface, &iface_impl.iface, "Interface already implemented for type."))
+            Err(gen.anon_err(iface_impl.iface.get_token(), "Interface already implemented for type."))
         }
     }
-}
-
-fn iface_from_proto(
-    gen: &mut MIRGenerator,
-    proto: MutRc<InterfacePrototype>,
-    args: &Option<Vec<Token>>,
-    error_tok: &Token,
-) -> Res<MutRc<Interface>> {
-    let args = args.as_ref().or_err(
-        gen,
-        error_tok,
-        "Missing generic arguments on interface prototype.",
-    )?;
-    let args = args
-        .iter()
-        .map(|tok| gen.find_type(&ASTType::Ident(tok.clone())))
-        .collect::<Res<Vec<Type>>>()?;
-
-    let iface = proto.borrow_mut().build(&args);
-    let iface = iface.map_err(|msg| gen.error(error_tok, error_tok, &msg))?;
-    iface.borrow_mut().proto = Some(proto);
-    Ok(iface)
 }
 
 /// Gets the interfaces implemented by a type.
@@ -175,4 +163,3 @@ fn check_equal_signature(
 
     Ok(())
 }
-*/

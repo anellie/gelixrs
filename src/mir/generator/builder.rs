@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/13/19 10:17 PM.
+ * Last modified on 12/14/19 5:40 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,15 +11,15 @@ use std::rc::Rc;
 use either::Either;
 use either::Either::{Left, Right};
 
+use crate::{module_path_to_string, ModulePath};
 use crate::error::Error;
-use crate::lexer::token::{TType, Token};
+use crate::lexer::token::{Token, TType};
+use crate::mir::{IFACE_IMPLS, MIRModule, MutRc};
 use crate::mir::generator::{MIRError, Res};
 use crate::mir::nodes::{
     Class, ClassMember, ClassPrototype, Expression, Flow, FunctionPrototype, Interface,
     InterfacePrototype, Variable,
 };
-use crate::mir::{MIRModule, MutRc, IFACE_IMPLS};
-use crate::{module_path_to_string, ModulePath};
 
 use super::super::nodes::{Function, Type};
 
@@ -27,6 +27,14 @@ use super::super::nodes::{Function, Type};
 pub struct MIRBuilder {
     /// The current insertion position.
     position: Option<Pointer>,
+
+    /// Insertion positions saved for later.
+    /// Used to store the previous insertion
+    /// positions when generating a class from a prototype;
+    /// the insertion position is saved here before
+    /// and restored after compiling the class prototype
+    /// has finished.
+    saved_positions: Vec<Pointer>,
 
     /// The module the builder is inserting into.
     pub module: MIRModule,
@@ -305,6 +313,16 @@ impl MIRBuilder {
         self.position = Some(Pointer { function, block })
     }
 
+    pub fn push_current_pointer(&mut self) {
+        if let Some(ptr) = self.position.take() {
+            self.saved_positions.push(ptr);
+        }
+    }
+
+    pub fn load_last_pointer(&mut self) {
+        self.position = self.saved_positions.pop();
+    }
+
     pub fn set_block(&mut self, block: &Rc<String>) {
         if let Some(pos) = self.position.as_mut() {
             pos.block = Rc::clone(block)
@@ -353,6 +371,7 @@ impl MIRBuilder {
     pub fn new(module: MIRModule) -> MIRBuilder {
         MIRBuilder {
             position: None,
+            saved_positions: Vec::with_capacity(3),
             module,
             imports: Imports::default(),
             prototypes: Prototypes::default(),

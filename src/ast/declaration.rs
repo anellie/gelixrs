@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/12/19 11:08 AM.
+ * Last modified on 12/14/19 5:40 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -8,8 +8,8 @@ use std::fmt;
 
 use crate::option::Flatten;
 
-use super::super::lexer::token::Token;
 use super::expression::Expression;
+use super::super::lexer::token::Token;
 
 /// Visibilities of a declaration.
 /// Most declarations default to 'module'
@@ -24,7 +24,7 @@ pub enum Visibility {
 }
 
 /// A class definition.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Class {
     pub name: Token,
     pub visibility: Visibility,
@@ -37,7 +37,7 @@ pub struct Class {
 pub type ConstructorParam = (Token, Option<Type>);
 
 /// A constructor in a class.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Constructor {
     pub visibility: Visibility,
     pub parameters: Vec<ConstructorParam>,
@@ -55,7 +55,7 @@ pub struct ClassMember {
 }
 
 // An interface definition.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Interface {
     pub name: Token,
     pub visibility: Visibility,
@@ -66,9 +66,8 @@ pub struct Interface {
 /// An interface implementation for a class.
 #[derive(Debug)]
 pub struct IFaceImpl {
-    pub iface: Token,
+    pub iface: Type,
     pub implementor: Type,
-    pub iface_generics: Option<Vec<Token>>,
     pub methods: Vec<Function>,
 }
 
@@ -80,7 +79,7 @@ pub struct Enum {
 }
 
 /// A function signature.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FuncSignature {
     pub name: Token,
     pub visibility: Visibility,
@@ -115,14 +114,14 @@ impl FunctionArg {
 }
 
 /// A function definition.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Function {
     pub sig: FuncSignature,
     pub body: Option<Expression>,
 }
 
 /// A function inside an interface, where the body is the default implementation and optional
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct InterfaceFunc {
     pub sig: FuncSignature,
     pub body: Option<Expression>,
@@ -137,7 +136,7 @@ pub struct Variable {
 }
 
 /// A type literal, like 'String' or '[i64]'
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, EnumAsGetters, EnumIsA)]
 pub enum Type {
     Ident(Token),
 

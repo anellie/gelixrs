@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/13/19 10:22 PM.
+ * Last modified on 12/14/19 5:40 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -9,29 +9,28 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 use either::Either;
-
 use indexmap::IndexMap;
 
 use builder::MIRBuilder;
 
+use crate::{Error, ModulePath};
 use crate::ast::declaration::{Class as ASTClass, Constructor, Function as ASTFunc};
 use crate::ast::expression::Expression as ASTExpr;
 use crate::ast::literal::Literal;
 use crate::ast::module::Module;
 use crate::ast::Type as ASTType;
-use crate::lexer::token::{TType, Token};
+use crate::lexer::token::{Token, TType};
+use crate::mir::{IFACE_IMPLS, MIRModule, MutRc, ToMIRResult};
 use crate::mir::generator::intrinsics::INTRINSICS;
 use crate::mir::nodes::{
     ArrayLiteral, Class, ClassMember, Expression, Flow, Function, Type, Variable,
 };
-use crate::mir::{MIRModule, MutRc, ToMIRResult, IFACE_IMPLS};
 use crate::option::Flatten;
-use crate::{Error, ModulePath};
 
 mod builder;
 mod intrinsics;
 pub mod module;
-mod passes;
+pub mod passes;
 
 type Res<T> = Result<T, MIRError>;
 
@@ -53,6 +52,13 @@ pub struct MIRGenerator {
 
     /// The current loop, if in one.
     current_loop: Option<ForLoop>,
+
+    /// A map of all type aliases, where the key
+    /// will be translated to the value when encountered
+    /// as a type. Used for instantiating generic stuff
+    /// where the key is the parameter name (like T)
+    /// and the value the type to use in its place.
+    type_aliases: HashMap<Rc<String>, Type>,
 
     /// All class members that are not initialized yet.
     /// This is only used when generating constructors to check
@@ -78,18 +84,16 @@ impl MIRGenerator {
 
         let method_iter = module.classes.iter().map(|class| &class.methods).flatten();
         let func_iter = module.functions.iter();
-        let _impl_fn_iter = module.iface_impls.iter().map(|i| &i.methods).flatten();
+        let impl_fn_iter = module.iface_impls.iter().map(|i| &i.methods).flatten();
 
-        for func in method_iter.chain(func_iter)
-        /*.chain(impl_fn_iter)*/
-        {
+        for func in method_iter.chain(func_iter).chain(impl_fn_iter) {
             self.generate_function(func)?;
         }
 
         Ok(())
     }
 
-    fn generate_function(&mut self, func: &ASTFunc) -> Res<()> {
+    pub fn generate_function(&mut self, func: &ASTFunc) -> Res<()> {
         // Don't have to generate anything for external functions
         // which do not have a body
         let body = match func.body.as_ref() {
@@ -122,7 +126,7 @@ impl MIRGenerator {
         Ok(())
     }
 
-    fn generate_constructors(&mut self, class: &ASTClass) -> Res<()> {
+    pub fn generate_constructors(&mut self, class: &ASTClass) -> Res<()> {
         let class_rc = self.builder.find_class(&class.name.lexeme).unwrap();
 
         for (constructor, mir_fn) in class.constructors.iter().zip(
@@ -335,7 +339,7 @@ impl MIRGenerator {
                                 .map(|ty| self.find_type(ty))
                                 .collect::<Result<Vec<Type>, MIRError>>()?;
 
-                            let class = proto.borrow_mut().build(self, types)?;
+                            let class = proto.borrow_mut().build(self, types, &name)?;
                             return self.generate_class_instantiation(class, arguments, name);
                         }
                     }
@@ -598,8 +602,7 @@ impl MIRGenerator {
 
                 let function = prototype
                     .borrow_mut()
-                    .build(self, &types)
-                    .map_err(|msg| self.error(name, name, &msg))?;
+                    .build(self, types, name)?;
                 self.builder.build_load(function)
             }
 
@@ -726,37 +729,68 @@ impl MIRGenerator {
 
     pub fn find_type(&mut self, ast: &ASTType) -> Res<Type> {
         Ok(match ast {
-            ASTType::Ident(tok) => self.builder.find_type_by_name(&tok).or_anon_err(
-                self,
-                ast.get_token(),
-                "Unknown type.",
-            )?,
+            ASTType::Ident(tok) => {
+                let ty = self.builder.find_type_by_name(&tok);
+                let ty = ty.or_else(|| Some(self.type_aliases.get(&tok.lexeme)?.clone()));
+                ty.or_anon_err(
+                    self,
+                    ast.get_token(),
+                    "Unknown type.",
+                )?
+            },
 
             ASTType::Array(_) => unimplemented!(),
 
             ASTType::Closure { .. } => unimplemented!(),
 
             ASTType::Generic { token, types } => {
-                let proto = self
-                    .builder
-                    .find_class_or_proto(&token.lexeme)
-                    .or_anon_err(self, ast.get_token(), "Unknown class prototype.")?
-                    .right()
-                    .or_anon_err(
-                        self,
-                        ast.get_token(),
-                        "Class does not take generic arguments.",
-                    )?;
-
                 let types = types
                     .iter()
                     .map(|ty| self.find_type(ty))
                     .collect::<Result<Vec<Type>, MIRError>>()?;
 
-                let mut proto = proto.borrow_mut();
-                Type::Class(proto.build(self, types)?)
+                let class_or_proto = self
+                    .builder
+                    .find_class_or_proto(&token.lexeme);
+
+                if let Some(class_or_proto) = class_or_proto {
+                    let proto = class_or_proto.right().or_anon_err(
+                        self,
+                        ast.get_token(),
+                        "Class does not take generic arguments.",
+                    )?;
+
+                    let mut proto = proto.borrow_mut();
+                    return Ok(Type::Class(proto.build(self, types, &token)?))
+                }
+
+                let iface_proto = self
+                    .builder
+                    .find_iface_or_proto(&token.lexeme)
+                    .or_anon_err(self, ast.get_token(), "Unknown type.")?
+                    .right()
+                    .or_anon_err(
+                        self,
+                        ast.get_token(),
+                        "Interface does not take generic arguments.",
+                    )?;
+
+                let mut proto = iface_proto.borrow_mut();
+                let iface = proto.build(self, types, &token)?;
+                iface.borrow_mut().proto = Some(Rc::clone(&iface_proto));
+                Type::Interface(iface)
             }
         })
+    }
+
+    pub fn set_type_aliases(&mut self, params: &Vec<Token>, args: &Vec<Type>) {
+        for (param, arg) in params.iter().zip(args.into_iter()) {
+            self.type_aliases.insert(Rc::clone(&param.lexeme), arg.clone());
+        }
+    }
+
+    pub fn clear_type_aliases(&mut self) {
+        self.type_aliases.clear()
     }
 
     /// Returns the variable of the current loop or creates it if it does not exist yet
@@ -984,6 +1018,7 @@ impl MIRGenerator {
             builder: MIRBuilder::new(MIRModule::new(path)),
             environments: Vec::with_capacity(5),
             current_loop: None,
+            type_aliases: HashMap::with_capacity(4),
             uninitialized_this_members: HashSet::with_capacity(10),
         }
     }

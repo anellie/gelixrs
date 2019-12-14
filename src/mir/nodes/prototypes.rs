@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/5/19 10:03 AM.
+ * Last modified on 12/14/19 5:40 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,9 +12,16 @@ use crate::ast::Class as ASTClass;
 use crate::ast::Function as ASTFunc;
 use crate::ast::IFaceImpl as ASTImpl;
 use crate::ast::Interface as ASTIFace;
+use crate::ast::Type as ASTType;
+use crate::lexer::token::Token;
 use crate::mir::generator::{MIRError, MIRGenerator};
-use crate::mir::nodes::{Class, Interface, Type, Variable};
+use crate::mir::generator::passes::declare_class::create_class;
+use crate::mir::generator::passes::declare_func::create_function;
+use crate::mir::generator::passes::declare_interface::create_interface;
+use crate::mir::generator::passes::fill_class::fill_class;
 use crate::mir::MutRc;
+use crate::mir::nodes::{Class, Interface, Type, Variable};
+use crate::option::Flatten;
 
 /// A prototype that classes can be instantiated from.
 /// This prototype is kept in AST form,
@@ -43,10 +50,30 @@ pub struct ClassPrototype {
 impl ClassPrototype {
     pub fn build(
         &mut self,
-        _gen: &mut MIRGenerator,
-        _arguments: Vec<Type>,
+        gen: &mut MIRGenerator,
+        arguments: Vec<Type>,
+        err_tok: &Token
     ) -> Result<MutRc<Class>, MIRError> {
-        unimplemented!()
+        gen.builder.push_current_pointer();
+
+        let generics = self.ast.generics.as_ref().unwrap();
+        check_generic_arguments(gen, generics, &arguments, err_tok)?;
+        gen.set_type_aliases(generics, &arguments);
+
+        let mut ast = self.ast.clone();
+        ast.name.lexeme = Rc::new(format!("{}-{}", ast.name.lexeme, self.instances.len()));
+
+        let class = create_class(gen, &mut ast)?;
+        fill_class(gen, &ast)?;
+        gen.generate_constructors(&ast)?;
+        for func in ast.methods.iter() {
+            gen.generate_function(func)?;
+        }
+
+        gen.builder.load_last_pointer();
+        gen.clear_type_aliases();
+        self.instances.insert(arguments, Rc::clone(&class));
+        Ok(class)
     }
 }
 
@@ -73,10 +100,24 @@ pub struct InterfacePrototype {
 impl InterfacePrototype {
     pub fn build(
         &mut self,
-        _gen: &mut MIRGenerator,
-        _arguments: &Vec<Type>,
-    ) -> Result<MutRc<Interface>, String> {
-        unimplemented!()
+        gen: &mut MIRGenerator,
+        arguments: Vec<Type>,
+        err_tok: &Token
+    ) -> Result<MutRc<Interface>, MIRError> {
+        gen.builder.push_current_pointer();
+
+        let generics = self.ast.generics.as_ref().unwrap();
+        check_generic_arguments(gen, generics, &arguments, err_tok)?;
+        gen.set_type_aliases(generics, &arguments);
+
+        let mut ast = self.ast.clone();
+        ast.name.lexeme = Rc::new(format!("{}-{}", ast.name.lexeme, self.instances.len()));
+        let iface = create_interface(gen, &mut ast)?;
+
+        gen.builder.load_last_pointer();
+        gen.clear_type_aliases();
+        self.instances.insert(arguments, Rc::clone(&iface));
+        Ok(iface)
     }
 }
 
@@ -97,23 +138,41 @@ pub struct FunctionPrototype {
 impl FunctionPrototype {
     pub fn build(
         &mut self,
-        _gen: &mut MIRGenerator,
-        _arguments: &Vec<Type>,
-    ) -> Result<Rc<Variable>, String> {
-        unimplemented!()
+        gen: &mut MIRGenerator,
+        arguments: Vec<Type>,
+        err_tok: &Token
+    ) -> Result<Rc<Variable>, MIRError> {
+        gen.builder.push_current_pointer();
+
+        let generics = self.ast.sig.generics.as_ref().unwrap();
+        check_generic_arguments(gen, generics, &arguments, err_tok)?;
+        gen.set_type_aliases(generics, &arguments);
+
+        let old_name = Rc::clone(&self.ast.sig.name.lexeme);
+        self.ast.sig.name.lexeme = Rc::new(format!("{}-{}", old_name, self.instances.len()));
+        let func = create_function(gen, &self.ast.sig, self.ast.body.is_none())?;
+        gen.generate_function(&self.ast)?;
+        self.ast.sig.name.lexeme = old_name;
+
+        gen.builder.load_last_pointer();
+        gen.clear_type_aliases();
+        self.instances.insert(arguments, Rc::clone(&func));
+        Ok(func)
     }
 }
 
 fn check_generic_arguments(
-    parameters: &Vec<Rc<String>>,
+    gen: &mut MIRGenerator,
+    parameters: &Vec<Token>,
     arguments: &Vec<Type>,
-) -> Result<(), String> {
+    err_tok: &Token
+) -> Result<(), MIRError> {
     if parameters.len() != arguments.len() {
-        return Err(format!(
+        return Err(gen.error(err_tok, err_tok, &format!(
             "Wrong amount of generic parameters (expected {}; got {})",
             parameters.len(),
             arguments.len()
-        ));
+        )));
     }
     Ok(())
 }

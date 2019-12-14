@@ -9,5 +9,5 @@ func a<T>(a: T) -> T {
 func b<A>(b: A) -> A b
 
 func main() {
-    //print(a::<String>("hm."))
+    print(a::<String>("hm."))
 }

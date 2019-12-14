@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/13/19 10:11 PM.
+ * Last modified on 12/14/19 5:40 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -10,14 +10,14 @@ use std::rc::Rc;
 use crate::ast::declaration::{
     Class as ASTClass, Constructor, FuncSignature, FunctionArg, Visibility,
 };
-use crate::ast::module::Module;
 use crate::ast::Expression as ASTExpr;
+use crate::ast::module::Module;
 use crate::ast::Type;
 use crate::lexer::token::Token;
-use crate::mir::generator::passes::declare_func::create_function;
+use crate::mir::{MutRc, mutrc_new, ToMIRResult};
 use crate::mir::generator::{MIRGenerator, Res};
+use crate::mir::generator::passes::declare_func::create_function;
 use crate::mir::nodes::{Block, Class, ClassPrototype, Expression, Type as MType, Variable};
-use crate::mir::{mutrc_new, ToMIRResult};
 use crate::option::Flatten;
 
 /// This pass declares all classes.
@@ -43,22 +43,22 @@ pub fn declare_class_pass(gen: &mut MIRGenerator, module: &mut Module) -> Res<()
     Ok(())
 }
 
-fn create_class(gen: &mut MIRGenerator, class: &mut ASTClass) -> Res<()> {
+pub fn create_class(gen: &mut MIRGenerator, class: &mut ASTClass) -> Res<MutRc<Class>> {
     gen.builder.try_reserve_name(&class.name)?;
 
     let init_fn_sig = get_instantiator_fn_sig(class);
     let this_arg = FunctionArg::this_arg(&class.name);
     maybe_add_default_constructor(class);
 
-    let mir_class = mutrc_new(Class {
+    let mir_class_rc = mutrc_new(Class {
         name: Rc::clone(&class.name.lexeme),
         ..Default::default()
     });
     gen.builder
         .module
         .classes
-        .insert(Rc::clone(&class.name.lexeme), Rc::clone(&mir_class));
-    let mut mir_class = mir_class.borrow_mut();
+        .insert(Rc::clone(&class.name.lexeme), Rc::clone(&mir_class_rc));
+    let mut mir_class = mir_class_rc.borrow_mut();
 
     mir_class.instantiator = create_function(gen, &init_fn_sig, false)?;
 
@@ -96,7 +96,8 @@ fn create_class(gen: &mut MIRGenerator, class: &mut ASTClass) -> Res<()> {
     }
 
     gen.builder.generic_types.clear();
-    Ok(())
+    drop(mir_class);
+    Ok(mir_class_rc)
 }
 
 /// Returns signature of the class instantiator.

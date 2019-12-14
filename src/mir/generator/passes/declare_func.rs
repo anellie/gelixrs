@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/13/19 10:15 PM.
+ * Last modified on 12/14/19 5:40 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -8,11 +8,10 @@ use std::rc::Rc;
 
 use crate::ast::declaration::FuncSignature;
 use crate::ast::module::Module;
-
-use crate::mir::generator::intrinsics::INTRINSICS;
-use crate::mir::generator::{MIRGenerator, Res};
-use crate::mir::nodes::{Function, FunctionPrototype, Type, Variable};
 use crate::mir::{mutrc_new, ToMIRResult};
+use crate::mir::generator::{MIRGenerator, Res};
+use crate::mir::generator::intrinsics::INTRINSICS;
+use crate::mir::nodes::{Function, FunctionPrototype, Type, Variable};
 
 /// This pass defines all functions in MIR.
 pub fn declare_func_pass(gen: &mut MIRGenerator, module: &mut Module) -> Res<()> {
@@ -36,7 +35,7 @@ pub fn declare_func_pass(gen: &mut MIRGenerator, module: &mut Module) -> Res<()>
     Ok(())
 }
 
-pub(super) fn create_function(
+pub fn create_function(
     gen: &mut MIRGenerator,
     func_sig: &FuncSignature,
     is_external: bool,

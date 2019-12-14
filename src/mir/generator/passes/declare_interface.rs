@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/13/19 10:26 PM.
+ * Last modified on 12/14/19 5:40 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -10,9 +10,9 @@ use indexmap::IndexMap;
 
 use crate::ast::declaration::Interface as ASTIFace;
 use crate::ast::module::Module;
-use crate::mir::generator::passes::NONE_CONST;
+use crate::mir::{MutRc, mutrc_new};
 use crate::mir::generator::{MIRGenerator, Res};
-use crate::mir::mutrc_new;
+use crate::mir::generator::passes::NONE_CONST;
 use crate::mir::nodes::{IFaceMethod, Interface, InterfacePrototype};
 
 /// This pass declares all interfaces.
@@ -37,7 +37,7 @@ pub fn declare_interface_pass(gen: &mut MIRGenerator, module: &mut Module) -> Re
     Ok(())
 }
 
-fn create_interface(gen: &mut MIRGenerator, interface: &mut ASTIFace) -> Res<()> {
+pub fn create_interface(gen: &mut MIRGenerator, interface: &mut ASTIFace) -> Res<MutRc<Interface>> {
     gen.builder.try_reserve_name(&interface.name)?;
 
     let mut methods = IndexMap::with_capacity(interface.methods.len());
@@ -61,15 +61,15 @@ fn create_interface(gen: &mut MIRGenerator, interface: &mut ASTIFace) -> Res<()>
         );
     }
 
-    let interface = Interface {
+    let mir_iface = mutrc_new(Interface {
         name: Rc::clone(&interface.name.lexeme),
         methods,
         proto: None,
-    };
+    });
     gen.builder
         .module
         .interfaces
-        .insert(Rc::clone(&interface.name), mutrc_new(interface));
+        .insert(Rc::clone(&interface.name.lexeme), Rc::clone(&mir_iface));
 
-    Ok(())
+    Ok(mir_iface)
 }

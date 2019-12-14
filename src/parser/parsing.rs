@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/12/19 11:15 AM.
+ * Last modified on 12/14/19 5:40 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -18,6 +18,7 @@ use crate::ast::declaration::{
 use crate::ast::module::Import;
 use crate::Error;
 
+use super::Parser;
 use super::super::{
     ast::{
         declaration::{Class, Enum, FuncSignature, Function, FunctionArg, Variable},
@@ -25,9 +26,8 @@ use super::super::{
         literal::Literal,
         module::Module,
     },
-    lexer::token::{TType, Token},
+    lexer::token::{Token, TType},
 };
-use super::Parser;
 
 // All expressions that require no semicolon when used as a higher expression.
 static NO_SEMICOLON: [TType; 3] = [TType::If, TType::LeftBrace, TType::When];
@@ -323,7 +323,7 @@ impl Parser {
     }
 
     fn iface_impl(&mut self) -> Option<IFaceImpl> {
-        let (iface, iface_generics) = self.generic_ident()?;
+        let iface = self.type_("Expected interface.")?;
         self.consume(TType::For, "Expected 'for' after interface name.");
         let implementor = self.type_("Expected interface implementor type.")?;
         self.consume(TType::LeftBrace, "Expected '{' before impl body.");
@@ -340,7 +340,6 @@ impl Parser {
         Some(IFaceImpl {
             iface,
             implementor,
-            iface_generics,
             methods,
         })
     }

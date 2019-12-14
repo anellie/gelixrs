@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/13/19 10:16 PM.
+ * Last modified on 12/14/19 5:02 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -25,7 +25,7 @@ pub fn fill_class_pass(gen: &mut MIRGenerator, list: &mut Module) -> Res<()> {
     Ok(())
 }
 
-fn fill_class(gen: &mut MIRGenerator, class: &mut Class) -> Res<()> {
+pub fn fill_class(gen: &mut MIRGenerator, class: &Class) -> Res<()> {
     let class_rc = gen.builder.find_class(&class.name.lexeme).unwrap();
     let mut class_mir = class_rc.borrow_mut();
     build_class(gen, class, &mut class_mir.members)?;
@@ -35,7 +35,7 @@ fn fill_class(gen: &mut MIRGenerator, class: &mut Class) -> Res<()> {
 /// This function will fill the class with its members while also generating the init method.
 fn build_class(
     gen: &mut MIRGenerator,
-    class: &mut Class,
+    class: &Class,
     fields: &mut IndexMap<Rc<String>, Rc<ClassMember>>,
 ) -> Res<()> {
     let init_func_rc = gen
@@ -61,7 +61,7 @@ fn build_class(
         .add_function_variable(Rc::clone(&class_variable));
 
     let offset = fields.len();
-    for (i, field) in class.variables.drain(..).enumerate() {
+    for (i, field) in class.variables.iter().enumerate() {
         let value = field
             .initializer
             .as_ref()
