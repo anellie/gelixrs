@@ -21,6 +21,16 @@ use crate::option::Flatten;
 /// This pass declares all classes.
 /// It does not fill them; they are kept empty.
 pub fn declare_class_pass(gen: &mut MIRGenerator, module: &mut Module) -> Res<()> {
+    // Remove all classes that contain generics from the list
+    // so the generator won't bother trying to compile it later.
+    for class in module.classes.drain_filter(|c| c.generics.is_some()) {
+        gen.builder.prototypes.classes.insert(Rc::clone(&class.name.lexeme), mutrc_new(ClassPrototype {
+            ast: class,
+            impls: vec![],
+            instances: Default::default()
+        }));
+    }
+
     for class in module.classes.iter_mut() {
         create_class(gen, class)?;
     }
@@ -30,95 +40,43 @@ pub fn declare_class_pass(gen: &mut MIRGenerator, module: &mut Module) -> Res<()
 
 fn create_class(gen: &mut MIRGenerator, class: &mut ASTClass) -> Res<()> {
     gen.builder.try_reserve_name(&class.name)?;
-    if let Some(generics) = &mut class.generics {
-        generics.push(class.name.clone()); // The class itself is treated as a generic parameter that is substituted
-    }
 
     let init_fn_sig = get_instantiator_fn_sig(class);
     let this_arg = FunctionArg::this_arg(&class.name);
     maybe_add_default_constructor(class);
 
-    // If the AST class has generic parameters, it must be compiled to
-    // a class prototype instead of an actual class.
-    if let Some(generics) = &class.generics {
-        gen.builder.set_generic_types(generics);
+    let mir_class = mutrc_new(Class {
+        name: Rc::clone(&class.name.lexeme),
+        ..Default::default()
+    });
+    gen.builder
+        .module
+        .classes
+        .insert(Rc::clone(&class.name.lexeme), Rc::clone(&mir_class));
+    let mut mir_class = mir_class.borrow_mut();
 
-        let mir_class = mutrc_new(ClassPrototype {
-            name: Rc::clone(&class.name.lexeme),
-            generic_args: gen.builder.generic_types.to_vec(),
-            ..Default::default()
-        });
-        gen.builder
-            .prototypes
-            .classes
-            .insert(Rc::clone(&class.name.lexeme), Rc::clone(&mir_class));
-        let mut mir_class = mir_class.borrow_mut();
+    mir_class.instantiator = create_function(gen, &init_fn_sig, false)?;
 
-        mir_class.instantiator = create_function(gen, &init_fn_sig, false, Some(generics))?
-            .right()
-            .unwrap();
+    // Do all user-defined methods
+    for method in class.methods.iter_mut() {
+        let method_name = modify_method_sig(&class.name.lexeme, &mut method.sig, &this_arg);
+        let mir_method = create_function(gen, &method.sig, false)?;
+        mir_class.methods.insert(method_name, mir_method);
+    }
 
-        // Do all user-defined methods
-        for method in class.methods.iter_mut() {
-            let method_name = modify_method_sig(&class.name.lexeme, &mut method.sig, &this_arg);
-            let mir_method = create_function(gen, &method.sig, false, Some(generics))?
-                .right()
-                .unwrap();
-            mir_class.methods.insert(method_name, mir_method);
-        }
+    let mut constructor_list = HashSet::with_capacity(class.constructors.len());
+    for (i, constructor) in class.constructors.iter().enumerate() {
+        let sig = get_constructor_sig(gen, &class, constructor, &this_arg, i)?;
+        let mir_var = create_function(gen, &sig, false)?;
+        let mir_fn = mir_var.type_.as_function();
+        let mut mir_fn = mir_fn.borrow_mut();
+        let block = insert_constructor_setters(gen, &class, constructor, &mir_fn.parameters)?;
+        mir_fn.blocks.insert(Rc::new("entry".to_string()), block);
+        mir_class.constructors.push(Rc::clone(&mir_var));
 
-        let mut constructor_list = HashSet::with_capacity(class.constructors.len());
-        for (i, constructor) in class.constructors.iter().enumerate() {
-            let sig = get_constructor_sig(gen, &class, constructor, &this_arg, i)?;
-            let mir_rc = create_function(gen, &sig, false, Some(generics))?.right().unwrap();
-            let mut mir_fn = mir_rc.borrow_mut();
-            let block = insert_constructor_setters(gen, &class, constructor, &mir_fn.parameters)?;
-            mir_fn.blocks.insert(Rc::new("entry".to_string()), block);
-            mir_class.constructors.push(Rc::clone(&mir_rc));
-
-            let params = mir_fn.parameters.iter().skip(1).map(|p| &p.type_).cloned().collect::<Vec<MType>>();
-            if !constructor_list.insert(params) {
-                return Err(gen.error(&class.name, &class.name, "Class contains constructors with duplicate signatures."))
-            }
-        }
-    } else {
-        let mir_class = mutrc_new(Class {
-            name: Rc::clone(&class.name.lexeme),
-            ..Default::default()
-        });
-        gen.builder
-            .module
-            .classes
-            .insert(Rc::clone(&class.name.lexeme), Rc::clone(&mir_class));
-        let mut mir_class = mir_class.borrow_mut();
-
-        mir_class.instantiator = create_function(gen, &init_fn_sig, false, None)?
-            .left()
-            .unwrap();
-
-        // Do all user-defined methods
-        for method in class.methods.iter_mut() {
-            let method_name = modify_method_sig(&class.name.lexeme, &mut method.sig, &this_arg);
-            let mir_method = create_function(gen, &method.sig, false, None)?
-                .left()
-                .unwrap();
-            mir_class.methods.insert(method_name, mir_method);
-        }
-
-        let mut constructor_list = HashSet::with_capacity(class.constructors.len());
-        for (i, constructor) in class.constructors.iter().enumerate() {
-            let sig = get_constructor_sig(gen, &class, constructor, &this_arg, i)?;
-            let mir_var = create_function(gen, &sig, false, None)?.left().unwrap();
-            let mir_fn = mir_var.type_.as_function();
-            let mut mir_fn = mir_fn.borrow_mut();
-            let block = insert_constructor_setters(gen, &class, constructor, &mir_fn.parameters)?;
-            mir_fn.blocks.insert(Rc::new("entry".to_string()), block);
-            mir_class.constructors.push(Rc::clone(&mir_var));
-
-            let params = mir_fn.parameters.iter().skip(1).map(|p| &p.type_).cloned().collect::<Vec<MType>>();
-            if !constructor_list.insert(params) {
-                return Err(gen.error(&class.name, &class.name, "Class contains constructors with duplicate signatures."))
-            }
+        let params = mir_fn.parameters.iter().skip(1).map(|p| &p.type_).cloned().collect::<Vec<MType>>();
+        if !constructor_list.insert(params) {
+            return Err(gen.error(&class.name, &class.name, "Class contains constructors with duplicate signatures."))
         }
     }
 

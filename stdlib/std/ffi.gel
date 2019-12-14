@@ -1,0 +1,39 @@
+import std/intrinsics/+
+
+/*
+/// Returns the size of a type, in bytes. Equivalent to C's sizeof()
+public func size_of<T>() -> i64 {
+    gelixrs_get_type_size::<T>()
+}
+
+
+/// A pointer to a type.
+/// For non-ADT types, this is actually a pointer.
+/// For ADT types, which are already a pointer, it simply exposes unsafe methods.
+/// Should you misuse a pointer and try to dereference
+/// invalid memory, gelix will simply crash at runtime.
+public class Ptr<E> {
+
+    /// The location of the pointer in memory.
+    /// Converted to an actual pointer when required.
+    private var pointer: i64
+
+    /// Create a new pointer given the location in memory.
+    public construct(pointer) {}
+
+    /// Returns the element at the given 'index'.
+    /// Similar to C array indexing - 0 is the
+    /// pointer itself, 1 is (ptr + (1 * sizeof(T))) and so on.
+    /// This returns a new pointer object, and does not modify the called one.
+    public func element_at_index(index: i64) -> Ptr<E> {
+        val index = this.pointer + (index * size_of::<E>())
+        Ptr::<E>(index)
+    }
+
+    /// Dereferences the pointer to the raw type,
+    /// crashing should the pointer be pointed at unallocated data.
+    public func dereference() -> E {
+        gelixrs_deref_ptr::<E>(this.pointer)
+    }
+}
+*/

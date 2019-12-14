@@ -5,6 +5,7 @@
  */
 
 #![feature(test)]
+#![feature(drain_filter)]
 
 #[macro_use]
 extern crate enum_methods;
@@ -28,8 +29,8 @@ use crate::ast::module::Import;
 use crate::lexer::token::Token;
 
 pub mod ast;
-#[cfg(test)]
-pub mod bench;
+//#[cfg(test)]
+//pub mod bench;
 pub mod error;
 pub mod ir;
 pub mod lexer;

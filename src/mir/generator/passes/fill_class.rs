@@ -7,7 +7,7 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use either::Either::{Left, Right};
+
 use indexmap::IndexMap;
 
 use crate::ast::declaration::Class;
@@ -27,26 +27,10 @@ pub fn fill_class_pass(gen: &mut MIRGenerator, list: &mut Module) -> Res<()> {
 }
 
 fn fill_class(gen: &mut MIRGenerator, class: &mut Class) -> Res<()> {
-    let class_rc = gen.builder.find_class_or_proto(&class.name.lexeme).unwrap();
-
-    match class_rc {
-        Left(class_rc) => {
-            let mut class_mir = class_rc.borrow_mut();
-            build_class(gen, class, &mut class_mir.members)?;
-            check_duplicate(gen, &class.name, &class_mir.members, &class_mir.methods)
-        }
-
-        Right(proto) => {
-            let mut proto = proto.borrow_mut();
-            gen.builder.set_generic_types_rc(&proto.generic_args);
-
-            build_class(gen, class, &mut proto.members)?;
-            check_duplicate(gen, &class.name, &proto.members, &proto.methods)?;
-
-            gen.builder.generic_types.clear();
-            Ok(())
-        }
-    }
+    let class_rc = gen.builder.find_class(&class.name.lexeme).unwrap();
+    let mut class_mir = class_rc.borrow_mut();
+    build_class(gen, class, &mut class_mir.members)?;
+    check_duplicate(gen, &class.name, &class_mir.members, &class_mir.methods)
 }
 
 /// This function will fill the class with its members while also generating the init method.
@@ -57,22 +41,14 @@ fn build_class(
 ) -> Res<()> {
     let init_func_rc = gen
         .builder
-        .find_func_or_proto(&format!("create-{}-instance", &class.name.lexeme))
-        .unwrap()
-        .map_left(|f| f.type_.as_function().clone());
+        .find_function(&format!("create-{}-instance", &class.name.lexeme))
+        .unwrap();
 
-    match &init_func_rc {
-        Left(func) => {
-            let mut func = func.borrow_mut();
-            gen.builder
-                .set_pointer(init_func_rc.clone(), func.append_block("entry", false));
-        }
-        Right(proto) => {
-            let mut func = proto.borrow_mut();
-            gen.builder
-                .set_pointer(init_func_rc.clone(), func.append_block("entry", false));
-        }
-    };
+    {
+        let mut func = init_func_rc.borrow_mut();
+        gen.builder
+            .set_pointer(init_func_rc.clone(), func.append_block("entry", false));
+    }
 
     let class_variable = Rc::new(Variable {
         mutable: true,

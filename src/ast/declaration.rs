@@ -12,7 +12,7 @@ use super::expression::Expression;
 use super::super::lexer::token::Token;
 
 /// Visibilities of a declaration.
-/// Most declaration default to 'module'
+/// Most declarations default to 'module'
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Visibility {
     /// Visible and importable from anywhere.

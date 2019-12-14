@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 use either::Either;
-use either::Either::{Left, Right};
+
 use indexmap::IndexMap;
 
 use builder::MIRBuilder;
@@ -23,7 +23,7 @@ use crate::ast::Type as ASTType;
 use crate::lexer::token::{Token, TType};
 use crate::mir::{IFACE_IMPLS, MIRModule, MutRc, ToMIRResult};
 use crate::mir::generator::intrinsics::INTRINSICS;
-use crate::mir::nodes::{ArrayLiteral, Class, ClassMember, Expression, Flow, Function, FunctionPrototype, Type, Variable};
+use crate::mir::nodes::{ArrayLiteral, Class, ClassMember, Expression, Flow, Function, Type, Variable};
 use crate::option::Flatten;
 
 mod builder;
@@ -70,47 +70,19 @@ pub struct MIRGenerator {
 
 impl MIRGenerator {
     fn generate_mir(&mut self, module: &Module) -> Res<()> {
-        // Note that this can eventually be replaced by Iterator::partition_in_place
-        // once it becomes stable: https://doc.rust-lang.org/std/iter/trait.Iterator.html#method.partition_in_place
-        // Until then, this will just have to look terrible I guess...
-
         for class in module.classes.iter() {
             self.generate_constructors(class)?;
         }
-        for method in module
-            .classes
-            .iter()
-            .filter(|c| c.generics.is_some())
-            .map(|class| &class.methods)
-            .flatten()
-            {
-            self.generate_function(method)?;
-        }
-        for func in module
-            .functions
-            .iter()
-            .filter(|func| func.sig.generics.is_some())
-            {
-            self.generate_function(func)?;
-        }
 
-        for method in module.iface_impls.iter().map(|i| &i.methods).flatten() {
-            self.generate_function(method)?;
-        }
-        for method in module
+        let method_iter = module
             .classes
             .iter()
-            .filter(|c| c.generics.is_none())
             .map(|class| &class.methods)
-            .flatten()
-            {
-            self.generate_function(method)?;
-        }
-        for func in module
-            .functions
-            .iter()
-            .filter(|func| func.sig.generics.is_none())
-            {
+            .flatten();
+        let func_iter = module.functions.iter();
+        let _impl_fn_iter = module.iface_impls.iter().map(|i| &i.methods).flatten();
+
+        for func in method_iter.chain(func_iter) /*.chain(impl_fn_iter)*/ {
             self.generate_function(func)?;
         }
 
@@ -127,9 +99,8 @@ impl MIRGenerator {
 
         let function = self
             .builder
-            .find_func_or_proto(&func.sig.name.lexeme)
-            .unwrap()
-            .map_left(|var| Rc::clone(var.type_.as_function()));
+            .find_function(&func.sig.name.lexeme)
+            .unwrap();
 
         let ret_type = self.prepare_function(function, func.sig.name.line)?;
         let body = self.generate_expression(body)?;
@@ -155,34 +126,19 @@ impl MIRGenerator {
     }
 
     fn generate_constructors(&mut self, class: &ASTClass) -> Res<()> {
-        let mir_class = self
+        let class_rc = self
             .builder
-            .find_class_or_proto(&class.name.lexeme)
+            .find_class(&class.name.lexeme)
             .unwrap();
 
-        match mir_class {
-            Left(class_rc) => {
-                for (constructor, mir_fn) in class.constructors.iter().zip(class_rc.borrow().constructors.iter().map(|v| v.type_.as_function())) {
-                    self.prepare_function(Either::Left(Rc::clone(mir_fn)), constructor.parameters.get(0).map(|l| l.0.line).unwrap_or(0))?;
-                    self.set_uninitialized_members(constructor, &class_rc.borrow().members);
-                    let body = self.generate_expression(&constructor.body)?;
-                    self.builder.insert_at_ptr(body);
-                    self.end_scope();
-                    self.check_no_uninitialized(&class.name)?;
-                }
-            },
-
-            Right(proto_rc) => {
-                for (constructor, mir_fn) in class.constructors.iter().zip(proto_rc.borrow().constructors.iter()) {
-                    self.prepare_function(Either::Right(Rc::clone(mir_fn)), constructor.parameters.get(0).map(|l| l.0.line).unwrap_or(0))?;
-                    self.set_uninitialized_members(constructor, &proto_rc.borrow().members);
-                    let body = self.generate_expression(&constructor.body)?;
-                    self.builder.insert_at_ptr(body);
-                    self.end_scope();
-                    self.check_no_uninitialized(&class.name)?;
-                }
-            }
-        };
+        for (constructor, mir_fn) in class.constructors.iter().zip(class_rc.borrow().constructors.iter().map(|v| v.type_.as_function())) {
+            self.prepare_function(Rc::clone(mir_fn), constructor.parameters.get(0).map(|l| l.0.line).unwrap_or(0))?;
+            self.set_uninitialized_members(constructor, &class_rc.borrow().members);
+            let body = self.generate_expression(&constructor.body)?;
+            self.builder.insert_at_ptr(body);
+            self.end_scope();
+            self.check_no_uninitialized(&class.name)?;
+        }
 
         self.uninitialized_this_members.clear();
         Ok(())
@@ -206,35 +162,16 @@ impl MIRGenerator {
         }
     }
 
-    fn prepare_function(&mut self, function: Either<MutRc<Function>, MutRc<FunctionPrototype>>, err_line: usize) -> Res<Type> {
-        let (ret_type, entry_block) = match function.clone() {
-            Left(function_rc) => {
-                let mut func = function_rc.borrow_mut();
-                (func.ret_type.clone(), func.append_block("entry", false))
-            }
-
-            Right(proto_rc) => {
-                let mut proto = proto_rc.borrow_mut();
-                (proto.ret_type.clone(), proto.append_block("entry", false))
-            }
-        };
+    fn prepare_function(&mut self, function: MutRc<Function>, err_line: usize) -> Res<Type> {
+        let mut func = function.borrow_mut();
+        let ret_type = func.ret_type.clone();
+        let entry_block = func.append_block("entry", false);
 
         self.builder
             .set_pointer(function.clone(), Rc::clone(&entry_block));
-
         self.begin_scope();
-        match function {
-            Left(function_rc) => {
-                for param in function_rc.borrow().parameters.iter() {
-                    self.insert_variable(Rc::clone(param), false, err_line)?;
-                }
-            }
-
-            Right(proto_rc) => {
-                for param in proto_rc.borrow().parameters.iter() {
-                    self.insert_variable(Rc::clone(param), false, err_line)?;
-                }
-            }
+        for param in func.parameters.iter() {
+            self.insert_variable(Rc::clone(param), false, err_line)?;
         }
 
         Ok(ret_type)
@@ -383,11 +320,7 @@ impl MIRGenerator {
                                 .map(|ty| self.find_type(ty))
                                 .collect::<Result<Vec<Type>, MIRError>>()?;
 
-                            let class = proto
-                                .borrow_mut()
-                                .build(self, types)
-                                .map_err(|msg| self.error(name, name, &msg))?;
-
+                            let class = proto.borrow_mut().build(self, types)?;
                             return self.generate_class_instantiation(class, arguments, name);
                         }
                     }
@@ -585,8 +518,9 @@ impl MIRGenerator {
                     != self
                         .builder
                         .cur_fn()
-                        .map_left(|f| f.borrow().ret_type.clone())
-                        .left_or_else(|f| f.borrow().ret_type.clone())
+                        .borrow()
+                        .ret_type
+                        .clone()
                 {
                     return Err(self.anon_err(
                         val.as_ref().map(|v| v.get_token()).flatten_(),
@@ -804,9 +738,7 @@ impl MIRGenerator {
                     .collect::<Result<Vec<Type>, MIRError>>()?;
 
                 let mut proto = proto.borrow_mut();
-                Type::Class(proto
-                    .build(self, types)
-                    .map_err(|e| self.anon_err(ast.get_token(), &e))?)
+                Type::Class(proto.build(self, types)?)
             },
         })
     }

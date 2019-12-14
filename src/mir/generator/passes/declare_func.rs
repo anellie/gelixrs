@@ -6,21 +6,31 @@
 
 use std::rc::Rc;
 
-use either::Either;
-use either::Either::{Left, Right};
+
+
 
 use crate::ast::declaration::FuncSignature;
 use crate::ast::module::Module;
-use crate::lexer::token::Token;
-use crate::mir::{MutRc, mutrc_new, ToMIRResult};
+
+use crate::mir::{mutrc_new, ToMIRResult};
 use crate::mir::generator::{MIRGenerator, Res};
 use crate::mir::generator::intrinsics::INTRINSICS;
 use crate::mir::nodes::{Function, FunctionPrototype, Type, Variable};
 
 /// This pass defines all functions in MIR.
 pub fn declare_func_pass(gen: &mut MIRGenerator, module: &mut Module) -> Res<()> {
-    for function in module.functions.iter() {
-        create_function(gen, &function.sig, function.body.is_none(), None)?;
+    // Remove all functions that contain generics from the list
+    // so the generator won't bother trying to compile it later.
+    for func in module.functions.drain_filter(|f| f.sig.generics.is_some()) {
+        gen.builder.prototypes.functions.insert(Rc::clone(&func.sig.name.lexeme), mutrc_new(FunctionPrototype {
+            ast: func,
+            impls: vec![],
+            instances: Default::default()
+        }));
+    }
+
+    for func in module.functions.iter_mut() {
+        create_function(gen, &func.sig, func.body.is_none())?;
     }
 
     Ok(())
@@ -29,13 +39,9 @@ pub fn declare_func_pass(gen: &mut MIRGenerator, module: &mut Module) -> Res<()>
 pub(super) fn create_function(
     gen: &mut MIRGenerator,
     func_sig: &FuncSignature,
-    is_external: bool,
-    generics: Option<&Vec<Token>>,
-) -> Res<Either<Rc<Variable>, MutRc<FunctionPrototype>>> {
+    is_external: bool
+) -> Res<Rc<Variable>> {
     gen.builder.try_reserve_name(&func_sig.name)?;
-    generics
-        .or(func_sig.generics.as_ref())
-        .map(|g| gen.builder.set_generic_types(&g));
 
     let name = if is_external {
         String::clone(&func_sig.name.lexeme)
@@ -57,44 +63,28 @@ pub(super) fn create_function(
         }));
     }
 
-    if !gen.builder.generic_types.is_empty() {
-        let function = mutrc_new(FunctionPrototype {
-            name,
-            parameters,
-            generic_args: gen.builder.generic_types.to_vec(),
-            ret_type,
-            ..Default::default()
-        });
+    let function = mutrc_new(Function {
+        name,
+        parameters,
+        ret_type,
+        ..Default::default()
+    });
 
-        gen.builder
-            .prototypes
-            .functions
-            .insert(Rc::clone(&func_sig.name.lexeme), Rc::clone(&function));
-        Ok(Right(function))
-    } else {
-        let function = mutrc_new(Function {
-            name,
-            parameters,
-            ret_type,
-            ..Default::default()
-        });
+    let global = Rc::new(Variable {
+        name: Rc::clone(&func_sig.name.lexeme),
+        type_: Type::Function(Rc::clone(&function)),
+        mutable: false,
+    });
 
-        let global = Rc::new(Variable {
-            name: Rc::clone(&func_sig.name.lexeme),
-            type_: Type::Function(Rc::clone(&function)),
-            mutable: false,
-        });
-
-        if &func_sig.name.lexeme[..] == "main" {
-            INTRINSICS
-                .with(|i| i.borrow_mut().set_main_fn(&global))
-                .or_err(&gen, &func_sig.name, "Can't define main multiple times.")?;
-        }
-
-        gen.builder
-            .module
-            .functions
-            .insert(Rc::clone(&func_sig.name.lexeme), Rc::clone(&global));
-        Ok(Left(global))
+    if &func_sig.name.lexeme[..] == "main" {
+        INTRINSICS
+            .with(|i| i.borrow_mut().set_main_fn(&global))
+            .or_err(&gen, &func_sig.name, "Can't define main multiple times.")?;
     }
+
+    gen.builder
+        .module
+        .functions
+        .insert(Rc::clone(&func_sig.name.lexeme), Rc::clone(&global));
+    Ok(global)
 }

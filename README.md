@@ -13,6 +13,8 @@ The code is an alpha state. The compiler can output native code with LLVM.
 Most of gelix's features are implemented. However, the compiler is not stable,
 and the resulting binary should not be used outside of testing.
 
+Also, the current master branch regularly has mayor breakage when refactoring code.
+
 ### Build/Run
 
 ``` bash

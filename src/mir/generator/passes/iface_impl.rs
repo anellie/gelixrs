@@ -4,30 +4,28 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::collections::{HashMap, HashSet};
-use std::rc::Rc;
 
-use indexmap::IndexMap;
 
-use crate::ast::declaration::{Function, FunctionArg, IFaceImpl, Type as ASTType};
+
+
+
+
 use crate::ast::module::Module;
-use crate::lexer::token::Token;
-use crate::mir::{IFACE_IMPLS, MutRc, mutrc_new, ToMIRResult};
+
+
 use crate::mir::generator::{MIRGenerator, Res};
-use crate::mir::generator::passes::declare_func::create_function;
-use crate::mir::nodes::{
-    IFaceImpl as MIRImpl, IFaceImpls, IFaceMethod, Interface, InterfacePrototype, Type, Variable,
-};
-use crate::option::Flatten;
+
+
+
 
 /// This pass checks and defines all interface impl blocks.
-pub fn iface_impl_pass(gen: &mut MIRGenerator, list: &mut Module) -> Res<()> {
-    for iface in list.iface_impls.iter_mut() {
-        iface_impl(gen, iface)?;
+pub fn iface_impl_pass(_gen: &mut MIRGenerator, list: &mut Module) -> Res<()> {
+    for _iface in list.iface_impls.iter_mut() {
+    //    iface_impl(gen, iface)?;
     }
     Ok(())
 }
-
+/*
 fn iface_impl(gen: &mut MIRGenerator, iface_impl: &mut IFaceImpl) -> Res<()> {
     if let ASTType::Generic { token, .. } = &iface_impl.implementor {
         return Err(gen.error(
@@ -188,3 +186,4 @@ fn check_equal_signature(
 
     Ok(())
 }
+*/

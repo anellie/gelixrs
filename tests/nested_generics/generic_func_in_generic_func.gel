@@ -1,0 +1,13 @@
+/*
+hm.
+*/
+
+func a<T>(a: T) -> T {
+    b::<T>(a)
+}
+
+func b<A>(b: A) -> A b
+
+func main() {
+    //print(a::<String>("hm."))
+}

@@ -69,15 +69,7 @@ impl MIRBuilder {
 
     /// Will create the variable in the current function.
     pub fn add_function_variable(&mut self, variable: Rc<Variable>) {
-        self.cur_fn()
-            .map_left(|f| {
-                f.borrow_mut()
-                    .insert_var(Rc::clone(&variable.name), Rc::clone(&variable))
-            })
-            .left_or_else(|f| {
-                f.borrow_mut()
-                    .insert_var(Rc::clone(&variable.name), Rc::clone(&variable))
-            });
+        self.cur_fn().borrow_mut().insert_var(Rc::clone(&variable.name), Rc::clone(&variable));
     }
 
     pub fn build_binary(&self, left: Expression, operator: TType, right: Expression) -> Expression {
@@ -181,9 +173,7 @@ impl MIRBuilder {
 
     /// Will append a block to the given function, always creating a new one.
     pub fn append_block(&mut self, name: &str) -> Rc<String> {
-        self.cur_fn()
-            .map_left(|f| f.borrow_mut().append_block(name, true))
-            .left_or_else(|f| f.borrow_mut().append_block(name, true))
+        self.cur_fn().borrow_mut().append_block(name, true)
     }
 
     pub fn set_return(&mut self, ret: Flow) {
@@ -311,7 +301,7 @@ impl MIRBuilder {
 
     pub fn set_pointer(
         &mut self,
-        function: Either<MutRc<Function>, MutRc<FunctionPrototype>>,
+        function: MutRc<Function>,
         block: Rc<String>,
     ) {
         self.position = Some(Pointer { function, block })
@@ -339,23 +329,14 @@ impl MIRBuilder {
 
     pub fn insert_at_ptr(&mut self, expr: Expression) {
         let func = self.cur_fn();
-        match func {
-            Left(func) => func
-                .borrow_mut()
-                .blocks
-                .get_mut(&self.position.as_ref().unwrap().block)
-                .unwrap()
-                .push(expr),
-            Right(func) => func
-                .borrow_mut()
-                .blocks
-                .get_mut(&self.position.as_ref().unwrap().block)
-                .unwrap()
-                .push(expr),
-        }
+        let mut func = func.borrow_mut();
+        func.blocks
+            .get_mut(&self.position.as_ref().unwrap().block)
+            .unwrap()
+            .push(expr)
     }
 
-    pub fn cur_fn(&self) -> Either<MutRc<Function>, MutRc<FunctionPrototype>> {
+    pub fn cur_fn(&self) -> MutRc<Function> {
         self.position.as_ref().unwrap().function.clone()
     }
 
@@ -384,7 +365,7 @@ impl MIRBuilder {
 }
 
 pub struct Pointer {
-    pub function: Either<MutRc<Function>, MutRc<FunctionPrototype>>,
+    pub function: MutRc<Function>,
     block: Rc<String>,
 }
 

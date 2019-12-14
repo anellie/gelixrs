@@ -17,8 +17,18 @@ use crate::mir::nodes::{IFaceMethod, Interface, InterfacePrototype};
 
 /// This pass declares all interfaces.
 pub fn declare_interface_pass(gen: &mut MIRGenerator, module: &mut Module) -> Res<()> {
+    // Remove all interfaces that contain generics from the list
+    // so the generator won't bother trying to compile it later.
+    for interface in module.interfaces.drain_filter(|f| f.generics.is_some()) {
+        gen.builder.prototypes.interfaces.insert(Rc::clone(&interface.name.lexeme), mutrc_new(InterfacePrototype {
+            ast: interface,
+            impls: vec![],
+            instances: Default::default()
+        }));
+    }
+
     for interface in module.interfaces.iter_mut() {
-        create_interface(gen, interface)?
+        create_interface(gen, interface)?;
     }
 
     Ok(())
@@ -26,10 +36,6 @@ pub fn declare_interface_pass(gen: &mut MIRGenerator, module: &mut Module) -> Re
 
 fn create_interface(gen: &mut MIRGenerator, interface: &mut ASTIFace) -> Res<()> {
     gen.builder.try_reserve_name(&interface.name)?;
-    interface
-        .generics
-        .as_ref()
-        .map(|g| gen.builder.set_generic_types(&g));
 
     let mut methods = IndexMap::with_capacity(interface.methods.len());
     for method in interface.methods.iter_mut() {
@@ -52,31 +58,15 @@ fn create_interface(gen: &mut MIRGenerator, interface: &mut ASTIFace) -> Res<()>
         );
     }
 
-    if let Some(generics) = &interface.generics {
-        gen.builder.set_generic_types(generics);
+    let interface = Interface {
+        name: Rc::clone(&interface.name.lexeme),
+        methods,
+        proto: None,
+    };
+    gen.builder
+        .module
+        .interfaces
+        .insert(Rc::clone(&interface.name), mutrc_new(interface));
 
-        let interface = InterfacePrototype {
-            name: Rc::clone(&interface.name.lexeme),
-            methods,
-            generic_args: gen.builder.generic_types.to_vec(),
-            ..Default::default()
-        };
-        gen.builder
-            .prototypes
-            .interfaces
-            .insert(Rc::clone(&interface.name), mutrc_new(interface));
-    } else {
-        let interface = Interface {
-            name: Rc::clone(&interface.name.lexeme),
-            methods,
-            proto: None,
-        };
-        gen.builder
-            .module
-            .interfaces
-            .insert(Rc::clone(&interface.name), mutrc_new(interface));
-    }
-
-    gen.builder.generic_types.clear();
     Ok(())
 }
