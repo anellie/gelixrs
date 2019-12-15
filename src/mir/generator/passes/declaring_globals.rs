@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 9:58 PM.
+ * Last modified on 12/15/19 10:15 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -112,6 +112,10 @@ pub fn create_function(
         .borrow_mut()
         .globals
         .insert(Rc::clone(&name.lexeme), Rc::clone(&global));
+    module
+        .borrow_mut()
+        .types
+        .insert(Rc::clone(&name.lexeme), Type::Function(function));
     Ok(global)
 }
 

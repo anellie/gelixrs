@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/5/19 6:24 PM.
+ * Last modified on 12/15/19 10:32 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -8,8 +8,8 @@ use std::fmt::{Display, Error, Formatter};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
-use crate::mir::nodes::{Class, Function, Interface};
 use crate::mir::MutRc;
+use crate::mir::nodes::{Class, Function, Interface};
 
 /// All types in Gelix.
 /// For all types that can have generic parameters, these parameters
@@ -56,12 +56,6 @@ pub enum Type {
     /// An interface. When used as a standalone type, it gets turned into a
     /// fat pointer (pointer to implementor + pointer to vtable) in IR.
     Interface(MutRc<Interface>),
-
-    /// A generic type. This is only used when compiling/creating prototypes.
-    /// They are replaced by their concrete type when building from the prototype.
-    /// The int is the offset of the generic type in the definition of the prototype:
-    /// Test<T, G> / T is 0; G is 1
-    Generic(usize),
 }
 
 impl Type {
@@ -125,14 +119,6 @@ impl PartialEq for Type {
                 }
             }
 
-            Type::Generic(g) => {
-                if let Type::Generic(o) = o {
-                    g == o
-                } else {
-                    false
-                }
-            }
-
             Type::Any => true,
 
             _ => std::mem::discriminant(self) == std::mem::discriminant(o),
@@ -149,7 +135,6 @@ impl Hash for Type {
             Type::Function(v) => v.borrow().name.hash(state),
             Type::Class(v) => v.borrow().name.hash(state),
             Type::Interface(v) => v.borrow().name.hash(state),
-            Type::Generic(g) => g.hash(state),
             _ => std::mem::discriminant(self).hash(state),
         }
     }

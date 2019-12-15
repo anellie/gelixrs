@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 6:17 PM.
+ * Last modified on 12/15/19 10:32 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,14 +12,14 @@ use indexmap::IndexMap;
 
 use crate::ast::declaration::{Class as ASTClass, Constructor, Function as ASTFunc};
 use crate::ast::expression::Expression as ASTExpr;
+use crate::Error;
 use crate::error::Res;
-use crate::lexer::token::{TType, Token};
+use crate::lexer::token::{Token, TType};
+use crate::mir::{IFACE_IMPLS, MModule, MutRc};
 use crate::mir::generator::builder::MIRBuilder;
 use crate::mir::generator::intrinsics::INTRINSICS;
 use crate::mir::nodes::{ClassMember, Expr, Function, Type, Variable};
 use crate::mir::result::ToMIRResult;
-use crate::mir::{MModule, MutRc, IFACE_IMPLS};
-use crate::Error;
 
 pub mod builder;
 pub mod gen_expr;
@@ -71,7 +71,7 @@ pub struct MIRGenerator {
 impl MIRGenerator {
     /// Fill a function's body.
     /// The AST given must be from a function inside the module.
-    pub fn generate_function(&mut self, func: &ASTFunc) -> Res<()> {
+    pub fn generate_function(&mut self, func: &ASTFunc, override_fn: Option<&MutRc<Function>>) -> Res<()> {
         // Don't have to generate anything for external functions
         // which do not have a body
         let body = match func.body.as_ref() {
@@ -79,15 +79,17 @@ impl MIRGenerator {
             Some(body) => body,
         };
 
-        let function = self
+        let function = override_fn.cloned().unwrap_or_else(|| self
             .module
             .borrow()
-            .find_global(&func.sig.name.lexeme)
-            .unwrap();
-        self.prepare_function(function.type_.as_function(), func.sig.name.line)?;
+            .find_type(&func.sig.name.lexeme)
+            .unwrap()
+            .as_function()
+            .clone());
+        self.prepare_function(&function, func.sig.name.line)?;
         let body = self.expression(body)?;
 
-        let ret_type = function.type_.as_function().borrow().ret_type.clone();
+        let ret_type = function.borrow().ret_type.clone();
         match () {
             _ if ret_type == Type::None => self.insert_at_ptr(body),
             _ if ret_type == body.get_type() => self.insert_at_ptr(Expr::ret(body)),
