@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 4:51 PM.
+ * Last modified on 12/15/19 10:53 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,9 +11,9 @@ use crate::ast::module::ModulePath;
 use crate::ast::Type as ASTType;
 use crate::error::Res;
 use crate::lexer::token::Token;
+use crate::mir::{IFACE_IMPLS, MModule, MutRc};
 use crate::mir::nodes::Variable;
 use crate::mir::result::ToMIRResult;
-use crate::mir::{MModule, MutRc, IFACE_IMPLS};
 
 use super::super::nodes::Type;
 
@@ -97,7 +97,7 @@ impl MIRBuilder {
         })
     }
 
-    pub fn push_type_aliases(&mut self, params: &Vec<Token>, args: &Vec<Type>) {
+    pub fn push_type_aliases(&mut self, params: &[Token], args: &[Type]) {
         self.type_aliases.extend(
             params
                 .iter()

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 9:58 PM.
+ * Last modified on 12/15/19 10:53 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,10 +12,9 @@ use nodes::Variable;
 
 use crate::ast::Module;
 use crate::ast::module::ModulePath;
-use crate::error::{Error, Errors, Res};
+use crate::error::{Error, Res};
 use crate::lexer::token::Token;
-use crate::mir::generator::builder::MIRBuilder;
-use crate::mir::nodes::{Class, ClassPrototype, FunctionPrototype, IFaceImpls, Interface, InterfacePrototype, Prototype, Type};
+use crate::mir::nodes::{IFaceImpls, Prototype, Type};
 
 pub mod generator;
 pub mod nodes;

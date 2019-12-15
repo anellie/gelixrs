@@ -1,22 +1,13 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 9:58 PM.
+ * Last modified on 12/15/19 10:53 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::cell::Ref;
-use std::rc::Rc;
-
-use crate::ast::declaration::{FuncSignature, FunctionArg, Visibility};
-use crate::ast::module::ModulePath;
-use crate::error::{Error, Res};
-use crate::lexer::token::Token;
-use crate::mir::{MModule, MutRc, mutrc_new};
-use crate::mir::generator::builder::MIRBuilder;
-use crate::mir::generator::intrinsics::INTRINSICS;
+use crate::error::Error;
+use crate::mir::{MModule, MutRc};
 use crate::mir::generator::passes::{ModulePass, PassType};
-use crate::mir::nodes::{Class, Function, Type, Variable};
-use crate::mir::result::ToMIRResult;
+use crate::mir::nodes::Type;
 
 /// This pass defines all methods on classes and interfaces.
 pub struct DeclareMethods();
@@ -26,7 +17,7 @@ impl ModulePass for DeclareMethods {
         PassType::Type
     }
 
-    fn run_type(&mut self, module: &MutRc<MModule>, ty: Type) -> Result<(), Error> {
+    fn run_type(&mut self, _module: &MutRc<MModule>, _ty: Type) -> Result<(), Error> {
         unimplemented!()
     }
 }

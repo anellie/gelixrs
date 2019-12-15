@@ -1,11 +1,10 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 9:58 PM.
+ * Last modified on 12/15/19 10:53 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::fmt;
-use std::rc::Rc;
 
 use super::expression::Expression;
 use super::super::lexer::token::Token;

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 9:58 PM.
+ * Last modified on 12/15/19 10:53 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -8,9 +8,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::ast::Module;
-use crate::error::{Error, Errors};
+use crate::error::Errors;
 use crate::mir::{MModule, MutRc, mutrc_new};
-use crate::mir::generator::passes::{ModulePass, PassType, PreMIRPass};
+use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::nodes::{
     ClassPrototype, FunctionPrototype, InterfacePrototype, Prototype, Prototypes,
 };

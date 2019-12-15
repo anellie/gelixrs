@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 9:58 PM.
+ * Last modified on 12/15/19 10:53 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -37,7 +37,7 @@ pub struct Class {
     /// Only call on instances produced by the instantiator function.
     pub constructors: Vec<Rc<Variable>>,
     /// The AST this was compiled from.
-    pub ast: Rc<ast::Class>
+    pub ast: Rc<ast::Class>,
 }
 
 impl PartialEq for Class {
@@ -95,7 +95,7 @@ pub struct Interface {
     /// Only used for some intrinsics.
     pub proto: Option<MutRc<InterfacePrototype>>,
     /// The AST this was compiled from.
-    pub ast: Rc<ast::Interface>
+    pub ast: Rc<ast::Interface>,
 }
 
 impl Hash for Interface {
@@ -116,7 +116,7 @@ pub struct IFaceImpl {
     pub implementor: Type,
     pub iface: MutRc<Interface>,
     pub methods: IndexMap<Rc<String>, Rc<Variable>>,
-    pub ast: Rc<ast::IFaceImpl>
+    pub ast: Rc<ast::IFaceImpl>,
 }
 
 impl PartialEq for IFaceImpl {
@@ -164,7 +164,7 @@ pub struct IFaceMethod {
     pub parameters: Vec<Type>,
     pub ret_type: Type,
     pub default_impl: Option<ASTExpr>,
-    pub ast: Rc<ast::Function>
+    pub ast: Rc<ast::Function>,
 }
 
 /// A function.
@@ -185,7 +185,7 @@ pub struct Function {
     /// This is only present on functions that were
     /// compiled from AST functions;
     /// things like methods have None here.
-    pub ast: Option<Rc<ast::Function>>
+    pub ast: Option<Rc<ast::Function>>,
 }
 
 impl Function {

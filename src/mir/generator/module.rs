@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 10:02 PM.
+ * Last modified on 12/15/19 10:53 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -41,7 +41,9 @@ impl PassRunner {
         for mut pass in passes.drain(..) {
             let mut errs = Vec::new();
             for (ast, module) in modules.iter_mut().zip(self.modules.iter()) {
-                pass.run(ast, Rc::clone(&module)).map_err(|e| errs.push(e)).ok();
+                pass.run(ast, Rc::clone(&module))
+                    .map_err(|e| errs.push(e))
+                    .ok();
             }
             if !errs.is_empty() {
                 return Err(errs);
@@ -100,16 +102,24 @@ impl PassRunner {
             }
 
             PassType::Type => {
-                let types_iter = module.borrow().types.values().cloned().collect::<Vec<Type>>();
+                let types_iter = module
+                    .borrow()
+                    .types
+                    .values()
+                    .cloned()
+                    .collect::<Vec<Type>>();
                 for ty in types_iter {
-                    pass.run_type(module, ty)
-                        .map_err(|e| errs.push(e))
-                        .ok();
+                    pass.run_type(module, ty).map_err(|e| errs.push(e)).ok();
                 }
             }
 
             PassType::Global => {
-                let globals_iter = module.borrow().globals.values().cloned().collect::<Vec<Rc<Variable>>>();
+                let globals_iter = module
+                    .borrow()
+                    .globals
+                    .values()
+                    .cloned()
+                    .collect::<Vec<Rc<Variable>>>();
                 for global in globals_iter {
                     pass.run_global(module, global)
                         .map_err(|e| errs.push(e))
@@ -129,11 +139,7 @@ impl PassRunner {
 
     pub fn new(modules: &[Module]) -> Self {
         Self {
-            modules: modules
-                .iter()
-                .map(MModule::new)
-                .map(mutrc_new)
-                .collect(),
+            modules: modules.iter().map(MModule::new).map(mutrc_new).collect(),
         }
     }
 }

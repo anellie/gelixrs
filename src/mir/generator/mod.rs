@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 10:32 PM.
+ * Last modified on 12/15/19 10:53 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -71,7 +71,11 @@ pub struct MIRGenerator {
 impl MIRGenerator {
     /// Fill a function's body.
     /// The AST given must be from a function inside the module.
-    pub fn generate_function(&mut self, func: &ASTFunc, override_fn: Option<&MutRc<Function>>) -> Res<()> {
+    pub fn generate_function(
+        &mut self,
+        func: &ASTFunc,
+        override_fn: Option<&MutRc<Function>>,
+    ) -> Res<()> {
         // Don't have to generate anything for external functions
         // which do not have a body
         let body = match func.body.as_ref() {
@@ -79,13 +83,14 @@ impl MIRGenerator {
             Some(body) => body,
         };
 
-        let function = override_fn.cloned().unwrap_or_else(|| self
-            .module
-            .borrow()
-            .find_type(&func.sig.name.lexeme)
-            .unwrap()
-            .as_function()
-            .clone());
+        let function = override_fn.cloned().unwrap_or_else(|| {
+            self.module
+                .borrow()
+                .find_type(&func.sig.name.lexeme)
+                .unwrap()
+                .as_function()
+                .clone()
+        });
         self.prepare_function(&function, func.sig.name.line)?;
         let body = self.expression(body)?;
 

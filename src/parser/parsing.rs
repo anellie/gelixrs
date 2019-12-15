@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 9:48 PM.
+ * Last modified on 12/15/19 10:53 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,8 +12,7 @@ use std::rc::Rc;
 use either::Either;
 
 use crate::ast::declaration::{
-    ClassMember, Constructor, ConstructorParam, IFaceImpl, Interface, Type,
-    Visibility,
+    ClassMember, Constructor, ConstructorParam, IFaceImpl, Interface, Type, Visibility,
 };
 use crate::ast::module::{Import, ModulePath};
 use crate::Error;
@@ -575,14 +574,14 @@ impl Parser {
 
         Some(Expression::Literal(
             Literal::Closure(Rc::new(Function {
-            sig: FuncSignature {
-                name: Token::generic_identifier("closure".to_string()),
-                visibility: Visibility::Module,
-                return_type,
-                parameters,
-                generics: None,
-            },
-            body: Some(body),
+                sig: FuncSignature {
+                    name: Token::generic_identifier("closure".to_string()),
+                    visibility: Visibility::Module,
+                    return_type,
+                    parameters,
+                    generics: None,
+                },
+                body: Some(body),
             })),
             tok,
         ))
@@ -744,14 +743,14 @@ impl Parser {
     fn make_int_literal(&mut self, num: &str, type_: &str, tok: Token) -> Option<Expression> {
         Some(Expression::Literal(
             match &type_[..] {
-            "8" => Literal::I8(num.parse().ok()?),
-            "16" => Literal::I16(num.parse().ok()?),
-            "32" => Literal::I32(num.parse().ok()?),
-            "64" => Literal::I64(num.parse().ok()?),
-            _ => {
-                self.error_at_current("Invalid integer size.")?;
-                return None;
-            }
+                "8" => Literal::I8(num.parse().ok()?),
+                "16" => Literal::I16(num.parse().ok()?),
+                "32" => Literal::I32(num.parse().ok()?),
+                "64" => Literal::I64(num.parse().ok()?),
+                _ => {
+                    self.error_at_current("Invalid integer size.")?;
+                    return None;
+                }
             },
             tok,
         ))
@@ -761,8 +760,8 @@ impl Parser {
         let token = self.advance();
         Some(Expression::Literal(
             match &token.lexeme[..1] {
-            "f" => Literal::F32(token.lexeme.parse().ok()?),
-            _ => Literal::F64(token.lexeme.parse().ok()?),
+                "f" => Literal::F32(token.lexeme.parse().ok()?),
+                _ => Literal::F64(token.lexeme.parse().ok()?),
             },
             token,
         ))
