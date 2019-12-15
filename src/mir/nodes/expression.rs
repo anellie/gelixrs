@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 4:16 PM.
+ * Last modified on 12/15/19 5:15 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -135,6 +135,18 @@ impl Expr {
 
     pub fn jump(to: &Rc<String>) -> Expr {
         Expr::Flow(Box::new(Flow::Jump(Rc::clone(to))))
+    }
+
+    pub fn ret(val: Expr) -> Expr {
+        Expr::Flow(Box::new(Flow::Return(val)))
+    }
+
+    pub fn any_const() -> Expr {
+        Expr::Literal(Literal::Any)
+    }
+
+    pub fn none_const() -> Expr {
+        Expr::Literal(Literal::None)
     }
 
     /// Returns the type of this MIRExpression.

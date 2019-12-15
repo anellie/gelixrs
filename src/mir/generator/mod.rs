@@ -1,10 +1,9 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 4:36 PM.
+ * Last modified on 12/15/19 5:16 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-/*
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -18,21 +17,22 @@ use crate::ast::expression::Expression as ASTExpr;
 use crate::ast::literal::Literal;
 use crate::ast::module::Module;
 use crate::ast::Type as ASTType;
+use crate::error::Res;
 use crate::lexer::token::{Token, TType};
 use crate::mir::{IFACE_IMPLS, MModule, MutRc};
+use crate::mir::generator::builder::MIRBuilder;
 use crate::mir::generator::intrinsics::INTRINSICS;
 use crate::mir::nodes::{
     ArrayLiteral, Class, ClassMember, Expr, Flow, Function, Type, Variable,
 };
+use crate::mir::result::ToMIRResult;
 use crate::option::Flatten;
-*/
 
 pub mod builder;
 mod intrinsics;
 pub mod module;
 pub mod passes;
 
-/*
 /// The MIRGenerator turns a list of declarations produced by the parser
 /// into their MIR representation.
 ///
@@ -41,37 +41,22 @@ pub mod passes;
 /// The generator not only generates MIR, but also checks the code
 /// for correctness (type-checking, scoping, etc.).
 pub struct MIRGenerator {
+    /// The module that the generator is linked to.
+    pub module: MutRc<MModule>,
+
     /// The builder used to build the MIR.
     pub builder: MIRBuilder,
 
     /// The current insertion position.
     position: Option<Pointer>,
 
-    /// Insertion positions saved for later.
-    /// Used to store the previous insertion
-    /// positions when generating a class from a prototype;
-    /// the insertion position is saved here before
-    /// and restored after compiling the class prototype
-    /// has finished.
-    saved_positions: Vec<Pointer>,
-
     /// An environment is a scope that variables live in.
-    /// This variable is used like a stack.
+    /// This field is used like a stack.
     /// See the begin_scope and end_scope functions for more info.
     environments: Vec<HashMap<Rc<String>, Rc<Variable>>>,
 
     /// The current loop, if in one.
     current_loop: Option<ForLoop>,
-
-    /// A map of all type aliases, where the key
-    /// will be translated to the value when encountered
-    /// as a type. Used for instantiating generic stuff
-    /// where the key is the parameter name (like T)
-    /// and the value the type to use in its place.
-    ///
-    /// This is a vector since generic instantiation
-    /// can nest, so it's used as a stack.
-    type_aliases: Vec<HashMap<Rc<String>, Type>>,
 
     /// All class members that are not initialized yet.
     /// This is only used when generating constructors to check
@@ -90,22 +75,8 @@ pub struct MIRGenerator {
 }
 
 impl MIRGenerator {
-    fn generate_mir(&mut self, module: &Module) -> Res<()> {
-        for class in module.classes.iter() {
-            self.generate_constructors(class)?;
-        }
-
-        let method_iter = module.classes.iter().map(|class| &class.methods).flatten();
-        let func_iter = module.functions.iter();
-        let impl_fn_iter = module.iface_impls.iter().map(|i| &i.methods).flatten();
-
-        for func in method_iter.chain(func_iter).chain(impl_fn_iter) {
-            self.generate_function(func)?;
-        }
-
-        Ok(())
-    }
-
+    /// Fill a function's body.
+    /// The AST given must be from a function inside the module.
     pub fn generate_function(&mut self, func: &ASTFunc) -> Res<()> {
         // Don't have to generate anything for external functions
         // which do not have a body
@@ -114,19 +85,18 @@ impl MIRGenerator {
             Some(body) => body,
         };
 
-        let function = self.builder.find_function(&func.sig.name.lexeme).unwrap();
-
-        let ret_type = self.prepare_function(function, func.sig.name.line)?;
+        let function = self.module.borrow().find_global(&func.sig.name.lexeme).unwrap();
+        self.prepare_function(function.type_.as_function(), func.sig.name.line)?;
         let body = self.generate_expression(body)?;
 
+        let ret_type = function.type_.as_function().borrow().ret_type.clone();
         match () {
-            _ if ret_type == Type::None => self.builder.insert_at_ptr(body),
-            _ if ret_type == body.get_type() => self.builder.set_return(Flow::Return(body)),
+            _ if ret_type == Type::None => self.insert_at_ptr(body),
+            _ if ret_type == body.get_type() => self.insert_at_ptr(Expr::ret(body)),
             _ => {
-                return Err(self.error(
+                return Err(self.err(
                     &func.sig.name,
-                    &func.sig.name,
-                    &format!(
+                    format!(
                         "Function return type ({}) does not match body type ({}).",
                         ret_type,
                         body.get_type()
@@ -140,7 +110,7 @@ impl MIRGenerator {
     }
 
     pub fn generate_constructors(&mut self, class: &ASTClass) -> Res<()> {
-        let class_rc = self.builder.find_class(&class.name.lexeme).unwrap();
+        let class_rc = self.module.borrow().find_type(&class.name.lexeme).unwrap().as_class().clone();
 
         for (constructor, mir_fn) in class.constructors.iter().zip(
             class_rc
@@ -150,12 +120,12 @@ impl MIRGenerator {
                 .map(|v| v.type_.as_function()),
         ) {
             self.prepare_function(
-                Rc::clone(mir_fn),
+                mir_fn,
                 constructor.parameters.get(0).map(|l| l.0.line).unwrap_or(0),
             )?;
             self.set_uninitialized_members(constructor, &class_rc.borrow().members);
             let body = self.generate_expression(&constructor.body)?;
-            self.builder.insert_at_ptr(body);
+            self.insert_at_ptr(body);
             self.end_scope();
             self.check_no_uninitialized(&class.name)?;
         }
@@ -186,30 +156,29 @@ impl MIRGenerator {
         if self.uninitialized_this_members.is_empty() {
             Ok(())
         } else {
-            Err(self.error(
+            Err(self.err(
                 err_tok,
-                err_tok,
-                "Cannot have uninitialized fields after constructor.",
+                "Cannot have uninitialized fields after constructor.".to_string(),
             ))
         }
     }
 
-    fn prepare_function(&mut self, function: MutRc<Function>, err_line: usize) -> Res<Type> {
+    fn prepare_function(&mut self, function: &MutRc<Function>, err_line: usize) -> Res<()> {
         let mut func = function.borrow_mut();
-        let ret_type = func.ret_type.clone();
         let entry_block = func.append_block("entry", false);
 
-        self.builder
-            .set_pointer(function.clone(), Rc::clone(&entry_block));
+        self.set_pointer(Rc::clone(function), Rc::clone(&entry_block));
         self.begin_scope();
         for param in func.parameters.iter() {
             self.insert_variable(Rc::clone(param), false, err_line)?;
         }
 
-        Ok(ret_type)
+        Ok(())
     }
 
     fn generate_expression(&mut self, expression: &ASTExpr) -> Res<Expr> {
+        unimplemented!()
+        /*
         Ok(match expression {
             ASTExpr::Assignment { name, value } => {
                 let var = self.find_var(&name)?;
@@ -685,6 +654,7 @@ impl MIRGenerator {
                 self.builder.build_store(var, init)
             }
         })
+        */
     }
 
     /// Defines a new variable. It is put into the variable list in the current function
@@ -696,9 +666,8 @@ impl MIRGenerator {
             name: Rc::clone(&token.lexeme),
         });
 
-        self.builder.add_function_variable(Rc::clone(&def));
-        self.insert_variable(Rc::clone(&def), true, token.line)
-            .unwrap_or(());
+        self.add_function_variable(Rc::clone(&def));
+        self.insert_variable(Rc::clone(&def), true, token.line).unwrap_or(());
         def
     }
 
@@ -712,10 +681,9 @@ impl MIRGenerator {
         if was_defined && !allow_redefine {
             let mut tok = Token::generic_identifier((*var.name).clone());
             tok.line = line;
-            return Err(self.error(
+            return Err(self.err(
                 &tok,
-                &tok,
-                &format!(
+                format!(
                     "Cannot redefine variable '{}' in the same scope.",
                     &var.name
                 ),
@@ -723,6 +691,13 @@ impl MIRGenerator {
         }
 
         Ok(())
+    }
+
+    /// Will create the variable in the current function.
+    pub fn add_function_variable(&mut self, variable: Rc<Variable>) {
+        self.cur_fn()
+            .borrow_mut()
+            .insert_var(Rc::clone(&variable.name), Rc::clone(&variable));
     }
 
     /// Searches all scopes for a variable, starting at the top.
@@ -733,8 +708,8 @@ impl MIRGenerator {
             }
         }
 
-        self.builder.find_function_var(&token.lexeme).or_err(
-            self,
+        self.module.borrow().find_global(&token.lexeme).or_err(
+            &self.builder.path,
             token,
             &format!("Variable '{}' is not defined", token.lexeme),
         )
@@ -752,7 +727,12 @@ impl MIRGenerator {
         self.cur_loop().result_var = Some(Rc::clone(&var));
 
         if &var.type_ != type_ {
-            Err(self.anon_err(None, "Break expressions and for body must have same type"))
+            Err(Error::new(
+                &Token::generic_token(TType::Break),
+                "MIR",
+                "Break expressions and for body must have same type".to_string(),
+                &self.builder.path,
+            ))
         } else {
             Ok(var)
         }
@@ -777,7 +757,7 @@ impl MIRGenerator {
         self.builder
             .find_associated_method(ty, name)
             .map(|m| (object, Either::Right(m)))
-            .or_err(self, name, "Unknown field or method.")
+            .or_err(&self.builder.path, name, "Unknown field or method.")
     }
 
     fn generate_class_instantiation(
@@ -790,7 +770,7 @@ impl MIRGenerator {
             .iter()
             .map(|arg| self.generate_expression(arg))
             .collect::<Res<Vec<Expr>>>()?;
-        let inst = self.builder.build_class_inst(Rc::clone(&class));
+        let inst = self.build_class_inst(Rc::clone(&class));
         args.insert(0, inst.clone());
 
         let class = class.borrow();
@@ -810,16 +790,33 @@ impl MIRGenerator {
                 true
             })
             .or_err(
-                self,
+                &self.builder.path,
                 err_tok,
                 "No matching constructor found for arguments.",
             )?;
 
-        let call = self
-            .builder
-            .build_call(self.builder.build_load(Rc::clone(&constructor)), args);
-        self.builder.insert_at_ptr(call);
+        let call = Expr::call(Expr::load(constructor), args);
+        self.insert_at_ptr(call);
         Ok(inst)
+    }
+
+    /// Builds a class instance and returns an expression that loads the instance.
+    /// The expression returned can be safely cloned to reuse the instance.
+    fn build_class_inst(&mut self, class_ref: MutRc<Class>) -> Expr {
+        let call = {
+            let class = class_ref.borrow();
+            Expr::call(Expr::load(&class.instantiator), vec![])
+        };
+
+        let var = Rc::new(Variable {
+            mutable: true,
+            type_: Type::Class(class_ref),
+            name: Rc::new("tmp-constructor-var".to_string()),
+        });
+        self.add_function_variable(Rc::clone(&var));
+        self.insert_at_ptr(Expr::store(&var, call));
+
+        Expr::load(&var)
     }
 
     fn generate_func_args(
@@ -827,14 +824,15 @@ impl MIRGenerator {
         func_ref: MutRc<Function>,
         arguments: &[ASTExpr],
         first_arg: Option<Expr>,
+        err_tok: &Token
     ) -> Res<Vec<Expr>> {
         let func = func_ref.borrow();
 
         let args_len = arguments.len() + (first_arg.is_some() as usize);
         if func.parameters.len() != args_len {
-            return Err(self.anon_err(
-                arguments.first().map(|e| e.get_token()).flatten_(),
-                &format!(
+            return Err(self.err(
+                err_tok,
+                format!(
                     "Incorrect amount of function arguments. (Expected {}; got {})",
                     func.parameters.len(),
                     arguments.len()
@@ -859,8 +857,8 @@ impl MIRGenerator {
             let arg_type = arg.get_type();
             let arg = self
                 .check_call_arg_type(arg, &parameter.type_)
-                .or_anon_err(
-                    self,
+                .or_err(
+                    &self.builder.path,
                     argument.get_token(),
                     &format!(
                         "Call argument is the wrong type (was {}, expected {})",
@@ -886,7 +884,7 @@ impl MIRGenerator {
         let op_impls = iface_impls
             .interfaces
             .iter()
-            .filter(|im| im.iface.borrow().proto == Some(Rc::clone(&proto)));
+            .filter(|im| unimplemented!());
 
         for im in op_impls {
             let method = im.methods.get_index(0).unwrap().1;
@@ -894,7 +892,6 @@ impl MIRGenerator {
                 return Some(method).cloned();
             }
         }
-
         None
     }
 
@@ -908,26 +905,6 @@ impl MIRGenerator {
         } else {
             None
         }
-    }
-
-    /// Builds a class instance and returns an expression that loads the instance.
-    /// The expression returned can be safely cloned to reuse the instance.
-    pub fn build_class_inst(&mut self, class_ref: MutRc<Class>) -> Expr {
-        let call = {
-            let class = class_ref.borrow();
-            Expr::call(Expr::load(&class.instantiator), vec![])
-        };
-
-        let var = Variable::new(true, Type::Class(class_ref), &Rc::new("tmp-constructor-var".to_string()));
-        self.add_function_variable(Rc::clone(&var));
-        self.insert_at_ptr(Expr::store(&var, call));
-
-        Expr::load(&var)
-    }
-
-    /// Will append a block to the given function, always creating a new one.
-    pub fn append_block(&mut self, name: &str) -> Rc<String> {
-        self.cur_fn().borrow_mut().append_block(name, true)
     }
 
     /// Creates a new scope. A new scope is created for every function and block,
@@ -950,6 +927,11 @@ impl MIRGenerator {
         self.environments.pop();
     }
 
+    /// Will append a block to the given function, always creating a new one.
+    pub fn append_block(&mut self, name: &str) -> Rc<String> {
+        self.cur_fn().borrow_mut().append_block(name, true)
+    }
+
     pub fn insert_at_ptr(&mut self, expr: Expr) {
         let func = self.cur_fn();
         let mut func = func.borrow_mut();
@@ -957,6 +939,16 @@ impl MIRGenerator {
             .get_mut(&self.position.as_ref().unwrap().block)
             .unwrap()
             .push(expr)
+    }
+
+    pub fn set_pointer(&mut self, function: MutRc<Function>, block: Rc<String>) {
+        self.position = Some(Pointer { function, block })
+    }
+
+    pub fn set_block(&mut self, block: &Rc<String>) {
+        if let Some(pos) = self.position.as_mut() {
+            pos.block = Rc::clone(block)
+        }
     }
 
     pub fn cur_fn(&self) -> MutRc<Function> {
@@ -967,51 +959,31 @@ impl MIRGenerator {
         Rc::clone(&self.position.as_ref().unwrap().block)
     }
 
-    pub fn set_pointer(&mut self, function: MutRc<Function>, block: Rc<String>) {
-        self.position = Some(Pointer { function, block })
-    }
-
-    pub fn push_current_pointer(&mut self) {
-        if let Some(ptr) = self.position.take() {
-            self.saved_positions.push(ptr);
-        }
-    }
-
-    pub fn load_last_pointer(&mut self) {
-        self.position = self.saved_positions.pop();
-    }
-
-    pub fn set_block(&mut self, block: &Rc<String>) {
-        if let Some(pos) = self.position.as_mut() {
-            pos.block = Rc::clone(block)
-        }
-    }
-
     fn cur_loop(&mut self) -> &mut ForLoop {
         self.current_loop.as_mut().unwrap()
     }
 
-    fn any_const() -> Expr {
-        Expr::Literal(Literal::Any)
+    fn err(&self, tok: &Token, msg: String) -> Error {
+        Error::new(tok, "MIR", msg, &self.builder.path)
     }
 
-    fn none_const() -> Expr {
-        Expr::Literal(Literal::None)
-    }
-
-    pub fn new(path: Rc<ModulePath>) -> Self {
+    pub fn new(module: &MutRc<MModule>) -> Self {
         MIRGenerator {
-            builder: MIRBuilder::new(MModule::new(path)),
+            module: Rc::clone(module),
+            builder: MIRBuilder::new(module),
+            position: None,
             environments: Vec::with_capacity(5),
             current_loop: None,
-            type_aliases: Vec::with_capacity(3),
-            uninitialized_this_members: HashSet::with_capacity(10),
+            uninitialized_this_members: HashSet::with_capacity(10)
         }
     }
 }
 
+/// A pointer is the location the generator is inserting into.
 pub struct Pointer {
+    /// The function inserting into
     pub function: MutRc<Function>,
+    /// The name of the block appending to
     block: Rc<String>,
 }
 
@@ -1034,4 +1006,3 @@ impl ForLoop {
         }
     }
 }
-*/

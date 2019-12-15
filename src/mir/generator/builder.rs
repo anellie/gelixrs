@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 4:39 PM.
+ * Last modified on 12/15/19 4:51 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -25,7 +25,7 @@ use super::super::nodes::Type;
 pub struct MIRBuilder {
     /// The path of the current module.
     /// Separate to reduce amount of borrows on the module.
-    path: Rc<ModulePath>,
+    pub path: Rc<ModulePath>,
 
     /// The module this builder is linked to.
     module: MutRc<MModule>,
