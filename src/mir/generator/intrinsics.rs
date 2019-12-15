@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 2:07 AM.
+ * Last modified on 12/15/19 3:36 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -10,7 +10,7 @@
 //! overloading interfaces into actually changing the behavior
 //! of the expression.
 
-use std::cell::{RefCell, RefMut};
+use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -35,17 +35,8 @@ impl Intrinsics {
         Rc::clone(&self.ops[&ty])
     }
 
-    pub fn populate(&mut self, modules: &Vec<MutRc<MModule>>) {
-        for module in modules.iter() {
-            let mut module = module.borrow_mut();
-            if **module.path.0[0] == *"std" && **module.path.0[1] == *"ops" {
-                // This is the std/ops module, containing all operator interfaces
-                self.fill_ops_table(module)
-            }
-        }
-    }
-
-    fn fill_ops_table(&mut self, module: RefMut<MModule>) {
+    // Only call this with the std/ops module, containing all operator interfaces
+    pub fn fill_ops_table(&mut self, module: Ref<MModule>) {
         for (name, iface) in module.protos.iter() {
             let iface = Rc::clone(iface);
             match &name[..] {

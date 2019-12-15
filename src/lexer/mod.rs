@@ -1,14 +1,14 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/12/19 11:10 AM.
+ * Last modified on 12/15/19 3:36 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::convert::TryInto;
 use std::iter::FromIterator;
-
-use token::{TType, Token};
 use std::rc::Rc;
+
+use token::{Token, TType};
 
 pub mod token;
 
@@ -343,7 +343,7 @@ impl Lexer {
     }
 
     /// Create a new lexer for scanning the given source.
-    pub fn new(source: &str) -> Lexer {
+    pub fn new(source: &Rc<String>) -> Lexer {
         let chars: Vec<char> = source.chars().collect();
         Lexer {
             chars,

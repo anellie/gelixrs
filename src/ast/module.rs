@@ -1,14 +1,14 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/12/19 11:15 AM.
+ * Last modified on 12/15/19 3:36 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
+use std::fmt::{Display, Error, Formatter};
 use std::rc::Rc;
 
 use crate::ast::declaration::{Class, Function, IFaceImpl, Interface};
 use crate::lexer::token::Token;
-use std::fmt::{Display, Formatter, Error};
 
 #[derive(Clone, Debug, Default, PartialOrd, PartialEq, Eq, Hash)]
 pub struct ModulePath(pub Vec<Rc<String>>);
@@ -25,6 +25,7 @@ impl Display for ModulePath {
 #[derive(Debug, Default)]
 pub struct Module {
     pub path: Rc<ModulePath>,
+    pub src: Rc<String>,
 
     pub classes: Vec<Class>,
     pub interfaces: Vec<Interface>,
@@ -34,9 +35,10 @@ pub struct Module {
 }
 
 impl Module {
-    pub fn new(path: &ModulePath) -> Self {
+    pub fn new(path: &ModulePath, src: &Rc<String>) -> Self {
         Self {
             path: Rc::new(path.clone()),
+            src: Rc::clone(src),
             ..Default::default()
         }
     }

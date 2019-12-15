@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 2:13 AM.
+ * Last modified on 12/15/19 3:34 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -13,12 +13,12 @@ use crate::lexer::token::Token;
 pub type Res<T> = Result<T, Error>;
 
 /// A struct for a list of errors that occurred along with the source.
-pub struct Errors(pub Vec<Error>, pub String);
+pub struct Errors(pub Vec<Error>, pub Rc<String>);
 
 impl Display for Errors {
     fn fmt(&self, f: &mut Formatter) -> Result<(), FmtErr> {
         for err in self.0.iter() {
-            writeln!(f, "{}", err.to_string(&self.1))?;
+            writeln!(f, "{}\n", err.to_string(&self.1))?;
         }
         Ok(())
     }

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 2:10 AM.
+ * Last modified on 12/15/19 3:11 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -20,11 +20,11 @@ use std::rc::Rc;
 use ast::module::Module;
 use error::Error;
 use ir::IRGenerator;
-use mir::generator::module::MIRModuleGenerator;
+use mir::generator::module::PassRunner;
 use mir::MModule;
 
 use crate::ast::module::{Import, ModulePath};
-use crate::error::Errors;
+use crate::error::{Errors, Res};
 use crate::lexer::token::Token;
 use crate::mir::MutRc;
 
@@ -90,17 +90,17 @@ fn make_modules(
 }
 
 fn parse_module(input: PathBuf, path: &mut ModulePath) -> Result<Module, Vec<Errors>> {
-    let code = fs::read_to_string(&input).expect("Failed to read file.");
-    let mut module = Module::new(path);
+    let code = Rc::new(fs::read_to_string(&input).expect("Failed to read file."));
+    let mut module = Module::new(path, &code);
 
-    fill_module(&code, &mut module).map_err(|e| vec![e])?;
+    fill_module(code, &mut module).map_err(|e| vec![e])?;
     Ok(module)
 }
 
-fn fill_module(code: &str, module: &mut Module) -> Result<(), Errors> {
-    let lexer = lexer::Lexer::new(code);
+fn fill_module(code: Rc<String>, module: &mut Module) -> Result<(), Errors> {
+    let lexer = lexer::Lexer::new(&code);
     let parser = parser::Parser::new(lexer, Rc::clone(&module.path));
-    parser.parse(module).map_err(|errs| Errors(errs, code.to_string()))
+    parser.parse(module).map_err(|errs| Errors(errs, code))
 }
 
 pub fn auto_import_prelude(modules: &mut Vec<Module>) {
@@ -118,7 +118,7 @@ pub fn auto_import_prelude(modules: &mut Vec<Module>) {
 }
 
 pub fn compile_mir(modules: Vec<Module>) -> Result<Vec<MutRc<MModule>>, Vec<Errors>> {
-    let pool = MIRModuleGenerator::new(modules);
+    let pool = PassRunner::new(modules);
     pool.execute()
 }
 
