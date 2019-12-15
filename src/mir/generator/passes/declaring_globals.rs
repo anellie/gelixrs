@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 4:08 PM.
+ * Last modified on 12/15/19 4:19 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,7 +12,7 @@ use crate::error::{Error, Res};
 use crate::mir::{MModule, MutRc, mutrc_new};
 use crate::mir::generator::intrinsics::INTRINSICS;
 use crate::mir::generator::passes::{ModulePass, PassType};
-use crate::mir::nodes::{Class, Function, Interface, Type, Variable};
+use crate::mir::nodes::{Function, Type, Variable};
 use crate::mir::result::ToMIRResult;
 
 /// This pass defines all globals inside the module; currently only functions.
@@ -23,18 +23,22 @@ use crate::mir::result::ToMIRResult;
 pub struct DeclareGlobals();
 
 impl ModulePass for DeclareGlobals {
-    fn get_type(&self) -> PassType { PassType::Module }
+    fn get_type(&self) -> PassType {
+        PassType::Module
+    }
 
     fn run_mod(&mut self, module: MutRc<MModule>) -> Result<(), Vec<Error>> {
         let mut errs = Vec::new();
 
-        /// TODO: This is a sin
-        /// The borrow checker can be annoying...
+        // TODO: This is a sin
+        // The borrow checker can be annoying...
         let len = module.borrow().ast.functions.len();
         for i in 0..len {
             let func_sig = module.borrow().ast.functions[i].sig.clone();
             let is_ext = module.borrow().ast.functions[i].body.is_none();
-            create_function(&module, &func_sig, is_ext).map_err(|e| errs.push(e));
+            create_function(&module, &func_sig, is_ext)
+                .map_err(|e| errs.push(e))
+                .ok();
         }
 
         if errs.is_empty() {
@@ -91,7 +95,11 @@ pub fn create_function(
     if &func_sig.name.lexeme[..] == "main" {
         INTRINSICS
             .with(|i| i.borrow_mut().set_main_fn(&global))
-            .or_err(&module.borrow().path, &func_sig.name, "Can't define main multiple times.")?;
+            .or_err(
+                &module.borrow().path,
+                &func_sig.name,
+                "Can't define main multiple times.",
+            )?;
     }
 
     module

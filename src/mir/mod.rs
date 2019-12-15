@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 2:07 AM.
+ * Last modified on 12/15/19 4:19 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -67,24 +67,42 @@ pub struct MModule {
 
 impl MModule {
     pub fn find_type(&self, name: &Rc<String>) -> Option<Type> {
-        self.types.get(name)
+        self.types
+            .get(name)
             .or_else(|| self.imports.types.get(name))
             .cloned()
-            .or_else(|| self.imports.modules.iter().find_map(|(_, m)| m.borrow().find_type(name)))
+            .or_else(|| {
+                self.imports
+                    .modules
+                    .iter()
+                    .find_map(|(_, m)| m.borrow().find_type(name))
+            })
     }
 
     pub fn find_prototype(&self, name: &Rc<String>) -> Option<MutRc<dyn Prototype>> {
-        self.protos.get(name)
+        self.protos
+            .get(name)
             .or_else(|| self.imports.protos.get(name))
             .cloned()
-            .or_else(|| self.imports.modules.iter().find_map(|(_, m)| m.borrow().find_prototype(name)))
+            .or_else(|| {
+                self.imports
+                    .modules
+                    .iter()
+                    .find_map(|(_, m)| m.borrow().find_prototype(name))
+            })
     }
 
     pub fn find_global(&self, name: &Rc<String>) -> Option<Rc<Variable>> {
-        self.globals.get(name)
+        self.globals
+            .get(name)
             .or_else(|| self.imports.globals.get(name))
             .cloned()
-            .or_else(|| self.imports.modules.iter().find_map(|(_, m)| m.borrow().find_global(name)))
+            .or_else(|| {
+                self.imports
+                    .modules
+                    .iter()
+                    .find_map(|(_, m)| m.borrow().find_global(name))
+            })
     }
 
     /// Tries to reserve the given name. If the name is already used, returns an error.
@@ -100,7 +118,7 @@ impl MModule {
                 tok,
                 "MIR",
                 format!("Name {} already defined in this module", name),
-                &self.path
+                &self.path,
             ))
         }
     }
@@ -133,7 +151,9 @@ pub enum ModuleStage {
 }
 
 impl Default for ModuleStage {
-    fn default() -> Self { Self::None }
+    fn default() -> Self {
+        Self::None
+    }
 }
 
 #[derive(Default)]
@@ -141,7 +161,7 @@ pub struct Imports {
     pub modules: HashMap<Rc<ModulePath>, MutRc<MModule>>,
     pub globals: HashMap<Rc<String>, Rc<Variable>>,
     pub types: HashMap<Rc<String>, Type>,
-    pub protos: Prototypes
+    pub protos: Prototypes,
 }
 
 /// A list of all prototypes.

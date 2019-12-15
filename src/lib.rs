@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 3:11 PM.
+ * Last modified on 12/15/19 4:16 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -24,7 +24,7 @@ use mir::generator::module::PassRunner;
 use mir::MModule;
 
 use crate::ast::module::{Import, ModulePath};
-use crate::error::{Errors, Res};
+use crate::error::Errors;
 use crate::lexer::token::Token;
 use crate::mir::MutRc;
 
@@ -105,7 +105,10 @@ fn fill_module(code: Rc<String>, module: &mut Module) -> Result<(), Errors> {
 
 pub fn auto_import_prelude(modules: &mut Vec<Module>) {
     let prelude_import = Import {
-        path: Rc::new(ModulePath(vec![Rc::new("std".to_string()), Rc::new("prelude".to_string())])),
+        path: Rc::new(ModulePath(vec![
+            Rc::new("std".to_string()),
+            Rc::new("prelude".to_string()),
+        ])),
         symbol: Token::generic_identifier("+".to_string()),
     };
 

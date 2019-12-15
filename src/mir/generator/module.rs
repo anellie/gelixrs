@@ -1,13 +1,13 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 4:08 PM.
+ * Last modified on 12/15/19 4:19 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::rc::Rc;
 
 use crate::ast::module::Module;
-use crate::error::{Error, Errors, Res};
+use crate::error::{Error, Errors};
 use crate::mir::{MModule, MutRc, mutrc_new};
 use crate::mir::generator::intrinsics::INTRINSICS;
 use crate::mir::generator::passes::{ModulePass, PassType};
@@ -28,27 +28,28 @@ pub struct PassRunner {
 }
 
 impl PassRunner {
-    pub fn execute(mut self) -> Result<Vec<MutRc<MModule>>, Vec<Errors>> {
+    pub fn execute(self) -> Result<Vec<MutRc<MModule>>, Vec<Errors>> {
         reset_mir();
         let mut passes: Vec<Box<dyn ModulePass>> = vec![
             Box::new(FilterPrototypes()),
             Box::new(DeclareTypes()),
             Box::new(DeclareGlobals()),
             Box::new(PopulateIntrinsics()),
-            Box::new(ValidateIntrinsics())
+            Box::new(ValidateIntrinsics()),
         ];
 
         for mut pass in passes.drain(..) {
-            self.run_pass(&mut pass)?;
+            self.run_pass(&mut *pass)?;
         }
 
         Ok(self.modules)
     }
 
-    pub fn run_pass(&self, pass: &mut Box<dyn ModulePass>) -> Result<(), Vec<Errors>> {
+    pub fn run_pass(&self, pass: &mut dyn ModulePass) -> Result<(), Vec<Errors>> {
         match pass.get_type() {
             PassType::GlobalInspect => {
-                pass.run_inspect(&self.modules).map_err(|e| vec![Errors(vec![e], Rc::new("".to_string()))])?;
+                pass.run_inspect(&self.modules)
+                    .map_err(|e| vec![Errors(vec![e], Rc::new("".to_string()))])?;
             }
 
             _ => {
@@ -56,38 +57,49 @@ impl PassRunner {
 
                 for module in self.modules.iter() {
                     self.run_module_pass(module, pass)
-                        .map_err(|e| errs.push(Errors(e, Rc::clone(&module.borrow().ast.src))));
+                        .map_err(|e| errs.push(Errors(e, Rc::clone(&module.borrow().ast.src))))
+                        .ok();
                 }
 
                 if !errs.is_empty() {
-                    return Err(errs)
+                    return Err(errs);
                 }
             }
         }
         Ok(())
     }
 
-    pub fn run_module_pass(&self, module: &MutRc<MModule>, pass: &mut Box<dyn ModulePass>) -> Result<(), Vec<Error>> {
+    pub fn run_module_pass(
+        &self,
+        module: &MutRc<MModule>,
+        pass: &mut dyn ModulePass,
+    ) -> Result<(), Vec<Error>> {
         let mut errs = Vec::new();
 
         match pass.get_type() {
             PassType::Module => {
-                pass.run_mod(Rc::clone(module)).map_err(|mut e| errs.append(&mut e));
-            },
+                pass.run_mod(Rc::clone(module))
+                    .map_err(|mut e| errs.append(&mut e))
+                    .ok();
+            }
 
             PassType::Type => {
-                for (name, ty) in module.borrow().types.iter() {
-                    pass.run_type(module.borrow(), ty).map_err(|e| errs.push(e));
+                for ty in module.borrow().types.values() {
+                    pass.run_type(module.borrow(), ty)
+                        .map_err(|e| errs.push(e))
+                        .ok();
                 }
             }
 
             PassType::Global => {
-                for (name, global) in module.borrow().globals.iter() {
-                    pass.run_global(module.borrow(), global).map_err(|e| errs.push(e));
+                for global in module.borrow().globals.values() {
+                    pass.run_global(module.borrow(), global)
+                        .map_err(|e| errs.push(e))
+                        .ok();
                 }
             }
 
-            _ => panic!("Unknown pass type")
+            _ => panic!("Unknown pass type"),
         }
 
         if !errs.is_empty() {
@@ -99,7 +111,11 @@ impl PassRunner {
 
     pub fn new(modules: Vec<Module>) -> Self {
         Self {
-            modules: modules.into_iter().map(MModule::new).map(mutrc_new).collect()
+            modules: modules
+                .into_iter()
+                .map(MModule::new)
+                .map(mutrc_new)
+                .collect(),
         }
     }
 }

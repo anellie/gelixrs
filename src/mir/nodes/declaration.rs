@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/5/19 6:17 PM.
+ * Last modified on 12/15/19 4:19 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,8 +12,8 @@ use std::rc::Rc;
 use indexmap::IndexMap;
 
 use crate::ast::expression::Expression as ASTExpr;
-use crate::mir::nodes::{Expr, InterfacePrototype, Type};
 use crate::mir::MutRc;
+use crate::mir::nodes::{Expr, InterfacePrototype, Type};
 
 /// A full class including all members and methods.
 /// Members are ordered, as the class is represented as a struct in IR;
@@ -266,7 +266,7 @@ impl Variable {
         Rc::new(Variable {
             mutable,
             type_,
-            name: Rc::clone(name)
+            name: Rc::clone(name),
         })
     }
 }

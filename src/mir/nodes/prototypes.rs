@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 2:07 AM.
+ * Last modified on 12/15/19 4:19 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -65,42 +65,41 @@ impl Prototype for ClassPrototype {
         Rc::clone(&self.ast.name.lexeme)
     }
 
-    fn build(&self, arguments: Vec<Type>, err_tok: &Token) -> Res<Type> {
+    fn build(&self, _arguments: Vec<Type>, _err_tok: &Token) -> Res<Type> {
         /*  if let Some(inst) = self.instances.borrow().get(&arguments) {
-              return Ok(Type::Class(Rc::clone(&inst)))
-          }
+            return Ok(Type::Class(Rc::clone(&inst)))
+        }
 
-          gen.builder.push_current_pointer();
+        gen.builder.push_current_pointer();
 
-          let generics = self.ast.generics.as_ref().unwrap();
-          check_generic_arguments(gen, generics, &arguments, err_tok)?;
-          gen.set_type_aliases(generics, &arguments);
+        let generics = self.ast.generics.as_ref().unwrap();
+        check_generic_arguments(gen, generics, &arguments, err_tok)?;
+        gen.set_type_aliases(generics, &arguments);
 
-          let mut ast = self.ast.clone();
-          ast.name.lexeme = Rc::new(format!("{}-{}", ast.name.lexeme, self.instances.borrow().len()));
+        let mut ast = self.ast.clone();
+        ast.name.lexeme = Rc::new(format!("{}-{}", ast.name.lexeme, self.instances.borrow().len()));
 
-          let class = create_class(gen, &mut ast)?;
-          self.instances.borrow_mut().insert(arguments, Rc::clone(&class));
-          fill_class(gen, &ast)?;
+        let class = create_class(gen, &mut ast)?;
+        self.instances.borrow_mut().insert(arguments, Rc::clone(&class));
+        fill_class(gen, &ast)?;
 
-          let mut impls = self.impls.clone();
-          for im in impls.iter_mut() {
-              iface_impl(gen, im, Some(Type::Class(Rc::clone(&class))))?;
-          }
+        let mut impls = self.impls.clone();
+        for im in impls.iter_mut() {
+            iface_impl(gen, im, Some(Type::Class(Rc::clone(&class))))?;
+        }
 
-          gen.generate_constructors(&ast)?;
-          for func in ast.methods.iter().chain(impls.iter().map(|i| i.methods.iter()).flatten()) {
-              gen.generate_function(func)?;
-          }
+        gen.generate_constructors(&ast)?;
+        for func in ast.methods.iter().chain(impls.iter().map(|i| i.methods.iter()).flatten()) {
+            gen.generate_function(func)?;
+        }
 
-          gen.builder.load_last_pointer();
-          gen.clear_type_aliases();
-          Ok(Type::Class(class))
-          */
+        gen.builder.load_last_pointer();
+        gen.clear_type_aliases();
+        Ok(Type::Class(class))
+        */
         unimplemented!()
     }
 }
-
 
 /// See doc on [ClassPrototype].
 #[derive(Debug)]
@@ -115,7 +114,7 @@ impl Prototype for InterfacePrototype {
         Rc::clone(&self.ast.name.lexeme)
     }
 
-    fn build(&self, arguments: Vec<Type>, err_tok: &Token) -> Res<Type> {
+    fn build(&self, _arguments: Vec<Type>, _err_tok: &Token) -> Res<Type> {
         /*
         if let Some(inst) = self.instances.borrow().get(&arguments) {
             return Ok(Type::Interface(Rc::clone(&inst)))
@@ -150,44 +149,49 @@ impl Prototype for FunctionPrototype {
         Rc::clone(&self.ast.sig.name.lexeme)
     }
 
-    fn build(&self, arguments: Vec<Type>, err_tok: &Token) -> Res<Type> {
+    fn build(&self, _arguments: Vec<Type>, _err_tok: &Token) -> Res<Type> {
         /*       if let Some(inst) = self.instances.borrow().get(&arguments) {
-                   return Ok(Type::Function(Rc::clone(&inst.type_.as_function())))
-               }
+                    return Ok(Type::Function(Rc::clone(&inst.type_.as_function())))
+                }
 
-               gen.builder.push_current_pointer();
+                gen.builder.push_current_pointer();
 
-               let generics = self.ast.sig.generics.as_ref().unwrap();
-               check_generic_arguments(gen, generics, &arguments, err_tok)?;
-               gen.set_type_aliases(generics, &arguments);
+                let generics = self.ast.sig.generics.as_ref().unwrap();
+                check_generic_arguments(gen, generics, &arguments, err_tok)?;
+                gen.set_type_aliases(generics, &arguments);
 
-               let old_name = Rc::clone(&self.ast.sig.name.lexeme);
-               self.ast.sig.name.lexeme = Rc::new(format!("{}-{}", old_name, self.instances.borrow().len()));
-               let func = create_function(gen, &self.ast.sig, self.ast.body.is_none())?;
-               gen.generate_function(&self.ast)?;
-               self.ast.sig.name.lexeme = old_name;
+                let old_name = Rc::clone(&self.ast.sig.name.lexeme);
+                self.ast.sig.name.lexeme = Rc::new(format!("{}-{}", old_name, self.instances.borrow().len()));
+                let func = create_function(gen, &self.ast.sig, self.ast.body.is_none())?;
+                gen.generate_function(&self.ast)?;
+                self.ast.sig.name.lexeme = old_name;
 
-               gen.builder.load_last_pointer();
-               gen.clear_type_aliases();
-               self.instances.borrow_mut().insert(arguments, Rc::clone(&func));
-               Ok(Type::Function(func.type_.as_function()))
-       */
+                gen.builder.load_last_pointer();
+                gen.clear_type_aliases();
+                self.instances.borrow_mut().insert(arguments, Rc::clone(&func));
+                Ok(Type::Function(func.type_.as_function()))
+        */
         unimplemented!()
     }
 }
 
-fn check_generic_arguments(
+fn _check_generic_arguments(
     module: &MutRc<MModule>,
-    parameters: &Vec<Token>,
-    arguments: &Vec<Type>,
-    err_tok: &Token
+    parameters: &[Token],
+    arguments: &[Type],
+    err_tok: &Token,
 ) -> Result<(), Error> {
     if parameters.len() != arguments.len() {
-        return Err(Error::new(err_tok, "MIR", format!(
-            "Wrong amount of generic parameters (expected {}; got {})",
-            parameters.len(),
-            arguments.len()
-        ), &module.borrow().path));
+        return Err(Error::new(
+            err_tok,
+            "MIR",
+            format!(
+                "Wrong amount of generic parameters (expected {}; got {})",
+                parameters.len(),
+                arguments.len()
+            ),
+            &module.borrow().path,
+        ));
     }
     Ok(())
 }

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 3:50 PM.
+ * Last modified on 12/15/19 4:19 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -33,10 +33,18 @@ thread_local! {
 /// These modules are collected and executed in order inside mir/generator/module.rs.
 pub trait ModulePass {
     fn get_type(&self) -> PassType;
-    fn run_inspect(&mut self, modules: &Vec<MutRc<MModule>>) -> Res<()> { Ok(()) }
-    fn run_mod(&mut self, module: MutRc<MModule>) -> Result<(), Vec<Error>> { Ok(()) }
-    fn run_type(&mut self, module: Ref<MModule>, ty: &Type) -> Res<()> { Ok(()) }
-    fn run_global(&mut self, module: Ref<MModule>, global: &Rc<Variable>) -> Res<()> { Ok(()) }
+    fn run_inspect(&mut self, _modules: &Vec<MutRc<MModule>>) -> Res<()> {
+        Ok(())
+    }
+    fn run_mod(&mut self, _module: MutRc<MModule>) -> Result<(), Vec<Error>> {
+        Ok(())
+    }
+    fn run_type(&mut self, _module: Ref<MModule>, _ty: &Type) -> Res<()> {
+        Ok(())
+    }
+    fn run_global(&mut self, _module: Ref<MModule>, _global: &Rc<Variable>) -> Res<()> {
+        Ok(())
+    }
 }
 
 /// Defines the type of a pass, and the way the pass will be called.

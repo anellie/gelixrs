@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 3:34 PM.
+ * Last modified on 12/15/19 4:16 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -39,7 +39,7 @@ impl Error {
         tok: &Token,
         producer: &'static str,
         message: String,
-        module: &Rc<ModulePath>
+        module: &Rc<ModulePath>,
     ) -> Error {
         Error {
             line: tok.line,
@@ -47,13 +47,16 @@ impl Error {
             len: tok.lexeme.len(),
             producer,
             message,
-            module: Rc::clone(module)
+            module: Rc::clone(module),
         }
     }
 
     /// Produces a nice looking string representation to be shown to the user.
     pub fn to_string(&self, source: &str) -> String {
-        let mut result = format!("[{}] {}\n--> {} L{}:{}", self.producer, self.message, self.module, self.line, self.start);
+        let result = format!(
+            "[{}] {}\n--> {} L{}:{}",
+            self.producer, self.message, self.module, self.line, self.start
+        );
         let line = source
             .lines()
             .nth(self.line.wrapping_sub(1))

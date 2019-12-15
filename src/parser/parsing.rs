@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 2:05 AM.
+ * Last modified on 12/15/19 4:19 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -431,7 +431,10 @@ impl Parser {
             let last_value = Expression::Binary {
                 left: Box::new(last_value),
                 operator: Token::generic_token(TType::Minus),
-                right: Box::new(Expression::Literal(Literal::I64(1), Token::generic_token(TType::Int))),
+                right: Box::new(Expression::Literal(
+                    Literal::I64(1),
+                    Token::generic_token(TType::Int),
+                )),
             };
 
             let variable = Expression::VarDef(Box::new(Variable {
@@ -440,7 +443,10 @@ impl Parser {
                 initializer: Expression::Binary {
                     left: Box::new(initial_value),
                     operator: Token::generic_token(TType::Minus),
-                    right: Box::new(Expression::Literal(Literal::I64(1), Token::generic_token(TType::Int))),
+                    right: Box::new(Expression::Literal(
+                        Literal::I64(1),
+                        Token::generic_token(TType::Int),
+                    )),
                 },
             }));
 
@@ -449,7 +455,10 @@ impl Parser {
                 value: Box::new(Expression::Binary {
                     left: Box::new(Expression::Variable(variable_name.clone())),
                     operator: Token::generic_token(TType::Plus),
-                    right: Box::new(Expression::Literal(Literal::I64(1), Token::generic_token(TType::Int))),
+                    right: Box::new(Expression::Literal(
+                        Literal::I64(1),
+                        Token::generic_token(TType::Int),
+                    )),
                 }),
             };
 
@@ -462,15 +471,21 @@ impl Parser {
 
             let for_loop = Expression::For {
                 condition: Box::new(Expression::Binary {
-                    left: Box::new(Expression::Variable(variable_name.clone())),
+                    left: Box::new(Expression::Variable(variable_name)),
                     operator: Token::generic_token(TType::BangEqual),
                     right: Box::new(last_value),
                 }),
-                body: Box::new(Expression::Block(vec![var_increment, body], Token::generic_token(TType::RightBrace))),
+                body: Box::new(Expression::Block(
+                    vec![var_increment, body],
+                    Token::generic_token(TType::RightBrace),
+                )),
                 else_b,
             };
 
-            Some(Expression::Block(vec![variable, for_loop], Token::generic_token(TType::RightBrace)))
+            Some(Expression::Block(
+                vec![variable, for_loop],
+                Token::generic_token(TType::RightBrace),
+            ))
         } else {
             // for (condition)
             let condition = Box::new(self.expression()?);
@@ -558,7 +573,8 @@ impl Parser {
 
         let body = self.expression()?;
 
-        Some(Expression::Literal(Literal::Closure(Rc::new(Function {
+        Some(Expression::Literal(
+            Literal::Closure(Rc::new(Function {
             sig: FuncSignature {
                 name: Token::generic_identifier("closure".to_string()),
                 visibility: Visibility::Module,
@@ -567,7 +583,9 @@ impl Parser {
                 generics: None,
             },
             body: Some(body),
-        })), tok))
+            })),
+            tok,
+        ))
     }
 
     fn assignment(&mut self) -> Option<Expression> {
@@ -710,9 +728,10 @@ impl Parser {
             }
             self.consume(TType::Comma, "Expected ']' or ',' after array value.")?;
         }
-        Some(Expression::Literal(Literal::Array(Either::Left(Rc::new(
-            values,
-        ))), self.advance()))
+        Some(Expression::Literal(
+            Literal::Array(Either::Left(Rc::new(values))),
+            self.advance(),
+        ))
     }
 
     fn integer(&mut self) -> Option<Expression> {
@@ -723,7 +742,8 @@ impl Parser {
     }
 
     fn make_int_literal(&mut self, num: &str, type_: &str, tok: Token) -> Option<Expression> {
-        Some(Expression::Literal(match &type_[..] {
+        Some(Expression::Literal(
+            match &type_[..] {
             "8" => Literal::I8(num.parse().ok()?),
             "16" => Literal::I16(num.parse().ok()?),
             "32" => Literal::I32(num.parse().ok()?),
@@ -732,15 +752,20 @@ impl Parser {
                 self.error_at_current("Invalid integer size.")?;
                 return None;
             }
-        }, tok))
+            },
+            tok,
+        ))
     }
 
     fn float(&mut self) -> Option<Expression> {
         let token = self.advance();
-        Some(Expression::Literal(match &token.lexeme[..1] {
+        Some(Expression::Literal(
+            match &token.lexeme[..1] {
             "f" => Literal::F32(token.lexeme.parse().ok()?),
             _ => Literal::F64(token.lexeme.parse().ok()?),
-        }, token))
+            },
+            token,
+        ))
     }
 
     fn string(&mut self) -> Expression {
@@ -849,7 +874,8 @@ impl Parser {
                     }
                 }
 
-                let closing_paren = self.consume(TType::RightParen, "Expected ')' after closure parameters.")?;
+                let closing_paren =
+                    self.consume(TType::RightParen, "Expected ')' after closure parameters.")?;
 
                 let ret_type = if self.match_token(TType::Arrow) {
                     Some(Box::new(self.type_("Expected return type after '->'.")?))
@@ -857,7 +883,11 @@ impl Parser {
                     None
                 };
 
-                Type::Closure { params, ret_type, closing_paren }
+                Type::Closure {
+                    params,
+                    ret_type,
+                    closing_paren,
+                }
             }
 
             _ => {

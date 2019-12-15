@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 3:36 PM.
+ * Last modified on 12/15/19 4:19 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -10,7 +10,7 @@
 //! overloading interfaces into actually changing the behavior
 //! of the expression.
 
-use std::cell::{Ref, RefCell, RefMut};
+use std::cell::{Ref, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -31,7 +31,7 @@ pub struct Intrinsics {
 }
 
 impl Intrinsics {
-    pub fn get_op_iface(&self, ty: TType) -> MutRc<dyn Prototype> {
+    pub fn _get_op_iface(&self, ty: TType) -> MutRc<dyn Prototype> {
         Rc::clone(&self.ops[&ty])
     }
 

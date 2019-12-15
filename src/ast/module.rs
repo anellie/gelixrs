@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 3:36 PM.
+ * Last modified on 12/15/19 4:16 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -15,10 +15,15 @@ pub struct ModulePath(pub Vec<Rc<String>>);
 
 impl Display for ModulePath {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-        write!(f, "{}", self.0.iter()
-            .map(|rc| (&**rc).clone())
-            .collect::<Vec<String>>()
-            .join("/"))
+        write!(
+            f,
+            "{}",
+            self.0
+                .iter()
+                .map(|rc| (&**rc).clone())
+                .collect::<Vec<String>>()
+                .join("/")
+        )
     }
 }
 

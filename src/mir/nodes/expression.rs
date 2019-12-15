@@ -1,18 +1,18 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/5/19 9:46 AM.
+ * Last modified on 12/15/19 4:16 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::mem;
 use std::cell::RefCell;
 use std::fmt::{Display, Error, Formatter};
+use std::mem;
 use std::rc::Rc;
 
 use crate::ast::expression::LOGICAL_BINARY;
 use crate::ast::Literal;
 use crate::lexer::token::TType;
-use crate::mir::nodes::{Type, Variable, ClassMember};
+use crate::mir::nodes::{ClassMember, Type, Variable};
 
 /// All expressions in MIR. All of them produce a value.
 /// Expressions are in blocks in functions. Gelix does not have statements.
@@ -52,19 +52,13 @@ pub enum Expr {
     Literal(Literal),
 
     /// A unary expression on numbers.
-    Unary {
-        operator: TType,
-        right: Box<Expr>,
-    },
+    Unary { operator: TType, right: Box<Expr> },
 
     /// Returns a variable.
     VarGet(Rc<Variable>),
 
     /// Stores a value inside a variable.
-    VarStore {
-        var: Rc<Variable>,
-        value: Box<Expr>,
-    },
+    VarStore { var: Rc<Variable>, value: Box<Expr> },
 }
 
 impl Expr {
@@ -112,11 +106,7 @@ impl Expr {
         }
     }
 
-    pub fn struct_set(
-        object: Expr,
-        field: Rc<ClassMember>,
-        value: Expr,
-    ) -> Expr {
+    pub fn struct_set(object: Expr, field: Rc<ClassMember>, value: Expr) -> Expr {
         Expr::StructSet {
             object: Box::new(object),
             index: field.index,
@@ -174,9 +164,7 @@ impl Expr {
 
             Expr::StructGet { object, index } => Self::type_from_struct_get(object, *index),
 
-            Expr::StructSet { object, index, .. } => {
-                Self::type_from_struct_get(object, *index)
-            }
+            Expr::StructSet { object, index, .. } => Self::type_from_struct_get(object, *index),
 
             Expr::Literal(literal) => match literal {
                 Literal::Any => Type::Any,

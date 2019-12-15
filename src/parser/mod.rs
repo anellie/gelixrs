@@ -1,19 +1,19 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/12/19 11:25 AM.
+ * Last modified on 12/15/19 4:19 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::{iter::Peekable, mem};
+use std::rc::Rc;
 
-use crate::parser::parsing::MODIFIERS;
 use crate::{Error, ModulePath};
+use crate::parser::parsing::MODIFIERS;
 
 use super::lexer::{
-    token::{TType, Token},
     Lexer,
+    token::{Token, TType},
 };
-use std::rc::Rc;
 
 mod parsing;
 
@@ -130,7 +130,12 @@ impl Parser {
     /// Will set appropriate state.
     /// Returns None; allows returning from calling function with ?
     fn error_at_current(&mut self, message: &str) -> Option<()> {
-        let error = Error::new(&self.current, "Parser", message.to_string(), &self.module_path);
+        let error = Error::new(
+            &self.current,
+            "Parser",
+            message.to_string(),
+            &self.module_path,
+        );
         self.errors.push(error);
         None
     }
@@ -141,7 +146,7 @@ impl Parser {
             &self.current,
             "Lexer",
             (*self.current.lexeme).clone(),
-            &self.module_path
+            &self.module_path,
         );
         self.errors.push(error);
     }
