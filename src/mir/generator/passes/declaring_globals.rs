@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 10:53 PM.
+ * Last modified on 12/15/19 11:28 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -9,7 +9,7 @@ use std::rc::Rc;
 use either::Either;
 
 use crate::ast;
-use crate::ast::declaration::FuncSignature;
+use crate::ast::declaration::{FuncSignature, FunctionArg};
 use crate::ast::Module;
 use crate::ast::module::ModulePath;
 use crate::error::{Errors, Res};
@@ -34,7 +34,7 @@ impl PreMIRPass for DeclareGlobals {
 
         for function in ast.functions.drain(..) {
             let is_ext = function.body.is_none();
-            create_function(&module, &builder, Either::Right(function), is_ext)
+            create_function(&builder, Either::Right(function), is_ext, None)
                 .map_err(|e| errs.push(e))
                 .ok();
         }
@@ -47,18 +47,27 @@ impl PreMIRPass for DeclareGlobals {
     }
 }
 
+/// Creates a function.
+/// this_arg indicates that the function is a method
+/// with some kind of receiver, with the 'this' parameter
+/// added to the 0th position of the parameters and the
+/// function renamed to '$receiver-$name'.
 pub fn create_function(
-    module: &MutRc<MModule>,
     builder: &MIRBuilder,
     func: Either<&FuncSignature, ast::Function>,
     is_external: bool,
+    this_arg: Option<FunctionArg>
 ) -> Res<Rc<Variable>> {
+    let module = &builder.module;
     let func_sig = match &func {
         Either::Left(sig) => sig,
         Either::Right(func) => &func.sig,
     };
 
-    let name = func_sig.name.clone();
+    let mut name = func_sig.name.clone();
+    if let Some(arg) = &this_arg {
+        name.lexeme = Rc::new(format!("{}-{}", arg.type_, name.lexeme));
+    }
     module.borrow_mut().try_reserve_name(&name)?;
 
     let name_str = if is_external {
@@ -74,7 +83,7 @@ pub fn create_function(
         .unwrap_or(Ok(Type::None))?;
 
     let mut parameters = Vec::with_capacity(func_sig.parameters.len());
-    for param in func_sig.parameters.iter() {
+    for param in this_arg.iter().chain(func_sig.parameters.iter()) {
         parameters.push(Rc::new(Variable {
             mutable: false,
             name: Rc::clone(&param.name.lexeme),

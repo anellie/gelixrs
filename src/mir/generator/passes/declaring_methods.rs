@@ -1,13 +1,26 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 10:53 PM.
+ * Last modified on 12/15/19 11:35 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use crate::error::Error;
+use std::collections::HashSet;
+use std::rc::Rc;
+
+use either::Either::Left;
+
+use crate::ast::{Class as ASTClass, Expression};
+use crate::ast::declaration::{Constructor, FuncSignature, FunctionArg, Visibility};
+use crate::ast::Type as ASTType;
+use crate::error::{Error, Res};
+use crate::lexer::token::{Token, TType};
 use crate::mir::{MModule, MutRc};
+use crate::mir::generator::builder::MIRBuilder;
 use crate::mir::generator::passes::{ModulePass, PassType};
-use crate::mir::nodes::Type;
+use crate::mir::generator::passes::declaring_globals::create_function;
+use crate::mir::nodes::{Block, Class, Expr, Type, Variable};
+use crate::mir::result::ToMIRResult;
+use crate::option::Flatten;
 
 /// This pass defines all methods on classes and interfaces.
 pub struct DeclareMethods();
@@ -17,35 +30,42 @@ impl ModulePass for DeclareMethods {
         PassType::Type
     }
 
-    fn run_type(&mut self, _module: &MutRc<MModule>, _ty: Type) -> Result<(), Error> {
-        unimplemented!()
+    fn run_type(&mut self, module: &MutRc<MModule>, ty: Type) -> Result<(), Error> {
+        if let Type::Class(cls) = ty {
+            let mut builder = MIRBuilder::new(module);
+            declare_for_class(&mut builder, cls)?
+        }
+        Ok(())
     }
 }
 
-/*
-fn declare_for_class(module: Ref<MModule>, class: MutRc<Class>) -> Res<()> {
-    let init_fn_sig = get_instantiator_fn_sig(class);
-    let this_arg = FunctionArg::this_arg(&class.name);
-    maybe_add_default_constructor(class);
+fn declare_for_class(builder: &mut MIRBuilder, class: MutRc<Class>) -> Res<()> {
+    let ast = Rc::clone(&class.borrow().ast);
+    let this_arg = FunctionArg::this_arg(&ast.name);
 
-    mir_class.instantiator = create_function(gen, &init_fn_sig, false)?;
+    // Do the instantiator
+    let init_fn_sig = get_instantiator_fn_sig(&ast);
+    class.borrow_mut().instantiator = create_function(builder, Left(&init_fn_sig), false, None)?;
 
     // Do all user-defined methods
-    for method in class.methods.iter_mut() {
-        let method_name = modify_method_sig(&class.name.lexeme, &mut method.sig, &this_arg);
-        let mir_method = create_function(gen, &method.sig, false)?;
-        mir_class.methods.insert(method_name, mir_method);
+    for method in ast.methods.iter() {
+        let mir_method = create_function(builder, Left(&method.sig), false, Some(this_arg.clone()))?;
+        class.borrow_mut().methods.insert(Rc::clone(&method.sig.name.lexeme), mir_method);
     }
 
-    let mut constructor_list = HashSet::with_capacity(class.constructors.len());
-    for (i, constructor) in class.constructors.iter().enumerate() {
-        let sig = get_constructor_sig(gen, &class, constructor, &this_arg, i)?;
-        let mir_var = create_function(gen, &sig, false)?;
+    // Do all constructors
+    let mut constructor_list = HashSet::with_capacity(ast.constructors.len());
+
+    let default = maybe_default_constructor(&ast);
+    let iter = ast.constructors.iter().chain(default.iter()).enumerate();
+    for (i, constructor) in iter {
+        let sig = get_constructor_sig(builder, &ast, constructor, &this_arg, i)?;
+        let mir_var = create_function(builder, Left(&sig), false, None)?;
         let mir_fn = mir_var.type_.as_function();
         let mut mir_fn = mir_fn.borrow_mut();
-        let block = insert_constructor_setters(gen, &class, constructor, &mir_fn.parameters)?;
+        let block = insert_constructor_setters(builder, &ast, constructor, &mir_fn.parameters)?;
         mir_fn.blocks.insert(Rc::new("entry".to_string()), block);
-        mir_class.constructors.push(Rc::clone(&mir_var));
+        class.borrow_mut().constructors.push(Rc::clone(&mir_var));
 
         let params = mir_fn
             .parameters
@@ -53,36 +73,35 @@ fn declare_for_class(module: Ref<MModule>, class: MutRc<Class>) -> Res<()> {
             .skip(1)
             .map(|p| &p.type_)
             .cloned()
-            .collect::<Vec<MType>>();
+            .collect::<Vec<Type>>();
         if !constructor_list.insert(params) {
-            return Err(gen.error(
-                &class.name,
-                &class.name,
-                "Class contains constructors with duplicate signatures.",
+            return Err(Error::new(
+                &ast.name,
+                "MIR",
+                "Class contains constructors with duplicate signatures.".to_string(),
+                &builder.path
             ));
         }
     }
 
-    gen.builder.generic_types.clear();
-    drop(mir_class);
-    Ok(mir_class_rc)
+    Ok(())
 }
 
 /// Returns signature of the class instantiator.
-fn get_instantiator_fn_sig(class: &mut ASTClass) -> FuncSignature {
+fn get_instantiator_fn_sig(class: &ASTClass) -> FuncSignature {
     let fn_name = Token::generic_identifier(format!("create-{}-instance", &class.name.lexeme));
     FuncSignature {
         name: fn_name,
         visibility: Visibility::Public,
         generics: None,
-        return_type: Some(Type::Ident(class.name.clone())),
+        return_type: Some(ASTType::Ident(class.name.clone())),
         parameters: vec![],
     }
 }
 
 /// Returns the MIR function signature of a class constructor.
 fn get_constructor_sig(
-    gen: &mut MIRGenerator,
+    builder: &mut MIRBuilder,
     class: &ASTClass,
     constructor: &Constructor,
     this_arg: &FunctionArg,
@@ -97,7 +116,7 @@ fn get_constructor_sig(
                 .clone()
                 .or_else(|| get_field_by_name(class, name).map(|(_, ty)| ty).flatten_())
                 .or_err(
-                    gen,
+                    &builder.path,
                     name,
                     "Cannot infer type of field with default value (specify type explicitly.)",
                 )?;
@@ -117,7 +136,7 @@ fn get_constructor_sig(
     })
 }
 
-fn get_field_by_name(class: &ASTClass, name: &Token) -> Option<(usize, Option<Type>)> {
+fn get_field_by_name(class: &ASTClass, name: &Token) -> Option<(usize, Option<ASTType>)> {
     class
         .variables
         .iter()
@@ -129,7 +148,7 @@ fn get_field_by_name(class: &ASTClass, name: &Token) -> Option<(usize, Option<Ty
 /// Insert all constructor 'setter' parameters into the entry
 /// block of the MIR function.
 fn insert_constructor_setters(
-    gen: &mut MIRGenerator,
+    builder: &mut MIRBuilder,
     class: &ASTClass,
     constructor: &Constructor,
     mir_fn_params: &Vec<Rc<Variable>>,
@@ -142,39 +161,26 @@ fn insert_constructor_setters(
         .filter(|(_, (_, ty))| ty.is_none())
         {
             let (field_index, _) =
-                get_field_by_name(class, param).or_err(gen, param, "Unknown class field.")?;
-            block.push(Expr::StructSet {
-                object: Box::new(Expr::VarGet(Rc::clone(&mir_fn_params[0]))),
-                index: field_index as u32,
-                value: Box::new(Expr::VarGet(Rc::clone(&mir_fn_params[index + 1]))),
-            })
+                get_field_by_name(class, param).or_err(&builder.path, param, "Unknown class field.")?;
+            block.push(Expr::struct_set_index(
+                Expr::load(&mir_fn_params[0]),
+                field_index,
+                Expr::load(&mir_fn_params[index + 1]),
+            ))
         }
     Ok(block)
 }
 
-/// Will add a default constructor with no parameters
-/// should the class not contain any other constructors.
-fn maybe_add_default_constructor(class: &mut ASTClass) {
+/// Will return a default constructor with no parameters
+/// should the class not contain a constructor.
+fn maybe_default_constructor(class: &ASTClass) -> Option<Constructor> {
     if class.constructors.is_empty() {
-        class.constructors.push(Constructor {
+        Some(Constructor {
             parameters: vec![],
             visibility: Visibility::Public,
-            body: ASTExpr::Block(vec![]),
+            body: Expression::Block(vec![], Token::generic_token(TType::RightBrace)),
         })
+    } else {
+        None
     }
 }
-
-/// Modify the AST method signature to fit MIR codegen requirements.
-fn modify_method_sig(
-    class_name: &Rc<String>,
-    method: &mut FuncSignature,
-    this_arg: &FunctionArg,
-) -> Rc<String> {
-    let old_name = Rc::clone(&method.name.lexeme);
-    // Change the method name to $class-$method to prevent name collisions
-    method.name.lexeme = Rc::new(format!("{}-{}", class_name, method.name.lexeme));
-    // Add implicit this arg
-    method.parameters.insert(0, this_arg.clone());
-    old_name
-}
-*/

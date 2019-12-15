@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 5:15 PM.
+ * Last modified on 12/15/19 11:25 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -110,6 +110,14 @@ impl Expr {
         Expr::StructSet {
             object: Box::new(object),
             index: field.index,
+            value: Box::new(value),
+        }
+    }
+
+    pub fn struct_set_index(object: Expr, index: usize, value: Expr) -> Expr {
+        Expr::StructSet {
+            object: Box::new(object),
+            index: index as u32,
             value: Box::new(value),
         }
     }

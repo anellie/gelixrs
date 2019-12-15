@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 10:53 PM.
+ * Last modified on 12/15/19 11:08 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -28,7 +28,7 @@ pub struct MIRBuilder {
     pub path: Rc<ModulePath>,
 
     /// The module this builder is linked to.
-    module: MutRc<MModule>,
+    pub module: MutRc<MModule>,
 
     /// A map of all type aliases, where the key
     /// will be translated to the value when encountered
