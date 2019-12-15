@@ -10,8 +10,8 @@ use std::rc::Rc;
 use crate::ast::Type as ASTType;
 use crate::error::{Error, Res};
 use crate::lexer::token::Token;
-use crate::mir::{MModule, MutRc};
 use crate::mir::nodes::{Type, Variable};
+use crate::mir::{MModule, MutRc};
 
 pub mod declaring_globals;
 pub mod declaring_types;

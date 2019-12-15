@@ -8,9 +8,11 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::error::Error;
-use crate::mir::{MModule, MutRc, mutrc_new};
 use crate::mir::generator::passes::{ModulePass, PassType};
-use crate::mir::nodes::{ClassPrototype, FunctionPrototype, InterfacePrototype, Prototype, Prototypes};
+use crate::mir::nodes::{
+    ClassPrototype, FunctionPrototype, InterfacePrototype, Prototype, Prototypes,
+};
+use crate::mir::{mutrc_new, MModule, MutRc};
 
 /// This pass removes all types/functions with generic parameters
 /// from the AST list, since they are handled separately.

@@ -16,8 +16,8 @@ use std::rc::Rc;
 
 use crate::error::{Error, Res};
 use crate::lexer::token::TType;
+use crate::mir::nodes::{InterfacePrototype, Prototypes, Variable};
 use crate::mir::{MModule, MutRc};
-use crate::mir::nodes::{InterfacePrototype, Prototype, Prototypes, Variable};
 
 thread_local! {
     pub static INTRINSICS: RefCell<Intrinsics> = RefCell::new(Intrinsics::default());
@@ -38,7 +38,11 @@ impl Intrinsics {
     // Only call this with the std/ops module, containing all operator interfaces
     pub fn fill_ops_table(&mut self, module: Ref<MModule>) {
         for (name, iface) in module.protos.iter() {
-            let iface = if let Prototypes::Interface(iface) = iface.proto.clone() { iface } else { panic!() };
+            let iface = if let Prototypes::Interface(iface) = iface.proto.clone() {
+                iface
+            } else {
+                panic!()
+            };
             match &name[..] {
                 "Add" => self.ops.insert(TType::Plus, iface),
                 "Sub" => self.ops.insert(TType::Minus, iface),

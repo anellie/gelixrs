@@ -65,6 +65,11 @@ pub enum Type {
 }
 
 impl Type {
+    /// Is this type a number?
+    pub fn is_number(&self) -> bool {
+        self.is_int() || self.is_float()
+    }
+
     /// Is this type an integer?
     pub fn is_int(&self) -> bool {
         match self {

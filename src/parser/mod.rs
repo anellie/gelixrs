@@ -4,15 +4,15 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::{iter::Peekable, mem};
 use std::rc::Rc;
+use std::{iter::Peekable, mem};
 
-use crate::{Error, ModulePath};
 use crate::parser::parsing::MODIFIERS;
+use crate::{Error, ModulePath};
 
 use super::lexer::{
+    token::{TType, Token},
     Lexer,
-    token::{Token, TType},
 };
 
 mod parsing;

@@ -10,8 +10,8 @@ use std::rc::Rc;
 
 use nodes::Variable;
 
-use crate::ast::Module;
 use crate::ast::module::ModulePath;
+use crate::ast::Module;
 use crate::error::{Error, Res};
 use crate::lexer::token::Token;
 use crate::mir::nodes::{IFaceImpls, Prototype, Type};
@@ -66,7 +66,7 @@ pub struct MModule {
 }
 
 impl MModule {
-    pub fn find_type(&self, name: &Rc<String>) -> Option<Type> {
+    pub fn find_type(&self, name: &String) -> Option<Type> {
         self.types
             .get(name)
             .or_else(|| self.imports.types.get(name))
@@ -79,7 +79,7 @@ impl MModule {
             })
     }
 
-    pub fn find_prototype(&self, name: &Rc<String>) -> Option<Prototype> {
+    pub fn find_prototype(&self, name: &String) -> Option<Prototype> {
         self.protos
             .get(name)
             .or_else(|| self.imports.protos.get(name))
@@ -92,7 +92,7 @@ impl MModule {
             })
     }
 
-    pub fn find_global(&self, name: &Rc<String>) -> Option<Rc<Variable>> {
+    pub fn find_global(&self, name: &String) -> Option<Rc<Variable>> {
         self.globals
             .get(name)
             .or_else(|| self.imports.globals.get(name))

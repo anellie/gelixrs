@@ -7,9 +7,9 @@
 use std::rc::Rc;
 
 use crate::error::Error;
-use crate::mir::{MModule, MutRc, mutrc_new};
 use crate::mir::generator::passes::{ModulePass, PassType};
 use crate::mir::nodes::{Class, Interface, Type};
+use crate::mir::{mutrc_new, MModule, MutRc};
 
 /// This pass defines all types inside the module; currently classes and interfaces.
 /// It only creates a stub MIR definition and inserts it as a type;

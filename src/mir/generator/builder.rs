@@ -11,9 +11,9 @@ use crate::ast::module::ModulePath;
 use crate::ast::Type as ASTType;
 use crate::error::Res;
 use crate::lexer::token::Token;
-use crate::mir::{IFACE_IMPLS, MModule, MutRc};
 use crate::mir::nodes::Variable;
 use crate::mir::result::ToMIRResult;
+use crate::mir::{MModule, MutRc, IFACE_IMPLS};
 
 use super::super::nodes::Type;
 
@@ -49,13 +49,13 @@ impl MIRBuilder {
                 let ty = self.find_type_by_name(&tok);
                 let ty = ty.or_else(|| Some(self.type_aliases.get(&tok.lexeme)?.clone()));
                 ty.or_type_err(&self.path, ast, "Unknown type.")?
-            },
+            }
 
             ASTType::Array(_) => unimplemented!(),
 
             ASTType::Closure { .. } => unimplemented!(),
 
-            ASTType::Generic { .. } => unimplemented!()
+            ASTType::Generic { .. } => unimplemented!(),
         })
     }
 
@@ -98,14 +98,20 @@ impl MIRBuilder {
     }
 
     pub fn push_type_aliases(&mut self, params: &Vec<Token>, args: &Vec<Type>) {
-        self.type_aliases.extend(params.iter().map(|t| &t.lexeme).cloned().zip(args.iter().cloned()));
+        self.type_aliases.extend(
+            params
+                .iter()
+                .map(|t| &t.lexeme)
+                .cloned()
+                .zip(args.iter().cloned()),
+        );
     }
 
     pub fn new(module: &MutRc<MModule>) -> MIRBuilder {
         MIRBuilder {
             path: Rc::clone(&module.borrow().path),
             module: Rc::clone(module),
-            type_aliases: HashMap::new()
+            type_aliases: HashMap::new(),
         }
     }
 }

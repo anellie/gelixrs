@@ -12,8 +12,8 @@ use std::rc::Rc;
 use indexmap::IndexMap;
 
 use crate::ast::expression::Expression as ASTExpr;
-use crate::mir::MutRc;
 use crate::mir::nodes::{Expr, InterfacePrototype, Type};
+use crate::mir::MutRc;
 
 /// A full class including all members and methods.
 /// Members are ordered, as the class is represented as a struct in IR;

@@ -6,7 +6,6 @@
 
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
 use crate::ast::Class as ASTClass;
@@ -15,8 +14,8 @@ use crate::ast::IFaceImpl as ASTImpl;
 use crate::ast::Interface as ASTIFace;
 use crate::error::{Error, Res};
 use crate::lexer::token::Token;
-use crate::mir::{MModule, MutRc};
 use crate::mir::nodes::{Class, Interface, Type, Variable};
+use crate::mir::{MModule, MutRc};
 
 /// A prototype that classes can be instantiated from.
 /// This prototype is kept in AST form,
@@ -42,7 +41,7 @@ pub struct Prototype {
 }
 
 impl Prototype {
-    fn build(&self, arguments: Vec<Type>, err_tok: &Token) -> Res<Type> {
+    pub fn build(&self, arguments: Vec<Type>, err_tok: &Token) -> Res<Type> {
         match &self.proto {
             Prototypes::Class(class) => class.borrow().build(arguments, err_tok),
             Prototypes::Interface(iface) => iface.borrow().build(arguments, err_tok),

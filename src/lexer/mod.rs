@@ -8,7 +8,7 @@ use std::convert::TryInto;
 use std::iter::FromIterator;
 use std::rc::Rc;
 
-use token::{Token, TType};
+use token::{TType, Token};
 
 pub mod token;
 

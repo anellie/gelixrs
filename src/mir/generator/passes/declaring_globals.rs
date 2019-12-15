@@ -9,12 +9,12 @@ use std::rc::Rc;
 use crate::ast::declaration::FuncSignature;
 use crate::ast::module::ModulePath;
 use crate::error::{Error, Res};
-use crate::mir::{MModule, MutRc, mutrc_new};
 use crate::mir::generator::builder::MIRBuilder;
 use crate::mir::generator::intrinsics::INTRINSICS;
 use crate::mir::generator::passes::{ModulePass, PassType};
 use crate::mir::nodes::{Function, Type, Variable};
 use crate::mir::result::ToMIRResult;
+use crate::mir::{mutrc_new, MModule, MutRc};
 
 /// This pass defines all globals inside the module; currently only functions.
 /// It only creates a signature and inserts it into the module;
