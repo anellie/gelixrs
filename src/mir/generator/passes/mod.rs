@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 3:36 PM.
+ * Last modified on 12/15/19 3:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -13,6 +13,7 @@ use crate::lexer::token::Token;
 use crate::mir::{MModule, MutRc};
 use crate::mir::nodes::{Type, Variable};
 
+pub mod declaring_globals;
 pub mod declaring_types;
 pub mod filter_prototypes;
 pub mod populate_intrinsics;

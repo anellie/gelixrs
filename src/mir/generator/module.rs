@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 3:36 PM.
+ * Last modified on 12/15/19 4:08 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,6 +11,7 @@ use crate::error::{Error, Errors, Res};
 use crate::mir::{MModule, MutRc, mutrc_new};
 use crate::mir::generator::intrinsics::INTRINSICS;
 use crate::mir::generator::passes::{ModulePass, PassType};
+use crate::mir::generator::passes::declaring_globals::DeclareGlobals;
 use crate::mir::generator::passes::declaring_types::DeclareTypes;
 use crate::mir::generator::passes::filter_prototypes::FilterPrototypes;
 use crate::mir::generator::passes::populate_intrinsics::PopulateIntrinsics;
@@ -32,6 +33,7 @@ impl PassRunner {
         let mut passes: Vec<Box<dyn ModulePass>> = vec![
             Box::new(FilterPrototypes()),
             Box::new(DeclareTypes()),
+            Box::new(DeclareGlobals()),
             Box::new(PopulateIntrinsics()),
             Box::new(ValidateIntrinsics())
         ];
