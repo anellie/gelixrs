@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 2:07 AM.
+ * Last modified on 12/15/19 2:13 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -56,7 +56,7 @@ impl Error {
         let mut result = format!("[{}] {}\n--> {} L{}:{}", self.producer, self.message, self.module, self.line, self.start);
         let line = source
             .lines()
-            .nth(self.line - 1)
+            .nth(self.line.wrapping_sub(1))
             .unwrap_or("<unexpected end of file>");
         format!(
             "{}\n     |\n{:04} | {}\n     |{}{}",
