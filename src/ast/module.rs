@@ -10,7 +10,7 @@ use crate::ast::declaration::{Class, Function, IFaceImpl, Interface};
 use crate::lexer::token::Token;
 use std::fmt::{Display, Formatter, Error};
 
-#[derive(Clone, Debug, Default, PartialOrd, PartialEq)]
+#[derive(Clone, Debug, Default, PartialOrd, PartialEq, Eq, Hash)]
 pub struct ModulePath(pub Vec<Rc<String>>);
 
 impl Display for ModulePath {

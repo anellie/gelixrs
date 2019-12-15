@@ -13,17 +13,16 @@ use crate::ast::Class as ASTClass;
 use crate::ast::Function as ASTFunc;
 use crate::ast::IFaceImpl as ASTImpl;
 use crate::ast::Interface as ASTIFace;
-use crate::ast::Type as ASTType;
 use crate::lexer::token::Token;
-use crate::mir::generator::{MIRError, MIRGenerator};
+use crate::mir::generator::MIRGenerator;
 use crate::mir::generator::passes::declare_class::create_class;
 use crate::mir::generator::passes::declare_func::create_function;
 use crate::mir::generator::passes::declare_interface::create_interface;
 use crate::mir::generator::passes::fill_class::fill_class;
 use crate::mir::generator::passes::iface_impl::iface_impl;
-use crate::mir::MutRc;
+use crate::mir::{MutRc, MModule};
 use crate::mir::nodes::{Class, Interface, Type, Variable};
-use crate::option::Flatten;
+use crate::error::{Res, Error};
 
 /// A prototype that classes can be instantiated from.
 /// This prototype is kept in AST form,
@@ -43,10 +42,24 @@ use crate::option::Flatten;
 /// (Also, this missing check does not lead to unsound compiled code -
 /// not producing unsound code is the most important reason of type checking.)
 pub trait Prototype {
-    fn build(&self, arguments: Vec<Type>, err_tok: &Token) -> Res<Type>;
+    /// A simple function that returns the name for Eq and Hash traits.
+    fn name(&self) -> Rc<String>;
+    /// Build the prototype into a type.
+    fn build(&self, module: &MutRc<MModule>, arguments: Vec<Type>, err_tok: &Token) -> Res<Type>;
 }
 
-#[derive(Debug)]
+impl PartialEq for dyn Prototype {
+    fn eq(&self, other: &Self) -> bool {
+        self.name() == other.name()
+    }
+}
+
+impl Hash for dyn Prototype {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.name().hash(state)
+    }
+}
+
 pub struct ClassPrototype {
     pub ast: ASTClass,
     pub impls: Vec<ASTImpl>,
@@ -54,9 +67,13 @@ pub struct ClassPrototype {
 }
 
 impl Prototype for ClassPrototype {
-    fn build(&self,arguments: Vec<Type>, err_tok: &Token) -> Res<Type> {
+    fn name(&self) -> Rc<String> {
+        Rc::clone(&self.ast.name.lexeme)
+    }
+
+    fn build(&self, module: &MutRc<MModule>, arguments: Vec<Type>, err_tok: &Token) -> Res<Type> {
         if let Some(inst) = self.instances.borrow().get(&arguments) {
-            return Ok(Rc::clone(&inst))
+            return Ok(Type::Class(Rc::clone(&inst)))
         }
 
         gen.builder.push_current_pointer();
@@ -88,17 +105,6 @@ impl Prototype for ClassPrototype {
     }
 }
 
-impl PartialEq for ClassPrototype {
-    fn eq(&self, other: &Self) -> bool {
-        self.ast.name.lexeme == other.ast.name.lexeme
-    }
-}
-
-impl Hash for ClassPrototype {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.ast.name.lexeme.hash(state)
-    }
-}
 
 /// See doc on [ClassPrototype].
 #[derive(Debug)]
@@ -109,9 +115,13 @@ pub struct InterfacePrototype {
 }
 
 impl Prototype for InterfacePrototype {
-    fn build(&self,arguments: Vec<Type>, err_tok: &Token) -> Res<Type> {
+    fn name(&self) -> Rc<String> {
+        Rc::clone(&self.ast.name.lexeme)
+    }
+
+    fn build(&self, module: &MutRc<MModule>, arguments: Vec<Type>, err_tok: &Token) -> Res<Type> {
         if let Some(inst) = self.instances.borrow().get(&arguments) {
-            return Ok(Rc::clone(&inst))
+            return Ok(Type::Interface(Rc::clone(&inst)))
         }
 
         gen.builder.push_current_pointer();
@@ -131,23 +141,19 @@ impl Prototype for InterfacePrototype {
     }
 }
 
-impl PartialEq for InterfacePrototype {
-    fn eq(&self, other: &Self) -> bool {
-        self.ast.name.lexeme == other.ast.name.lexeme
-    }
-}
-
-/// A function. See notes on [ClassPrototype].
-#[derive(Debug)]
 pub struct FunctionPrototype {
     pub ast: ASTFunc,
     pub instances: RefCell<HashMap<Vec<Type>, Rc<Variable>>>,
 }
 
 impl Prototype for FunctionPrototype {
-    fn build(&mut self, arguments: Vec<Type>, err_tok: &Token) -> Res<Type> {
+    fn name(&self) -> Rc<String> {
+        Rc::clone(&self.ast.sig.name.lexeme)
+    }
+
+    fn build(&mut self, module: &MutRc<MModule>, arguments: Vec<Type>, err_tok: &Token) -> Res<Type> {
         if let Some(inst) = self.instances.borrow().get(&arguments) {
-            return Ok(Rc::clone(&inst))
+            return Ok(Type::Function(Rc::clone(&inst.type_.as_function())))
         }
 
         gen.builder.push_current_pointer();
@@ -170,17 +176,17 @@ impl Prototype for FunctionPrototype {
 }
 
 fn check_generic_arguments(
-    gen: &mut MIRGenerator,
+    module: &MutRc<MModule>,
     parameters: &Vec<Token>,
     arguments: &Vec<Type>,
     err_tok: &Token
-) -> Result<(), MIRError> {
+) -> Result<(), Error> {
     if parameters.len() != arguments.len() {
-        return Err(gen.error(err_tok, err_tok, &format!(
+        return Err(Error::new(err_tok, "MIR", format!(
             "Wrong amount of generic parameters (expected {}; got {})",
             parameters.len(),
             arguments.len()
-        )));
+        ), &module.borrow().path));
     }
     Ok(())
 }

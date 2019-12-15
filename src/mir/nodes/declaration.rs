@@ -239,7 +239,7 @@ impl Display for Function {
                 var.type_
             )?;
         }
-        writeln!(f, "")?;
+        writeln!(f)?;
         for (name, block) in self.blocks.iter() {
             writeln!(f, "{}:", name)?;
             for inst in block.iter() {

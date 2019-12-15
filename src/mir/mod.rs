@@ -6,18 +6,14 @@
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::fmt::{Display, Error as FmtErr, Formatter};
 use std::rc::Rc;
 
-use nodes::{Class, Variable};
+use nodes::Variable;
 
-use crate::ast::declaration::Type as ASTType;
 use crate::lexer::token::Token;
-use crate::mir::generator::{MIRError, MIRGenerator};
-use crate::mir::nodes::{IFaceImpls, Interface, Type, ClassPrototype, InterfacePrototype, FunctionPrototype, Prototype};
-use crate::option::Flatten;
-use crate::{module_path_to_string, ModulePath};
+use crate::mir::nodes::{IFaceImpls, Type, Prototype};
 use crate::error::{Res, Error};
+use crate::ast::module::ModulePath;
 
 pub mod generator;
 pub mod nodes;
@@ -39,7 +35,7 @@ fn mutrc_new<T>(value: T) -> MutRc<T> {
 
 /// A struct produced by a generator. It contains the full MIR representation of a file/module.
 /// Note that generic types/prototypes are not included in this; only instantiated copies of them are.
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct MModule {
     /// The path of the module, for example my_app/gui/widgets
     pub path: Rc<ModulePath>,
@@ -108,34 +104,10 @@ impl MModule {
     }
 }
 
-impl Display for MModule {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), FmtErr> {
-        writeln!(f, "----------------------------------------")?;
-        writeln!(f, "Module {}", module_path_to_string(&self.path))?;
-        writeln!(f, "----------------------------------------\n")?;
-
-        if !self.functions.is_empty() {
-            writeln!(f, "---------- Functions ----------")?;
-        }
-        for func in self.functions.iter().map(|f| f.1.type_.as_function()) {
-            writeln!(f, "{}", func.borrow())?;
-        }
-
-        if !self.classes.is_empty() {
-            writeln!(f, "---------- Classes ----------")?;
-        }
-        for (_, class) in self.classes.iter() {
-            writeln!(f, "{}", class.borrow())?;
-        }
-
-        Ok(())
-    }
-}
-
 #[derive(Default)]
 pub struct Imports {
     pub modules: HashMap<Rc<ModulePath>, MutRc<MModule>>,
-    pub globals: Rc<Variable>,
+    pub globals: HashMap<Rc<String>, Rc<Variable>>,
     pub types: HashMap<Rc<String>, Type>,
     pub protos: Prototypes
 }
