@@ -1,34 +1,34 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/5/19 9:41 AM.
+ * Last modified on 12/15/19 2:07 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::path::Path;
 use std::{
     cell::{Ref, RefMut},
     collections::HashMap,
     hash::{Hash, Hasher},
     rc::Rc,
 };
+use std::path::Path;
 
 use inkwell::{
+    AddressSpace,
     basic_block::BasicBlock,
     builder::Builder,
     context::Context,
+    FloatPredicate,
+    IntPredicate,
     module::Module,
-    passes::PassManager,
-    types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType, StructType},
-    values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
-    AddressSpace, FloatPredicate, IntPredicate,
+    passes::PassManager, types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType, StructType}, values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
 };
 
 use super::{
     ast::literal::Literal,
     lexer::token::TType,
     mir::{
-        nodes::{Block, Class, Expr, Flow, Function, Type, Variable},
-        MModule, MutRc,
+        MModule,
+        MutRc, nodes::{Block, Class, Expr, Flow, Function, Type, Variable},
     },
 };
 
@@ -64,15 +64,17 @@ pub struct IRGenerator {
 
 impl IRGenerator {
     /// Generates IR. Will process all MIR modules given.
-    pub fn generate(mut self, mir: Vec<MModule>) -> Module {
+    pub fn generate(mut self, mir: Vec<MutRc<MModule>>) -> Module {
         for module in &mir {
+            let module = module.borrow_mut();
             for function in module.globals.values() {
                 self.declare_function(function);
             }
         }
 
         for module in mir {
-            for (_, function) in module.globals {
+            let module = module.borrow_mut();
+            for function in module.globals.values().cloned() {
                 self.function(function);
             }
         }

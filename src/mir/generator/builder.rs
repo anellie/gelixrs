@@ -1,21 +1,18 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/14/19 5:40 PM.
+ * Last modified on 12/15/19 2:07 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::collections::{HashMap, HashSet};
-
-use std::rc::Rc;
-
 use either::Either;
 use either::Either::{Left, Right};
+use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 
 use crate::{module_path_to_string, ModulePath};
-
-use crate::lexer::token::{Token};
+use crate::lexer::token::Token;
 use crate::mir::{IFACE_IMPLS, MModule, MutRc};
-use crate::mir::generator::{MIRError};
+use crate::mir::generator::MIRError;
 use crate::mir::nodes::{
     Class, ClassPrototype, Expr, Flow, FunctionPrototype, Interface,
     InterfacePrototype, Variable,
@@ -255,24 +252,4 @@ impl MIRBuilder {
 pub struct Pointer {
     pub function: MutRc<Function>,
     block: Rc<String>,
-}
-
-#[derive(Default)]
-pub struct Imports {
-    pub classes: HashMap<Rc<String>, MutRc<Class>>,
-    pub interfaces: HashMap<Rc<String>, MutRc<Interface>>,
-    pub functions: HashMap<Rc<String>, Rc<Variable>>,
-}
-
-/// A list of all prototypes.
-/// Prototypes are things with generic parameters, that are
-/// turned into a concrete implementation when used with
-/// generic arguments.
-/// Note that the prototypes in the builder also include imported
-/// prototypes, since they do not end up in the final module either way.
-#[derive(Default)]
-pub struct Prototypes {
-    pub classes: HashMap<Rc<String>, MutRc<ClassPrototype>>,
-    pub interfaces: HashMap<Rc<String>, MutRc<InterfacePrototype>>,
-    pub functions: HashMap<Rc<String>, MutRc<FunctionPrototype>>,
 }

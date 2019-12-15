@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/14/19 6:34 PM.
+ * Last modified on 12/15/19 2:07 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -13,16 +13,10 @@ use crate::ast::Class as ASTClass;
 use crate::ast::Function as ASTFunc;
 use crate::ast::IFaceImpl as ASTImpl;
 use crate::ast::Interface as ASTIFace;
+use crate::error::{Error, Res};
 use crate::lexer::token::Token;
-use crate::mir::generator::MIRGenerator;
-use crate::mir::generator::passes::declare_class::create_class;
-use crate::mir::generator::passes::declare_func::create_function;
-use crate::mir::generator::passes::declare_interface::create_interface;
-use crate::mir::generator::passes::fill_class::fill_class;
-use crate::mir::generator::passes::iface_impl::iface_impl;
-use crate::mir::{MutRc, MModule};
+use crate::mir::{MModule, MutRc};
 use crate::mir::nodes::{Class, Interface, Type, Variable};
-use crate::error::{Res, Error};
 
 /// A prototype that classes can be instantiated from.
 /// This prototype is kept in AST form,
@@ -45,7 +39,7 @@ pub trait Prototype {
     /// A simple function that returns the name for Eq and Hash traits.
     fn name(&self) -> Rc<String>;
     /// Build the prototype into a type.
-    fn build(&self, module: &MutRc<MModule>, arguments: Vec<Type>, err_tok: &Token) -> Res<Type>;
+    fn build(&self, arguments: Vec<Type>, err_tok: &Token) -> Res<Type>;
 }
 
 impl PartialEq for dyn Prototype {
@@ -71,37 +65,39 @@ impl Prototype for ClassPrototype {
         Rc::clone(&self.ast.name.lexeme)
     }
 
-    fn build(&self, module: &MutRc<MModule>, arguments: Vec<Type>, err_tok: &Token) -> Res<Type> {
-        if let Some(inst) = self.instances.borrow().get(&arguments) {
-            return Ok(Type::Class(Rc::clone(&inst)))
-        }
+    fn build(&self, arguments: Vec<Type>, err_tok: &Token) -> Res<Type> {
+        /*  if let Some(inst) = self.instances.borrow().get(&arguments) {
+              return Ok(Type::Class(Rc::clone(&inst)))
+          }
 
-        gen.builder.push_current_pointer();
+          gen.builder.push_current_pointer();
 
-        let generics = self.ast.generics.as_ref().unwrap();
-        check_generic_arguments(gen, generics, &arguments, err_tok)?;
-        gen.set_type_aliases(generics, &arguments);
+          let generics = self.ast.generics.as_ref().unwrap();
+          check_generic_arguments(gen, generics, &arguments, err_tok)?;
+          gen.set_type_aliases(generics, &arguments);
 
-        let mut ast = self.ast.clone();
-        ast.name.lexeme = Rc::new(format!("{}-{}", ast.name.lexeme, self.instances.borrow().len()));
+          let mut ast = self.ast.clone();
+          ast.name.lexeme = Rc::new(format!("{}-{}", ast.name.lexeme, self.instances.borrow().len()));
 
-        let class = create_class(gen, &mut ast)?;
-        self.instances.borrow_mut().insert(arguments, Rc::clone(&class));
-        fill_class(gen, &ast)?;
+          let class = create_class(gen, &mut ast)?;
+          self.instances.borrow_mut().insert(arguments, Rc::clone(&class));
+          fill_class(gen, &ast)?;
 
-        let mut impls = self.impls.clone();
-        for im in impls.iter_mut() {
-            iface_impl(gen, im, Some(Type::Class(Rc::clone(&class))))?;
-        }
+          let mut impls = self.impls.clone();
+          for im in impls.iter_mut() {
+              iface_impl(gen, im, Some(Type::Class(Rc::clone(&class))))?;
+          }
 
-        gen.generate_constructors(&ast)?;
-        for func in ast.methods.iter().chain(impls.iter().map(|i| i.methods.iter()).flatten()) {
-            gen.generate_function(func)?;
-        }
+          gen.generate_constructors(&ast)?;
+          for func in ast.methods.iter().chain(impls.iter().map(|i| i.methods.iter()).flatten()) {
+              gen.generate_function(func)?;
+          }
 
-        gen.builder.load_last_pointer();
-        gen.clear_type_aliases();
-        Ok(Type::Class(class))
+          gen.builder.load_last_pointer();
+          gen.clear_type_aliases();
+          Ok(Type::Class(class))
+          */
+        unimplemented!()
     }
 }
 
@@ -119,7 +115,8 @@ impl Prototype for InterfacePrototype {
         Rc::clone(&self.ast.name.lexeme)
     }
 
-    fn build(&self, module: &MutRc<MModule>, arguments: Vec<Type>, err_tok: &Token) -> Res<Type> {
+    fn build(&self, arguments: Vec<Type>, err_tok: &Token) -> Res<Type> {
+        /*
         if let Some(inst) = self.instances.borrow().get(&arguments) {
             return Ok(Type::Interface(Rc::clone(&inst)))
         }
@@ -138,6 +135,8 @@ impl Prototype for InterfacePrototype {
         gen.clear_type_aliases();
         self.instances.borrow_mut().insert(arguments, Rc::clone(&iface));
         Ok(Type::Interface(iface))
+        */
+        unimplemented!()
     }
 }
 
@@ -151,27 +150,29 @@ impl Prototype for FunctionPrototype {
         Rc::clone(&self.ast.sig.name.lexeme)
     }
 
-    fn build(&mut self, module: &MutRc<MModule>, arguments: Vec<Type>, err_tok: &Token) -> Res<Type> {
-        if let Some(inst) = self.instances.borrow().get(&arguments) {
-            return Ok(Type::Function(Rc::clone(&inst.type_.as_function())))
-        }
+    fn build(&self, arguments: Vec<Type>, err_tok: &Token) -> Res<Type> {
+        /*       if let Some(inst) = self.instances.borrow().get(&arguments) {
+                   return Ok(Type::Function(Rc::clone(&inst.type_.as_function())))
+               }
 
-        gen.builder.push_current_pointer();
+               gen.builder.push_current_pointer();
 
-        let generics = self.ast.sig.generics.as_ref().unwrap();
-        check_generic_arguments(gen, generics, &arguments, err_tok)?;
-        gen.set_type_aliases(generics, &arguments);
+               let generics = self.ast.sig.generics.as_ref().unwrap();
+               check_generic_arguments(gen, generics, &arguments, err_tok)?;
+               gen.set_type_aliases(generics, &arguments);
 
-        let old_name = Rc::clone(&self.ast.sig.name.lexeme);
-        self.ast.sig.name.lexeme = Rc::new(format!("{}-{}", old_name, self.instances.borrow().len()));
-        let func = create_function(gen, &self.ast.sig, self.ast.body.is_none())?;
-        gen.generate_function(&self.ast)?;
-        self.ast.sig.name.lexeme = old_name;
+               let old_name = Rc::clone(&self.ast.sig.name.lexeme);
+               self.ast.sig.name.lexeme = Rc::new(format!("{}-{}", old_name, self.instances.borrow().len()));
+               let func = create_function(gen, &self.ast.sig, self.ast.body.is_none())?;
+               gen.generate_function(&self.ast)?;
+               self.ast.sig.name.lexeme = old_name;
 
-        gen.builder.load_last_pointer();
-        gen.clear_type_aliases();
-        self.instances.borrow_mut().insert(arguments, Rc::clone(&func));
-        Ok(Type::Function(func.type_.as_function()))
+               gen.builder.load_last_pointer();
+               gen.clear_type_aliases();
+               self.instances.borrow_mut().insert(arguments, Rc::clone(&func));
+               Ok(Type::Function(func.type_.as_function()))
+       */
+        unimplemented!()
     }
 }
 

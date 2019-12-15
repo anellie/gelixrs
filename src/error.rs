@@ -1,13 +1,14 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 9/11/19 7:52 PM.
+ * Last modified on 12/15/19 2:07 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use crate::lexer::token::Token;
+use std::fmt::{Display, Error as FmtErr, Formatter};
 use std::rc::Rc;
-use std::fmt::{Display, Formatter, Error as FmtErr};
+
 use crate::ast::module::ModulePath;
+use crate::lexer::token::Token;
 
 pub type Res<T> = Result<T, Error>;
 
@@ -17,7 +18,7 @@ pub struct Errors(pub Vec<Error>, pub String);
 impl Display for Errors {
     fn fmt(&self, f: &mut Formatter) -> Result<(), FmtErr> {
         for err in self.0.iter() {
-            writeln!(f, "{}", err.to_string(&self.1))
+            writeln!(f, "{}", err.to_string(&self.1))?;
         }
         Ok(())
     }

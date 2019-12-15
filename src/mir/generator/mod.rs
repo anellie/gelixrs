@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/14/19 6:34 PM.
+ * Last modified on 12/15/19 1:51 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,8 +11,6 @@ use std::rc::Rc;
 use either::Either;
 use indexmap::IndexMap;
 
-use builder::MIRBuilder;
-
 use crate::{Error, ModulePath};
 use crate::ast::declaration::{Class as ASTClass, Constructor, Function as ASTFunc};
 use crate::ast::expression::Expression as ASTExpr;
@@ -20,20 +18,19 @@ use crate::ast::literal::Literal;
 use crate::ast::module::Module;
 use crate::ast::Type as ASTType;
 use crate::lexer::token::{Token, TType};
-use crate::mir::{IFACE_IMPLS, MModule, MutRc, ToMIRResult};
+use crate::mir::{IFACE_IMPLS, MModule, MutRc};
 use crate::mir::generator::intrinsics::INTRINSICS;
 use crate::mir::nodes::{
     ArrayLiteral, Class, ClassMember, Expr, Flow, Function, Type, Variable,
 };
 use crate::option::Flatten;
 
-mod builder;
+//mod builder;
 mod intrinsics;
 pub mod module;
 pub mod passes;
 
-type Res<T> = Result<T, MIRError>;
-
+/*
 /// The MIRGenerator turns a list of declarations produced by the parser
 /// into their MIR representation.
 ///
@@ -1026,3 +1023,4 @@ impl ForLoop {
         }
     }
 }
+*/

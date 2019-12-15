@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/14/19 5:40 PM.
+ * Last modified on 12/15/19 2:05 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -717,7 +717,8 @@ impl Parser {
 
     fn integer(&mut self) -> Option<Expression> {
         let token = self.advance();
-        let mut split = token.lexeme.split('i');
+        let clone = (*token.lexeme).clone();
+        let mut split = clone.split('i');
         self.make_int_literal(split.next().unwrap(), split.next().unwrap_or("64"), token)
     }
 

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/4/19 9:55 PM.
+ * Last modified on 12/15/19 2:07 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -10,10 +10,11 @@ use std::rc::Rc;
 
 use nodes::Variable;
 
-use crate::lexer::token::Token;
-use crate::mir::nodes::{IFaceImpls, Type, Prototype};
-use crate::error::{Res, Error};
+use crate::ast::Module;
 use crate::ast::module::ModulePath;
+use crate::error::{Error, Res};
+use crate::lexer::token::Token;
+use crate::mir::nodes::{IFaceImpls, Prototype, Type};
 
 pub mod generator;
 pub mod nodes;
@@ -40,6 +41,13 @@ pub struct MModule {
     /// The path of the module, for example my_app/gui/widgets
     pub path: Rc<ModulePath>,
 
+    /// The AST module this module was produced from.
+    pub ast: Module,
+
+    /// The 'stage' the module is on. This indicates how
+    /// far along compilation is.
+    pub stage: ModuleStage,
+
     /// All global variables: Currently only functions.
     pub globals: HashMap<Rc<String>, Rc<Variable>>,
 
@@ -58,9 +66,10 @@ pub struct MModule {
 }
 
 impl MModule {
-    pub fn find_type(&self, name: &Rc<String>) -> Option<&Type> {
+    pub fn find_type(&self, name: &Rc<String>) -> Option<Type> {
         self.types.get(name)
             .or_else(|| self.imports.types.get(name))
+            .cloned()
             .or_else(|| self.imports.modules.iter().find_map(|(_, m)| m.borrow().find_type(name)))
     }
 
@@ -96,12 +105,35 @@ impl MModule {
         }
     }
 
-    pub fn new(path: Rc<ModulePath>) -> MModule {
+    pub fn new(ast: Module) -> MModule {
         Self {
-            path,
+            path: Rc::clone(&ast.path),
+            ast,
             ..Default::default()
         }
     }
+}
+
+#[derive(Debug)]
+pub enum ModuleStage {
+    /// No compilation milestone has been reached
+    None,
+    /// All types in the module, including prototypes, have been declared.
+    /// It is possible to accurately search for types once this is reached.
+    TypesDeclared,
+    /// All globals have been declared. It is possible to generate
+    /// a limited set of code at this stage.
+    GlobalsDeclared,
+    /// All types have been filled with their members/methods.
+    /// It is possible to generate code after this has been reached.
+    TypesFilled,
+    /// The module is currently being modified by a MIRGenerator, code
+    /// is being produced.
+    Generating,
+}
+
+impl Default for ModuleStage {
+    fn default() -> Self { Self::None }
 }
 
 #[derive(Default)]
@@ -116,6 +148,4 @@ pub struct Imports {
 /// Prototypes are things with generic parameters, that are
 /// turned into a concrete implementation when used with
 /// generic arguments.
-/// Note that the prototypes in the builder also include imported
-/// prototypes, since they do not end up in the final module either way.
 pub type Prototypes = HashMap<Rc<String>, MutRc<dyn Prototype>>;

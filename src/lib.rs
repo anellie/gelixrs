@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/14/19 2:34 AM.
+ * Last modified on 12/15/19 2:10 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -24,8 +24,9 @@ use mir::generator::module::MIRModuleGenerator;
 use mir::MModule;
 
 use crate::ast::module::{Import, ModulePath};
-use crate::lexer::token::Token;
 use crate::error::Errors;
+use crate::lexer::token::Token;
+use crate::mir::MutRc;
 
 pub mod ast;
 //#[cfg(test)]
@@ -116,12 +117,12 @@ pub fn auto_import_prelude(modules: &mut Vec<Module>) {
     }
 }
 
-pub fn compile_mir(modules: Vec<Module>) -> Result<Vec<MModule>, Vec<Error>> {
+pub fn compile_mir(modules: Vec<Module>) -> Result<Vec<MutRc<MModule>>, Vec<Errors>> {
     let pool = MIRModuleGenerator::new(modules);
     pool.execute()
 }
 
-pub fn compile_ir(modules: Vec<MModule>) -> inkwell::module::Module {
+pub fn compile_ir(modules: Vec<MutRc<MModule>>) -> inkwell::module::Module {
     let gen = IRGenerator::new();
     gen.generate(modules)
 }
