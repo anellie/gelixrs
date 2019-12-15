@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 5:16 PM.
+ * Last modified on 12/15/19 6:17 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -884,7 +884,7 @@ impl MIRGenerator {
         let op_impls = iface_impls
             .interfaces
             .iter()
-            .filter(|im| unimplemented!());
+            .filter(|im| Rc::ptr_eq(im.iface.borrow().proto.as_ref().unwrap(), &proto));
 
         for im in op_impls {
             let method = im.methods.get_index(0).unwrap().1;

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 5:10 PM.
+ * Last modified on 12/15/19 6:18 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -17,7 +17,7 @@ use std::rc::Rc;
 use crate::error::{Error, Res};
 use crate::lexer::token::TType;
 use crate::mir::{MModule, MutRc};
-use crate::mir::nodes::{Prototype, Variable};
+use crate::mir::nodes::{InterfacePrototype, Prototype, Prototypes, Variable};
 
 thread_local! {
     pub static INTRINSICS: RefCell<Intrinsics> = RefCell::new(Intrinsics::default());
@@ -26,19 +26,19 @@ thread_local! {
 /// Contains all data structures that require some sort of special treatment.
 #[derive(Default)]
 pub struct Intrinsics {
-    ops: HashMap<TType, MutRc<dyn Prototype>>,
+    ops: HashMap<TType, MutRc<InterfacePrototype>>,
     pub main_fn: Option<Rc<Variable>>,
 }
 
 impl Intrinsics {
-    pub fn get_op_iface(&self, ty: TType) -> MutRc<dyn Prototype> {
+    pub fn get_op_iface(&self, ty: TType) -> MutRc<InterfacePrototype> {
         Rc::clone(&self.ops[&ty])
     }
 
     // Only call this with the std/ops module, containing all operator interfaces
     pub fn fill_ops_table(&mut self, module: Ref<MModule>) {
         for (name, iface) in module.protos.iter() {
-            let iface = Rc::clone(iface);
+            let iface = if let Prototypes::Interface(iface) = iface.proto.clone() { iface } else { panic!() };
             match &name[..] {
                 "Add" => self.ops.insert(TType::Plus, iface),
                 "Sub" => self.ops.insert(TType::Minus, iface),

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 4:19 PM.
+ * Last modified on 12/15/19 5:34 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -79,7 +79,7 @@ impl MModule {
             })
     }
 
-    pub fn find_prototype(&self, name: &Rc<String>) -> Option<MutRc<dyn Prototype>> {
+    pub fn find_prototype(&self, name: &Rc<String>) -> Option<Prototype> {
         self.protos
             .get(name)
             .or_else(|| self.imports.protos.get(name))
@@ -168,4 +168,4 @@ pub struct Imports {
 /// Prototypes are things with generic parameters, that are
 /// turned into a concrete implementation when used with
 /// generic arguments.
-pub type Prototypes = HashMap<Rc<String>, MutRc<dyn Prototype>>;
+pub type Prototypes = HashMap<Rc<String>, Prototype>;

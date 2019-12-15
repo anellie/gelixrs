@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 4:19 PM.
+ * Last modified on 12/15/19 6:18 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -35,36 +35,37 @@ use crate::mir::nodes::{Class, Interface, Type, Variable};
 /// of handling prototypes another way.
 /// (Also, this missing check does not lead to unsound compiled code -
 /// not producing unsound code is the most important reason of type checking.)
-pub trait Prototype {
-    /// A simple function that returns the name for Eq and Hash traits.
-    fn name(&self) -> Rc<String>;
-    /// Build the prototype into a type.
-    fn build(&self, arguments: Vec<Type>, err_tok: &Token) -> Res<Type>;
+#[derive(Clone)]
+pub struct Prototype {
+    pub name: Rc<String>,
+    pub proto: Prototypes,
 }
 
-impl PartialEq for dyn Prototype {
-    fn eq(&self, other: &Self) -> bool {
-        self.name() == other.name()
+impl Prototype {
+    fn build(&self, arguments: Vec<Type>, err_tok: &Token) -> Res<Type> {
+        match &self.proto {
+            Prototypes::Class(class) => class.borrow().build(arguments, err_tok),
+            Prototypes::Interface(iface) => iface.borrow().build(arguments, err_tok),
+            Prototypes::Function(func) => func.borrow().build(arguments, err_tok),
+        }
     }
 }
 
-impl Hash for dyn Prototype {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.name().hash(state)
-    }
+#[derive(Debug, Clone, EnumAsGetters)]
+pub enum Prototypes {
+    Class(MutRc<ClassPrototype>),
+    Interface(MutRc<InterfacePrototype>),
+    Function(MutRc<FunctionPrototype>),
 }
 
+#[derive(Debug)]
 pub struct ClassPrototype {
     pub ast: ASTClass,
     pub impls: Vec<ASTImpl>,
     pub instances: RefCell<HashMap<Vec<Type>, MutRc<Class>>>,
 }
 
-impl Prototype for ClassPrototype {
-    fn name(&self) -> Rc<String> {
-        Rc::clone(&self.ast.name.lexeme)
-    }
-
+impl ClassPrototype {
     fn build(&self, _arguments: Vec<Type>, _err_tok: &Token) -> Res<Type> {
         /*  if let Some(inst) = self.instances.borrow().get(&arguments) {
             return Ok(Type::Class(Rc::clone(&inst)))
@@ -109,11 +110,7 @@ pub struct InterfacePrototype {
     pub instances: RefCell<HashMap<Vec<Type>, MutRc<Interface>>>,
 }
 
-impl Prototype for InterfacePrototype {
-    fn name(&self) -> Rc<String> {
-        Rc::clone(&self.ast.name.lexeme)
-    }
-
+impl InterfacePrototype {
     fn build(&self, _arguments: Vec<Type>, _err_tok: &Token) -> Res<Type> {
         /*
         if let Some(inst) = self.instances.borrow().get(&arguments) {
@@ -139,16 +136,13 @@ impl Prototype for InterfacePrototype {
     }
 }
 
+#[derive(Debug)]
 pub struct FunctionPrototype {
     pub ast: ASTFunc,
     pub instances: RefCell<HashMap<Vec<Type>, Rc<Variable>>>,
 }
 
-impl Prototype for FunctionPrototype {
-    fn name(&self) -> Rc<String> {
-        Rc::clone(&self.ast.sig.name.lexeme)
-    }
-
+impl FunctionPrototype {
     fn build(&self, _arguments: Vec<Type>, _err_tok: &Token) -> Res<Type> {
         /*       if let Some(inst) = self.instances.borrow().get(&arguments) {
                     return Ok(Type::Function(Rc::clone(&inst.type_.as_function())))
