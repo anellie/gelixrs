@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 4:19 PM.
+ * Last modified on 12/15/19 4:39 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -10,6 +10,7 @@ use crate::ast::declaration::FuncSignature;
 use crate::ast::module::ModulePath;
 use crate::error::{Error, Res};
 use crate::mir::{MModule, MutRc, mutrc_new};
+use crate::mir::generator::builder::MIRBuilder;
 use crate::mir::generator::intrinsics::INTRINSICS;
 use crate::mir::generator::passes::{ModulePass, PassType};
 use crate::mir::nodes::{Function, Type, Variable};
@@ -29,6 +30,7 @@ impl ModulePass for DeclareGlobals {
 
     fn run_mod(&mut self, module: MutRc<MModule>) -> Result<(), Vec<Error>> {
         let mut errs = Vec::new();
+        let builder = MIRBuilder::new(&module);
 
         // TODO: This is a sin
         // The borrow checker can be annoying...
@@ -36,7 +38,7 @@ impl ModulePass for DeclareGlobals {
         for i in 0..len {
             let func_sig = module.borrow().ast.functions[i].sig.clone();
             let is_ext = module.borrow().ast.functions[i].body.is_none();
-            create_function(&module, &func_sig, is_ext)
+            create_function(&module, &builder, &func_sig, is_ext)
                 .map_err(|e| errs.push(e))
                 .ok();
         }
@@ -51,6 +53,7 @@ impl ModulePass for DeclareGlobals {
 
 pub fn create_function(
     module: &MutRc<MModule>,
+    builder: &MIRBuilder,
     func_sig: &FuncSignature,
     is_external: bool,
 ) -> Res<Rc<Variable>> {
@@ -62,11 +65,10 @@ pub fn create_function(
         get_function_name(&module.borrow().path, &func_sig.name.lexeme)
     };
 
-    /*
     let ret_type = func_sig
         .return_type
         .as_ref()
-        .map(|ty| gen.find_type(ty))
+        .map(|ty| builder.find_type(ty))
         .unwrap_or(Ok(Type::None))?;
 
     let mut parameters = Vec::with_capacity(func_sig.parameters.len());
@@ -74,15 +76,14 @@ pub fn create_function(
         parameters.push(Rc::new(Variable {
             mutable: false,
             name: Rc::clone(&param.name.lexeme),
-            type_: gen.find_type(&param.type_)?,
+            type_: builder.find_type(&param.type_)?,
         }));
     }
-    */
 
     let function = mutrc_new(Function {
         name,
-        //parameters,
-        //ret_type,
+        parameters,
+        ret_type,
         ..Default::default()
     });
 

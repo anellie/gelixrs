@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 4:16 PM.
+ * Last modified on 12/15/19 4:36 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -27,7 +27,7 @@ use crate::mir::nodes::{
 use crate::option::Flatten;
 */
 
-//mod builder;
+pub mod builder;
 mod intrinsics;
 pub mod module;
 pub mod passes;
@@ -43,6 +43,17 @@ pub mod passes;
 pub struct MIRGenerator {
     /// The builder used to build the MIR.
     pub builder: MIRBuilder,
+
+    /// The current insertion position.
+    position: Option<Pointer>,
+
+    /// Insertion positions saved for later.
+    /// Used to store the previous insertion
+    /// positions when generating a class from a prototype;
+    /// the insertion position is saved here before
+    /// and restored after compiling the class prototype
+    /// has finished.
+    saved_positions: Vec<Pointer>,
 
     /// An environment is a scope that variables live in.
     /// This variable is used like a stack.
@@ -729,70 +740,6 @@ impl MIRGenerator {
         )
     }
 
-    pub fn find_type(&mut self, ast: &ASTType) -> Res<Type> {
-        Ok(match ast {
-            ASTType::Ident(tok) => {
-                let ty = self.builder.find_type_by_name(&tok);
-                let ty = ty.or_else(|| Some(self.type_aliases.last().map(|l| l.get(&tok.lexeme)).flatten_()?.clone()));
-                ty.or_anon_err(
-                    self,
-                    ast.get_token(),
-                    "Unknown type.",
-                )?
-            },
-
-            ASTType::Array(_) => unimplemented!(),
-
-            ASTType::Closure { .. } => unimplemented!(),
-
-            ASTType::Generic { token, types } => {
-                let types = types
-                    .iter()
-                    .map(|ty| self.find_type(ty))
-                    .collect::<Result<Vec<Type>, MIRError>>()?;
-
-                let class_or_proto = self
-                    .builder
-                    .find_class_or_proto(&token.lexeme);
-
-                if let Some(class_or_proto) = class_or_proto {
-                    let proto = class_or_proto.right().or_anon_err(
-                        self,
-                        ast.get_token(),
-                        "Class does not take generic arguments.",
-                    )?;
-
-                    let mut proto = proto.borrow();
-                    return Ok(Type::Class(proto.build(self, types, &token)?))
-                }
-
-                let iface_proto = self
-                    .builder
-                    .find_iface_or_proto(&token.lexeme)
-                    .or_anon_err(self, ast.get_token(), "Unknown type.")?
-                    .right()
-                    .or_anon_err(
-                        self,
-                        ast.get_token(),
-                        "Interface does not take generic arguments.",
-                    )?;
-
-                let mut proto = iface_proto.borrow();
-                let iface = proto.build(self, types, &token)?;
-                iface.borrow_mut().proto = Some(Rc::clone(&iface_proto));
-                Type::Interface(iface)
-            }
-        })
-    }
-
-    pub fn set_type_aliases(&mut self, params: &Vec<Token>, args: &Vec<Type>) {
-        self.type_aliases.push(params.iter().map(|t| &t.lexeme).cloned().zip(args.iter().cloned()).collect());
-    }
-
-    pub fn clear_type_aliases(&mut self) {
-        self.type_aliases.pop();
-    }
-
     /// Returns the variable of the current loop or creates it if it does not exist yet
     fn get_or_create_loop_var(&mut self, type_: &Type) -> Res<Rc<Variable>> {
         let var = self.cur_loop().result_var.clone().unwrap_or_else(|| {
@@ -963,6 +910,26 @@ impl MIRGenerator {
         }
     }
 
+    /// Builds a class instance and returns an expression that loads the instance.
+    /// The expression returned can be safely cloned to reuse the instance.
+    pub fn build_class_inst(&mut self, class_ref: MutRc<Class>) -> Expr {
+        let call = {
+            let class = class_ref.borrow();
+            Expr::call(Expr::load(&class.instantiator), vec![])
+        };
+
+        let var = Variable::new(true, Type::Class(class_ref), &Rc::new("tmp-constructor-var".to_string()));
+        self.add_function_variable(Rc::clone(&var));
+        self.insert_at_ptr(Expr::store(&var, call));
+
+        Expr::load(&var)
+    }
+
+    /// Will append a block to the given function, always creating a new one.
+    pub fn append_block(&mut self, name: &str) -> Rc<String> {
+        self.cur_fn().borrow_mut().append_block(name, true)
+    }
+
     /// Creates a new scope. A new scope is created for every function and block,
     /// in addition to the bottom global scope.
     ///
@@ -981,6 +948,43 @@ impl MIRGenerator {
     /// Removes the topmost scope.
     fn end_scope(&mut self) {
         self.environments.pop();
+    }
+
+    pub fn insert_at_ptr(&mut self, expr: Expr) {
+        let func = self.cur_fn();
+        let mut func = func.borrow_mut();
+        func.blocks
+            .get_mut(&self.position.as_ref().unwrap().block)
+            .unwrap()
+            .push(expr)
+    }
+
+    pub fn cur_fn(&self) -> MutRc<Function> {
+        self.position.as_ref().unwrap().function.clone()
+    }
+
+    pub fn cur_block_name(&self) -> Rc<String> {
+        Rc::clone(&self.position.as_ref().unwrap().block)
+    }
+
+    pub fn set_pointer(&mut self, function: MutRc<Function>, block: Rc<String>) {
+        self.position = Some(Pointer { function, block })
+    }
+
+    pub fn push_current_pointer(&mut self) {
+        if let Some(ptr) = self.position.take() {
+            self.saved_positions.push(ptr);
+        }
+    }
+
+    pub fn load_last_pointer(&mut self) {
+        self.position = self.saved_positions.pop();
+    }
+
+    pub fn set_block(&mut self, block: &Rc<String>) {
+        if let Some(pos) = self.position.as_mut() {
+            pos.block = Rc::clone(block)
+        }
     }
 
     fn cur_loop(&mut self) -> &mut ForLoop {
@@ -1004,6 +1008,11 @@ impl MIRGenerator {
             uninitialized_this_members: HashSet::with_capacity(10),
         }
     }
+}
+
+pub struct Pointer {
+    pub function: MutRc<Function>,
+    block: Rc<String>,
 }
 
 /// All data of a loop.
