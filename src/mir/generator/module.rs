@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 4:19 PM.
+ * Last modified on 12/15/19 9:58 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -8,15 +8,16 @@ use std::rc::Rc;
 
 use crate::ast::module::Module;
 use crate::error::{Error, Errors};
+use crate::mir::{MModule, MutRc, mutrc_new};
 use crate::mir::generator::intrinsics::INTRINSICS;
+use crate::mir::generator::passes::{ModulePass, PassType, PreMIRPass};
 use crate::mir::generator::passes::declaring_globals::DeclareGlobals;
 use crate::mir::generator::passes::declaring_types::DeclareTypes;
 use crate::mir::generator::passes::filter_prototypes::FilterPrototypes;
 use crate::mir::generator::passes::populate_intrinsics::PopulateIntrinsics;
 use crate::mir::generator::passes::validate::ValidateIntrinsics;
-use crate::mir::generator::passes::{ModulePass, PassType};
 use crate::mir::IFACE_IMPLS;
-use crate::mir::{mutrc_new, MModule, MutRc};
+use crate::mir::nodes::{Type, Variable};
 
 /// Responsible for collecting all passes that run on the MIR.
 /// MIR is built purely by running many transformation passes,
@@ -28,12 +29,25 @@ pub struct PassRunner {
 }
 
 impl PassRunner {
-    pub fn execute(self) -> Result<Vec<MutRc<MModule>>, Vec<Errors>> {
+    pub fn execute(self, mut modules: Vec<Module>) -> Result<Vec<MutRc<MModule>>, Vec<Errors>> {
         reset_mir();
-        let mut passes: Vec<Box<dyn ModulePass>> = vec![
+        let mut passes: Vec<Box<dyn PreMIRPass>> = vec![
             Box::new(FilterPrototypes()),
             Box::new(DeclareTypes()),
             Box::new(DeclareGlobals()),
+        ];
+
+        for mut pass in passes.drain(..) {
+            let mut errs = Vec::new();
+            for (ast, module) in modules.iter_mut().zip(self.modules.iter()) {
+                pass.run(ast, Rc::clone(&module)).map_err(|e| errs.push(e)).ok();
+            }
+            if !errs.is_empty() {
+                return Err(errs);
+            }
+        }
+
+        let mut passes: Vec<Box<dyn ModulePass>> = vec![
             Box::new(PopulateIntrinsics()),
             Box::new(ValidateIntrinsics()),
         ];
@@ -57,7 +71,7 @@ impl PassRunner {
 
                 for module in self.modules.iter() {
                     self.run_module_pass(module, pass)
-                        .map_err(|e| errs.push(Errors(e, Rc::clone(&module.borrow().ast.src))))
+                        .map_err(|e| errs.push(Errors(e, Rc::clone(&module.borrow().src))))
                         .ok();
                 }
 
@@ -84,16 +98,18 @@ impl PassRunner {
             }
 
             PassType::Type => {
-                for ty in module.borrow().types.values() {
-                    pass.run_type(module.borrow(), ty)
+                let types_iter = module.borrow().types.values().cloned().collect::<Vec<Type>>();
+                for ty in types_iter {
+                    pass.run_type(module, ty)
                         .map_err(|e| errs.push(e))
                         .ok();
                 }
             }
 
             PassType::Global => {
-                for global in module.borrow().globals.values() {
-                    pass.run_global(module.borrow(), global)
+                let globals_iter = module.borrow().globals.values().cloned().collect::<Vec<Rc<Variable>>>();
+                for global in globals_iter {
+                    pass.run_global(module, global)
                         .map_err(|e| errs.push(e))
                         .ok();
                 }
@@ -109,10 +125,10 @@ impl PassRunner {
         }
     }
 
-    pub fn new(modules: Vec<Module>) -> Self {
+    pub fn new(modules: &[Module]) -> Self {
         Self {
             modules: modules
-                .into_iter()
+                .iter()
                 .map(MModule::new)
                 .map(mutrc_new)
                 .collect(),

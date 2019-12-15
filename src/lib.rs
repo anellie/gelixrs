@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 4:16 PM.
+ * Last modified on 12/15/19 9:51 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -121,8 +121,8 @@ pub fn auto_import_prelude(modules: &mut Vec<Module>) {
 }
 
 pub fn compile_mir(modules: Vec<Module>) -> Result<Vec<MutRc<MModule>>, Vec<Errors>> {
-    let pool = PassRunner::new(modules);
-    pool.execute()
+    let pool = PassRunner::new(&modules);
+    pool.execute(modules)
 }
 
 pub fn compile_ir(modules: Vec<MutRc<MModule>>) -> inkwell::module::Module {

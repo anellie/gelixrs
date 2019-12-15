@@ -1,32 +1,32 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 4:19 PM.
+ * Last modified on 12/15/19 9:58 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
+use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::error::Error;
-use crate::mir::generator::passes::{ModulePass, PassType};
+use indexmap::IndexMap;
+
+use crate::ast::Module;
+use crate::error::{Error, Errors};
+use crate::mir::{MModule, MutRc, mutrc_new};
+use crate::mir::generator::passes::{ModulePass, PassType, PreMIRPass};
 use crate::mir::nodes::{Class, Interface, Type};
-use crate::mir::{mutrc_new, MModule, MutRc};
 
 /// This pass defines all types inside the module; currently classes and interfaces.
 /// It only creates a stub MIR definition and inserts it as a type;
 /// nothing is filled or created.
 pub struct DeclareTypes();
 
-impl ModulePass for DeclareTypes {
-    fn get_type(&self) -> PassType {
-        PassType::Module
-    }
-
-    fn run_mod(&mut self, module: MutRc<MModule>) -> Result<(), Vec<Error>> {
+impl PreMIRPass for DeclareTypes {
+    fn run(&mut self, ast: &mut Module, module: MutRc<MModule>) -> Result<(), Errors> {
         let mut module = module.borrow_mut();
         let mut errs = Vec::new();
 
-        for i in 0..module.ast.classes.len() {
-            let name = module.ast.classes[i].name.clone();
+        for class in ast.classes.drain(..) {
+            let name = class.name.clone();
             module
                 .try_reserve_name(&name)
                 .map_err(|e| errs.push(e))
@@ -34,7 +34,11 @@ impl ModulePass for DeclareTypes {
 
             let mir_class_rc = mutrc_new(Class {
                 name: Rc::clone(&name.lexeme),
-                ..Default::default()
+                members: IndexMap::with_capacity(class.variables.len()),
+                methods: HashMap::with_capacity(class.methods.len()),
+                instantiator: Rc::new(Default::default()),
+                constructors: Vec::with_capacity(class.constructors.len()),
+                ast: Rc::new(class)
             });
 
             module
@@ -42,8 +46,8 @@ impl ModulePass for DeclareTypes {
                 .insert(Rc::clone(&name.lexeme), Type::Class(mir_class_rc));
         }
 
-        for i in 0..module.ast.interfaces.len() {
-            let name = module.ast.interfaces[i].name.clone();
+        for iface in ast.interfaces.drain(..) {
+            let name = iface.name.clone();
             module
                 .try_reserve_name(&name)
                 .map_err(|e| errs.push(e))
@@ -51,7 +55,9 @@ impl ModulePass for DeclareTypes {
 
             let mir_iface_rc = mutrc_new(Interface {
                 name: Rc::clone(&name.lexeme),
-                ..Default::default()
+                methods: IndexMap::with_capacity(iface.methods.len()),
+                proto: None,
+                ast: Rc::new(iface)
             });
 
             module
@@ -62,7 +68,7 @@ impl ModulePass for DeclareTypes {
         if errs.is_empty() {
             Ok(())
         } else {
-            Err(errs)
+            Err(Errors(errs, Rc::clone(&module.src)))
         }
     }
 }

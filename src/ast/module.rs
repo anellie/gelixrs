@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 4:16 PM.
+ * Last modified on 12/15/19 9:24 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -9,6 +9,8 @@ use std::rc::Rc;
 
 use crate::ast::declaration::{Class, Function, IFaceImpl, Interface};
 use crate::lexer::token::Token;
+use crate::mir::MutRc;
+use crate::mir::nodes::Prototype;
 
 #[derive(Clone, Debug, Default, PartialOrd, PartialEq, Eq, Hash)]
 pub struct ModulePath(pub Vec<Rc<String>>);

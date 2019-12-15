@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 4:19 PM.
+ * Last modified on 12/15/19 9:58 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,14 +11,15 @@ use std::rc::Rc;
 
 use indexmap::IndexMap;
 
+use crate::ast;
 use crate::ast::expression::Expression as ASTExpr;
-use crate::mir::nodes::{Expr, InterfacePrototype, Type};
 use crate::mir::MutRc;
+use crate::mir::nodes::{Expr, InterfacePrototype, Type};
 
 /// A full class including all members and methods.
 /// Members are ordered, as the class is represented as a struct in IR;
 /// structs in IR only have indices for members, not names.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Class {
     /// The name of the class.
     pub name: Rc<String>,
@@ -35,6 +36,8 @@ pub struct Class {
     /// with special constraints to enforce safety.
     /// Only call on instances produced by the instantiator function.
     pub constructors: Vec<Rc<Variable>>,
+    /// The AST this was compiled from.
+    pub ast: Rc<ast::Class>
 }
 
 impl PartialEq for Class {
@@ -79,7 +82,7 @@ pub struct ClassMember {
 }
 
 /// An interface consisting of methods a type can implement.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Interface {
     /// The name of the interface. Generally the name given by the user;
     /// should the interface have been created from a prototype with generic parameters,
@@ -91,6 +94,8 @@ pub struct Interface {
     /// The prototype this interface was built from, if any.
     /// Only used for some intrinsics.
     pub proto: Option<MutRc<InterfacePrototype>>,
+    /// The AST this was compiled from.
+    pub ast: Rc<ast::Interface>
 }
 
 impl Hash for Interface {
@@ -111,6 +116,7 @@ pub struct IFaceImpl {
     pub implementor: Type,
     pub iface: MutRc<Interface>,
     pub methods: IndexMap<Rc<String>, Rc<Variable>>,
+    pub ast: Rc<ast::IFaceImpl>
 }
 
 impl PartialEq for IFaceImpl {
@@ -158,10 +164,11 @@ pub struct IFaceMethod {
     pub parameters: Vec<Type>,
     pub ret_type: Type,
     pub default_impl: Option<ASTExpr>,
+    pub ast: Rc<ast::Function>
 }
 
 /// A function.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Function {
     /// The name of the function, with its module before it ($mod:$func)
     /// The only functions with no name change are external functions
@@ -174,6 +181,11 @@ pub struct Function {
     pub variables: HashMap<Rc<String>, Rc<Variable>>,
     /// The return type of the function; Type::None if omitted.
     pub ret_type: Type,
+    /// The AST the function was compiled from.
+    /// This is only present on functions that were
+    /// compiled from AST functions;
+    /// things like methods have None here.
+    pub ast: Option<Rc<ast::Function>>
 }
 
 impl Function {

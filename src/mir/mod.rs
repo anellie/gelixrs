@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 5:34 PM.
+ * Last modified on 12/15/19 9:58 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -10,11 +10,12 @@ use std::rc::Rc;
 
 use nodes::Variable;
 
-use crate::ast::module::ModulePath;
 use crate::ast::Module;
-use crate::error::{Error, Res};
+use crate::ast::module::ModulePath;
+use crate::error::{Error, Errors, Res};
 use crate::lexer::token::Token;
-use crate::mir::nodes::{IFaceImpls, Prototype, Type};
+use crate::mir::generator::builder::MIRBuilder;
+use crate::mir::nodes::{Class, ClassPrototype, FunctionPrototype, IFaceImpls, Interface, InterfacePrototype, Prototype, Type};
 
 pub mod generator;
 pub mod nodes;
@@ -41,8 +42,8 @@ pub struct MModule {
     /// The path of the module, for example my_app/gui/widgets
     pub path: Rc<ModulePath>,
 
-    /// The AST module this module was produced from.
-    pub ast: Module,
+    /// The source code of this module.
+    pub src: Rc<String>,
 
     /// The 'stage' the module is on. This indicates how
     /// far along compilation is.
@@ -123,10 +124,9 @@ impl MModule {
         }
     }
 
-    pub fn new(ast: Module) -> MModule {
+    pub fn new(ast: &Module) -> MModule {
         Self {
             path: Rc::clone(&ast.path),
-            ast,
             ..Default::default()
         }
     }

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 4:19 PM.
+ * Last modified on 12/15/19 9:48 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,7 +12,7 @@ use std::rc::Rc;
 use either::Either;
 
 use crate::ast::declaration::{
-    ClassMember, Constructor, ConstructorParam, IFaceImpl, Interface, InterfaceFunc, Type,
+    ClassMember, Constructor, ConstructorParam, IFaceImpl, Interface, Type,
     Visibility,
 };
 use crate::ast::module::{Import, ModulePath};
@@ -291,7 +291,7 @@ impl Parser {
                     } else {
                         None
                     };
-                    methods.push(InterfaceFunc { sig, body })
+                    methods.push(Function { sig, body })
                 }
                 _ => self.error_at_current("Encountered invalid declaration inside interface.")?,
             }

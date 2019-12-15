@@ -1,13 +1,14 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 4:19 PM.
+ * Last modified on 12/15/19 9:58 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::fmt;
+use std::rc::Rc;
 
-use super::super::lexer::token::Token;
 use super::expression::Expression;
+use super::super::lexer::token::Token;
 
 /// Visibilities of a declaration.
 /// Most declarations default to 'module'
@@ -58,7 +59,7 @@ pub struct Interface {
     pub name: Token,
     pub visibility: Visibility,
     pub generics: Option<Vec<Token>>,
-    pub methods: Vec<InterfaceFunc>,
+    pub methods: Vec<Function>,
 }
 
 /// An interface implementation for a class.

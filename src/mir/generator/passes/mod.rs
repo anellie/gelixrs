@@ -1,18 +1,19 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 4:19 PM.
+ * Last modified on 12/15/19 9:58 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::cell::Ref;
 use std::rc::Rc;
 
-use crate::ast::Type as ASTType;
-use crate::error::{Error, Res};
+use crate::ast::{Module, Type as ASTType};
+use crate::error::{Error, Errors, Res};
 use crate::lexer::token::Token;
-use crate::mir::nodes::{Type, Variable};
 use crate::mir::{MModule, MutRc};
+use crate::mir::nodes::{Type, Variable};
 
+pub mod declaring_methods;
 pub mod declaring_globals;
 pub mod declaring_types;
 pub mod filter_prototypes;
@@ -24,6 +25,11 @@ thread_local! {
     static NONE_CONST: ASTType = ASTType::Ident(Token::generic_identifier("None".to_string()));
     // An RC of the string 'internal-init'
     static INIT_CONST: Rc<String> = Rc::new("internal-init".to_string());
+}
+
+/// A pass that runs before the AST is discarded.
+pub trait PreMIRPass {
+    fn run(&mut self, ast: &mut Module, module: MutRc<MModule>) -> Result<(), Errors>;
 }
 
 /// A pass that takes a MIR module and performs some kind of transformation
@@ -39,10 +45,10 @@ pub trait ModulePass {
     fn run_mod(&mut self, _module: MutRc<MModule>) -> Result<(), Vec<Error>> {
         Ok(())
     }
-    fn run_type(&mut self, _module: Ref<MModule>, _ty: &Type) -> Res<()> {
+    fn run_type(&mut self, _module: &MutRc<MModule>, _ty: Type) -> Res<()> {
         Ok(())
     }
-    fn run_global(&mut self, _module: Ref<MModule>, _global: &Rc<Variable>) -> Res<()> {
+    fn run_global(&mut self, _module: &MutRc<MModule>, _global: Rc<Variable>) -> Res<()> {
         Ok(())
     }
 }

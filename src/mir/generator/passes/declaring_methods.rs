@@ -1,64 +1,41 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/14/19 5:40 PM.
+ * Last modified on 12/15/19 9:58 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::collections::HashSet;
+use std::cell::Ref;
 use std::rc::Rc;
 
-use crate::ast::declaration::{
-    Class as ASTClass, Constructor, FuncSignature, FunctionArg, Visibility,
-};
-use crate::ast::Expression as ASTExpr;
-use crate::ast::module::Module;
-use crate::ast::Type;
+use crate::ast::declaration::{FuncSignature, FunctionArg, Visibility};
+use crate::ast::module::ModulePath;
+use crate::error::{Error, Res};
 use crate::lexer::token::Token;
-use crate::mir::{MutRc, mutrc_new, ToMIRResult};
-use crate::mir::generator::{MIRGenerator, Res};
-use crate::mir::generator::passes::declare_func::create_function;
-use crate::mir::nodes::{Block, Class, ClassPrototype, Expr, Type as MType, Variable};
-use crate::option::Flatten;
+use crate::mir::{MModule, MutRc, mutrc_new};
+use crate::mir::generator::builder::MIRBuilder;
+use crate::mir::generator::intrinsics::INTRINSICS;
+use crate::mir::generator::passes::{ModulePass, PassType};
+use crate::mir::nodes::{Class, Function, Type, Variable};
+use crate::mir::result::ToMIRResult;
 
-/// This pass declares all classes.
-/// It does not fill them; they are kept empty.
-pub fn declare_class_pass(gen: &mut MIRGenerator, module: &mut Module) -> Res<()> {
-    // Remove all classes that contain generics from the list
-    // so the generator won't bother trying to compile it later.
-    for class in module.classes.drain_filter(|c| c.generics.is_some()) {
-        gen.builder.prototypes.classes.insert(
-            Rc::clone(&class.name.lexeme),
-            mutrc_new(ClassPrototype {
-                ast: class,
-                impls: vec![],
-                instances: Default::default(),
-            }),
-        );
+/// This pass defines all methods on classes and interfaces.
+pub struct DeclareMethods();
+
+impl ModulePass for DeclareMethods {
+    fn get_type(&self) -> PassType {
+        PassType::Type
     }
 
-    for class in module.classes.iter_mut() {
-        create_class(gen, class)?;
+    fn run_type(&mut self, module: &MutRc<MModule>, ty: Type) -> Result<(), Error> {
+        unimplemented!()
     }
-
-    Ok(())
 }
 
-pub fn create_class(gen: &mut MIRGenerator, class: &mut ASTClass) -> Res<MutRc<Class>> {
-    gen.builder.try_reserve_name(&class.name)?;
-
+/*
+fn declare_for_class(module: Ref<MModule>, class: MutRc<Class>) -> Res<()> {
     let init_fn_sig = get_instantiator_fn_sig(class);
     let this_arg = FunctionArg::this_arg(&class.name);
     maybe_add_default_constructor(class);
-
-    let mir_class_rc = mutrc_new(Class {
-        name: Rc::clone(&class.name.lexeme),
-        ..Default::default()
-    });
-    gen.builder
-        .module
-        .classes
-        .insert(Rc::clone(&class.name.lexeme), Rc::clone(&mir_class_rc));
-    let mut mir_class = mir_class_rc.borrow_mut();
 
     mir_class.instantiator = create_function(gen, &init_fn_sig, false)?;
 
@@ -172,15 +149,15 @@ fn insert_constructor_setters(
         .iter()
         .enumerate()
         .filter(|(_, (_, ty))| ty.is_none())
-    {
-        let (field_index, _) =
-            get_field_by_name(class, param).or_err(gen, param, "Unknown class field.")?;
-        block.push(Expr::StructSet {
-            object: Box::new(Expr::VarGet(Rc::clone(&mir_fn_params[0]))),
-            index: field_index as u32,
-            value: Box::new(Expr::VarGet(Rc::clone(&mir_fn_params[index + 1]))),
-        })
-    }
+        {
+            let (field_index, _) =
+                get_field_by_name(class, param).or_err(gen, param, "Unknown class field.")?;
+            block.push(Expr::StructSet {
+                object: Box::new(Expr::VarGet(Rc::clone(&mir_fn_params[0]))),
+                index: field_index as u32,
+                value: Box::new(Expr::VarGet(Rc::clone(&mir_fn_params[index + 1]))),
+            })
+        }
     Ok(block)
 }
 
@@ -209,3 +186,4 @@ fn modify_method_sig(
     method.parameters.insert(0, this_arg.clone());
     old_name
 }
+*/
