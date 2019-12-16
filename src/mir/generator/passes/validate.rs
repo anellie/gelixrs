@@ -7,9 +7,9 @@
 use std::rc::Rc;
 
 use crate::error::Errors;
-use crate::mir::{MModule, MutRc};
 use crate::mir::generator::intrinsics::INTRINSICS;
 use crate::mir::generator::passes::{ModulePass, PassType};
+use crate::mir::{MModule, MutRc};
 
 /// This pass validates the intrinsics.
 pub struct ValidateIntrinsics();
@@ -19,7 +19,9 @@ impl ModulePass for ValidateIntrinsics {
         PassType::Globally
     }
 
-    fn run_globally(&mut self, _modules: &Vec<MutRc<MModule>>) -> Result<(), Vec<Errors>> {
-        INTRINSICS.with(|i| i.borrow_mut().validate()).map_err(|e| vec![Errors(vec![e], Rc::new("".to_string()))])
+    fn run_globally(&mut self, _modules: &[MutRc<MModule>]) -> Result<(), Vec<Errors>> {
+        INTRINSICS
+            .with(|i| i.borrow_mut().validate())
+            .map_err(|e| vec![Errors(vec![e], Rc::new("".to_string()))])
     }
 }

@@ -11,9 +11,9 @@ use indexmap::IndexMap;
 
 use crate::ast::Module;
 use crate::error::Errors;
-use crate::mir::{MModule, MutRc, mutrc_new};
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::nodes::{Class, Interface, Type};
+use crate::mir::{mutrc_new, MModule, MutRc};
 
 /// This pass defines all types inside the module; currently classes and interfaces.
 /// It only creates a stub MIR definition and inserts it as a type;
@@ -21,7 +21,12 @@ use crate::mir::nodes::{Class, Interface, Type};
 pub struct DeclareTypes();
 
 impl PreMIRPass for DeclareTypes {
-    fn run(&mut self, ast: &mut Module, module: MutRc<MModule>, _modules: &Vec<MutRc<MModule>>) -> Result<(), Errors> {
+    fn run(
+        &mut self,
+        ast: &mut Module,
+        module: MutRc<MModule>,
+        _modules: &[MutRc<MModule>],
+    ) -> Result<(), Errors> {
         let mut module = module.borrow_mut();
         let mut errs = Vec::new();
 

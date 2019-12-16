@@ -17,7 +17,6 @@ use crate::ast::declaration::{
 use crate::ast::module::{Import, ModulePath};
 use crate::Error;
 
-use super::Parser;
 use super::super::{
     ast::{
         declaration::{Class, FuncSignature, Function, FunctionArg, Variable},
@@ -25,8 +24,9 @@ use super::super::{
         literal::Literal,
         module::Module,
     },
-    lexer::token::{Token, TType},
+    lexer::token::{TType, Token},
 };
+use super::Parser;
 
 // All expressions that require no semicolon when used as a higher expression.
 static NO_SEMICOLON: [TType; 3] = [TType::If, TType::LeftBrace, TType::When];
@@ -676,8 +676,12 @@ impl Parser {
     fn primary(&mut self) -> Option<Expression> {
         Some(match () {
             _ if self.check(TType::None) => Expression::Literal(Literal::None, self.advance()),
-            _ if self.check(TType::False) => Expression::Literal(Literal::Bool(false), self.advance()),
-            _ if self.check(TType::True) => Expression::Literal(Literal::Bool(true), self.advance()),
+            _ if self.check(TType::False) => {
+                Expression::Literal(Literal::Bool(false), self.advance())
+            }
+            _ if self.check(TType::True) => {
+                Expression::Literal(Literal::Bool(true), self.advance())
+            }
             _ if self.match_token(TType::LeftParen) => self.grouping()?,
             _ if self.check(TType::Identifier) => self.identifier()?,
             _ if self.check(TType::Int) => self.integer()?,

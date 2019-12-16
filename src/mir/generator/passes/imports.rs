@@ -10,20 +10,27 @@ use std::rc::Rc;
 
 use crate::ast::{Import, Module};
 use crate::error::{Error, Errors, Res};
-use crate::mir::{MModule, MutRc};
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::result::ToMIRResult;
+use crate::mir::{MModule, MutRc};
 
 /// This pass imports all types.
 pub struct ImportTypes();
 
 impl PreMIRPass for ImportTypes {
-    fn run(&mut self, ast: &mut Module, module: MutRc<MModule>, modules: &Vec<MutRc<MModule>>) -> Result<(), Errors> {
+    fn run(
+        &mut self,
+        ast: &mut Module,
+        module: MutRc<MModule>,
+        modules: &[MutRc<MModule>],
+    ) -> Result<(), Errors> {
         module.borrow_mut().imports.ast = mem::replace(&mut ast.imports, vec![]);
         drain_mod_imports(modules, module, &mut |modules, module, import| {
             let src_module = modules
                 .iter()
-                .find(|m| m.try_borrow().ok().map(|m| Rc::clone(&m.path)) == Some(Rc::clone(&import.path)))
+                .find(|m| {
+                    m.try_borrow().ok().map(|m| Rc::clone(&m.path)) == Some(Rc::clone(&import.path))
+                })
                 .or_err(&module.path, &import.symbol, "Unknown module.")?;
 
             let src_module = src_module.borrow();
@@ -45,7 +52,7 @@ impl PreMIRPass for ImportTypes {
                         let proto = src_module.protos.get(&name);
                         match proto {
                             Some(p) => module.imports.protos.insert(name, p.clone()),
-                            None => return Ok(false)
+                            None => return Ok(false),
                         };
                     }
 
@@ -61,11 +68,18 @@ impl PreMIRPass for ImportTypes {
 pub struct ImportGlobals();
 
 impl PreMIRPass for ImportGlobals {
-    fn run(&mut self, _ast: &mut Module, module: MutRc<MModule>, modules: &Vec<MutRc<MModule>>) -> Result<(), Errors> {
+    fn run(
+        &mut self,
+        _ast: &mut Module,
+        module: MutRc<MModule>,
+        modules: &[MutRc<MModule>],
+    ) -> Result<(), Errors> {
         drain_mod_imports(modules, module, &mut |modules, module, import| {
             let src_module_rc = modules
                 .iter()
-                .find(|m| m.try_borrow().ok().map(|m| Rc::clone(&m.path)) == Some(Rc::clone(&import.path)))
+                .find(|m| {
+                    m.try_borrow().ok().map(|m| Rc::clone(&m.path)) == Some(Rc::clone(&import.path))
+                })
                 .or_err(&module.path, &import.symbol, "Unknown module.")?;
 
             let src_module = src_module_rc.borrow();
@@ -74,7 +88,10 @@ impl PreMIRPass for ImportGlobals {
                     for name in src_module.globals.keys() {
                         module.try_reserve_name_rc(name, &import.symbol)?;
                     }
-                    module.imports.modules.insert(Rc::clone(&src_module.path), Rc::clone(src_module_rc));
+                    module
+                        .imports
+                        .modules
+                        .insert(Rc::clone(&src_module.path), Rc::clone(src_module_rc));
                     Ok(true)
                 }
 
@@ -87,7 +104,12 @@ impl PreMIRPass for ImportGlobals {
                         module.imports.globals.insert(name, global.clone());
                         Ok(true)
                     } else {
-                        Err(Error::new(&import.symbol, "MIR", "Unknown module member.".to_string(), &module.path))
+                        Err(Error::new(
+                            &import.symbol,
+                            "MIR",
+                            "Unknown module member.".to_string(),
+                            &module.path,
+                        ))
                     }
                 }
             }
@@ -98,13 +120,9 @@ impl PreMIRPass for ImportGlobals {
 /// This function runs drain_filter on all imports in the given module, using the given function as a filter.
 /// If the filter returns Err, the function exits prematurely and returns the error.
 fn drain_mod_imports(
-    modules: &Vec<MutRc<MModule>>,
+    modules: &[MutRc<MModule>],
     module: MutRc<MModule>,
-    cond: &mut dyn FnMut(
-        &Vec<MutRc<MModule>>,
-        &mut RefMut<MModule>,
-        &Import,
-    ) -> Res<bool>,
+    cond: &mut dyn FnMut(&[MutRc<MModule>], &mut RefMut<MModule>, &Import) -> Res<bool>,
 ) -> Result<(), Errors> {
     let mut errs = Vec::new();
     let mut module = module.borrow_mut();
@@ -114,7 +132,10 @@ fn drain_mod_imports(
     let mut i = 0;
     while i != module.imports.ast.len() {
         let import = module.imports.ast.remove(i);
-        if !cond(modules, &mut module, &import).map_err(|e| errs.push(e)).unwrap_or(false) {
+        if !cond(modules, &mut module, &import)
+            .map_err(|e| errs.push(e))
+            .unwrap_or(false)
+        {
             module.imports.ast.insert(i, import);
             i += 1;
         }
@@ -123,6 +144,6 @@ fn drain_mod_imports(
     if errs.is_empty() {
         Ok(())
     } else {
-        return Err(Errors(errs, Rc::clone(&module.src)));
+        Err(Errors(errs, Rc::clone(&module.src)))
     }
 }

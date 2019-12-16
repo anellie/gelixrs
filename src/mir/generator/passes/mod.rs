@@ -9,8 +9,8 @@ use std::rc::Rc;
 use crate::ast::{Module, Type as ASTType};
 use crate::error::{Error, Errors, Res};
 use crate::lexer::token::Token;
-use crate::mir::{MModule, MutRc};
 use crate::mir::nodes::{Type, Variable};
+use crate::mir::{MModule, MutRc};
 
 pub mod declaring_globals;
 pub mod declaring_methods;
@@ -31,7 +31,12 @@ thread_local! {
 
 /// A pass that runs before the AST is discarded.
 pub trait PreMIRPass {
-    fn run(&mut self, ast: &mut Module, module: MutRc<MModule>, modules: &Vec<MutRc<MModule>>) -> Result<(), Errors>;
+    fn run(
+        &mut self,
+        ast: &mut Module,
+        module: MutRc<MModule>,
+        modules: &[MutRc<MModule>],
+    ) -> Result<(), Errors>;
 }
 
 /// A pass that takes a MIR module and performs some kind of transformation
@@ -41,7 +46,9 @@ pub trait PreMIRPass {
 /// These modules are collected and executed in order inside mir/generator/module.rs.
 pub trait ModulePass {
     fn get_type(&self) -> PassType;
-    fn run_globally(&mut self, _modules: &Vec<MutRc<MModule>>) -> Result<(), Vec<Errors>> { Ok(()) }
+    fn run_globally(&mut self, _modules: &[MutRc<MModule>]) -> Result<(), Vec<Errors>> {
+        Ok(())
+    }
     fn run_mod(&mut self, _module: MutRc<MModule>) -> Result<(), Vec<Error>> {
         Ok(())
     }

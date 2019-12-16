@@ -10,15 +10,15 @@ use either::Either;
 
 use crate::ast;
 use crate::ast::declaration::{FuncSignature, FunctionArg};
-use crate::ast::Module;
 use crate::ast::module::ModulePath;
+use crate::ast::Module;
 use crate::error::{Errors, Res};
-use crate::mir::{MModule, MutRc, mutrc_new};
 use crate::mir::generator::builder::MIRBuilder;
 use crate::mir::generator::intrinsics::INTRINSICS;
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::nodes::{Function, Type, Variable};
 use crate::mir::result::ToMIRResult;
+use crate::mir::{mutrc_new, MModule, MutRc};
 
 /// This pass defines all globals inside the module; currently only functions.
 /// It only creates a signature and inserts it into the module;
@@ -28,7 +28,12 @@ use crate::mir::result::ToMIRResult;
 pub struct DeclareGlobals();
 
 impl PreMIRPass for DeclareGlobals {
-    fn run(&mut self, ast: &mut Module, module: MutRc<MModule>, _modules: &Vec<MutRc<MModule>>) -> Result<(), Errors> {
+    fn run(
+        &mut self,
+        ast: &mut Module,
+        module: MutRc<MModule>,
+        _modules: &[MutRc<MModule>],
+    ) -> Result<(), Errors> {
         let mut errs = Vec::new();
         let builder = MIRBuilder::new(&module);
 
@@ -56,7 +61,7 @@ pub fn create_function(
     builder: &MIRBuilder,
     func: Either<&FuncSignature, ast::Function>,
     is_external: bool,
-    this_arg: Option<FunctionArg>
+    this_arg: Option<FunctionArg>,
 ) -> Res<Rc<Variable>> {
     let module = &builder.module;
     let func_sig = match &func {

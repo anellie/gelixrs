@@ -9,17 +9,17 @@ use std::rc::Rc;
 
 use either::Either::Left;
 
-use crate::ast::{Class as ASTClass, Expression};
 use crate::ast::declaration::{Constructor, FuncSignature, FunctionArg, Visibility};
 use crate::ast::Type as ASTType;
+use crate::ast::{Class as ASTClass, Expression};
 use crate::error::{Error, Res};
-use crate::lexer::token::{Token, TType};
-use crate::mir::{MModule, MutRc};
+use crate::lexer::token::{TType, Token};
 use crate::mir::generator::builder::MIRBuilder;
-use crate::mir::generator::passes::{ModulePass, PassType};
 use crate::mir::generator::passes::declaring_globals::create_function;
+use crate::mir::generator::passes::{ModulePass, PassType};
 use crate::mir::nodes::{Block, Class, Expr, Type, Variable};
 use crate::mir::result::ToMIRResult;
+use crate::mir::{MModule, MutRc};
 use crate::option::Flatten;
 
 /// This pass defines all methods on classes and interfaces.
@@ -49,8 +49,12 @@ fn declare_for_class(builder: &mut MIRBuilder, class: MutRc<Class>) -> Res<()> {
 
     // Do all user-defined methods
     for method in ast.methods.iter() {
-        let mir_method = create_function(builder, Left(&method.sig), false, Some(this_arg.clone()))?;
-        class.borrow_mut().methods.insert(Rc::clone(&method.sig.name.lexeme), mir_method);
+        let mir_method =
+            create_function(builder, Left(&method.sig), false, Some(this_arg.clone()))?;
+        class
+            .borrow_mut()
+            .methods
+            .insert(Rc::clone(&method.sig.name.lexeme), mir_method);
     }
 
     // Do all constructors
@@ -79,7 +83,7 @@ fn declare_for_class(builder: &mut MIRBuilder, class: MutRc<Class>) -> Res<()> {
                 &ast.name,
                 "MIR",
                 "Class contains constructors with duplicate signatures.".to_string(),
-                &builder.path
+                &builder.path,
             ));
         }
     }
@@ -151,7 +155,7 @@ fn insert_constructor_setters(
     builder: &mut MIRBuilder,
     class: &ASTClass,
     constructor: &Constructor,
-    mir_fn_params: &Vec<Rc<Variable>>,
+    mir_fn_params: &[Rc<Variable>],
 ) -> Res<Block> {
     let mut block = Vec::new();
     for (index, (param, _)) in constructor
@@ -159,15 +163,15 @@ fn insert_constructor_setters(
         .iter()
         .enumerate()
         .filter(|(_, (_, ty))| ty.is_none())
-        {
-            let (field_index, _) =
-                get_field_by_name(class, param).or_err(&builder.path, param, "Unknown class field.")?;
-            block.push(Expr::struct_set_index(
-                Expr::load(&mir_fn_params[0]),
-                field_index,
-                Expr::load(&mir_fn_params[index + 1]),
-            ))
-        }
+    {
+        let (field_index, _) =
+            get_field_by_name(class, param).or_err(&builder.path, param, "Unknown class field.")?;
+        block.push(Expr::struct_set_index(
+            Expr::load(&mir_fn_params[0]),
+            field_index,
+            Expr::load(&mir_fn_params[index + 1]),
+        ))
+    }
     Ok(block)
 }
 

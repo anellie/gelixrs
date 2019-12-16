@@ -5,9 +5,9 @@
  */
 
 use crate::error::Errors;
-use crate::mir::{MModule, MutRc};
 use crate::mir::generator::intrinsics::INTRINSICS;
 use crate::mir::generator::passes::{ModulePass, PassType};
+use crate::mir::{MModule, MutRc};
 
 /// This pass populates the intrinsics struct.
 pub struct PopulateIntrinsics();
@@ -17,7 +17,7 @@ impl ModulePass for PopulateIntrinsics {
         PassType::Globally
     }
 
-    fn run_globally(&mut self, modules: &Vec<MutRc<MModule>>) -> Result<(), Vec<Errors>> {
+    fn run_globally(&mut self, modules: &[MutRc<MModule>]) -> Result<(), Vec<Errors>> {
         for module in modules {
             let module = module.borrow();
             if **module.path.0[0] == *"std" && **module.path.0[1] == *"ops" {

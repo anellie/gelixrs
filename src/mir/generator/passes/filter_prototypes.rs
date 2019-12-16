@@ -9,18 +9,23 @@ use std::rc::Rc;
 
 use crate::ast::Module;
 use crate::error::Errors;
-use crate::mir::{MModule, MutRc, mutrc_new};
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::nodes::{
     ClassPrototype, FunctionPrototype, InterfacePrototype, Prototype, Prototypes,
 };
+use crate::mir::{mutrc_new, MModule, MutRc};
 
 /// This pass removes all types/functions with generic parameters
 /// from the AST list, since they are handled separately.
 pub struct FilterPrototypes();
 
 impl PreMIRPass for FilterPrototypes {
-    fn run(&mut self, ast: &mut Module, module: MutRc<MModule>, _modules: &Vec<MutRc<MModule>>) -> Result<(), Errors> {
+    fn run(
+        &mut self,
+        ast: &mut Module,
+        module: MutRc<MModule>,
+        _modules: &[MutRc<MModule>],
+    ) -> Result<(), Errors> {
         let mut module = module.borrow_mut();
         let mut errs = Vec::new();
 
