@@ -13,8 +13,10 @@ use crate::mir::nodes::{Type, Variable};
 use crate::mir::{MModule, MutRc};
 
 pub mod declaring_globals;
+pub mod declaring_iface_impls;
 pub mod declaring_methods;
 pub mod declaring_types;
+pub mod fill_impls;
 pub mod filter_prototypes;
 pub mod generate;
 pub mod imports;

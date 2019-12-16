@@ -10,8 +10,10 @@ use crate::ast::module::Module;
 use crate::error::{Error, Errors};
 use crate::mir::generator::intrinsics::INTRINSICS;
 use crate::mir::generator::passes::declaring_globals::DeclareGlobals;
+use crate::mir::generator::passes::declaring_iface_impls::DeclareIfaceImpls;
 use crate::mir::generator::passes::declaring_methods::DeclareMethods;
 use crate::mir::generator::passes::declaring_types::DeclareTypes;
+use crate::mir::generator::passes::fill_impls::FillIfaceImpls;
 use crate::mir::generator::passes::filter_prototypes::FilterPrototypes;
 use crate::mir::generator::passes::generate::Generate;
 use crate::mir::generator::passes::imports::{ImportGlobals, ImportTypes};
@@ -41,6 +43,7 @@ impl PassRunner {
             Box::new(ImportTypes()),
             Box::new(DeclareGlobals()),
             Box::new(ImportGlobals()),
+            Box::new(DeclareIfaceImpls()),
         ];
 
         for mut pass in passes.drain(..) {
@@ -57,6 +60,7 @@ impl PassRunner {
 
         let mut passes: Vec<Box<dyn ModulePass>> = vec![
             Box::new(DeclareMethods()),
+            Box::new(FillIfaceImpls()),
             Box::new(InsertClassMembers()),
             Box::new(PopulateIntrinsics()),
             Box::new(Generate()),
