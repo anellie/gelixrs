@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 9:25 PM.
+ * Last modified on 12/16/19 9:37 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -126,6 +126,7 @@ impl MModule {
     pub fn new(ast: &Module) -> MModule {
         Self {
             path: Rc::clone(&ast.path),
+            src: Rc::clone(&ast.src),
             ..Default::default()
         }
     }
