@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 8:47 PM.
+ * Last modified on 12/16/19 9:25 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -22,6 +22,7 @@ use super::super::nodes::Type;
 /// resolving types and similar tasks.
 ///
 /// It is also used by the [MIRGenerator].
+#[derive(Clone)]
 pub struct MIRBuilder {
     /// The path of the current module.
     /// Separate to reduce amount of borrows on the module.

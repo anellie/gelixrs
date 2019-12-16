@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 8:47 PM.
+ * Last modified on 12/16/19 9:25 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -450,10 +450,10 @@ impl MIRGenerator {
         Error::new(tok, "MIR", msg.to_string(), &self.builder.path)
     }
 
-    pub fn new(module: &MutRc<MModule>) -> Self {
+    pub fn new(builder: MIRBuilder) -> Self {
         MIRGenerator {
-            module: Rc::clone(module),
-            builder: MIRBuilder::new(module),
+            module: Rc::clone(&builder.module),
+            builder,
             position: None,
             environments: Vec::with_capacity(5),
             current_loop: None,

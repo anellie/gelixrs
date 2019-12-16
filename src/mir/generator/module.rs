@@ -1,15 +1,18 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 8:47 PM.
+ * Last modified on 12/16/19 9:25 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::ast::module::Module;
 use crate::error::{Error, Errors};
 use crate::mir::{MModule, MutRc, mutrc_new};
+use crate::mir::generator::builder::MIRBuilder;
 use crate::mir::generator::intrinsics::INTRINSICS;
+use crate::mir::generator::MIRGenerator;
 use crate::mir::generator::passes::{ModulePass, PassType, PreMIRPass};
 use crate::mir::generator::passes::declaring_globals::DeclareGlobals;
 use crate::mir::generator::passes::declaring_iface_impls::DeclareIfaceImpls;
@@ -25,6 +28,14 @@ use crate::mir::generator::passes::populate_intrinsics::PopulateIntrinsics;
 use crate::mir::generator::passes::validate::ValidateIntrinsics;
 use crate::mir::IFACE_IMPLS;
 use crate::mir::nodes::{Type, Variable};
+
+thread_local! {
+    /// A map containing all interface implementations.
+    /// This is global state since it is shared across modules.
+    /// TODO: This would be better implemented as a lazy_static,
+    /// but the compiler does not currently support multithreading.
+    static DONE_PASSES: RefCell<Vec<Box<dyn ModulePass>>> = RefCell::new(Vec::new());
+}
 
 /// Responsible for collecting all passes that run on the MIR.
 /// MIR is built purely by running many transformation passes,
@@ -61,23 +72,29 @@ impl PassRunner {
 
         let mut passes: Vec<Box<dyn ModulePass>> = vec![
             Box::new(DeclareMethods()),
-            Box::new(FillIfaceImpls(true)),
+            Box::new(FillIfaceImpls(RefCell::new(true))),
             Box::new(InsertClassMembers()),
             Box::new(PopulateIntrinsics()),
             Box::new(Generate()),
             Box::new(GenerateImpls()),
             Box::new(ValidateIntrinsics()),
         ];
-
-        for mut pass in passes.drain(..) {
-            self.run_pass(&mut *pass)?;
+        let mut generator = MIRGenerator::new(MIRBuilder::new(&self.modules[0]));
+        for pass in passes.drain(..) {
+            // The pass needs to be put into DONE_PASSES before running.
+            DONE_PASSES.with(|d| d.borrow_mut().push(pass));
+            DONE_PASSES.with(|d| self.run_pass(&**d.borrow().last().unwrap(), &mut generator))?;
         }
 
         Ok(self.modules)
     }
 
-    pub fn run_pass(&self, pass: &mut dyn ModulePass) -> Result<(), Vec<Errors>> {
-        match pass.get_type() {
+    pub fn run_pass(
+        &self,
+        pass: &dyn ModulePass,
+        gen: &mut MIRGenerator,
+    ) -> Result<(), Vec<Errors>> {
+        match DONE_PASSES.with(|d| d.borrow().last().unwrap().get_type()) {
             PassType::Globally => {
                 pass.run_globally(&self.modules)?;
             }
@@ -86,7 +103,8 @@ impl PassRunner {
                 let mut errs = Vec::new();
 
                 for module in self.modules.iter() {
-                    self.run_module_pass(module, pass)
+                    gen.switch_module(module);
+                    self.run_module_pass(gen, pass)
                         .map_err(|e| errs.push(Errors(e, Rc::clone(&module.borrow().src))))
                         .ok();
                 }
@@ -101,39 +119,39 @@ impl PassRunner {
 
     pub fn run_module_pass(
         &self,
-        module: &MutRc<MModule>,
-        pass: &mut dyn ModulePass,
+        gen: &mut MIRGenerator,
+        pass: &dyn ModulePass,
     ) -> Result<(), Vec<Error>> {
         let mut errs = Vec::new();
 
         match pass.get_type() {
             PassType::Module => {
-                pass.run_mod(Rc::clone(module))
-                    .map_err(|mut e| errs.append(&mut e))
-                    .ok();
+                pass.run_mod(gen).map_err(|mut e| errs.append(&mut e)).ok();
             }
 
             PassType::Type => {
-                let types_iter = module
+                let types_iter = gen
+                    .module
                     .borrow()
                     .types
                     .values()
                     .cloned()
                     .collect::<Vec<Type>>();
                 for ty in types_iter {
-                    pass.run_type(module, ty).map_err(|e| errs.push(e)).ok();
+                    pass.run_type(gen, ty).map_err(|e| errs.push(e)).ok();
                 }
             }
 
             PassType::GlobalVar => {
-                let globals_iter = module
+                let globals_iter = gen
+                    .module
                     .borrow()
                     .globals
                     .values()
                     .cloned()
                     .collect::<Vec<Rc<Variable>>>();
                 for global in globals_iter {
-                    pass.run_global_var(module, global)
+                    pass.run_global_var(gen, global)
                         .map_err(|e| errs.push(e))
                         .ok();
                 }

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 8:47 PM.
+ * Last modified on 12/16/19 9:25 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -62,7 +62,18 @@ impl Type {
     /// A list of all primitive types that are not defined in any gelix code,
     /// but are instead indirectly globally defined.
     pub fn primitives() -> [Type; 10] {
-        [Type::Any, Type::None, Type::Bool, Type::I8, Type::I16, Type::I32, Type::I64, Type::F32, Type::F64, Type::String]
+        [
+            Type::Any,
+            Type::None,
+            Type::Bool,
+            Type::I8,
+            Type::I16,
+            Type::I32,
+            Type::I64,
+            Type::F32,
+            Type::F64,
+            Type::String,
+        ]
     }
 
     /// Is this type a number?

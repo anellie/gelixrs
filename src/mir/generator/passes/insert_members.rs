@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 2:53 PM.
+ * Last modified on 12/16/19 9:25 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -8,10 +8,10 @@ use std::rc::Rc;
 
 use crate::ast::Type as ASTType;
 use crate::error::Res;
-use crate::mir::generator::passes::{ModulePass, PassType};
 use crate::mir::generator::MIRGenerator;
+use crate::mir::generator::passes::{ModulePass, PassType};
+use crate::mir::MutRc;
 use crate::mir::nodes::{Class, ClassMember, Expr, Type, Variable};
-use crate::mir::{MModule, MutRc};
 
 /// This pass fills all classes with their members
 /// and creates their internal init function.
@@ -22,10 +22,9 @@ impl ModulePass for InsertClassMembers {
         PassType::Type
     }
 
-    fn run_type(&mut self, module: &MutRc<MModule>, ty: Type) -> Res<()> {
+    fn run_type(&self, gen: &mut MIRGenerator, ty: Type) -> Res<()> {
         if let Type::Class(cls) = ty {
-            let mut gen = MIRGenerator::new(module);
-            fill_class(&mut gen, cls)?
+            fill_class(gen, cls)?
         }
         Ok(())
     }

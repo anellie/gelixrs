@@ -1,9 +1,10 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 8:44 PM.
+ * Last modified on 12/16/19 9:25 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::mem;
 use std::rc::Rc;
@@ -12,8 +13,8 @@ use either::Either::Left;
 
 use crate::ast::declaration::{Function, FunctionArg};
 use crate::error::{Error, Res};
-use crate::mir::{MModule, MutRc};
 use crate::mir::generator::builder::MIRBuilder;
+use crate::mir::generator::MIRGenerator;
 use crate::mir::generator::passes::{ModulePass, PassType};
 use crate::mir::generator::passes::declaring_globals::create_function;
 use crate::mir::generator::passes::declaring_iface_impls::get_or_create_iface_impls;
@@ -22,30 +23,29 @@ use crate::mir::result::ToMIRResult;
 
 /// This pass defines all methods on classes and interfaces.
 /// The boolean indicates if the pass has already been run at least once.
-pub struct FillIfaceImpls(pub bool);
+pub struct FillIfaceImpls(pub RefCell<bool>);
 
 impl ModulePass for FillIfaceImpls {
     fn get_type(&self) -> PassType {
         PassType::Type
     }
 
-    fn run_type(&mut self, module: &MutRc<MModule>, ty: Type) -> Res<()> {
+    fn run_type(&self, gen: &mut MIRGenerator, ty: Type) -> Res<()> {
         // If this the first time this pass runs, run it on primitive types.
         // (Since primitive types are not in any module, they would never run if not for this.)
-        if self.0 {
-            self.0 = false;
+        if *self.0.borrow() {
+            mem::replace(&mut *self.0.borrow_mut(), false);
             for ty in Type::primitives().iter() {
-                self.run_type(module, ty.clone())?;
+                self.run_type(gen, ty.clone())?;
             }
         }
 
         let impls = get_or_create_iface_impls(&ty);
         let mut impls = impls.borrow_mut();
-        let mut builder = MIRBuilder::new(&module);
 
         let mut methods = HashMap::with_capacity(impls.interfaces.len() * 2);
         for iface_impl in impls.interfaces.iter_mut() {
-            builder.switch_module(&iface_impl.module);
+            gen.builder.switch_module(&iface_impl.module);
 
             let ast = Rc::clone(&iface_impl.ast);
             let iface = Rc::clone(&iface_impl.iface);
@@ -54,13 +54,17 @@ impl ModulePass for FillIfaceImpls {
             for method in ast.methods.iter() {
                 let iface = iface.borrow();
                 let iface_method = iface.methods.get(&method.sig.name.lexeme).or_err(
-                    &builder.path,
+                    &gen.builder.path,
                     &method.sig.name,
                     "Method is not defined in interface.",
                 )?;
 
-                let mir_method =
-                    create_function(&builder, Left(&method.sig), false, Some(this_arg.clone()))?;
+                let mir_method = create_function(
+                    &gen.builder,
+                    Left(&method.sig),
+                    false,
+                    Some(this_arg.clone()),
+                )?;
                 iface_impl
                     .methods
                     .insert(Rc::clone(&method.sig.name.lexeme), Rc::clone(&mir_method));
@@ -70,7 +74,7 @@ impl ModulePass for FillIfaceImpls {
                     methods.insert(Rc::clone(&method.sig.name.lexeme), Rc::clone(&mir_method));
                 }
 
-                check_equal_signature(&mut builder, method, mir_method, iface_method)?;
+                check_equal_signature(&gen.builder, method, mir_method, iface_method)?;
             }
 
             if iface.borrow().methods.len() > iface_impl.methods.len() {
@@ -78,7 +82,7 @@ impl ModulePass for FillIfaceImpls {
                     &ast.iface.get_token(),
                     "MIR",
                     "Missing methods in interface impl.".to_string(),
-                    &builder.path,
+                    &gen.builder.path,
                 ));
             }
         }
@@ -90,7 +94,7 @@ impl ModulePass for FillIfaceImpls {
 
 /// Ensures that the implemented interface method matches the expected signature.
 fn check_equal_signature(
-    builder: &mut MIRBuilder,
+    builder: &MIRBuilder,
     method: &Function,
     mir_method: Rc<Variable>,
     iface_method: &IFaceMethod,
@@ -118,20 +122,20 @@ fn check_equal_signature(
         .iter()
         .zip(iface_method.parameters.iter())
         .enumerate()
-        {
-            if &method_param.type_ != iface_param {
-                let tok = &method.sig.parameters[i].name;
-                return Err(Error::new(
-                    tok,
-                    "MIR",
-                    format!(
-                        "Incorrect parameter type on interface method (Expected {}).",
-                        iface_param
-                    ),
-                    &builder.path,
-                ));
-            }
+    {
+        if &method_param.type_ != iface_param {
+            let tok = &method.sig.parameters[i].name;
+            return Err(Error::new(
+                tok,
+                "MIR",
+                format!(
+                    "Incorrect parameter type on interface method (Expected {}).",
+                    iface_param
+                ),
+                &builder.path,
+            ));
         }
+    }
 
     Ok(())
 }

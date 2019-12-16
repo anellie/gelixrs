@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 4:24 PM.
+ * Last modified on 12/16/19 9:25 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -9,17 +9,18 @@ use std::rc::Rc;
 
 use either::Either::Left;
 
+use crate::ast::{Class as ASTClass, Expression};
 use crate::ast::declaration::{Constructor, FuncSignature, FunctionArg, Visibility};
 use crate::ast::Type as ASTType;
-use crate::ast::{Class as ASTClass, Expression};
 use crate::error::{Error, Res};
-use crate::lexer::token::{TType, Token};
+use crate::lexer::token::{Token, TType};
 use crate::mir::generator::builder::MIRBuilder;
-use crate::mir::generator::passes::declaring_globals::create_function;
+use crate::mir::generator::MIRGenerator;
 use crate::mir::generator::passes::{ModulePass, PassType};
+use crate::mir::generator::passes::declaring_globals::create_function;
+use crate::mir::MutRc;
 use crate::mir::nodes::{Block, Class, Expr, IFaceMethod, Interface, Type, Variable};
 use crate::mir::result::ToMIRResult;
-use crate::mir::{MModule, MutRc};
 use crate::option::Flatten;
 
 /// This pass defines all methods on classes and interfaces.
@@ -30,18 +31,10 @@ impl ModulePass for DeclareMethods {
         PassType::Type
     }
 
-    fn run_type(&mut self, module: &MutRc<MModule>, ty: Type) -> Result<(), Error> {
+    fn run_type(&self, gen: &mut MIRGenerator, ty: Type) -> Result<(), Error> {
         match ty {
-            Type::Class(cls) => {
-                let mut builder = MIRBuilder::new(module);
-                declare_for_class(&mut builder, cls)?
-            }
-
-            Type::Interface(iface) => {
-                let mut builder = MIRBuilder::new(module);
-                declare_for_iface(&mut builder, iface)?
-            }
-
+            Type::Class(cls) => declare_for_class(&mut gen.builder, cls)?,
+            Type::Interface(iface) => declare_for_iface(&mut gen.builder, iface)?,
             _ => (),
         }
         Ok(())

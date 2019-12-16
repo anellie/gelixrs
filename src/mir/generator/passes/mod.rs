@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 8:47 PM.
+ * Last modified on 12/16/19 9:25 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -10,6 +10,7 @@ use crate::ast::{Module, Type as ASTType};
 use crate::error::{Error, Errors, Res};
 use crate::lexer::token::Token;
 use crate::mir::{MModule, MutRc};
+use crate::mir::generator::MIRGenerator;
 use crate::mir::nodes::{Type, Variable};
 
 pub mod declaring_globals;
@@ -49,16 +50,16 @@ pub trait PreMIRPass {
 /// These modules are collected and executed in order inside mir/generator/module.rs.
 pub trait ModulePass {
     fn get_type(&self) -> PassType;
-    fn run_globally(&mut self, _modules: &[MutRc<MModule>]) -> Result<(), Vec<Errors>> {
+    fn run_globally(&self, _modules: &[MutRc<MModule>]) -> Result<(), Vec<Errors>> {
         Ok(())
     }
-    fn run_mod(&mut self, _module: MutRc<MModule>) -> Result<(), Vec<Error>> {
+    fn run_mod(&self, _gen: &mut MIRGenerator) -> Result<(), Vec<Error>> {
         Ok(())
     }
-    fn run_type(&mut self, _module: &MutRc<MModule>, _ty: Type) -> Res<()> {
+    fn run_type(&self, _gen: &mut MIRGenerator, _ty: Type) -> Res<()> {
         Ok(())
     }
-    fn run_global_var(&mut self, _module: &MutRc<MModule>, _global: Rc<Variable>) -> Res<()> {
+    fn run_global_var(&self, _gen: &mut MIRGenerator, _global: Rc<Variable>) -> Res<()> {
         Ok(())
     }
 }

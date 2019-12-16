@@ -1,16 +1,15 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 11:34 PM.
+ * Last modified on 12/16/19 9:25 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::rc::Rc;
 
 use crate::error::Error;
-use crate::mir::generator::passes::{ModulePass, PassType};
 use crate::mir::generator::MIRGenerator;
+use crate::mir::generator::passes::{ModulePass, PassType};
 use crate::mir::nodes::Type;
-use crate::mir::{MModule, MutRc};
 
 /// This pass populates the intrinsics struct.
 pub struct Generate();
@@ -20,14 +19,13 @@ impl ModulePass for Generate {
         PassType::Module
     }
 
-    fn run_mod(&mut self, module: MutRc<MModule>) -> Result<(), Vec<Error>> {
+    fn run_mod(&self, gen: &mut MIRGenerator) -> Result<(), Vec<Error>> {
         let mut errs = Vec::new();
         // TODO: This is not ideal
         // It's not terrible, since all types are wrapped in a Rc,
         // but cloning a bunch of Rc is not ideal.
-        let types: Vec<Type> = module.borrow().types.values().cloned().collect();
+        let types: Vec<Type> = gen.module.borrow().types.values().cloned().collect();
 
-        let mut gen = MIRGenerator::new(&module);
         for ty in types {
             match ty {
                 Type::Function(func) => {

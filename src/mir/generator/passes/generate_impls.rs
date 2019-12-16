@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 8:47 PM.
+ * Last modified on 12/16/19 9:25 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -8,6 +8,7 @@ use std::rc::Rc;
 
 use crate::error::Errors;
 use crate::mir::{IFACE_IMPLS, MModule, MutRc};
+use crate::mir::generator::builder::MIRBuilder;
 use crate::mir::generator::MIRGenerator;
 use crate::mir::generator::passes::{ModulePass, PassType};
 use crate::mir::nodes::IFaceImpls;
@@ -20,10 +21,10 @@ impl ModulePass for GenerateImpls {
         PassType::Globally
     }
 
-    fn run_globally(&mut self, modules: &[MutRc<MModule>]) -> Result<(), Vec<Errors>> {
+    fn run_globally(&self, modules: &[MutRc<MModule>]) -> Result<(), Vec<Errors>> {
         // Actual module does not matter for now; will be
         // set as needed when generating impls
-        let mut gen = MIRGenerator::new(&modules[0]);
+        let mut gen = MIRGenerator::new(MIRBuilder::new(&modules[0]));
 
         IFACE_IMPLS.with(|iface_impls| {
             let iface_impls = iface_impls.borrow();
