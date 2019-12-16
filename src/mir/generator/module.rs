@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 4:00 PM.
+ * Last modified on 12/16/19 4:02 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -56,8 +56,8 @@ impl PassRunner {
         }
 
         let mut passes: Vec<Box<dyn ModulePass>> = vec![
-            Box::new(InsertClassMembers()),
             Box::new(DeclareMethods()),
+            Box::new(InsertClassMembers()),
             Box::new(PopulateIntrinsics()),
             Box::new(Generate()),
             Box::new(ValidateIntrinsics()),
