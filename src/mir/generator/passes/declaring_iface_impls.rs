@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 6:58 PM.
+ * Last modified on 12/16/19 8:37 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -74,6 +74,7 @@ fn declare_impl(iface_impl: ast::IFaceImpl, builder: &mut MIRBuilder) -> Res<()>
         implementor,
         iface,
         methods: IndexMap::with_capacity(iface_impl.methods.len()),
+        module: Rc::clone(&builder.module),
         ast: Rc::new(iface_impl),
     };
     impls.borrow_mut().interfaces.push(mir_impl);

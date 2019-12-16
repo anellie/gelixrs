@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 6:58 PM.
+ * Last modified on 12/16/19 8:47 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,7 +12,7 @@ use std::rc::Rc;
 use indexmap::IndexMap;
 
 use crate::ast;
-use crate::mir::MutRc;
+use crate::mir::{MModule, MutRc};
 use crate::mir::nodes::{Expr, InterfacePrototype, Type};
 
 /// A full class including all members and methods.
@@ -115,6 +115,7 @@ pub struct IFaceImpl {
     pub implementor: Type,
     pub iface: MutRc<Interface>,
     pub methods: IndexMap<Rc<String>, Rc<Variable>>,
+    pub module: MutRc<MModule>,
     pub ast: Rc<ast::IFaceImpl>,
 }
 

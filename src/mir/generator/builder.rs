@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 11:08 PM.
+ * Last modified on 12/16/19 8:47 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,9 +11,9 @@ use crate::ast::module::ModulePath;
 use crate::ast::Type as ASTType;
 use crate::error::Res;
 use crate::lexer::token::Token;
+use crate::mir::{IFACE_IMPLS, MModule, MutRc};
 use crate::mir::nodes::Variable;
 use crate::mir::result::ToMIRResult;
-use crate::mir::{MModule, MutRc, IFACE_IMPLS};
 
 use super::super::nodes::Type;
 
@@ -105,6 +105,12 @@ impl MIRBuilder {
                 .cloned()
                 .zip(args.iter().cloned()),
         );
+    }
+
+    /// Switch the module this builder is operating on.
+    pub fn switch_module(&mut self, module: &MutRc<MModule>) {
+        self.path = Rc::clone(&module.borrow().path);
+        self.module = Rc::clone(module);
     }
 
     pub fn new(module: &MutRc<MModule>) -> MIRBuilder {

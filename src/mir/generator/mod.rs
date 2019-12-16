@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 10:53 PM.
+ * Last modified on 12/16/19 8:47 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,14 +12,14 @@ use indexmap::IndexMap;
 
 use crate::ast::declaration::{Class as ASTClass, Constructor, Function as ASTFunc};
 use crate::ast::expression::Expression as ASTExpr;
+use crate::Error;
 use crate::error::Res;
-use crate::lexer::token::{TType, Token};
+use crate::lexer::token::{Token, TType};
+use crate::mir::{IFACE_IMPLS, MModule, MutRc};
 use crate::mir::generator::builder::MIRBuilder;
 use crate::mir::generator::intrinsics::INTRINSICS;
 use crate::mir::nodes::{ClassMember, Expr, Function, Type, Variable};
 use crate::mir::result::ToMIRResult;
-use crate::mir::{MModule, MutRc, IFACE_IMPLS};
-use crate::Error;
 
 pub mod builder;
 pub mod gen_expr;
@@ -427,6 +427,19 @@ impl MIRGenerator {
 
     pub fn cur_block_name(&self) -> Rc<String> {
         Rc::clone(&self.position.as_ref().unwrap().block)
+    }
+
+    /// Switch the module this generator is operating on.
+    /// Doing this will cause everything related to the currently generating code
+    /// to be unset.
+    pub fn switch_module(&mut self, module: &MutRc<MModule>) {
+        self.module = Rc::clone(module);
+        self.builder.switch_module(&module);
+        self.position = None;
+        self.environments.clear();
+        self.environments.clear();
+        self.current_loop = None;
+        self.uninitialized_this_members.clear();
     }
 
     fn cur_loop(&mut self) -> &mut ForLoop {

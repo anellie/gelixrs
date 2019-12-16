@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 3:32 PM.
+ * Last modified on 12/16/19 8:47 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -9,8 +9,8 @@ use std::rc::Rc;
 use crate::ast::{Module, Type as ASTType};
 use crate::error::{Error, Errors, Res};
 use crate::lexer::token::Token;
-use crate::mir::nodes::{Type, Variable};
 use crate::mir::{MModule, MutRc};
+use crate::mir::nodes::{Type, Variable};
 
 pub mod declaring_globals;
 pub mod declaring_iface_impls;
@@ -19,6 +19,7 @@ pub mod declaring_types;
 pub mod fill_impls;
 pub mod filter_prototypes;
 pub mod generate;
+pub mod generate_impls;
 pub mod imports;
 pub mod insert_members;
 pub mod populate_intrinsics;

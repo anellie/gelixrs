@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 4:02 PM.
+ * Last modified on 12/16/19 8:47 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -8,7 +8,9 @@ use std::rc::Rc;
 
 use crate::ast::module::Module;
 use crate::error::{Error, Errors};
+use crate::mir::{MModule, MutRc, mutrc_new};
 use crate::mir::generator::intrinsics::INTRINSICS;
+use crate::mir::generator::passes::{ModulePass, PassType, PreMIRPass};
 use crate::mir::generator::passes::declaring_globals::DeclareGlobals;
 use crate::mir::generator::passes::declaring_iface_impls::DeclareIfaceImpls;
 use crate::mir::generator::passes::declaring_methods::DeclareMethods;
@@ -16,14 +18,13 @@ use crate::mir::generator::passes::declaring_types::DeclareTypes;
 use crate::mir::generator::passes::fill_impls::FillIfaceImpls;
 use crate::mir::generator::passes::filter_prototypes::FilterPrototypes;
 use crate::mir::generator::passes::generate::Generate;
+use crate::mir::generator::passes::generate_impls::GenerateImpls;
 use crate::mir::generator::passes::imports::{ImportGlobals, ImportTypes};
 use crate::mir::generator::passes::insert_members::InsertClassMembers;
 use crate::mir::generator::passes::populate_intrinsics::PopulateIntrinsics;
 use crate::mir::generator::passes::validate::ValidateIntrinsics;
-use crate::mir::generator::passes::{ModulePass, PassType, PreMIRPass};
-use crate::mir::nodes::{Type, Variable};
 use crate::mir::IFACE_IMPLS;
-use crate::mir::{mutrc_new, MModule, MutRc};
+use crate::mir::nodes::{Type, Variable};
 
 /// Responsible for collecting all passes that run on the MIR.
 /// MIR is built purely by running many transformation passes,
@@ -60,10 +61,11 @@ impl PassRunner {
 
         let mut passes: Vec<Box<dyn ModulePass>> = vec![
             Box::new(DeclareMethods()),
-            Box::new(FillIfaceImpls()),
+            Box::new(FillIfaceImpls(true)),
             Box::new(InsertClassMembers()),
             Box::new(PopulateIntrinsics()),
             Box::new(Generate()),
+            Box::new(GenerateImpls()),
             Box::new(ValidateIntrinsics()),
         ];
 

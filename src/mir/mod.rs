@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 4:00 PM.
+ * Last modified on 12/16/19 8:47 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -10,8 +10,8 @@ use std::rc::Rc;
 
 use nodes::Variable;
 
-use crate::ast::module::ModulePath;
 use crate::ast::{Import, Module};
+use crate::ast::module::ModulePath;
 use crate::error::{Error, Res};
 use crate::lexer::token::Token;
 use crate::mir::nodes::{IFaceImpls, Prototype, Type};
@@ -36,7 +36,7 @@ fn mutrc_new<T>(value: T) -> MutRc<T> {
 
 /// A struct produced by a generator. It contains the full MIR representation of a file/module.
 /// Note that generic types/prototypes are not included in this; only instantiated copies of them are.
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct MModule {
     /// The path of the module, for example my_app/gui/widgets
     pub path: Rc<ModulePath>,
@@ -155,7 +155,7 @@ impl Default for ModuleStage {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct Imports {
     pub modules: HashMap<Rc<ModulePath>, MutRc<MModule>>,
     pub globals: HashMap<Rc<String>, Rc<Variable>>,

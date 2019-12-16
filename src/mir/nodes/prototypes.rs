@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 6:18 PM.
+ * Last modified on 12/16/19 8:47 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -14,8 +14,8 @@ use crate::ast::IFaceImpl as ASTImpl;
 use crate::ast::Interface as ASTIFace;
 use crate::error::{Error, Res};
 use crate::lexer::token::Token;
-use crate::mir::nodes::{Class, Interface, Type, Variable};
 use crate::mir::{MModule, MutRc};
+use crate::mir::nodes::{Class, Interface, Type, Variable};
 
 /// A prototype that classes can be instantiated from.
 /// This prototype is kept in AST form,
@@ -34,7 +34,7 @@ use crate::mir::{MModule, MutRc};
 /// of handling prototypes another way.
 /// (Also, this missing check does not lead to unsound compiled code -
 /// not producing unsound code is the most important reason of type checking.)
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Prototype {
     pub name: Rc<String>,
     pub proto: Prototypes,
