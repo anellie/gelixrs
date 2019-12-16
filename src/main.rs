@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/4/19 10:20 PM.
+ * Last modified on 12/15/19 4:09 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -54,14 +54,7 @@ fn main() -> Result<(), &'static str> {
 
     let mut code = gelixrs::parse_source(modules).or_else(|errors| {
         for file in errors {
-            println!(
-                "{} error(s) in file {}:\n",
-                file.errors.len(),
-                file.file_name
-            );
-            for error in file.errors {
-                println!("{}\n", error.to_string(&file.source));
-            }
+            println!("{} error(s):\n{}", file.0.len(), file);
             println!();
         }
         Err("Parser encountered errors. Exiting.")
@@ -78,14 +71,14 @@ fn main() -> Result<(), &'static str> {
 
     let mir = gelixrs::compile_mir(code).or_else(|errors| {
         for error in errors {
-            println!("{}\n", error.to_string(args.file.clone()));
+            println!("{}\n", error);
         }
         Err("MIR generator encountered errors. Exiting.")
     })?;
 
     if args.mir {
-        for module in mir {
-            println!("{}\n\n", module);
+        for _module in mir {
+            unimplemented!("MIR printing")
         }
         return Ok(());
     }

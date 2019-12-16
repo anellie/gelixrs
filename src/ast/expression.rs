@@ -25,6 +25,9 @@ pub static LOGICAL_BINARY: [TType; 6] = [
 /// Currently, everything not top-level is an expression. However, some are not allowed in certain contexts;
 /// see the bottom of this enum.
 /// Expressions appear as part of a declaration.
+///
+/// Note that all expressions that do not need a token
+/// have one attached for error reporting.
 #[derive(Clone, Debug)]
 pub enum Expression {
     /// Assignment a la x = 5
@@ -39,10 +42,12 @@ pub enum Expression {
 
     /// A block of code.
     /// Last expression is the return value.
-    Block(Vec<Expression>),
+    /// The token is the closing brace.
+    Block(Vec<Expression>, Token),
 
     /// 'break' keyword. Always produces None as a value.
-    Break(Option<Box<Expression>>),
+    /// Token is 'break'
+    Break(Option<Box<Expression>>, Token),
 
     /// A method/function call.
     Call {
@@ -74,10 +79,11 @@ pub enum Expression {
     },
 
     /// A simple literal.
-    Literal(Literal),
+    Literal(Literal, Token),
 
     /// 'return' keyword. Always produces None as a value.
-    Return(Option<Box<Expression>>),
+    /// Token is 'return'
+    Return(Option<Box<Expression>>, Token),
 
     /// A setter (x.y = 5)
     Set {
@@ -115,25 +121,24 @@ pub enum Expression {
 
 impl Expression {
     /// Returns a token that is part of the expression to be used for error display.
-    /// Can also return None if the expression does not contain any tokens.
-    pub fn get_token(&self) -> Option<&Token> {
-        Some(match self {
+    pub fn get_token(&self) -> &Token {
+        match self {
             Expression::Assignment { name, .. } => name,
             Expression::Binary { operator, .. } => operator,
-            Expression::Block(vec) => vec.first()?.get_token()?,
-            Expression::Break(expr) => (*expr).as_ref()?.get_token()?,
-            Expression::Call { callee, .. } => callee.get_token()?,
-            Expression::For { condition, .. } => condition.get_token()?,
+            Expression::Block(_, tok) => tok,
+            Expression::Break(_, tok) => tok,
+            Expression::Call { callee, .. } => callee.get_token(),
+            Expression::For { condition, .. } => condition.get_token(),
             Expression::Get { name, .. } => name,
-            Expression::If { condition, .. } => condition.get_token()?,
-            Expression::Literal(_) => None?,
-            Expression::Return(expr) => (*expr).as_ref()?.get_token()?,
+            Expression::If { condition, .. } => condition.get_token(),
+            Expression::Literal(_, tok) => tok,
+            Expression::Return(_, tok) => tok,
             Expression::Set { name, .. } => name,
             Expression::Unary { operator, .. } => operator,
             Expression::Variable(name) => name,
             Expression::VarWithGenerics { name, .. } => name,
-            Expression::When { value, .. } => value.get_token()?,
+            Expression::When { value, .. } => value.get_token(),
             Expression::VarDef(var) => &var.name,
-        })
+        }
     }
 }

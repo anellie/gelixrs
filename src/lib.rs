@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/14/19 2:34 AM.
+ * Last modified on 12/15/19 9:51 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -20,13 +20,13 @@ use std::rc::Rc;
 use ast::module::Module;
 use error::Error;
 use ir::IRGenerator;
-use mir::generator::module::MIRModuleGenerator;
-use mir::generator::MIRError;
-use mir::MIRModule;
-use parser::ParserErrors;
+use mir::generator::module::PassRunner;
+use mir::MModule;
 
-use crate::ast::module::Import;
+use crate::ast::module::{Import, ModulePath};
+use crate::error::Errors;
 use crate::lexer::token::Token;
+use crate::mir::MutRc;
 
 pub mod ast;
 //#[cfg(test)]
@@ -40,20 +40,10 @@ pub mod parser;
 #[cfg(test)]
 pub mod tests;
 
-type ModulePath = Vec<Rc<String>>;
-type SrcParseErrors = Vec<ParserErrors>;
-
-pub fn module_path_to_string(path: &ModulePath) -> String {
-    path.iter()
-        .map(|rc| (&**rc).clone())
-        .collect::<Vec<String>>()
-        .join("/")
-}
-
-pub fn parse_source(input: Vec<PathBuf>) -> Result<Vec<Module>, SrcParseErrors> {
+pub fn parse_source(input: Vec<PathBuf>) -> Result<Vec<Module>, Vec<Errors>> {
     let mut modules = Vec::new();
     for path in input {
-        make_modules(path, &mut vec![], &mut modules)?;
+        make_modules(path, &mut ModulePath(vec![]), &mut modules)?;
     }
     Ok(modules)
 }
@@ -62,8 +52,8 @@ fn make_modules(
     input: PathBuf,
     path: &mut ModulePath,
     modules: &mut Vec<Module>,
-) -> Result<(), SrcParseErrors> {
-    path.push(stem_to_rc_str(&input));
+) -> Result<(), Vec<Errors>> {
+    path.0.push(stem_to_rc_str(&input));
 
     if let Ok(dir) = input.read_dir() {
         let mut errors = Vec::new();
@@ -95,44 +85,47 @@ fn make_modules(
         modules.push(parse_module(input, path)?);
     }
 
-    path.pop();
+    path.0.pop();
     Ok(())
 }
 
-fn parse_module(input: PathBuf, path: &mut ModulePath) -> Result<Module, SrcParseErrors> {
-    let code = fs::read_to_string(&input).expect("Failed to read file.");
-    let mut module = Module::new(path);
+fn parse_module(input: PathBuf, path: &mut ModulePath) -> Result<Module, Vec<Errors>> {
+    let code = Rc::new(fs::read_to_string(&input).expect("Failed to read file."));
+    let mut module = Module::new(path, &code);
 
-    fill_module(&code, &mut module).map_err(|err| vec![ParserErrors::new(err, &code, path)])?;
+    fill_module(code, &mut module).map_err(|e| vec![e])?;
     Ok(module)
 }
 
-fn fill_module(code: &str, module: &mut Module) -> Result<(), Vec<Error>> {
-    let lexer = lexer::Lexer::new(code);
-    let parser = parser::Parser::new(lexer);
-    parser.parse(module)
+fn fill_module(code: Rc<String>, module: &mut Module) -> Result<(), Errors> {
+    let lexer = lexer::Lexer::new(&code);
+    let parser = parser::Parser::new(lexer, Rc::clone(&module.path));
+    parser.parse(module).map_err(|errs| Errors(errs, code))
 }
 
 pub fn auto_import_prelude(modules: &mut Vec<Module>) {
     let prelude_import = Import {
-        path: vec![Rc::new("std".to_string()), Rc::new("prelude".to_string())],
+        path: Rc::new(ModulePath(vec![
+            Rc::new("std".to_string()),
+            Rc::new("prelude".to_string()),
+        ])),
         symbol: Token::generic_identifier("+".to_string()),
     };
 
     for module in modules
         .iter_mut()
-        .filter(|module| *module.path != prelude_import.path)
+        .filter(|module| module.path != prelude_import.path)
     {
         module.imports.push(prelude_import.clone())
     }
 }
 
-pub fn compile_mir(modules: Vec<Module>) -> Result<Vec<MIRModule>, Vec<MIRError>> {
-    let pool = MIRModuleGenerator::new(modules);
-    pool.execute()
+pub fn compile_mir(modules: Vec<Module>) -> Result<Vec<MutRc<MModule>>, Vec<Errors>> {
+    let pool = PassRunner::new(&modules);
+    pool.execute(modules)
 }
 
-pub fn compile_ir(modules: Vec<MIRModule>) -> inkwell::module::Module {
+pub fn compile_ir(modules: Vec<MutRc<MModule>>) -> inkwell::module::Module {
     let gen = IRGenerator::new();
     gen.generate(modules)
 }

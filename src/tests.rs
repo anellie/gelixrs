@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/12/19 7:21 PM.
+ * Last modified on 12/15/19 4:09 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -100,17 +100,17 @@ fn exec_jit(path: PathBuf) -> Result<String, Failure> {
     let engine = module
         .create_jit_execution_engine(OptimizationLevel::None)
         .ok()
-        .ok_or(Failure::IR("Failed to create JIT".to_string()))?;
+        .ok_or_else(|| Failure::IR("Failed to create JIT".to_string()))?;
     engine.add_global_mapping(
         &module
             .get_function("print")
-            .ok_or(Failure::IR("No print fn".to_string()))?,
+            .ok_or_else(|| Failure::IR("No print fn".to_string()))?,
         test_print as usize,
     );
     engine.add_global_mapping(
         &module
             .get_function("printnum")
-            .ok_or(Failure::IR("No printnum fn".to_string()))?,
+            .ok_or_else(|| Failure::IR("No printnum fn".to_string()))?,
         test_printnum as usize,
     );
     if let Some(fun) = &module.get_function("puts") {
@@ -121,7 +121,7 @@ fn exec_jit(path: PathBuf) -> Result<String, Failure> {
         let main_fn: JitFunction<MainFn> = engine
             .get_function("main")
             .ok()
-            .ok_or(Failure::IR("No main fn".to_string()))?;
+            .ok_or_else(|| Failure::IR("No main fn".to_string()))?;
         main_fn.call();
     }
 

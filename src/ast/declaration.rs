@@ -1,15 +1,13 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/14/19 5:51 PM.
+ * Last modified on 12/15/19 10:53 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::fmt;
 
-use crate::option::Flatten;
-
-use super::expression::Expression;
 use super::super::lexer::token::Token;
+use super::expression::Expression;
 
 /// Visibilities of a declaration.
 /// Most declarations default to 'module'
@@ -34,8 +32,6 @@ pub struct Class {
     pub constructors: Vec<Constructor>,
 }
 
-pub type ConstructorParam = (Token, Option<Type>);
-
 /// A constructor in a class.
 #[derive(Debug, Clone)]
 pub struct Constructor {
@@ -43,6 +39,8 @@ pub struct Constructor {
     pub parameters: Vec<ConstructorParam>,
     pub body: Expression,
 }
+
+pub type ConstructorParam = (Token, Option<Type>);
 
 /// A member of a class.
 #[derive(Debug, Clone)]
@@ -60,7 +58,7 @@ pub struct Interface {
     pub name: Token,
     pub visibility: Visibility,
     pub generics: Option<Vec<Token>>,
-    pub methods: Vec<InterfaceFunc>,
+    pub methods: Vec<Function>,
 }
 
 /// An interface implementation for a class.
@@ -71,11 +69,11 @@ pub struct IFaceImpl {
     pub methods: Vec<Function>,
 }
 
-/// An enum definition.
-#[derive(Debug)]
-pub struct Enum {
-    pub name: Token,
-    pub variants: Vec<Token>,
+/// A function inside an interface, where the body is the default implementation and optional
+#[derive(Debug, Clone)]
+pub struct InterfaceFunc {
+    pub sig: FuncSignature,
+    pub body: Option<Expression>,
 }
 
 /// A function signature.
@@ -120,13 +118,6 @@ pub struct Function {
     pub body: Option<Expression>,
 }
 
-/// A function inside an interface, where the body is the default implementation and optional
-#[derive(Debug, Clone)]
-pub struct InterfaceFunc {
-    pub sig: FuncSignature,
-    pub body: Option<Expression>,
-}
-
 /// A variable definition.
 #[derive(Debug, Clone)]
 pub struct Variable {
@@ -145,6 +136,7 @@ pub enum Type {
     Closure {
         params: Vec<Type>,
         ret_type: Option<Box<Type>>,
+        closing_paren: Token,
     },
 
     Generic {
@@ -154,17 +146,12 @@ pub enum Type {
 }
 
 impl Type {
-    pub fn get_token(&self) -> Option<&Token> {
+    pub fn get_token(&self) -> &Token {
         match self {
-            Type::Ident(tok) => Some(tok),
+            Type::Ident(tok) => tok,
             Type::Array(type_) => type_.get_token(),
-            Type::Closure { params, ret_type } => ret_type
-                .as_ref()
-                .map(|box_| &**box_)
-                .or_else(|| params.first())
-                .map(|t| t.get_token())
-                .flatten_(),
-            Type::Generic { token, .. } => Some(token),
+            Type::Closure { closing_paren, .. } => closing_paren,
+            Type::Generic { token, .. } => token,
         }
     }
 }
@@ -176,7 +163,9 @@ impl fmt::Display for Type {
 
             Type::Array(type_) => write!(f, "[{}]", type_),
 
-            Type::Closure { params, ret_type } => {
+            Type::Closure {
+                params, ret_type, ..
+            } => {
                 write!(f, "(")?;
                 let mut iter = params.iter();
                 if let Some(param) = iter.next() {

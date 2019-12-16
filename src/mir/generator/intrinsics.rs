@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/5/19 10:52 AM.
+ * Last modified on 12/15/19 6:18 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -10,17 +10,14 @@
 //! overloading interfaces into actually changing the behavior
 //! of the expression.
 
-use std::cell::RefCell;
+use std::cell::{Ref, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::ast::Module;
-use crate::error::Error;
+use crate::error::{Error, Res};
 use crate::lexer::token::TType;
-use crate::mir::generator::builder::MIRBuilder;
-use crate::mir::generator::{MIRError, MIRGenerator};
-use crate::mir::nodes::{InterfacePrototype, Variable};
-use crate::mir::MutRc;
+use crate::mir::nodes::{InterfacePrototype, Prototypes, Variable};
+use crate::mir::{MModule, MutRc};
 
 thread_local! {
     pub static INTRINSICS: RefCell<Intrinsics> = RefCell::new(Intrinsics::default());
@@ -38,18 +35,14 @@ impl Intrinsics {
         Rc::clone(&self.ops[&ty])
     }
 
-    pub fn populate(&mut self, modules: &mut Vec<(Module, MIRGenerator)>) {
-        for (ast_mod, gen) in modules {
-            if **ast_mod.path[0] == *"std" && **ast_mod.path[1] == *"ops" {
-                // This is the std/ops module, containing all operator interfaces
-                self.fill_ops_table(&gen.builder)
-            }
-        }
-    }
-
-    fn fill_ops_table(&mut self, builder: &MIRBuilder) {
-        for (name, iface) in builder.prototypes.interfaces.iter() {
-            let iface = Rc::clone(iface);
+    // Only call this with the std/ops module, containing all operator interfaces
+    pub fn fill_ops_table(&mut self, module: Ref<MModule>) {
+        for (name, iface) in module.protos.iter() {
+            let iface = if let Prototypes::Interface(iface) = iface.proto.clone() {
+                iface
+            } else {
+                panic!()
+            };
             match &name[..] {
                 "Add" => self.ops.insert(TType::Plus, iface),
                 "Sub" => self.ops.insert(TType::Minus, iface),
@@ -74,18 +67,16 @@ impl Intrinsics {
         }
     }
 
-    pub fn validate(&mut self) -> Result<(), Vec<MIRError>> {
+    pub fn validate(&mut self) -> Res<()> {
         if self.main_fn.is_none() {
-            return Err(vec![MIRError {
-                error: Error {
-                    lines: (0, 0),
-                    start: 0,
-                    len: 0,
-                    producer: "MIRChecker",
-                    message: "Could not find main function.".to_string(),
-                },
-                module: Rc::new(vec![]),
-            }]);
+            return Err(Error {
+                line: 0,
+                start: 0,
+                len: 0,
+                producer: "MIR",
+                message: "Could not find main function.".to_string(),
+                module: Rc::new(Default::default()),
+            });
         }
         Ok(())
     }
