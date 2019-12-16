@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 10:53 PM.
+ * Last modified on 12/16/19 4:24 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,9 +12,8 @@ use std::rc::Rc;
 use indexmap::IndexMap;
 
 use crate::ast;
-use crate::ast::expression::Expression as ASTExpr;
-use crate::mir::nodes::{Expr, InterfacePrototype, Type};
 use crate::mir::MutRc;
+use crate::mir::nodes::{Expr, InterfacePrototype, Type};
 
 /// A full class including all members and methods.
 /// Members are ordered, as the class is represented as a struct in IR;
@@ -157,14 +156,14 @@ impl Hash for IFaceImpls {
 
 /// A method inside an interface.
 /// The default implementation is left in AST state so that it can be compiled
-/// individually on concrete implementations if needed.
+/// individually on concrete implementations if needed; it can be found
+/// in the 'ast' field of the interface this function is contained in.
 #[derive(Debug)]
 pub struct IFaceMethod {
     pub name: Rc<String>,
     pub parameters: Vec<Type>,
     pub ret_type: Type,
-    pub default_impl: Option<ASTExpr>,
-    pub ast: Rc<ast::Function>,
+    pub has_default_impl: bool,
 }
 
 /// A function.

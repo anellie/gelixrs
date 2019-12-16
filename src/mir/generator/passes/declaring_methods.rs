@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 11:35 PM.
+ * Last modified on 12/16/19 4:24 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -9,17 +9,17 @@ use std::rc::Rc;
 
 use either::Either::Left;
 
+use crate::ast::{Class as ASTClass, Expression};
 use crate::ast::declaration::{Constructor, FuncSignature, FunctionArg, Visibility};
 use crate::ast::Type as ASTType;
-use crate::ast::{Class as ASTClass, Expression};
 use crate::error::{Error, Res};
-use crate::lexer::token::{TType, Token};
-use crate::mir::generator::builder::MIRBuilder;
-use crate::mir::generator::passes::declaring_globals::create_function;
-use crate::mir::generator::passes::{ModulePass, PassType};
-use crate::mir::nodes::{Block, Class, Expr, Type, Variable};
-use crate::mir::result::ToMIRResult;
+use crate::lexer::token::{Token, TType};
 use crate::mir::{MModule, MutRc};
+use crate::mir::generator::builder::MIRBuilder;
+use crate::mir::generator::passes::{ModulePass, PassType};
+use crate::mir::generator::passes::declaring_globals::create_function;
+use crate::mir::nodes::{Block, Class, Expr, IFaceMethod, Interface, Type, Variable};
+use crate::mir::result::ToMIRResult;
 use crate::option::Flatten;
 
 /// This pass defines all methods on classes and interfaces.
@@ -31,9 +31,18 @@ impl ModulePass for DeclareMethods {
     }
 
     fn run_type(&mut self, module: &MutRc<MModule>, ty: Type) -> Result<(), Error> {
-        if let Type::Class(cls) = ty {
-            let mut builder = MIRBuilder::new(module);
-            declare_for_class(&mut builder, cls)?
+        match ty {
+            Type::Class(cls) => {
+                let mut builder = MIRBuilder::new(module);
+                declare_for_class(&mut builder, cls)?
+            }
+
+            Type::Interface(iface) => {
+                let mut builder = MIRBuilder::new(module);
+                declare_for_iface(&mut builder, iface)?
+            }
+
+            _ => (),
         }
         Ok(())
     }
@@ -187,4 +196,42 @@ fn maybe_default_constructor(class: &ASTClass) -> Option<Constructor> {
     } else {
         None
     }
+}
+
+fn declare_for_iface(builder: &mut MIRBuilder, iface: MutRc<Interface>) -> Res<()> {
+    let ast = Rc::clone(&iface.borrow().ast);
+    for method in ast.methods.iter() {
+        let ret_type = match method.sig.return_type.as_ref() {
+            Some(ty) => builder.find_type(ty)?,
+            None => Type::None,
+        };
+
+        let mut parameters = Vec::with_capacity(method.sig.parameters.len());
+        for param in method.sig.parameters.iter() {
+            parameters.push(builder.find_type(&param.type_)?);
+        }
+
+        let dupe = iface.borrow_mut().methods.insert(
+            Rc::clone(&method.sig.name.lexeme),
+            IFaceMethod {
+                name: Rc::clone(&method.sig.name.lexeme),
+                parameters,
+                ret_type,
+                has_default_impl: method.body.is_some(),
+            },
+        );
+
+        if dupe.is_some() {
+            return Err(Error::new(
+                &method.sig.name,
+                "MIR",
+                format!(
+                    "Method with name {} already defined",
+                    method.sig.name.lexeme
+                ),
+                &builder.path,
+            ));
+        }
+    }
+    Ok(())
 }
