@@ -1,10 +1,10 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 4:24 PM.
+ * Last modified on 12/16/19 6:58 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt::{Display, Error, Formatter};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
@@ -12,8 +12,8 @@ use std::rc::Rc;
 use indexmap::IndexMap;
 
 use crate::ast;
-use crate::mir::nodes::{Expr, InterfacePrototype, Type};
 use crate::mir::MutRc;
+use crate::mir::nodes::{Expr, InterfacePrototype, Type};
 
 /// A full class including all members and methods.
 /// Members are ordered, as the class is represented as a struct in IR;
@@ -138,9 +138,8 @@ impl Hash for IFaceImpl {
 #[derive(Debug)]
 pub struct IFaceImpls {
     pub implementor: Type,
-    pub interfaces: HashSet<IFaceImpl>,
+    pub interfaces: Vec<IFaceImpl>,
     pub methods: HashMap<Rc<String>, Rc<Variable>>,
-    pub ast: Vec<ast::IFaceImpl>,
 }
 
 impl PartialEq for IFaceImpls {

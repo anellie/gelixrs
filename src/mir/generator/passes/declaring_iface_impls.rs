@@ -1,19 +1,21 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 4:30 PM.
+ * Last modified on 12/16/19 6:58 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::rc::Rc;
+
+use indexmap::IndexMap;
 
 use crate::ast;
 use crate::ast::Module;
 use crate::error::{Error, Errors, Res};
+use crate::mir::{IFACE_IMPLS, MModule, MutRc, mutrc_new};
 use crate::mir::generator::builder::MIRBuilder;
 use crate::mir::generator::passes::PreMIRPass;
-use crate::mir::nodes::{IFaceImpls, Type};
-use crate::mir::{mutrc_new, MModule, MutRc, IFACE_IMPLS};
+use crate::mir::nodes::{IFaceImpl, IFaceImpls, Type};
 
 /// This pass inserts all iface impls in the global impl
 /// table. It only validates that the type implementing for
@@ -55,22 +57,39 @@ fn declare_impl(iface_impl: ast::IFaceImpl, builder: &mut MIRBuilder) -> Res<()>
     }
 
     let implementor = builder.find_type(&iface_impl.implementor)?;
+    let iface = builder.find_type(&iface_impl.iface)?;
+    let iface = if let Type::Interface(iface) = iface {
+        iface
+    } else {
+        return Err(Error::new(
+            &iface_impl.iface.get_token(),
+            "MIR",
+            "Not an interface".to_string(),
+            &builder.path,
+        ));
+    };
+
     let impls = get_or_create_iface_impls(&implementor);
-    impls.borrow_mut().ast.push(iface_impl);
+    let mir_impl = IFaceImpl {
+        implementor,
+        iface,
+        methods: IndexMap::with_capacity(iface_impl.methods.len()),
+        ast: Rc::new(iface_impl),
+    };
+    impls.borrow_mut().interfaces.push(mir_impl);
 
     Ok(())
 }
 
 /// Gets the interfaces implemented by a type.
-fn get_or_create_iface_impls(ty: &Type) -> MutRc<IFaceImpls> {
+pub fn get_or_create_iface_impls(ty: &Type) -> MutRc<IFaceImpls> {
     match IFACE_IMPLS.with(|impls| impls.borrow().get(ty).cloned()) {
         Some(impls) => impls,
         None => IFACE_IMPLS.with(|impls| {
             let iface_impls = mutrc_new(IFaceImpls {
                 implementor: ty.clone(),
-                interfaces: HashSet::with_capacity(2),
+                interfaces: Vec::with_capacity(2),
                 methods: HashMap::with_capacity(2),
-                ast: Vec::with_capacity(2),
             });
             impls
                 .borrow_mut()
