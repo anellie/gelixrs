@@ -7,11 +7,11 @@
 use std::rc::Rc;
 
 use crate::error::Errors;
-use crate::mir::{IFACE_IMPLS, MModule, MutRc};
 use crate::mir::generator::builder::MIRBuilder;
-use crate::mir::generator::MIRGenerator;
 use crate::mir::generator::passes::{ModulePass, PassType};
+use crate::mir::generator::MIRGenerator;
 use crate::mir::nodes::IFaceImpls;
+use crate::mir::{MModule, MutRc, IFACE_IMPLS};
 
 /// This pass populates the intrinsics struct.
 pub struct GenerateImpls();

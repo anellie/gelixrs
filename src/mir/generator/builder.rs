@@ -11,9 +11,9 @@ use crate::ast::module::ModulePath;
 use crate::ast::Type as ASTType;
 use crate::error::Res;
 use crate::lexer::token::Token;
-use crate::mir::{IFACE_IMPLS, MModule, MutRc};
 use crate::mir::nodes::Variable;
 use crate::mir::result::ToMIRResult;
+use crate::mir::{MModule, MutRc, IFACE_IMPLS};
 
 use super::super::nodes::Type;
 
@@ -56,7 +56,20 @@ impl MIRBuilder {
 
             ASTType::Closure { .. } => unimplemented!(),
 
-            ASTType::Generic { .. } => unimplemented!(),
+            ASTType::Generic { token, types } => {
+                let proto = self
+                    .module
+                    .borrow()
+                    .find_prototype(&token.lexeme)
+                    .or_type_err(&self.path, ast, "Unknown prototype.")?;
+
+                let args = types
+                    .iter()
+                    .map(|ty| self.find_type(&ty))
+                    .collect::<Res<Vec<Type>>>()?;
+
+                proto.build(args, token)?
+            }
         })
     }
 

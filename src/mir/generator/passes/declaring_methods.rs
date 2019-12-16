@@ -9,18 +9,18 @@ use std::rc::Rc;
 
 use either::Either::Left;
 
-use crate::ast::{Class as ASTClass, Expression};
 use crate::ast::declaration::{Constructor, FuncSignature, FunctionArg, Visibility};
 use crate::ast::Type as ASTType;
+use crate::ast::{Class as ASTClass, Expression};
 use crate::error::{Error, Res};
-use crate::lexer::token::{Token, TType};
+use crate::lexer::token::{TType, Token};
 use crate::mir::generator::builder::MIRBuilder;
-use crate::mir::generator::MIRGenerator;
-use crate::mir::generator::passes::{ModulePass, PassType};
 use crate::mir::generator::passes::declaring_globals::create_function;
-use crate::mir::MutRc;
+use crate::mir::generator::passes::{ModulePass, PassType};
+use crate::mir::generator::MIRGenerator;
 use crate::mir::nodes::{Block, Class, Expr, IFaceMethod, Interface, Type, Variable};
 use crate::mir::result::ToMIRResult;
+use crate::mir::MutRc;
 use crate::option::Flatten;
 
 /// This pass defines all methods on classes and interfaces.

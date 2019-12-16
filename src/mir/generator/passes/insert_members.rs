@@ -8,10 +8,10 @@ use std::rc::Rc;
 
 use crate::ast::Type as ASTType;
 use crate::error::Res;
-use crate::mir::generator::MIRGenerator;
 use crate::mir::generator::passes::{ModulePass, PassType};
-use crate::mir::MutRc;
+use crate::mir::generator::MIRGenerator;
 use crate::mir::nodes::{Class, ClassMember, Expr, Type, Variable};
+use crate::mir::MutRc;
 
 /// This pass fills all classes with their members
 /// and creates their internal init function.

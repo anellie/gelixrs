@@ -4,7 +4,6 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::ast::Module;
@@ -23,10 +22,10 @@ impl PreMIRPass for FilterPrototypes {
     fn run(
         &mut self,
         ast: &mut Module,
-        module: MutRc<MModule>,
+        module_rc: MutRc<MModule>,
         _modules: &[MutRc<MModule>],
     ) -> Result<(), Errors> {
-        let mut module = module.borrow_mut();
+        let mut module = module_rc.borrow_mut();
         let mut errs = Vec::new();
 
         for class in ast.classes.drain_filter(|c| c.generics.is_some()) {
@@ -41,8 +40,9 @@ impl PreMIRPass for FilterPrototypes {
                     proto: Prototypes::Class(mutrc_new(ClassPrototype {
                         ast: class,
                         impls: vec![],
-                        instances: RefCell::new(Default::default()),
+                        module: Rc::clone(&module_rc),
                     })),
+                    instances: Default::default(),
                 },
             );
         }
@@ -59,8 +59,8 @@ impl PreMIRPass for FilterPrototypes {
                     proto: Prototypes::Interface(mutrc_new(InterfacePrototype {
                         ast: iface,
                         impls: vec![],
-                        instances: RefCell::new(Default::default()),
                     })),
+                    instances: Default::default(),
                 },
             );
         }
@@ -74,10 +74,8 @@ impl PreMIRPass for FilterPrototypes {
                 Rc::clone(&func.sig.name.lexeme),
                 Prototype {
                     name: Rc::clone(&func.sig.name.lexeme),
-                    proto: Prototypes::Function(mutrc_new(FunctionPrototype {
-                        ast: func,
-                        instances: RefCell::new(Default::default()),
-                    })),
+                    proto: Prototypes::Function(mutrc_new(FunctionPrototype { ast: func })),
+                    instances: Default::default(),
                 },
             );
         }

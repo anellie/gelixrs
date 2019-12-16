@@ -9,9 +9,9 @@ use std::rc::Rc;
 use crate::ast::{Module, Type as ASTType};
 use crate::error::{Error, Errors, Res};
 use crate::lexer::token::Token;
-use crate::mir::{MModule, MutRc};
 use crate::mir::generator::MIRGenerator;
 use crate::mir::nodes::{Type, Variable};
+use crate::mir::{MModule, MutRc};
 
 pub mod declaring_globals;
 pub mod declaring_iface_impls;

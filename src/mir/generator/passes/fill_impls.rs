@@ -14,10 +14,10 @@ use either::Either::Left;
 use crate::ast::declaration::{Function, FunctionArg};
 use crate::error::{Error, Res};
 use crate::mir::generator::builder::MIRBuilder;
-use crate::mir::generator::MIRGenerator;
-use crate::mir::generator::passes::{ModulePass, PassType};
 use crate::mir::generator::passes::declaring_globals::create_function;
 use crate::mir::generator::passes::declaring_iface_impls::get_or_create_iface_impls;
+use crate::mir::generator::passes::{ModulePass, PassType};
+use crate::mir::generator::MIRGenerator;
 use crate::mir::nodes::{IFaceMethod, Type, Variable};
 use crate::mir::result::ToMIRResult;
 

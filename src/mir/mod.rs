@@ -10,8 +10,8 @@ use std::rc::Rc;
 
 use nodes::Variable;
 
-use crate::ast::{Import, Module};
 use crate::ast::module::ModulePath;
+use crate::ast::{Import, Module};
 use crate::error::{Error, Res};
 use crate::lexer::token::Token;
 use crate::mir::nodes::{IFaceImpls, Prototype, Type};

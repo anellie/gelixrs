@@ -8,8 +8,8 @@ use std::fmt::{Display, Error, Formatter};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
-use crate::mir::MutRc;
 use crate::mir::nodes::{Class, Function, Interface};
+use crate::mir::MutRc;
 
 /// All types in Gelix.
 /// For all types that can have generic parameters, these parameters

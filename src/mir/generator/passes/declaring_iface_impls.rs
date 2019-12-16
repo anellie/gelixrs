@@ -12,10 +12,10 @@ use indexmap::IndexMap;
 use crate::ast;
 use crate::ast::Module;
 use crate::error::{Error, Errors, Res};
-use crate::mir::{IFACE_IMPLS, MModule, MutRc, mutrc_new};
 use crate::mir::generator::builder::MIRBuilder;
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::nodes::{IFaceImpl, IFaceImpls, Type};
+use crate::mir::{mutrc_new, MModule, MutRc, IFACE_IMPLS};
 
 /// This pass inserts all iface impls in the global impl
 /// table. It only validates that the type implementing for
@@ -33,7 +33,7 @@ impl PreMIRPass for DeclareIfaceImpls {
         let mut builder = MIRBuilder::new(&module);
 
         for im in ast.iface_impls.drain(..) {
-            declare_impl(im, &mut builder)
+            declare_impl(im, &mut builder, None)
                 .map_err(|e| errs.push(e))
                 .ok();
         }
@@ -46,17 +46,14 @@ impl PreMIRPass for DeclareIfaceImpls {
     }
 }
 
-fn declare_impl(iface_impl: ast::IFaceImpl, builder: &mut MIRBuilder) -> Res<()> {
-    if let ast::Type::Generic { token, .. } = &iface_impl.implementor {
-        return Err(Error::new(
-            &token,
-            "MIR",
-            "Generic arguments on implementor not supported yet.".to_string(),
-            &builder.path,
-        ));
-    }
-
-    let implementor = builder.find_type(&iface_impl.implementor)?;
+fn declare_impl(
+    iface_impl: ast::IFaceImpl,
+    builder: &mut MIRBuilder,
+    override_implementor: Option<Type>,
+) -> Res<()> {
+    let implementor = override_implementor
+        .map(|i| Ok(i))
+        .unwrap_or_else(|| builder.find_type(&iface_impl.implementor))?;
     let iface = builder.find_type(&iface_impl.iface)?;
     let iface = if let Type::Interface(iface) = iface {
         iface

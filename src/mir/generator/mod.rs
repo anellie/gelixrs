@@ -12,14 +12,14 @@ use indexmap::IndexMap;
 
 use crate::ast::declaration::{Class as ASTClass, Constructor, Function as ASTFunc};
 use crate::ast::expression::Expression as ASTExpr;
-use crate::Error;
 use crate::error::Res;
-use crate::lexer::token::{Token, TType};
-use crate::mir::{IFACE_IMPLS, MModule, MutRc};
+use crate::lexer::token::{TType, Token};
 use crate::mir::generator::builder::MIRBuilder;
 use crate::mir::generator::intrinsics::INTRINSICS;
 use crate::mir::nodes::{ClassMember, Expr, Function, Type, Variable};
 use crate::mir::result::ToMIRResult;
+use crate::mir::{MModule, MutRc, IFACE_IMPLS};
+use crate::Error;
 
 pub mod builder;
 pub mod gen_expr;

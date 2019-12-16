@@ -4,18 +4,19 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
+use indexmap::IndexMap;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::ast::Class as ASTClass;
 use crate::ast::Function as ASTFunc;
 use crate::ast::IFaceImpl as ASTImpl;
 use crate::ast::Interface as ASTIFace;
+use crate::ast::{Class as ASTClass, IFaceImpl};
 use crate::error::{Error, Res};
 use crate::lexer::token::Token;
-use crate::mir::{MModule, MutRc};
-use crate::mir::nodes::{Class, Interface, Type, Variable};
+use crate::mir::nodes::{Class, Type};
+use crate::mir::{mutrc_new, MModule, MutRc};
 
 /// A prototype that classes can be instantiated from.
 /// This prototype is kept in AST form,
@@ -37,16 +38,24 @@ use crate::mir::nodes::{Class, Interface, Type, Variable};
 #[derive(Debug, Clone)]
 pub struct Prototype {
     pub name: Rc<String>,
+    pub instances: RefCell<HashMap<Vec<Type>, Type>>,
     pub proto: Prototypes,
 }
 
 impl Prototype {
     pub fn build(&self, arguments: Vec<Type>, err_tok: &Token) -> Res<Type> {
-        match &self.proto {
-            Prototypes::Class(class) => class.borrow().build(arguments, err_tok),
-            Prototypes::Interface(iface) => iface.borrow().build(arguments, err_tok),
-            Prototypes::Function(func) => func.borrow().build(arguments, err_tok),
+        if let Some(inst) = self.instances.borrow().get(&arguments) {
+            return Ok(inst.clone());
         }
+
+        let ty = match &self.proto {
+            Prototypes::Class(class) => class.borrow().build(&arguments, err_tok),
+            Prototypes::Interface(iface) => iface.borrow().build(&arguments, err_tok),
+            Prototypes::Function(func) => func.borrow().build(&arguments, err_tok),
+        }?;
+        self.instances.borrow_mut().insert(arguments, ty.clone());
+
+        Ok(ty)
     }
 }
 
@@ -61,76 +70,46 @@ pub enum Prototypes {
 pub struct ClassPrototype {
     pub ast: ASTClass,
     pub impls: Vec<ASTImpl>,
-    pub instances: RefCell<HashMap<Vec<Type>, MutRc<Class>>>,
+    pub module: MutRc<MModule>,
 }
 
 impl ClassPrototype {
-    fn build(&self, _arguments: Vec<Type>, _err_tok: &Token) -> Res<Type> {
-        /*  if let Some(inst) = self.instances.borrow().get(&arguments) {
-            return Ok(Type::Class(Rc::clone(&inst)))
-        }
-
-        gen.builder.push_current_pointer();
-
-        let generics = self.ast.generics.as_ref().unwrap();
-        check_generic_arguments(gen, generics, &arguments, err_tok)?;
-        gen.set_type_aliases(generics, &arguments);
+    fn build(&self, arguments: &[Type], err_tok: &Token) -> Res<Type> {
+        check_generic_arguments(
+            &self.module,
+            self.ast.generics.as_ref().unwrap(),
+            arguments,
+            err_tok,
+        )?;
 
         let mut ast = self.ast.clone();
-        ast.name.lexeme = Rc::new(format!("{}-{}", ast.name.lexeme, self.instances.borrow().len()));
+        let name = get_name(&self.ast.name.lexeme, arguments);
+        ast.name.lexeme = Rc::clone(&name);
 
-        let class = create_class(gen, &mut ast)?;
-        self.instances.borrow_mut().insert(arguments, Rc::clone(&class));
-        fill_class(gen, &ast)?;
+        let class = mutrc_new(Class {
+            name: Rc::clone(&name),
+            members: IndexMap::with_capacity(ast.variables.len()),
+            methods: HashMap::with_capacity(ast.methods.len()),
+            instantiator: Default::default(),
+            constructors: Vec::with_capacity(ast.constructors.len()),
+            ast: Rc::new(ast),
+        });
+        let ty = Type::Class(class);
 
-        let mut impls = self.impls.clone();
-        for im in impls.iter_mut() {
-            iface_impl(gen, im, Some(Type::Class(Rc::clone(&class))))?;
-        }
-
-        gen.generate_constructors(&ast)?;
-        for func in ast.methods.iter().chain(impls.iter().map(|i| i.methods.iter()).flatten()) {
-            gen.generate_function(func)?;
-        }
-
-        gen.builder.load_last_pointer();
-        gen.clear_type_aliases();
-        Ok(Type::Class(class))
-        */
-        unimplemented!()
+        attach_impls(&ty, self.impls.clone())?;
+        catch_up_passes(&ty)?;
+        Ok(ty)
     }
 }
 
-/// See doc on [ClassPrototype].
 #[derive(Debug)]
 pub struct InterfacePrototype {
     pub ast: ASTIFace,
     pub impls: Vec<ASTImpl>,
-    pub instances: RefCell<HashMap<Vec<Type>, MutRc<Interface>>>,
 }
 
 impl InterfacePrototype {
-    fn build(&self, _arguments: Vec<Type>, _err_tok: &Token) -> Res<Type> {
-        /*
-        if let Some(inst) = self.instances.borrow().get(&arguments) {
-            return Ok(Type::Interface(Rc::clone(&inst)))
-        }
-
-        gen.builder.push_current_pointer();
-
-        let generics = self.ast.generics.as_ref().unwrap();
-        check_generic_arguments(gen, generics, &arguments, err_tok)?;
-        gen.set_type_aliases(generics, &arguments);
-
-        let mut ast = self.ast.clone();
-        ast.name.lexeme = Rc::new(format!("{}-{}", ast.name.lexeme, self.instances.borrow().len()));
-        let iface = create_interface(gen, &mut ast)?;
-
-        gen.builder.load_last_pointer();
-        gen.clear_type_aliases();
-        self.instances.borrow_mut().insert(arguments, Rc::clone(&iface));
-        Ok(Type::Interface(iface))
-        */
+    fn build(&self, _arguments: &[Type], _err_tok: &Token) -> Res<Type> {
         unimplemented!()
     }
 }
@@ -138,37 +117,23 @@ impl InterfacePrototype {
 #[derive(Debug)]
 pub struct FunctionPrototype {
     pub ast: ASTFunc,
-    pub instances: RefCell<HashMap<Vec<Type>, Rc<Variable>>>,
 }
 
 impl FunctionPrototype {
-    fn build(&self, _arguments: Vec<Type>, _err_tok: &Token) -> Res<Type> {
-        /*       if let Some(inst) = self.instances.borrow().get(&arguments) {
-                    return Ok(Type::Function(Rc::clone(&inst.type_.as_function())))
-                }
-
-                gen.builder.push_current_pointer();
-
-                let generics = self.ast.sig.generics.as_ref().unwrap();
-                check_generic_arguments(gen, generics, &arguments, err_tok)?;
-                gen.set_type_aliases(generics, &arguments);
-
-                let old_name = Rc::clone(&self.ast.sig.name.lexeme);
-                self.ast.sig.name.lexeme = Rc::new(format!("{}-{}", old_name, self.instances.borrow().len()));
-                let func = create_function(gen, &self.ast.sig, self.ast.body.is_none())?;
-                gen.generate_function(&self.ast)?;
-                self.ast.sig.name.lexeme = old_name;
-
-                gen.builder.load_last_pointer();
-                gen.clear_type_aliases();
-                self.instances.borrow_mut().insert(arguments, Rc::clone(&func));
-                Ok(Type::Function(func.type_.as_function()))
-        */
+    fn build(&self, _arguments: &[Type], _err_tok: &Token) -> Res<Type> {
         unimplemented!()
     }
 }
 
-fn _check_generic_arguments(
+fn get_name(name: &Rc<String>, args: &[Type]) -> Rc<String> {
+    let mut arg_names = args[0].to_string();
+    for arg in args.iter().skip(1) {
+        arg_names = format!("{}, {}", arg_names, arg);
+    }
+    Rc::new(format!("{}<{}>", name, arg_names))
+}
+
+fn check_generic_arguments(
     module: &MutRc<MModule>,
     parameters: &[Token],
     arguments: &[Type],
@@ -186,5 +151,13 @@ fn _check_generic_arguments(
             &module.borrow().path,
         ));
     }
+    Ok(())
+}
+
+fn attach_impls(ty: &Type, impls: Vec<IFaceImpl>) -> Res<()> {
+    Ok(())
+}
+
+fn catch_up_passes(ty: &Type) -> Res<()> {
     Ok(())
 }

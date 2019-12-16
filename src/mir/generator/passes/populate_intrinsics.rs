@@ -5,9 +5,9 @@
  */
 
 use crate::error::Errors;
-use crate::mir::{MModule, MutRc};
 use crate::mir::generator::intrinsics::INTRINSICS;
 use crate::mir::generator::passes::{ModulePass, PassType};
+use crate::mir::{MModule, MutRc};
 
 /// This pass populates the intrinsics struct.
 pub struct PopulateIntrinsics();
