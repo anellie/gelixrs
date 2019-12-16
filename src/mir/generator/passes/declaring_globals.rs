@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 11:28 PM.
+ * Last modified on 12/16/19 4:00 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -28,7 +28,7 @@ use crate::mir::result::ToMIRResult;
 pub struct DeclareGlobals();
 
 impl PreMIRPass for DeclareGlobals {
-    fn run(&mut self, ast: &mut Module, module: MutRc<MModule>) -> Result<(), Errors> {
+    fn run(&mut self, ast: &mut Module, module: MutRc<MModule>, _modules: &Vec<MutRc<MModule>>) -> Result<(), Errors> {
         let mut errs = Vec::new();
         let builder = MIRBuilder::new(&module);
 

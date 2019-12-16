@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 11:35 PM.
+ * Last modified on 12/16/19 4:00 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -16,6 +16,8 @@ use crate::mir::generator::passes::declaring_methods::DeclareMethods;
 use crate::mir::generator::passes::declaring_types::DeclareTypes;
 use crate::mir::generator::passes::filter_prototypes::FilterPrototypes;
 use crate::mir::generator::passes::generate::Generate;
+use crate::mir::generator::passes::imports::{ImportGlobals, ImportTypes};
+use crate::mir::generator::passes::insert_members::InsertClassMembers;
 use crate::mir::generator::passes::populate_intrinsics::PopulateIntrinsics;
 use crate::mir::generator::passes::validate::ValidateIntrinsics;
 use crate::mir::IFACE_IMPLS;
@@ -36,13 +38,15 @@ impl PassRunner {
         let mut passes: Vec<Box<dyn PreMIRPass>> = vec![
             Box::new(FilterPrototypes()),
             Box::new(DeclareTypes()),
+            Box::new(ImportTypes()),
             Box::new(DeclareGlobals()),
+            Box::new(ImportGlobals()),
         ];
 
         for mut pass in passes.drain(..) {
             let mut errs = Vec::new();
             for (ast, module) in modules.iter_mut().zip(self.modules.iter()) {
-                pass.run(ast, Rc::clone(&module))
+                pass.run(ast, Rc::clone(&module), &self.modules)
                     .map_err(|e| errs.push(e))
                     .ok();
             }
@@ -52,6 +56,7 @@ impl PassRunner {
         }
 
         let mut passes: Vec<Box<dyn ModulePass>> = vec![
+            Box::new(InsertClassMembers()),
             Box::new(DeclareMethods()),
             Box::new(PopulateIntrinsics()),
             Box::new(Generate()),
@@ -67,9 +72,8 @@ impl PassRunner {
 
     pub fn run_pass(&self, pass: &mut dyn ModulePass) -> Result<(), Vec<Errors>> {
         match pass.get_type() {
-            PassType::GlobalInspect => {
-                pass.run_inspect(&self.modules)
-                    .map_err(|e| vec![Errors(vec![e], Rc::new("".to_string()))])?;
+            PassType::Globally => {
+                pass.run_globally(&self.modules)?;
             }
 
             _ => {
@@ -115,7 +119,7 @@ impl PassRunner {
                 }
             }
 
-            PassType::Global => {
+            PassType::GlobalVar => {
                 let globals_iter = module
                     .borrow()
                     .globals
@@ -123,7 +127,7 @@ impl PassRunner {
                     .cloned()
                     .collect::<Vec<Rc<Variable>>>();
                 for global in globals_iter {
-                    pass.run_global(module, global)
+                    pass.run_global_var(module, global)
                         .map_err(|e| errs.push(e))
                         .ok();
                 }

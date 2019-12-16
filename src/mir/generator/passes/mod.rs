@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 10:53 PM.
+ * Last modified on 12/16/19 3:32 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -17,6 +17,7 @@ pub mod declaring_methods;
 pub mod declaring_types;
 pub mod filter_prototypes;
 pub mod generate;
+pub mod imports;
 pub mod insert_members;
 pub mod populate_intrinsics;
 pub mod validate;
@@ -30,7 +31,7 @@ thread_local! {
 
 /// A pass that runs before the AST is discarded.
 pub trait PreMIRPass {
-    fn run(&mut self, ast: &mut Module, module: MutRc<MModule>) -> Result<(), Errors>;
+    fn run(&mut self, ast: &mut Module, module: MutRc<MModule>, modules: &Vec<MutRc<MModule>>) -> Result<(), Errors>;
 }
 
 /// A pass that takes a MIR module and performs some kind of transformation
@@ -40,16 +41,14 @@ pub trait PreMIRPass {
 /// These modules are collected and executed in order inside mir/generator/module.rs.
 pub trait ModulePass {
     fn get_type(&self) -> PassType;
-    fn run_inspect(&mut self, _modules: &Vec<MutRc<MModule>>) -> Res<()> {
-        Ok(())
-    }
+    fn run_globally(&mut self, _modules: &Vec<MutRc<MModule>>) -> Result<(), Vec<Errors>> { Ok(()) }
     fn run_mod(&mut self, _module: MutRc<MModule>) -> Result<(), Vec<Error>> {
         Ok(())
     }
     fn run_type(&mut self, _module: &MutRc<MModule>, _ty: Type) -> Res<()> {
         Ok(())
     }
-    fn run_global(&mut self, _module: &MutRc<MModule>, _global: Rc<Variable>) -> Res<()> {
+    fn run_global_var(&mut self, _module: &MutRc<MModule>, _global: Rc<Variable>) -> Res<()> {
         Ok(())
     }
 }
@@ -59,10 +58,11 @@ pub trait ModulePass {
 /// require 'catching up' when instanced later.
 /// By specifying which pass affects them, its easy to do so.
 pub enum PassType {
-    /// This pass runs on the all modules and does not
-    /// modify them. Most of these passes do some form of
-    /// validation or data collection.
-    GlobalInspect,
+    /// This pass runs on the all modules.
+    /// Most of these passes do some form of
+    /// validation or data collection;
+    /// import resolution also belongs in here.
+    Globally,
     /// This pass runs on the whole module and modifies
     /// said module.
     Module,
@@ -71,5 +71,5 @@ pub enum PassType {
     Type,
     /// This pass only modifies a specific global/function
     /// in the module.
-    Global,
+    GlobalVar,
 }

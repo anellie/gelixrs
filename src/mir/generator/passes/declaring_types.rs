@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 10:53 PM.
+ * Last modified on 12/16/19 3:28 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -21,7 +21,7 @@ use crate::mir::nodes::{Class, Interface, Type};
 pub struct DeclareTypes();
 
 impl PreMIRPass for DeclareTypes {
-    fn run(&mut self, ast: &mut Module, module: MutRc<MModule>) -> Result<(), Errors> {
+    fn run(&mut self, ast: &mut Module, module: MutRc<MModule>, _modules: &Vec<MutRc<MModule>>) -> Result<(), Errors> {
         let mut module = module.borrow_mut();
         let mut errs = Vec::new();
 

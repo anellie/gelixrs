@@ -1,10 +1,8 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 10:53 PM.
+ * Last modified on 12/16/19 2:53 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
-
-
 
 use std::rc::Rc;
 
