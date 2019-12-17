@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 9:25 PM.
+ * Last modified on 12/17/19 10:42 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -8,8 +8,9 @@ use std::fmt::{Display, Error, Formatter};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
-use crate::mir::nodes::{Class, Function, Interface};
+use crate::mir::generator::builder::Context;
 use crate::mir::MutRc;
+use crate::mir::nodes::{Class, Function, Interface};
 
 /// All types in Gelix.
 /// For all types that can have generic parameters, these parameters
@@ -74,6 +75,16 @@ impl Type {
             Type::F64,
             Type::String,
         ]
+    }
+
+    /// Returns the context of the type, if any.
+    pub fn context(&self) -> Option<Context> {
+        Some(match self {
+            Type::Class(cls) => cls.borrow().context.clone(),
+            Type::Interface(iface) => iface.borrow().context.clone(),
+            Type::Function(func) => func.borrow().context.clone(),
+            _ => return None
+        })
     }
 
     /// Is this type a number?

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 9:25 PM.
+ * Last modified on 12/17/19 10:42 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,8 +12,9 @@ use std::rc::Rc;
 use indexmap::IndexMap;
 
 use crate::ast;
-use crate::mir::nodes::{Expr, InterfacePrototype, Type};
 use crate::mir::{MModule, MutRc};
+use crate::mir::generator::builder::Context;
+use crate::mir::nodes::{Expr, InterfacePrototype, Type};
 
 /// A full class including all members and methods.
 /// Members are ordered, as the class is represented as a struct in IR;
@@ -35,6 +36,8 @@ pub struct Class {
     /// with special constraints to enforce safety.
     /// Only call on instances produced by the instantiator function.
     pub constructors: Vec<Rc<Variable>>,
+    /// The context to be used inside this declaration.
+    pub context: Context,
     /// The AST this was compiled from.
     pub ast: Rc<ast::Class>,
 }
@@ -93,6 +96,8 @@ pub struct Interface {
     /// The prototype this interface was built from, if any.
     /// Only used for some intrinsics.
     pub proto: Option<MutRc<InterfacePrototype>>,
+    /// The context to be used inside this declaration.
+    pub context: Context,
     /// The AST this was compiled from.
     pub ast: Rc<ast::Interface>,
 }
@@ -181,6 +186,8 @@ pub struct Function {
     pub variables: HashMap<Rc<String>, Rc<Variable>>,
     /// The return type of the function; Type::None if omitted.
     pub ret_type: Type,
+    /// The context to be used inside this declaration.
+    pub context: Context,
     /// The AST the function was compiled from.
     /// This is only present on functions that were
     /// compiled from AST functions;

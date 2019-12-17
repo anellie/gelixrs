@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 9:25 PM.
+ * Last modified on 12/17/19 10:42 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,9 +11,9 @@ use crate::ast::module::ModulePath;
 use crate::ast::Type as ASTType;
 use crate::error::Res;
 use crate::lexer::token::Token;
+use crate::mir::{IFACE_IMPLS, MModule, MutRc};
 use crate::mir::nodes::Variable;
 use crate::mir::result::ToMIRResult;
-use crate::mir::{MModule, MutRc, IFACE_IMPLS};
 
 use super::super::nodes::Type;
 
@@ -31,12 +31,8 @@ pub struct MIRBuilder {
     /// The module this builder is linked to.
     pub module: MutRc<MModule>,
 
-    /// A map of all type aliases, where the key
-    /// will be translated to the value when encountered
-    /// as a type. Used for instantiating generic stuff
-    /// where the key is the parameter name (like T)
-    /// and the value the type to use in its place.
-    type_aliases: HashMap<Rc<String>, Type>,
+    /// See docs on [Context].
+    pub context: Context
 }
 
 impl MIRBuilder {
@@ -48,7 +44,7 @@ impl MIRBuilder {
         Ok(match ast {
             ASTType::Ident(tok) => {
                 let ty = self.find_type_by_name(&tok);
-                let ty = ty.or_else(|| Some(self.type_aliases.get(&tok.lexeme)?.clone()));
+                let ty = ty.or_else(|| Some(self.context.type_aliases.get(&tok.lexeme)?.clone()));
                 ty.or_type_err(&self.path, ast, "Unknown type.")?
             }
 
@@ -111,16 +107,6 @@ impl MIRBuilder {
         })
     }
 
-    pub fn push_type_aliases(&mut self, params: &[Token], args: &[Type]) {
-        self.type_aliases.extend(
-            params
-                .iter()
-                .map(|t| &t.lexeme)
-                .cloned()
-                .zip(args.iter().cloned()),
-        );
-    }
-
     /// Switch the module this builder is operating on.
     pub fn switch_module(&mut self, module: &MutRc<MModule>) {
         self.path = Rc::clone(&module.borrow().path);
@@ -131,7 +117,22 @@ impl MIRBuilder {
         MIRBuilder {
             path: Rc::clone(&module.borrow().path),
             module: Rc::clone(module),
-            type_aliases: HashMap::new(),
+            context: Context::default(),
         }
     }
+}
+
+/// A context contains additional data that changes the
+/// behavior of the builder. Mostly either module-level
+/// or type-level.
+///
+/// Note that a context is cheap to clone.
+#[derive(Debug, Clone, Default)]
+pub struct Context {
+    /// A map of type aliases, where the key
+    /// will be translated to the value when encountered
+    /// as a type. Used for instantiating generic stuff
+    /// where the key is the parameter name (like T)
+    /// and the value the type to use in its place.
+    pub type_aliases: Rc<HashMap<Rc<String>, Type>>,
 }

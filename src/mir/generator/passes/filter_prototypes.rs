@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 3:28 PM.
+ * Last modified on 12/17/19 10:42 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -8,11 +8,11 @@ use std::rc::Rc;
 
 use crate::ast::Module;
 use crate::error::Errors;
+use crate::mir::{MModule, MutRc, mutrc_new};
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::nodes::{
     ClassPrototype, FunctionPrototype, InterfacePrototype, Prototype, Prototypes,
 };
-use crate::mir::{mutrc_new, MModule, MutRc};
 
 /// This pass removes all types/functions with generic parameters
 /// from the AST list, since they are handled separately.
@@ -38,7 +38,7 @@ impl PreMIRPass for FilterPrototypes {
                 Prototype {
                     name: Rc::clone(&class.name.lexeme),
                     proto: Prototypes::Class(mutrc_new(ClassPrototype {
-                        ast: class,
+                        ast: Rc::new(class),
                         impls: vec![],
                         module: Rc::clone(&module_rc),
                     })),
@@ -57,7 +57,7 @@ impl PreMIRPass for FilterPrototypes {
                 Prototype {
                     name: Rc::clone(&iface.name.lexeme),
                     proto: Prototypes::Interface(mutrc_new(InterfacePrototype {
-                        ast: iface,
+                        ast: Rc::new(iface),
                         impls: vec![],
                     })),
                     instances: Default::default(),
@@ -74,7 +74,7 @@ impl PreMIRPass for FilterPrototypes {
                 Rc::clone(&func.sig.name.lexeme),
                 Prototype {
                     name: Rc::clone(&func.sig.name.lexeme),
-                    proto: Prototypes::Function(mutrc_new(FunctionPrototype { ast: func })),
+                    proto: Prototypes::Function(mutrc_new(FunctionPrototype { ast: Rc::new(func) })),
                     instances: Default::default(),
                 },
             );

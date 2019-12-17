@@ -1,22 +1,24 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 9:25 PM.
+ * Last modified on 12/17/19 10:42 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use indexmap::IndexMap;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use indexmap::IndexMap;
+
+use crate::ast::{Class as ASTClass, IFaceImpl};
 use crate::ast::Function as ASTFunc;
 use crate::ast::IFaceImpl as ASTImpl;
 use crate::ast::Interface as ASTIFace;
-use crate::ast::{Class as ASTClass, IFaceImpl};
 use crate::error::{Error, Res};
 use crate::lexer::token::Token;
+use crate::mir::{MModule, MutRc, mutrc_new};
+use crate::mir::generator::builder::Context;
 use crate::mir::nodes::{Class, Type};
-use crate::mir::{mutrc_new, MModule, MutRc};
 
 /// A prototype that classes can be instantiated from.
 /// This prototype is kept in AST form,
@@ -68,7 +70,7 @@ pub enum Prototypes {
 
 #[derive(Debug)]
 pub struct ClassPrototype {
-    pub ast: ASTClass,
+    pub ast: Rc<ASTClass>,
     pub impls: Vec<ASTImpl>,
     pub module: MutRc<MModule>,
 }
@@ -82,17 +84,15 @@ impl ClassPrototype {
             err_tok,
         )?;
 
-        let mut ast = self.ast.clone();
         let name = get_name(&self.ast.name.lexeme, arguments);
-        ast.name.lexeme = Rc::clone(&name);
-
         let class = mutrc_new(Class {
             name: Rc::clone(&name),
-            members: IndexMap::with_capacity(ast.variables.len()),
-            methods: HashMap::with_capacity(ast.methods.len()),
+            members: IndexMap::with_capacity(self.ast.variables.len()),
+            methods: HashMap::with_capacity(self.ast.methods.len()),
             instantiator: Default::default(),
-            constructors: Vec::with_capacity(ast.constructors.len()),
-            ast: Rc::new(ast),
+            constructors: Vec::with_capacity(self.ast.constructors.len()),
+            context: get_context(self.ast.generics.as_ref().unwrap(), arguments),
+            ast: Rc::clone(&self.ast),
         });
         let ty = Type::Class(class);
 
@@ -104,7 +104,7 @@ impl ClassPrototype {
 
 #[derive(Debug)]
 pub struct InterfacePrototype {
-    pub ast: ASTIFace,
+    pub ast: Rc<ASTIFace>,
     pub impls: Vec<ASTImpl>,
 }
 
@@ -116,7 +116,7 @@ impl InterfacePrototype {
 
 #[derive(Debug)]
 pub struct FunctionPrototype {
-    pub ast: ASTFunc,
+    pub ast: Rc<ASTFunc>,
 }
 
 impl FunctionPrototype {
@@ -131,6 +131,12 @@ fn get_name(name: &Rc<String>, args: &[Type]) -> Rc<String> {
         arg_names = format!("{}, {}", arg_names, arg);
     }
     Rc::new(format!("{}<{}>", name, arg_names))
+}
+
+fn get_context(params: &[Token], args: &[Type]) -> Context {
+    Context {
+        type_aliases: Rc::new(params.iter().map(|p| Rc::clone(&p.lexeme)).zip(args.iter().cloned()).collect())
+    }
 }
 
 fn check_generic_arguments(

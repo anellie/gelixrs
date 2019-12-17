@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 4:00 PM.
+ * Last modified on 12/17/19 10:42 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -10,15 +10,15 @@ use either::Either;
 
 use crate::ast;
 use crate::ast::declaration::{FuncSignature, FunctionArg};
-use crate::ast::module::ModulePath;
 use crate::ast::Module;
+use crate::ast::module::ModulePath;
 use crate::error::{Errors, Res};
+use crate::mir::{MModule, MutRc, mutrc_new};
 use crate::mir::generator::builder::MIRBuilder;
 use crate::mir::generator::intrinsics::INTRINSICS;
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::nodes::{Function, Type, Variable};
 use crate::mir::result::ToMIRResult;
-use crate::mir::{mutrc_new, MModule, MutRc};
 
 /// This pass defines all globals inside the module; currently only functions.
 /// It only creates a signature and inserts it into the module;
@@ -102,6 +102,7 @@ pub fn create_function(
         blocks: Default::default(),
         variables: Default::default(),
         ret_type,
+        context: builder.context.clone(),
         ast: func.right().map(Rc::new),
     });
 

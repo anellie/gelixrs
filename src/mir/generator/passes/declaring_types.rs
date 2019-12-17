@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 3:28 PM.
+ * Last modified on 12/17/19 10:42 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,9 +11,10 @@ use indexmap::IndexMap;
 
 use crate::ast::Module;
 use crate::error::Errors;
+use crate::mir::{MModule, MutRc, mutrc_new};
+use crate::mir::generator::builder::Context;
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::nodes::{Class, Interface, Type};
-use crate::mir::{mutrc_new, MModule, MutRc};
 
 /// This pass defines all types inside the module; currently classes and interfaces.
 /// It only creates a stub MIR definition and inserts it as a type;
@@ -43,6 +44,7 @@ impl PreMIRPass for DeclareTypes {
                 methods: HashMap::with_capacity(class.methods.len()),
                 instantiator: Rc::new(Default::default()),
                 constructors: Vec::with_capacity(class.constructors.len()),
+                context: Context::default(),
                 ast: Rc::new(class),
             });
 
@@ -62,6 +64,7 @@ impl PreMIRPass for DeclareTypes {
                 name: Rc::clone(&name.lexeme),
                 methods: IndexMap::with_capacity(iface.methods.len()),
                 proto: None,
+                context: Context::default(),
                 ast: Rc::new(iface),
             });
 

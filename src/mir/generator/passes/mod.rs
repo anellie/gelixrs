@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 9:25 PM.
+ * Last modified on 12/17/19 10:42 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -9,9 +9,9 @@ use std::rc::Rc;
 use crate::ast::{Module, Type as ASTType};
 use crate::error::{Error, Errors, Res};
 use crate::lexer::token::Token;
+use crate::mir::{MModule, MutRc};
 use crate::mir::generator::MIRGenerator;
 use crate::mir::nodes::{Type, Variable};
-use crate::mir::{MModule, MutRc};
 
 pub mod declaring_globals;
 pub mod declaring_iface_impls;
@@ -79,6 +79,8 @@ pub enum PassType {
     Module,
     /// This pass only modifies a specific type in the module.
     /// It should not modify anything else in the module.
+    /// Note that the [Context] of non-primitive types (class/iface/func)
+    /// is automatically attached.
     Type,
     /// This pass only modifies a specific global/function
     /// in the module.
