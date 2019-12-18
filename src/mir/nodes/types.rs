@@ -9,8 +9,8 @@ use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
 use crate::mir::generator::builder::Context;
-use crate::mir::MutRc;
 use crate::mir::nodes::{Class, Function, Interface};
+use crate::mir::MutRc;
 
 /// All types in Gelix.
 /// For all types that can have generic parameters, these parameters
@@ -83,7 +83,7 @@ impl Type {
             Type::Class(cls) => cls.borrow().context.clone(),
             Type::Interface(iface) => iface.borrow().context.clone(),
             Type::Function(func) => func.borrow().context.clone(),
-            _ => return None
+            _ => return None,
         })
     }
 

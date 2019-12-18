@@ -7,8 +7,8 @@
 use std::rc::Rc;
 
 use crate::error::Error;
-use crate::mir::generator::MIRGenerator;
 use crate::mir::generator::passes::{ModulePass, PassType};
+use crate::mir::generator::MIRGenerator;
 use crate::mir::nodes::Type;
 
 /// This pass populates the intrinsics struct.

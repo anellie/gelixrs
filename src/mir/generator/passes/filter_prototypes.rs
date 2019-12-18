@@ -8,11 +8,9 @@ use std::rc::Rc;
 
 use crate::ast::Module;
 use crate::error::Errors;
-use crate::mir::{MModule, MutRc, mutrc_new};
 use crate::mir::generator::passes::PreMIRPass;
-use crate::mir::nodes::{
-    ClassPrototype, FunctionPrototype, InterfacePrototype, Prototype, Prototypes,
-};
+use crate::mir::nodes::{ProtoAST, Prototype};
+use crate::mir::{MModule, MutRc};
 
 /// This pass removes all types/functions with generic parameters
 /// from the AST list, since they are handled separately.
@@ -28,54 +26,32 @@ impl PreMIRPass for FilterPrototypes {
         let mut module = module_rc.borrow_mut();
         let mut errs = Vec::new();
 
-        for class in ast.classes.drain_filter(|c| c.generics.is_some()) {
-            module
-                .try_reserve_name(&class.name)
-                .map_err(|e| errs.push(e))
-                .ok();
-            module.protos.insert(
-                Rc::clone(&class.name.lexeme),
-                Rc::new(Prototype {
-                    name: Rc::clone(&class.name.lexeme),
-                    proto: Prototypes::Class(mutrc_new(ClassPrototype {
-                        ast: Rc::new(class),
-                        impls: vec![],
-                        module: Rc::clone(&module_rc),
-                    })),
-                    instances: Default::default(),
-                }),
-            );
-        }
+        let class_iter = ast
+            .classes
+            .drain_filter(|c| c.generics.is_some())
+            .map(|c| (c.name.clone(), ProtoAST::Class(Rc::new(c))));
+        let iface_iter = ast
+            .interfaces
+            .drain_filter(|i| i.generics.is_some())
+            .map(|i| (i.name.clone(), ProtoAST::Interface(Rc::new(i))));
+        let func_iter = ast
+            .functions
+            .drain_filter(|f| f.sig.generics.is_some())
+            .map(|f| (f.sig.name.clone(), ProtoAST::Function(Rc::new(f))));
 
-        for iface in ast.interfaces.drain_filter(|i| i.generics.is_some()) {
+        for (name, ast) in class_iter.chain(iface_iter).chain(func_iter) {
             module
-                .try_reserve_name(&iface.name)
+                .try_reserve_name(&name)
                 .map_err(|e| errs.push(e))
                 .ok();
             module.protos.insert(
-                Rc::clone(&iface.name.lexeme),
+                Rc::clone(&name.lexeme),
                 Rc::new(Prototype {
-                    name: Rc::clone(&iface.name.lexeme),
-                    proto: Prototypes::Interface(mutrc_new(InterfacePrototype {
-                        ast: Rc::new(iface),
-                        impls: vec![],
-                    })),
+                    name: name.lexeme,
                     instances: Default::default(),
-                }),
-            );
-        }
-
-        for func in ast.functions.drain_filter(|f| f.sig.generics.is_some()) {
-            module
-                .try_reserve_name(&func.sig.name)
-                .map_err(|e| errs.push(e))
-                .ok();
-            module.protos.insert(
-                Rc::clone(&func.sig.name.lexeme),
-                Rc::new(Prototype {
-                    name: Rc::clone(&func.sig.name.lexeme),
-                    proto: Prototypes::Function(mutrc_new(FunctionPrototype { ast: Rc::new(func) })),
-                    instances: Default::default(),
+                    impls: vec![],
+                    module: Rc::clone(&module_rc),
+                    ast,
                 }),
             );
         }

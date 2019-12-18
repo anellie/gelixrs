@@ -12,9 +12,9 @@ use std::rc::Rc;
 use indexmap::IndexMap;
 
 use crate::ast;
-use crate::mir::{MModule, MutRc};
 use crate::mir::generator::builder::Context;
-use crate::mir::nodes::{Expr, InterfacePrototype, Type};
+use crate::mir::nodes::{Expr, Prototype, Type};
+use crate::mir::{MModule, MutRc};
 
 /// A full class including all members and methods.
 /// Members are ordered, as the class is represented as a struct in IR;
@@ -95,7 +95,7 @@ pub struct Interface {
     pub methods: IndexMap<Rc<String>, IFaceMethod>,
     /// The prototype this interface was built from, if any.
     /// Only used for some intrinsics.
-    pub proto: Option<MutRc<InterfacePrototype>>,
+    pub proto: Option<Rc<Prototype>>,
     /// The context to be used inside this declaration.
     pub context: Context,
     /// The AST this was compiled from.

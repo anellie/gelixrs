@@ -16,8 +16,8 @@ use std::rc::Rc;
 
 use crate::error::{Error, Res};
 use crate::lexer::token::TType;
-use crate::mir::nodes::{InterfacePrototype, Prototypes, Variable};
-use crate::mir::{MModule, MutRc};
+use crate::mir::nodes::{Prototype, Variable};
+use crate::mir::MModule;
 
 thread_local! {
     pub static INTRINSICS: RefCell<Intrinsics> = RefCell::new(Intrinsics::default());
@@ -26,23 +26,19 @@ thread_local! {
 /// Contains all data structures that require some sort of special treatment.
 #[derive(Default)]
 pub struct Intrinsics {
-    ops: HashMap<TType, MutRc<InterfacePrototype>>,
+    ops: HashMap<TType, Rc<Prototype>>,
     pub main_fn: Option<Rc<Variable>>,
 }
 
 impl Intrinsics {
-    pub fn get_op_iface(&self, ty: TType) -> MutRc<InterfacePrototype> {
+    pub fn get_op_iface(&self, ty: TType) -> Rc<Prototype> {
         Rc::clone(&self.ops[&ty])
     }
 
     // Only call this with the std/ops module, containing all operator interfaces
     pub fn fill_ops_table(&mut self, module: Ref<MModule>) {
         for (name, iface) in module.protos.iter() {
-            let iface = if let Prototypes::Interface(iface) = iface.proto.clone() {
-                iface
-            } else {
-                panic!()
-            };
+            let iface = Rc::clone(iface);
             match &name[..] {
                 "Add" => self.ops.insert(TType::Plus, iface),
                 "Sub" => self.ops.insert(TType::Minus, iface),

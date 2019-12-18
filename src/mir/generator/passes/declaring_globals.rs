@@ -10,15 +10,15 @@ use either::Either;
 
 use crate::ast;
 use crate::ast::declaration::{FuncSignature, FunctionArg};
-use crate::ast::Module;
 use crate::ast::module::ModulePath;
+use crate::ast::Module;
 use crate::error::{Errors, Res};
-use crate::mir::{MModule, MutRc, mutrc_new};
 use crate::mir::generator::builder::MIRBuilder;
 use crate::mir::generator::intrinsics::INTRINSICS;
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::nodes::{Function, Type, Variable};
 use crate::mir::result::ToMIRResult;
+use crate::mir::{mutrc_new, MModule, MutRc};
 
 /// This pass defines all globals inside the module; currently only functions.
 /// It only creates a signature and inserts it into the module;

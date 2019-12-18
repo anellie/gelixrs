@@ -8,15 +8,15 @@ use std::rc::Rc;
 
 use either::Either;
 
-use crate::ast::{Expression as ASTExpr, Literal};
 use crate::ast::declaration::Variable as ASTVar;
 use crate::ast::Type as ASTType;
+use crate::ast::{Expression as ASTExpr, Literal};
 use crate::error::{Error, Res};
-use crate::lexer::token::{Token, TType};
+use crate::lexer::token::{TType, Token};
 use crate::mir::generator::{ForLoop, MIRGenerator};
-use crate::mir::MutRc;
 use crate::mir::nodes::{ArrayLiteral, Class, Expr, Flow, Type, Variable};
 use crate::mir::result::ToMIRResult;
+use crate::mir::MutRc;
 
 /// This impl contains all code of the generator that directly
 /// produces expressions.
@@ -221,7 +221,10 @@ impl MIRGenerator {
 
             // Prototype constructor
             ASTExpr::VarWithGenerics { name, generics } => {
-                let ty = self.builder.find_type(&ASTType::Generic { token: name.clone(), types: generics.clone() });
+                let ty = self.builder.find_type(&ASTType::Generic {
+                    token: name.clone(),
+                    types: generics.clone(),
+                });
                 if let Ok(Type::Class(class)) = ty {
                     Ok(Some(
                         self.generate_class_instantiation(class, arguments, name)?,

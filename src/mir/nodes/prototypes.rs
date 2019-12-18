@@ -10,15 +10,15 @@ use std::rc::Rc;
 
 use indexmap::IndexMap;
 
-use crate::ast::{Class as ASTClass, IFaceImpl};
 use crate::ast::Function as ASTFunc;
 use crate::ast::IFaceImpl as ASTImpl;
 use crate::ast::Interface as ASTIFace;
+use crate::ast::{Class as ASTClass, IFaceImpl};
 use crate::error::{Error, Res};
 use crate::lexer::token::Token;
-use crate::mir::{MModule, MutRc, mutrc_new};
 use crate::mir::generator::builder::Context;
-use crate::mir::nodes::{Class, Type};
+use crate::mir::nodes::{Class, Interface, Type};
+use crate::mir::{mutrc_new, MModule, MutRc};
 
 /// A prototype that classes can be instantiated from.
 /// This prototype is kept in AST form,
@@ -41,7 +41,9 @@ use crate::mir::nodes::{Class, Type};
 pub struct Prototype {
     pub name: Rc<String>,
     pub instances: RefCell<HashMap<Vec<Type>, Type>>,
-    pub proto: Prototypes,
+    pub impls: Vec<ASTImpl>,
+    pub module: MutRc<MModule>,
+    pub ast: ProtoAST,
 }
 
 impl Prototype {
@@ -50,81 +52,76 @@ impl Prototype {
             return Ok(inst.clone());
         }
 
-        let ty = match &self.proto {
-            Prototypes::Class(class) => class.borrow().build(&arguments, err_tok),
-            Prototypes::Interface(iface) => iface.borrow().build(&arguments, err_tok),
-            Prototypes::Function(func) => func.borrow().build(&arguments, err_tok),
-        }?;
+        check_generic_arguments(&self.module, self.ast.get_parameters(), &arguments, err_tok)?;
+
+        let name = get_name(self.ast.get_name(), &arguments);
+        let ty = self.ast.create_mir(&name, &arguments);
+        attach_impls(&ty, self.impls.clone())?;
+        catch_up_passes(&ty)?;
+
+        self.module.borrow_mut().types.insert(name, ty.clone());
         self.instances.borrow_mut().insert(arguments, ty.clone());
 
         Ok(ty)
     }
 }
 
-#[derive(Debug, Clone, EnumAsGetters)]
-pub enum Prototypes {
-    Class(MutRc<ClassPrototype>),
-    Interface(MutRc<InterfacePrototype>),
-    Function(MutRc<FunctionPrototype>),
+#[derive(Debug, Clone)]
+pub enum ProtoAST {
+    Class(Rc<ASTClass>),
+    Interface(Rc<ASTIFace>),
+    Function(Rc<ASTFunc>),
 }
 
-#[derive(Debug)]
-pub struct ClassPrototype {
-    pub ast: Rc<ASTClass>,
-    pub impls: Vec<ASTImpl>,
-    pub module: MutRc<MModule>,
-}
-
-impl ClassPrototype {
-    fn build(&self, arguments: &[Type], err_tok: &Token) -> Res<Type> {
-        check_generic_arguments(
-            &self.module,
-            self.ast.generics.as_ref().unwrap(),
-            arguments,
-            err_tok,
-        )?;
-
-        let mut ast = (*self.ast).clone();
-        let name = get_name(&self.ast.name.lexeme, arguments);
-        ast.name.lexeme = Rc::clone(&name);
-        let class = mutrc_new(Class {
-            name: Rc::clone(&name),
-            members: IndexMap::with_capacity(self.ast.variables.len()),
-            methods: HashMap::with_capacity(self.ast.methods.len()),
-            instantiator: Default::default(),
-            constructors: Vec::with_capacity(self.ast.constructors.len()),
-            context: get_context(self.ast.generics.as_ref().unwrap(), arguments),
-            ast: Rc::new(ast),
-        });
-        let ty = Type::Class(class);
-
-        attach_impls(&ty, self.impls.clone())?;
-        catch_up_passes(&ty)?;
-        self.module.borrow_mut().types.insert(name, ty.clone());
-        Ok(ty)
+impl ProtoAST {
+    fn get_name(&self) -> &Rc<String> {
+        match self {
+            ProtoAST::Class(c) => &c.name.lexeme,
+            ProtoAST::Interface(i) => &i.name.lexeme,
+            ProtoAST::Function(f) => &f.sig.name.lexeme,
+        }
     }
-}
 
-#[derive(Debug)]
-pub struct InterfacePrototype {
-    pub ast: Rc<ASTIFace>,
-    pub impls: Vec<ASTImpl>,
-}
-
-impl InterfacePrototype {
-    fn build(&self, _arguments: &[Type], _err_tok: &Token) -> Res<Type> {
-        unimplemented!()
+    fn get_parameters(&self) -> &[Token] {
+        match self {
+            ProtoAST::Class(c) => c.generics.as_ref().unwrap(),
+            ProtoAST::Interface(i) => i.generics.as_ref().unwrap(),
+            ProtoAST::Function(f) => f.sig.generics.as_ref().unwrap(),
+        }
     }
-}
 
-#[derive(Debug)]
-pub struct FunctionPrototype {
-    pub ast: Rc<ASTFunc>,
-}
+    fn create_mir(&self, name: &Rc<String>, arguments: &[Type]) -> Type {
+        match self {
+            ProtoAST::Class(ast) => {
+                let mut ast = (**ast).clone();
+                ast.name.lexeme = Rc::clone(&name);
+                let class = mutrc_new(Class {
+                    name: Rc::clone(&name),
+                    members: IndexMap::with_capacity(ast.variables.len()),
+                    methods: HashMap::with_capacity(ast.methods.len()),
+                    instantiator: Default::default(),
+                    constructors: Vec::with_capacity(ast.constructors.len()),
+                    context: get_context(ast.generics.as_ref().unwrap(), arguments),
+                    ast: Rc::new(ast),
+                });
+                Type::Class(class)
+            }
 
-impl FunctionPrototype {
-    fn build(&self, _arguments: &[Type], _err_tok: &Token) -> Res<Type> {
-        unimplemented!()
+            ProtoAST::Interface(ast) => {
+                let mut ast = (**ast).clone();
+                ast.name.lexeme = Rc::clone(&name);
+                let iface = mutrc_new(Interface {
+                    name: Rc::clone(&name),
+                    methods: IndexMap::with_capacity(ast.methods.len()),
+                    proto: None,
+                    context: get_context(ast.generics.as_ref().unwrap(), arguments),
+                    ast: Rc::new(ast),
+                });
+                Type::Interface(iface)
+            }
+
+            ProtoAST::Function(_) => unimplemented!(),
+        }
     }
 }
 
@@ -138,7 +135,13 @@ fn get_name(name: &Rc<String>, args: &[Type]) -> Rc<String> {
 
 fn get_context(params: &[Token], args: &[Type]) -> Context {
     Context {
-        type_aliases: Rc::new(params.iter().map(|p| Rc::clone(&p.lexeme)).zip(args.iter().cloned()).collect())
+        type_aliases: Rc::new(
+            params
+                .iter()
+                .map(|p| Rc::clone(&p.lexeme))
+                .zip(args.iter().cloned())
+                .collect(),
+        ),
     }
 }
 

@@ -11,9 +11,9 @@ use crate::ast::module::ModulePath;
 use crate::ast::Type as ASTType;
 use crate::error::Res;
 use crate::lexer::token::Token;
-use crate::mir::{IFACE_IMPLS, MModule, MutRc};
 use crate::mir::nodes::Variable;
 use crate::mir::result::ToMIRResult;
+use crate::mir::{MModule, MutRc, IFACE_IMPLS};
 
 use super::super::nodes::Type;
 
@@ -32,7 +32,7 @@ pub struct MIRBuilder {
     pub module: MutRc<MModule>,
 
     /// See docs on [Context].
-    pub context: Context
+    pub context: Context,
 }
 
 impl MIRBuilder {

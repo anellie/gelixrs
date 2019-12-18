@@ -9,11 +9,8 @@ use std::rc::Rc;
 
 use crate::ast::module::Module;
 use crate::error::{Error, Errors};
-use crate::mir::{MModule, MutRc, mutrc_new};
 use crate::mir::generator::builder::MIRBuilder;
 use crate::mir::generator::intrinsics::INTRINSICS;
-use crate::mir::generator::MIRGenerator;
-use crate::mir::generator::passes::{ModulePass, PassType, PreMIRPass};
 use crate::mir::generator::passes::declaring_globals::DeclareGlobals;
 use crate::mir::generator::passes::declaring_iface_impls::DeclareIfaceImpls;
 use crate::mir::generator::passes::declaring_methods::DeclareMethods;
@@ -26,8 +23,11 @@ use crate::mir::generator::passes::imports::{ImportGlobals, ImportTypes};
 use crate::mir::generator::passes::insert_members::InsertClassMembers;
 use crate::mir::generator::passes::populate_intrinsics::PopulateIntrinsics;
 use crate::mir::generator::passes::validate::ValidateIntrinsics;
-use crate::mir::IFACE_IMPLS;
+use crate::mir::generator::passes::{ModulePass, PassType, PreMIRPass};
+use crate::mir::generator::MIRGenerator;
 use crate::mir::nodes::{Type, Variable};
+use crate::mir::IFACE_IMPLS;
+use crate::mir::{mutrc_new, MModule, MutRc};
 
 thread_local! {
     /// A map containing all interface implementations.
