@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/18/19 3:32 PM.
+ * Last modified on 12/18/19 11:08 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -10,15 +10,17 @@ use std::rc::Rc;
 
 use indexmap::IndexMap;
 
+use crate::ast::{Class as ASTClass, IFaceImpl};
 use crate::ast::Function as ASTFunc;
 use crate::ast::IFaceImpl as ASTImpl;
 use crate::ast::Interface as ASTIFace;
-use crate::ast::{Class as ASTClass, IFaceImpl};
 use crate::error::{Error, Res};
 use crate::lexer::token::Token;
-use crate::mir::generator::builder::Context;
+use crate::mir::{MModule, MutRc, mutrc_new};
+use crate::mir::generator::builder::{Context, MIRBuilder};
+use crate::mir::generator::MIRGenerator;
+use crate::mir::generator::module::DONE_PASSES;
 use crate::mir::nodes::{Class, Interface, Type};
-use crate::mir::{mutrc_new, MModule, MutRc};
 
 /// A prototype that classes can be instantiated from.
 /// This prototype is kept in AST form,
@@ -56,8 +58,9 @@ impl Prototype {
 
         let name = get_name(self.ast.get_name(), &arguments);
         let ty = self.ast.create_mir(&name, &arguments);
+        let mut generator = MIRGenerator::new(MIRBuilder::new(&self.module));
         attach_impls(&ty, self.impls.clone())?;
-        catch_up_passes(&ty)?;
+        catch_up_passes(&mut generator, &ty)?;
 
         self.module.borrow_mut().types.insert(name, ty.clone());
         self.instances.borrow_mut().insert(arguments, ty.clone());
@@ -170,6 +173,10 @@ fn attach_impls(ty: &Type, impls: Vec<IFaceImpl>) -> Res<()> {
     Ok(())
 }
 
-fn catch_up_passes(ty: &Type) -> Res<()> {
+fn catch_up_passes(gen: &mut MIRGenerator, ty: &Type) -> Res<()> {
+    let len = DONE_PASSES.with(|d| d.borrow().len());
+    for i in 0..len {
+        DONE_PASSES.with(|d| d.borrow()[i].run_type(gen, ty.clone()))?
+    }
     Ok(())
 }
