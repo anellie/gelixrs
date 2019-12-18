@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 9:37 PM.
+ * Last modified on 12/18/19 3:53 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -10,8 +10,8 @@ use std::rc::Rc;
 
 use nodes::Variable;
 
-use crate::ast::module::ModulePath;
 use crate::ast::{Import, Module};
+use crate::ast::module::ModulePath;
 use crate::error::{Error, Res};
 use crate::lexer::token::Token;
 use crate::mir::nodes::{IFaceImpls, Prototype, Type};
@@ -79,7 +79,7 @@ impl MModule {
             })
     }
 
-    pub fn find_prototype(&self, name: &String) -> Option<Prototype> {
+    pub fn find_prototype(&self, name: &String) -> Option<Rc<Prototype>> {
         self.protos
             .get(name)
             .or_else(|| self.imports.protos.get(name))
@@ -169,4 +169,4 @@ pub struct Imports {
 /// Prototypes are things with generic parameters, that are
 /// turned into a concrete implementation when used with
 /// generic arguments.
-pub type Prototypes = HashMap<Rc<String>, Prototype>;
+pub type Prototypes = HashMap<Rc<String>, Rc<Prototype>>;

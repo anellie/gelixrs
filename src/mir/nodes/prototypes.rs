@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/17/19 10:42 PM.
+ * Last modified on 12/18/19 3:32 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -84,7 +84,9 @@ impl ClassPrototype {
             err_tok,
         )?;
 
+        let mut ast = (*self.ast).clone();
         let name = get_name(&self.ast.name.lexeme, arguments);
+        ast.name.lexeme = Rc::clone(&name);
         let class = mutrc_new(Class {
             name: Rc::clone(&name),
             members: IndexMap::with_capacity(self.ast.variables.len()),
@@ -92,12 +94,13 @@ impl ClassPrototype {
             instantiator: Default::default(),
             constructors: Vec::with_capacity(self.ast.constructors.len()),
             context: get_context(self.ast.generics.as_ref().unwrap(), arguments),
-            ast: Rc::clone(&self.ast),
+            ast: Rc::new(ast),
         });
         let ty = Type::Class(class);
 
         attach_impls(&ty, self.impls.clone())?;
         catch_up_passes(&ty)?;
+        self.module.borrow_mut().types.insert(name, ty.clone());
         Ok(ty)
     }
 }

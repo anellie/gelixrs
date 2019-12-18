@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/17/19 10:42 PM.
+ * Last modified on 12/18/19 3:49 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -35,7 +35,7 @@ impl PreMIRPass for FilterPrototypes {
                 .ok();
             module.protos.insert(
                 Rc::clone(&class.name.lexeme),
-                Prototype {
+                Rc::new(Prototype {
                     name: Rc::clone(&class.name.lexeme),
                     proto: Prototypes::Class(mutrc_new(ClassPrototype {
                         ast: Rc::new(class),
@@ -43,7 +43,7 @@ impl PreMIRPass for FilterPrototypes {
                         module: Rc::clone(&module_rc),
                     })),
                     instances: Default::default(),
-                },
+                }),
             );
         }
 
@@ -54,14 +54,14 @@ impl PreMIRPass for FilterPrototypes {
                 .ok();
             module.protos.insert(
                 Rc::clone(&iface.name.lexeme),
-                Prototype {
+                Rc::new(Prototype {
                     name: Rc::clone(&iface.name.lexeme),
                     proto: Prototypes::Interface(mutrc_new(InterfacePrototype {
                         ast: Rc::new(iface),
                         impls: vec![],
                     })),
                     instances: Default::default(),
-                },
+                }),
             );
         }
 
@@ -72,11 +72,11 @@ impl PreMIRPass for FilterPrototypes {
                 .ok();
             module.protos.insert(
                 Rc::clone(&func.sig.name.lexeme),
-                Prototype {
+                Rc::new(Prototype {
                     name: Rc::clone(&func.sig.name.lexeme),
                     proto: Prototypes::Function(mutrc_new(FunctionPrototype { ast: Rc::new(func) })),
                     instances: Default::default(),
-                },
+                }),
             );
         }
 

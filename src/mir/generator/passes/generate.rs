@@ -1,14 +1,14 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 9:25 PM.
+ * Last modified on 12/18/19 3:53 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::rc::Rc;
 
 use crate::error::Error;
-use crate::mir::generator::passes::{ModulePass, PassType};
 use crate::mir::generator::MIRGenerator;
+use crate::mir::generator::passes::{ModulePass, PassType};
 use crate::mir::nodes::Type;
 
 /// This pass populates the intrinsics struct.
@@ -27,6 +27,7 @@ impl ModulePass for Generate {
         let types: Vec<Type> = gen.module.borrow().types.values().cloned().collect();
 
         for ty in types {
+            ty.context().map(|c| gen.builder.context = c);
             match ty {
                 Type::Function(func) => {
                     let ast = func.borrow().ast.as_ref().cloned();

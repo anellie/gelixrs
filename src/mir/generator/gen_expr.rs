@@ -1,20 +1,22 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 6:19 PM.
+ * Last modified on 12/18/19 3:53 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
+use std::rc::Rc;
+
+use either::Either;
+
+use crate::ast::{Expression as ASTExpr, Literal};
 use crate::ast::declaration::Variable as ASTVar;
 use crate::ast::Type as ASTType;
-use crate::ast::{Expression as ASTExpr, Literal};
 use crate::error::{Error, Res};
-use crate::lexer::token::{TType, Token};
+use crate::lexer::token::{Token, TType};
 use crate::mir::generator::{ForLoop, MIRGenerator};
+use crate::mir::MutRc;
 use crate::mir::nodes::{ArrayLiteral, Class, Expr, Flow, Type, Variable};
 use crate::mir::result::ToMIRResult;
-use crate::mir::MutRc;
-use either::Either;
-use std::rc::Rc;
 
 /// This impl contains all code of the generator that directly
 /// produces expressions.
@@ -175,6 +177,7 @@ impl MIRGenerator {
         }
     }
 
+    /// TODO
     fn try_method_or_constructor(
         &mut self,
         callee: &ASTExpr,
@@ -206,8 +209,8 @@ impl MIRGenerator {
 
             // Class constructor
             ASTExpr::Variable(name) => {
-                let ty = self.module.borrow().find_type(&name.lexeme);
-                if let Some(Type::Class(class)) = ty {
+                let ty = self.builder.find_type(&ASTType::Ident(name.clone()));
+                if let Ok(Type::Class(class)) = ty {
                     Ok(Some(
                         self.generate_class_instantiation(class, arguments, name)?,
                     ))
@@ -218,21 +221,11 @@ impl MIRGenerator {
 
             // Prototype constructor
             ASTExpr::VarWithGenerics { name, generics } => {
-                let proto = self.module.borrow().find_prototype(&name.lexeme);
-                if let Some(proto) = proto {
-                    let types = generics
-                        .iter()
-                        .map(|ty| self.builder.find_type(ty))
-                        .collect::<Result<Vec<Type>, Error>>()?;
-
-                    let class = proto.build(types, &name)?;
-                    if let Type::Class(class) = class {
-                        Ok(Some(
-                            self.generate_class_instantiation(class, arguments, name)?,
-                        ))
-                    } else {
-                        Err(self.err(name, "Only class prototypes can be constructed"))
-                    }
+                let ty = self.builder.find_type(&ASTType::Generic { token: name.clone(), types: generics.clone() });
+                if let Ok(Type::Class(class)) = ty {
+                    Ok(Some(
+                        self.generate_class_instantiation(class, arguments, name)?,
+                    ))
                 } else {
                     Ok(None)
                 }
