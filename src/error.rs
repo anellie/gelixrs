@@ -41,9 +41,14 @@ impl Error {
         message: String,
         module: &Rc<ModulePath>,
     ) -> Error {
+        let start = if tok.index <= tok.lexeme.len() {
+            0
+        } else {
+            tok.index - tok.lexeme.len()
+        };
         Error {
             line: tok.line,
-            start: tok.index - tok.lexeme.len(),
+            start,
             len: tok.lexeme.len(),
             producer,
             message,

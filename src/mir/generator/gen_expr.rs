@@ -522,7 +522,7 @@ impl MIRGenerator {
             .map(|ty| self.builder.find_type(ty))
             .collect::<Result<Vec<Type>, Error>>()?;
 
-        let function = prototype.build(types, name)?;
+        let function = prototype.build(types, name, Rc::clone(&prototype))?;
         if let Type::Function(func) = function {
             Ok(Expr::load(
                 &self

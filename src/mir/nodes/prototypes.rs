@@ -10,17 +10,17 @@ use std::rc::Rc;
 
 use indexmap::IndexMap;
 
-use crate::ast::{Class as ASTClass, IFaceImpl};
 use crate::ast::Function as ASTFunc;
 use crate::ast::IFaceImpl as ASTImpl;
 use crate::ast::Interface as ASTIFace;
+use crate::ast::{Class as ASTClass, IFaceImpl};
 use crate::error::{Error, Res};
 use crate::lexer::token::Token;
-use crate::mir::{MModule, MutRc, mutrc_new};
 use crate::mir::generator::builder::{Context, MIRBuilder};
-use crate::mir::generator::MIRGenerator;
 use crate::mir::generator::module::DONE_PASSES;
+use crate::mir::generator::MIRGenerator;
 use crate::mir::nodes::{Class, Function, Interface, Type};
+use crate::mir::{mutrc_new, MModule, MutRc};
 
 /// A prototype that classes can be instantiated from.
 /// This prototype is kept in AST form,
@@ -49,7 +49,12 @@ pub struct Prototype {
 }
 
 impl Prototype {
-    pub fn build(&self, arguments: Vec<Type>, err_tok: &Token) -> Res<Type> {
+    pub fn build(
+        &self,
+        arguments: Vec<Type>,
+        err_tok: &Token,
+        self_ref: Rc<Prototype>,
+    ) -> Res<Type> {
         if let Some(inst) = self.instances.borrow().get(&arguments) {
             return Ok(inst.clone());
         }
@@ -57,7 +62,7 @@ impl Prototype {
         check_generic_arguments(&self.module, self.ast.get_parameters(), &arguments, err_tok)?;
 
         let name = get_name(self.ast.get_name(), &arguments);
-        let ty = self.ast.create_mir(&name, &arguments);
+        let ty = self.ast.create_mir(&name, &arguments, self_ref);
         let mut generator = MIRGenerator::new(MIRBuilder::new(&self.module));
         attach_impls(&ty, self.impls.clone())?;
         catch_up_passes(&mut generator, &ty)?;
@@ -93,7 +98,7 @@ impl ProtoAST {
         }
     }
 
-    fn create_mir(&self, name: &Rc<String>, arguments: &[Type]) -> Type {
+    fn create_mir(&self, name: &Rc<String>, arguments: &[Type], self_ref: Rc<Prototype>) -> Type {
         match self {
             ProtoAST::Class(ast) => {
                 let mut ast = (**ast).clone();
@@ -116,7 +121,7 @@ impl ProtoAST {
                 let iface = mutrc_new(Interface {
                     name: Rc::clone(&name),
                     methods: IndexMap::with_capacity(ast.methods.len()),
-                    proto: None,
+                    proto: Some(self_ref),
                     context: get_context(ast.generics.as_ref().unwrap(), arguments),
                     ast: Rc::new(ast),
                 });
