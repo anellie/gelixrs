@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/18/19 11:08 PM.
+ * Last modified on 12/18/19 11:17 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -20,7 +20,7 @@ use crate::mir::{MModule, MutRc, mutrc_new};
 use crate::mir::generator::builder::{Context, MIRBuilder};
 use crate::mir::generator::MIRGenerator;
 use crate::mir::generator::module::DONE_PASSES;
-use crate::mir::nodes::{Class, Interface, Type};
+use crate::mir::nodes::{Class, Function, Interface, Type};
 
 /// A prototype that classes can be instantiated from.
 /// This prototype is kept in AST form,
@@ -123,7 +123,20 @@ impl ProtoAST {
                 Type::Interface(iface)
             }
 
-            ProtoAST::Function(_) => unimplemented!(),
+            ProtoAST::Function(ast) => {
+                let mut ast = (**ast).clone();
+                ast.sig.name.lexeme = Rc::clone(&name);
+                let func = mutrc_new(Function {
+                    name: (**name).clone(),
+                    parameters: vec![],
+                    blocks: Default::default(),
+                    variables: Default::default(),
+                    ret_type: Default::default(),
+                    context: get_context(ast.sig.generics.as_ref().unwrap(), arguments),
+                    ast: Some(Rc::new(ast)),
+                });
+                Type::Function(func)
+            }
         }
     }
 }
