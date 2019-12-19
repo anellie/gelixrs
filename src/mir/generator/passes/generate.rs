@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/19/19 3:28 PM.
+ * Last modified on 12/19/19 3:40 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -20,7 +20,6 @@ impl ModulePass for Generate {
     }
 
     fn run_type(&self, gen: &mut MIRGenerator, ty: Type) -> Res<()> {
-        ty.context().map(|c| gen.builder.context = c);
         match ty {
             Type::Function(func) => {
                 let ast = func.borrow().ast.as_ref().cloned();

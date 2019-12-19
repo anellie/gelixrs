@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/19/19 3:26 PM.
+ * Last modified on 12/19/19 3:40 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -222,6 +222,7 @@ fn attach_impls(ty: &Type, impls: Vec<IFaceImpl>) -> Res<()> {
 }
 
 fn catch_up_passes(gen: &mut MIRGenerator, ty: &Type) -> Res<()> {
+    gen.builder.context = ty.context().unwrap();
     let len = DONE_PASSES.with(|d| d.borrow().len());
     for i in 0..len {
         DONE_PASSES.with(|d| d.borrow()[i].run_type(gen, ty.clone()))?
