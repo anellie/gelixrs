@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/19/19 6:57 PM.
+ * Last modified on 12/19/19 7:35 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -276,6 +276,35 @@ impl IRGenerator {
             Expr::Call { callee, arguments } => {
                 let callee = self.generate_expression(callee);
                 let ptr = callee.into_pointer_value();
+                let arguments: Vec<BasicValueEnum> = arguments
+                    .iter()
+                    .map(|arg| self.generate_expression(arg))
+                    .collect();
+
+                let ret = self
+                    .builder
+                    .build_call(ptr, arguments.as_slice(), "call")
+                    .try_as_basic_value();
+                ret.left().unwrap_or(self.none_const)
+            }
+
+            Expr::CallDyn {
+                callee,
+                index,
+                arguments,
+            } => {
+                let callee = self.generate_expression(callee);
+                let iface_ptr = callee.into_pointer_value();
+                let ptr = unsafe {
+                    let indices = vec![
+                        // First index the interface struct; index 0 is the vtable
+                        self.context.i64_type().const_zero(),
+                        // Then index the method in the vtable
+                        self.context.i64_type().const_int(*index as u64, false),
+                    ];
+                    self.builder.build_gep(iface_ptr, &indices, "vtablegep")
+                };
+
                 let arguments: Vec<BasicValueEnum> = arguments
                     .iter()
                     .map(|arg| self.generate_expression(arg))

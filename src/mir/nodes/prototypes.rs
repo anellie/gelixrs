@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/19/19 3:40 PM.
+ * Last modified on 12/19/19 7:35 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -18,10 +18,10 @@ use crate::error::{Error, Res};
 use crate::lexer::token::Token;
 use crate::mir::generator::builder::{Context, MIRBuilder};
 use crate::mir::generator::module::DONE_PASSES;
+use crate::mir::generator::passes::declaring_globals::get_function_name;
 use crate::mir::generator::MIRGenerator;
 use crate::mir::nodes::{Class, Function, Interface, Type, Variable};
 use crate::mir::{mutrc_new, MModule, MutRc};
-use crate::mir::generator::passes::declaring_globals::get_function_name;
 
 /// A prototype that classes can be instantiated from.
 /// This prototype is kept in AST form,
@@ -88,7 +88,10 @@ impl ProtoAST {
         match self {
             ProtoAST::Class(c) => Rc::clone(&c.name.lexeme),
             ProtoAST::Interface(i) => Rc::clone(&i.name.lexeme),
-            ProtoAST::Function(f) => Rc::new(get_function_name(&self_ref.module.borrow().path, &f.sig.name.lexeme)),
+            ProtoAST::Function(f) => Rc::new(get_function_name(
+                &self_ref.module.borrow().path,
+                &f.sig.name.lexeme,
+            )),
         }
     }
 
@@ -100,7 +103,12 @@ impl ProtoAST {
         }
     }
 
-    fn create_mir(&self, name: &Rc<String>, arguments: &[Type], self_ref: Rc<Prototype>) -> Res<Type> {
+    fn create_mir(
+        &self,
+        name: &Rc<String>,
+        arguments: &[Type],
+        self_ref: Rc<Prototype>,
+    ) -> Res<Type> {
         Ok(match self {
             ProtoAST::Class(ast) => {
                 let mut ast = (**ast).clone();
@@ -168,7 +176,11 @@ impl ProtoAST {
                     type_: Type::Function(Rc::clone(&func)),
                     mutable: false,
                 });
-                self_ref.module.borrow_mut().globals.insert(Rc::clone(&name), global);
+                self_ref
+                    .module
+                    .borrow_mut()
+                    .globals
+                    .insert(Rc::clone(&name), global);
 
                 Type::Function(func)
             }

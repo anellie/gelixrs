@@ -1,10 +1,9 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/19/19 6:59 PM.
+ * Last modified on 12/19/19 7:35 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::cell::RefCell;
 use std::fmt::{Display, Error, Formatter};
 use std::mem;
 use std::rc::Rc;
@@ -25,18 +24,24 @@ pub enum Expr {
         right: Box<Expr>,
     },
 
-    /// A function call.
+    /// A static function call.
     Call {
         callee: Box<Expr>,
         arguments: Vec<Expr>,
     },
 
+    /// A dynamic function call, where callee is an interface and index the
+    /// index of the function to be called in the iface's method/vtable field.
+    /// Implemented in IR as a struct with pointers to implementor and vtable (fat ptr).
+    CallDyn {
+        callee: Box<Expr>,
+        index: usize,
+        arguments: Vec<Expr>,
+    },
+
     /// A cast, where a value is turned into a different type;
     /// casting to an interface implemented by the original type for example
-    Cast {
-        object: Box<Expr>,
-        to: Type
-    },
+    Cast { object: Box<Expr>, to: Type },
 
     /// A 'flow' expression, which changes control flow. See [Flow] enum
     Flow(Box<Flow>),
@@ -80,7 +85,7 @@ impl Expr {
     pub fn cast(obj: Expr, ty: &Type) -> Expr {
         Expr::Cast {
             object: Box::new(obj),
-            to: ty.clone()
+            to: ty.clone(),
         }
     }
 
@@ -184,13 +189,18 @@ impl Expr {
                 }
             }
 
-            Expr::Call { callee, .. } => {
-                if let Type::Function(func) = callee.get_type() {
-                    RefCell::borrow(&func).ret_type.clone()
-                } else {
-                    panic!("non-function call type")
-                }
-            }
+            Expr::Call { callee, .. } => callee.get_type().as_function().borrow().ret_type.clone(),
+
+            Expr::CallDyn { callee, index, .. } => callee
+                .get_type()
+                .as_interface()
+                .borrow()
+                .methods
+                .get_index(*index)
+                .unwrap()
+                .1
+                .ret_type
+                .clone(),
 
             Expr::Cast { to, .. } => to.clone(),
 
@@ -258,6 +268,31 @@ impl Display for Expr {
 
             Expr::Call { callee, arguments } => {
                 write!(f, "call {}", callee)?;
+                if !arguments.is_empty() {
+                    write!(f, " with ")?;
+                }
+                for arg in arguments.iter() {
+                    write!(f, "({}) ", arg)?;
+                }
+                Ok(())
+            }
+
+            Expr::CallDyn {
+                callee,
+                index,
+                arguments,
+            } => {
+                let method_name = Rc::clone(
+                    callee
+                        .get_type()
+                        .as_interface()
+                        .borrow()
+                        .methods
+                        .get_index(*index)
+                        .unwrap()
+                        .0,
+                );
+                write!(f, "call method {} on {}", method_name, callee)?;
                 if !arguments.is_empty() {
                     write!(f, " with ")?;
                 }

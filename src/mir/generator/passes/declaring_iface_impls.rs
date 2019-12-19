@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/19/19 6:50 PM.
+ * Last modified on 12/19/19 7:35 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -15,7 +15,7 @@ use crate::error::{Error, Errors, Res};
 use crate::mir::generator::builder::MIRBuilder;
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::nodes::{IFaceImpl, IFaceImpls, Type};
-use crate::mir::{mutrc_new, MModule, MutRc, IFACE_IMPLS, get_iface_impls};
+use crate::mir::{get_iface_impls, mutrc_new, MModule, MutRc, IFACE_IMPLS};
 
 /// This pass inserts all iface impls in the global impl
 /// table. It only validates that the type implementing for
