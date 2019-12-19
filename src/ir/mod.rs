@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/19/19 7:35 PM.
+ * Last modified on 12/20/19 12:14 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -293,8 +293,13 @@ impl IRGenerator {
                 index,
                 arguments,
             } => {
-                let callee = self.generate_expression(callee);
-                let iface_ptr = callee.into_pointer_value();
+                let arguments: Vec<BasicValueEnum> = arguments
+                    .iter()
+                    .map(|arg| self.generate_expression(arg))
+                    .collect();
+
+                let iface_struct = arguments[0];
+                let iface_ptr = iface_struct.into_pointer_value();
                 let ptr = unsafe {
                     let indices = vec![
                         // First index the interface struct; index 0 is the vtable
@@ -305,10 +310,6 @@ impl IRGenerator {
                     self.builder.build_gep(iface_ptr, &indices, "vtablegep")
                 };
 
-                let arguments: Vec<BasicValueEnum> = arguments
-                    .iter()
-                    .map(|arg| self.generate_expression(arg))
-                    .collect();
 
                 let ret = self
                     .builder

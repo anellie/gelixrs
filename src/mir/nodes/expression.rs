@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/19/19 7:35 PM.
+ * Last modified on 12/20/19 12:16 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,7 +11,8 @@ use std::rc::Rc;
 use crate::ast::expression::LOGICAL_BINARY;
 use crate::ast::Literal;
 use crate::lexer::token::TType;
-use crate::mir::nodes::{ClassMember, Type, Variable};
+use crate::mir::nodes::{ClassMember, Type, Variable, Interface};
+use crate::mir::MutRc;
 
 /// All expressions in MIR. All of them produce a value.
 /// Expressions are in blocks in functions. Gelix does not have statements.
@@ -30,11 +31,12 @@ pub enum Expr {
         arguments: Vec<Expr>,
     },
 
-    /// A dynamic function call, where callee is an interface and index the
-    /// index of the function to be called in the iface's method/vtable field.
+    /// A dynamic function call, where the callee is an interface method.
+    /// The index is of the function to be called in the iface's method/vtable field.
     /// Implemented in IR as a struct with pointers to implementor and vtable (fat ptr).
+    /// The value/fat ptr is obtained from the arguments list.
     CallDyn {
-        callee: Box<Expr>,
+        callee: MutRc<Interface>,
         index: usize,
         arguments: Vec<Expr>,
     },
@@ -96,10 +98,18 @@ impl Expr {
         }
     }
 
-    pub fn call(callee: Expr, args: Vec<Expr>) -> Expr {
+    pub fn call(callee: Expr, arguments: Vec<Expr>) -> Expr {
         Expr::Call {
             callee: Box::new(callee),
-            arguments: args,
+            arguments,
+        }
+    }
+    
+    pub fn call_dyn(callee: &MutRc<Interface>, index: usize, arguments: Vec<Expr>) -> Expr {
+        Expr::CallDyn {
+            callee: Rc::clone(callee),
+            index,
+            arguments,
         }
     }
 
@@ -192,8 +202,6 @@ impl Expr {
             Expr::Call { callee, .. } => callee.get_type().as_function().borrow().ret_type.clone(),
 
             Expr::CallDyn { callee, index, .. } => callee
-                .get_type()
-                .as_interface()
                 .borrow()
                 .methods
                 .get_index(*index)
@@ -284,18 +292,14 @@ impl Display for Expr {
             } => {
                 let method_name = Rc::clone(
                     callee
-                        .get_type()
-                        .as_interface()
                         .borrow()
                         .methods
                         .get_index(*index)
                         .unwrap()
                         .0,
                 );
-                write!(f, "call method {} on {}", method_name, callee)?;
-                if !arguments.is_empty() {
-                    write!(f, " with ")?;
-                }
+                write!(f, "call method {}", method_name)?;
+                write!(f, " with ")?;
                 for arg in arguments.iter() {
                     write!(f, "({}) ", arg)?;
                 }

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/19/19 7:35 PM.
+ * Last modified on 12/20/19 12:20 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -20,6 +20,7 @@ use crate::mir::nodes::{ClassMember, Expr, Function, Type, Variable};
 use crate::mir::result::ToMIRResult;
 use crate::mir::{get_iface_impls, MModule, MutRc, IFACE_IMPLS};
 use crate::Error;
+use either::Either::{Left, Right};
 
 pub mod builder;
 pub mod gen_expr;
@@ -273,7 +274,7 @@ impl MIRGenerator {
         &mut self,
         object: &ASTExpr,
         name: &Token,
-    ) -> Res<(Expr, Either<Rc<ClassMember>, Rc<Variable>>)> {
+    ) -> Res<(Expr, Either<Rc<ClassMember>, Callable>)> {
         let object = self.expression(object)?;
         let ty = object.get_type();
 
@@ -290,22 +291,20 @@ impl MIRGenerator {
             .or_err(&self.builder.path, name, "Unknown field or method.")
     }
 
-    fn generate_func_args(
+    fn generate_func_args<'a, T: Iterator<Item = &'a Type>>(
         &mut self,
-        func_ref: MutRc<Function>,
+        mut parameters: T,
         arguments: &[ASTExpr],
         first_arg: Option<Expr>,
         err_tok: &Token,
     ) -> Res<Vec<Expr>> {
-        let func = func_ref.borrow();
-
         let args_len = arguments.len() + (first_arg.is_some() as usize);
-        if func.parameters.len() != args_len {
+        if parameters.size_hint().0 != args_len {
             return Err(self.err(
                 err_tok,
                 &format!(
                     "Incorrect amount of function arguments. (Expected {}; got {})",
-                    func.parameters.len(),
+                    parameters.size_hint().0,
                     arguments.len()
                 ),
             ));
@@ -314,24 +313,21 @@ impl MIRGenerator {
         let mut result = Vec::with_capacity(args_len);
         let first_arg_is_some = first_arg.is_some();
         if let Some(arg) = first_arg {
-            let ty = &func.parameters[0].type_;
+            let ty = parameters.next().unwrap();
             let arg = self
                 .check_call_arg_type(arg, ty)
                 .expect("internal error: method call");
             result.push(arg)
         }
-        for (argument, parameter) in arguments
-            .iter()
-            .zip(func.parameters.iter().skip(first_arg_is_some as usize))
-        {
+        for (argument, parameter) in arguments.iter().zip(parameters) {
             let arg = self.expression(argument)?;
             let arg_type = arg.get_type();
-            let arg = self.check_call_arg_type(arg, &parameter.type_).or_err(
+            let arg = self.check_call_arg_type(arg, &parameter).or_err(
                 &self.builder.path,
                 argument.get_token(),
                 &format!(
                     "Call argument is the wrong type (was {}, expected {})",
-                    arg_type, parameter.type_
+                    arg_type, parameter
                 ),
             )?;
             result.push(arg)
@@ -341,20 +337,23 @@ impl MIRGenerator {
 
     /// Searches for an associated method on a type. Can be either an interface
     /// method or a class method.
-    fn find_associated_method(&self, ty: Type, name: &Token) -> Option<Rc<Variable>> {
-        let class_method = if let Type::Class(class) = &ty {
-            class.borrow().methods.get(&name.lexeme).cloned()
+    fn find_associated_method(&self, ty: Type, name: &Token) -> Option<Callable> {
+        let method = if let Type::Class(class) = &ty {
+            class.borrow().methods.get(&name.lexeme).cloned().map(Left)
+        } else if let Type::Interface(iface) = &ty {
+            iface.borrow().methods.get_full(&name.lexeme).map(|(i, _, _)| Right(i))
         } else {
             None
         };
 
-        class_method.or_else(|| {
+        method.or_else(|| {
             IFACE_IMPLS
                 .with(|impls| impls.borrow().get(&ty).cloned())?
                 .borrow()
                 .methods
                 .get(&name.lexeme)
                 .cloned()
+                .map(Left)
         })
     }
 
@@ -514,3 +513,6 @@ impl ForLoop {
         }
     }
 }
+
+pub type Callable = Either<Rc<Variable>, IFaceFuncIndex>;
+pub type IFaceFuncIndex = usize;

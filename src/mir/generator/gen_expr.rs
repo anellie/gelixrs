@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/19/19 6:43 PM.
+ * Last modified on 12/20/19 12:23 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -17,6 +17,7 @@ use crate::mir::generator::{ForLoop, MIRGenerator};
 use crate::mir::nodes::{ArrayLiteral, Class, Expr, Flow, Type, Variable};
 use crate::mir::result::ToMIRResult;
 use crate::mir::MutRc;
+use either::Either::{Right, Left};
 
 /// This impl contains all code of the generator that directly
 /// produces expressions.
@@ -167,7 +168,7 @@ impl MIRGenerator {
         // method above fell through, its either a function call or invalid
         let callee_mir = self.expression(callee)?;
         if let Type::Function(func) = callee_mir.get_type() {
-            let args = self.generate_func_args(func, arguments, None, callee.get_token())?;
+            let args = self.generate_func_args(func.borrow().parameters.iter().map(|p| &p.type_), arguments, None, callee.get_token())?;
             Ok(Expr::call(callee_mir, args))
         } else {
             Err(self.err(
@@ -197,14 +198,34 @@ impl MIRGenerator {
                     "Class members cannot be called.",
                 )?;
 
-                let args = self.generate_func_args(
-                    Rc::clone(func.type_.as_function()),
-                    arguments,
-                    Some(object),
-                    name,
-                )?;
+                match func {
+                    Left(func) => {
+                        let args = self.generate_func_args(
+                            object.get_type().as_function().borrow().parameters.iter().map(|p| &p.type_),
+                            arguments,
+                            Some(object),
+                            name,
+                        )?;
 
-                Ok(Some(Expr::call(Expr::load(&func), args)))
+                        Ok(Some(Expr::call(Expr::load(&func), args)))
+                    },
+
+                    Right(index) => {
+                        let ty = object.get_type();
+                        let iface = ty.as_interface().borrow();
+                        let params = &iface.methods.get_index(index).unwrap().1.parameters;
+                        let args = self.generate_func_args(
+                            // 'params' need to have the 'this' parameter, this is the result...
+                            Some(ty.clone()).iter().chain(params.iter()),
+                            arguments,
+                            Some(object),
+                            name,
+                        )?;
+
+                        Ok(Some(Expr::call_dyn(ty.as_interface(), index, args)))
+                    },
+                }
+
             }
 
             // Class constructor
