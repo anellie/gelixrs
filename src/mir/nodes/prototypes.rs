@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/18/19 11:17 PM.
+ * Last modified on 12/19/19 3:26 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -19,8 +19,9 @@ use crate::lexer::token::Token;
 use crate::mir::generator::builder::{Context, MIRBuilder};
 use crate::mir::generator::module::DONE_PASSES;
 use crate::mir::generator::MIRGenerator;
-use crate::mir::nodes::{Class, Function, Interface, Type};
+use crate::mir::nodes::{Class, Function, Interface, Type, Variable};
 use crate::mir::{mutrc_new, MModule, MutRc};
+use crate::mir::generator::passes::declaring_globals::get_function_name;
 
 /// A prototype that classes can be instantiated from.
 /// This prototype is kept in AST form,
@@ -61,14 +62,15 @@ impl Prototype {
 
         check_generic_arguments(&self.module, self.ast.get_parameters(), &arguments, err_tok)?;
 
-        let name = get_name(self.ast.get_name(), &arguments);
-        let ty = self.ast.create_mir(&name, &arguments, self_ref);
+        let name = get_name(self.ast.get_name(&self_ref), &arguments);
+        let ty = self.ast.create_mir(&name, &arguments, self_ref)?;
         let mut generator = MIRGenerator::new(MIRBuilder::new(&self.module));
-        attach_impls(&ty, self.impls.clone())?;
-        catch_up_passes(&mut generator, &ty)?;
 
         self.module.borrow_mut().types.insert(name, ty.clone());
         self.instances.borrow_mut().insert(arguments, ty.clone());
+
+        attach_impls(&ty, self.impls.clone())?;
+        catch_up_passes(&mut generator, &ty)?;
 
         Ok(ty)
     }
@@ -82,11 +84,11 @@ pub enum ProtoAST {
 }
 
 impl ProtoAST {
-    fn get_name(&self) -> &Rc<String> {
+    fn get_name(&self, self_ref: &Rc<Prototype>) -> Rc<String> {
         match self {
-            ProtoAST::Class(c) => &c.name.lexeme,
-            ProtoAST::Interface(i) => &i.name.lexeme,
-            ProtoAST::Function(f) => &f.sig.name.lexeme,
+            ProtoAST::Class(c) => Rc::clone(&c.name.lexeme),
+            ProtoAST::Interface(i) => Rc::clone(&i.name.lexeme),
+            ProtoAST::Function(f) => Rc::new(get_function_name(&self_ref.module.borrow().path, &f.sig.name.lexeme)),
         }
     }
 
@@ -98,8 +100,8 @@ impl ProtoAST {
         }
     }
 
-    fn create_mir(&self, name: &Rc<String>, arguments: &[Type], self_ref: Rc<Prototype>) -> Type {
-        match self {
+    fn create_mir(&self, name: &Rc<String>, arguments: &[Type], self_ref: Rc<Prototype>) -> Res<Type> {
+        Ok(match self {
             ProtoAST::Class(ast) => {
                 let mut ast = (**ast).clone();
                 ast.name.lexeme = Rc::clone(&name);
@@ -131,22 +133,50 @@ impl ProtoAST {
             ProtoAST::Function(ast) => {
                 let mut ast = (**ast).clone();
                 ast.sig.name.lexeme = Rc::clone(&name);
+
+                let mut builder = MIRBuilder::new(&self_ref.module);
+                builder.context = get_context(ast.sig.generics.as_ref().unwrap(), arguments);
+
+                let ret_type = ast
+                    .sig
+                    .return_type
+                    .as_ref()
+                    .map(|ty| builder.find_type(ty))
+                    .unwrap_or(Ok(Type::None))?;
+
+                let mut parameters = Vec::with_capacity(ast.sig.parameters.len());
+                for param in ast.sig.parameters.iter() {
+                    parameters.push(Rc::new(Variable {
+                        mutable: false,
+                        name: Rc::clone(&param.name.lexeme),
+                        type_: builder.find_type(&param.type_)?,
+                    }));
+                }
+
                 let func = mutrc_new(Function {
                     name: (**name).clone(),
-                    parameters: vec![],
+                    parameters,
                     blocks: Default::default(),
                     variables: Default::default(),
-                    ret_type: Default::default(),
-                    context: get_context(ast.sig.generics.as_ref().unwrap(), arguments),
+                    ret_type,
+                    context: builder.context,
                     ast: Some(Rc::new(ast)),
                 });
+
+                let global = Rc::new(Variable {
+                    name: Rc::clone(&name),
+                    type_: Type::Function(Rc::clone(&func)),
+                    mutable: false,
+                });
+                self_ref.module.borrow_mut().globals.insert(Rc::clone(&name), global);
+
                 Type::Function(func)
             }
-        }
+        })
     }
 }
 
-fn get_name(name: &Rc<String>, args: &[Type]) -> Rc<String> {
+fn get_name(name: Rc<String>, args: &[Type]) -> Rc<String> {
     let mut arg_names = args[0].to_string();
     for arg in args.iter().skip(1) {
         arg_names = format!("{}, {}", arg_names, arg);

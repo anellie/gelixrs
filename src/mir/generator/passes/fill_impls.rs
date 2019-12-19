@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 9:25 PM.
+ * Last modified on 12/19/19 3:30 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -21,7 +21,7 @@ use crate::mir::generator::MIRGenerator;
 use crate::mir::nodes::{IFaceMethod, Type, Variable};
 use crate::mir::result::ToMIRResult;
 
-/// This pass defines all methods on classes and interfaces.
+/// This pass defines all methods on interface impls.
 /// The boolean indicates if the pass has already been run at least once.
 pub struct FillIfaceImpls(pub RefCell<bool>);
 

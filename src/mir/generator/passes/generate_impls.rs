@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 9:25 PM.
+ * Last modified on 12/19/19 3:30 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -13,7 +13,7 @@ use crate::mir::generator::MIRGenerator;
 use crate::mir::nodes::IFaceImpls;
 use crate::mir::{MModule, MutRc, IFACE_IMPLS};
 
-/// This pass populates the intrinsics struct.
+/// This pass generates all functions inside iface impls.
 pub struct GenerateImpls();
 
 impl ModulePass for GenerateImpls {

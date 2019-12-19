@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 9:25 PM.
+ * Last modified on 12/19/19 3:27 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -285,8 +285,7 @@ impl MIRGenerator {
             }
         }
 
-        self.builder
-            .find_associated_method(ty, name)
+        self.find_associated_method(ty, name)
             .map(|m| (object, Either::Right(m)))
             .or_err(&self.builder.path, name, "Unknown field or method.")
     }
@@ -338,6 +337,25 @@ impl MIRGenerator {
             result.push(arg)
         }
         Ok(result)
+    }
+
+    /// Searches for an associated method on a type. Can be either an interface
+    /// method or a class method.
+    fn find_associated_method(&self, ty: Type, name: &Token) -> Option<Rc<Variable>> {
+        let class_method = if let Type::Class(class) = &ty {
+            class.borrow().methods.get(&name.lexeme).cloned()
+        } else {
+            None
+        };
+
+        class_method.or_else(|| {
+            IFACE_IMPLS
+                .with(|impls| impls.borrow().get(&ty).cloned())?
+                .borrow()
+                .methods
+                .get(&name.lexeme)
+                .cloned()
+        })
     }
 
     /// Returns the method that corresponds to the operator given (operator overloading).

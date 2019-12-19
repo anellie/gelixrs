@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/17/19 10:42 PM.
+ * Last modified on 12/19/19 2:54 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,9 +11,8 @@ use crate::ast::module::ModulePath;
 use crate::ast::Type as ASTType;
 use crate::error::Res;
 use crate::lexer::token::Token;
-use crate::mir::nodes::Variable;
 use crate::mir::result::ToMIRResult;
-use crate::mir::{MModule, MutRc, IFACE_IMPLS};
+use crate::mir::{MModule, MutRc};
 
 use super::super::nodes::Type;
 
@@ -85,25 +84,6 @@ impl MIRBuilder {
             "String" => Type::String,
 
             _ => self.module.borrow().find_type(&tok.lexeme)?,
-        })
-    }
-
-    /// Searches for an associated method on a type. Can be either an interface
-    /// method or a class method.
-    pub fn find_associated_method(&self, ty: Type, name: &Token) -> Option<Rc<Variable>> {
-        let class_method = if let Type::Class(class) = &ty {
-            class.borrow().methods.get(&name.lexeme).cloned()
-        } else {
-            None
-        };
-
-        class_method.or_else(|| {
-            IFACE_IMPLS
-                .with(|impls| impls.borrow().get(&ty).cloned())?
-                .borrow()
-                .methods
-                .get(&name.lexeme)
-                .cloned()
         })
     }
 
