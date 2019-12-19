@@ -31,6 +31,7 @@ use super::{
         MModule, MutRc,
     },
 };
+use crate::mir::nodes::{IFaceMethod, Interface};
 
 /// A generator that creates LLVM IR out of Gelix mid-level IR (MIR).
 ///
@@ -104,6 +105,10 @@ impl IRGenerator {
 
             Type::Class(class) => self.build_class(Rc::clone(class)).as_basic_type_enum(),
 
+            Type::Interface(iface) => self
+                .build_iface_ptr_struct(Rc::clone(iface))
+                .as_basic_type_enum(),
+
             _ => panic!(format!("Unknown type '{}' to build", ty)),
         };
         self.types.insert(ty.clone(), ir_ty);
@@ -121,6 +126,44 @@ impl IRGenerator {
             .collect();
         struc_val.set_body(body.as_slice(), false);
         struc_val
+    }
+
+    fn build_iface_ptr_struct(&mut self, iface: MutRc<Interface>) -> StructType {
+        let vtable: Vec<BasicTypeEnum> = iface
+            .borrow()
+            .methods
+            .iter()
+            .map(|(_, method)| self.get_iface_method_type(method))
+            .collect();
+        let vtable_struct = self.context.struct_type(&vtable, false);
+
+        let body = vec![
+            self.context
+                .bool_type()
+                .ptr_type(AddressSpace::Generic)
+                .into(),
+            vtable_struct.ptr_type(AddressSpace::Generic).into(),
+        ];
+        let struc_val = self.context.opaque_struct_type(&iface.borrow().name);
+        struc_val.set_body(&body, false);
+        struc_val
+    }
+
+    fn get_iface_method_type(&mut self, method: &IFaceMethod) -> BasicTypeEnum {
+        let params: Vec<BasicTypeEnum> = method
+            .parameters
+            .iter()
+            .map(|param| self.to_ir_type(&param))
+            .collect();
+
+        if method.ret_type == Type::None {
+            self.context.void_type().fn_type(params.as_slice(), false)
+        } else {
+            let ret_type = self.to_ir_type(&method.ret_type);
+            ret_type.fn_type(params.as_slice(), false)
+        }
+        .ptr_type(AddressSpace::Generic)
+        .into()
     }
 
     /// Declares a function. All functions must be declared before generating
@@ -309,7 +352,6 @@ impl IRGenerator {
                     ];
                     self.builder.build_gep(iface_ptr, &indices, "vtablegep")
                 };
-
 
                 let ret = self
                     .builder
