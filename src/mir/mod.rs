@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/18/19 3:53 PM.
+ * Last modified on 12/19/19 6:47 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -26,6 +26,10 @@ thread_local! {
     /// TODO: This would be better implemented as a lazy_static,
     /// but the compiler does not currently support multithreading.
     static IFACE_IMPLS: RefCell<HashMap<Type, MutRc<IFaceImpls>>> = RefCell::new(HashMap::with_capacity(20));
+}
+
+pub fn get_iface_impls(ty: &Type) -> Option<MutRc<IFaceImpls>> {
+    IFACE_IMPLS.with(|im| im.borrow().get(ty).cloned())
 }
 
 pub type MutRc<T> = Rc<RefCell<T>>;

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 9:25 PM.
+ * Last modified on 12/19/19 6:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -15,7 +15,7 @@ use crate::error::{Error, Errors, Res};
 use crate::mir::generator::builder::MIRBuilder;
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::nodes::{IFaceImpl, IFaceImpls, Type};
-use crate::mir::{mutrc_new, MModule, MutRc, IFACE_IMPLS};
+use crate::mir::{mutrc_new, MModule, MutRc, IFACE_IMPLS, get_iface_impls};
 
 /// This pass inserts all iface impls in the global impl
 /// table. It only validates that the type implementing for
@@ -54,8 +54,8 @@ fn declare_impl(
     let implementor = override_implementor
         .map(|i| Ok(i))
         .unwrap_or_else(|| builder.find_type(&iface_impl.implementor))?;
-    let iface = builder.find_type(&iface_impl.iface)?;
-    let iface = if let Type::Interface(iface) = iface {
+    let ty = builder.find_type(&iface_impl.iface)?;
+    let iface = if let Type::Interface(iface) = ty.clone() {
         iface
     } else {
         return Err(Error::new(
@@ -74,19 +74,19 @@ fn declare_impl(
         module: Rc::clone(&builder.module),
         ast: Rc::new(iface_impl),
     };
-    impls.borrow_mut().interfaces.push(mir_impl);
+    impls.borrow_mut().interfaces.insert(ty, mir_impl);
 
     Ok(())
 }
 
 /// Gets the interfaces implemented by a type.
 pub fn get_or_create_iface_impls(ty: &Type) -> MutRc<IFaceImpls> {
-    match IFACE_IMPLS.with(|impls| impls.borrow().get(ty).cloned()) {
+    match get_iface_impls(ty) {
         Some(impls) => impls,
         None => IFACE_IMPLS.with(|impls| {
             let iface_impls = mutrc_new(IFaceImpls {
                 implementor: ty.clone(),
-                interfaces: Vec::with_capacity(2),
+                interfaces: HashMap::with_capacity(2),
                 methods: HashMap::with_capacity(2),
             });
             impls

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/17/19 10:42 PM.
+ * Last modified on 12/19/19 6:42 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -144,7 +144,10 @@ impl Hash for IFaceImpl {
 #[derive(Debug)]
 pub struct IFaceImpls {
     pub implementor: Type,
-    pub interfaces: Vec<IFaceImpl>,
+    /// Key is the implemented interface, value the impl.
+    /// Key isn't an interface directly due to needed
+    /// Hash and Eq traits that only [Type] implements.
+    pub interfaces: HashMap<Type, IFaceImpl>,
     pub methods: HashMap<Rc<String>, Rc<Variable>>,
 }
 

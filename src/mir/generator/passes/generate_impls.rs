@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/19/19 3:30 PM.
+ * Last modified on 12/19/19 6:45 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -38,7 +38,7 @@ impl ModulePass for GenerateImpls {
 
 pub fn gen_impl_for_type(gen: &mut MIRGenerator, impls: &MutRc<IFaceImpls>) -> Result<(), Errors> {
     let impls = impls.borrow();
-    for im in impls.interfaces.iter() {
+    for im in impls.interfaces.values() {
         let ast = Rc::clone(&im.ast);
         gen.switch_module(&im.module);
 

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/18/19 3:53 PM.
+ * Last modified on 12/19/19 6:43 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,7 +11,7 @@ use either::Either;
 use crate::ast::declaration::Variable as ASTVar;
 use crate::ast::Type as ASTType;
 use crate::ast::{Expression as ASTExpr, Literal};
-use crate::error::{Error, Res};
+use crate::error::Res;
 use crate::lexer::token::{TType, Token};
 use crate::mir::generator::{ForLoop, MIRGenerator};
 use crate::mir::nodes::{ArrayLiteral, Class, Expr, Flow, Type, Variable};
@@ -512,17 +512,11 @@ impl MIRGenerator {
         // All valid cases of this are function prototypes.
         // Class prototypes can only be called and not assigned;
         // which would be handled in the ASTExpr::Call branch.
-        let prototype = self.module.borrow().find_prototype(&name.lexeme).or_err(
-            &self.builder.path,
-            &name,
-            "Unknown prototype.",
-        )?;
-        let types = generics
-            .iter()
-            .map(|ty| self.builder.find_type(ty))
-            .collect::<Result<Vec<Type>, Error>>()?;
+        let function = self.builder.find_type(&ASTType::Generic {
+            token: name.clone(),
+            types: Vec::from(generics),
+        })?;
 
-        let function = prototype.build(types, name, Rc::clone(&prototype))?;
         if let Type::Function(func) = function {
             Ok(Expr::load(
                 &self

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/19/19 3:30 PM.
+ * Last modified on 12/19/19 6:45 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -44,7 +44,7 @@ impl ModulePass for FillIfaceImpls {
         let mut impls = impls.borrow_mut();
 
         let mut methods = HashMap::with_capacity(impls.interfaces.len() * 2);
-        for iface_impl in impls.interfaces.iter_mut() {
+        for iface_impl in impls.interfaces.values_mut() {
             gen.builder.switch_module(&iface_impl.module);
 
             let ast = Rc::clone(&iface_impl.ast);

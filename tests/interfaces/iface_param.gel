@@ -1,6 +1,6 @@
 /*
-ok
-ok
+ok: A
+ok: B
 */
 
 interface Test {
@@ -8,7 +8,7 @@ interface Test {
 }
 
 class A {
-    val a = "ok"
+    val a = "ok: A"
 }
 
 impl Test for A {
@@ -16,7 +16,7 @@ impl Test for A {
 }
 
 class B {
-    val b = "ok"
+    val b = "ok: B"
 }
 
 impl Test for B {

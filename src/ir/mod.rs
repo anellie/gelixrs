@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 2:07 AM.
+ * Last modified on 12/19/19 6:57 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -286,6 +286,11 @@ impl IRGenerator {
                     .build_call(ptr, arguments.as_slice(), "call")
                     .try_as_basic_value();
                 ret.left().unwrap_or(self.none_const)
+            }
+
+            Expr::Cast { object, to } => {
+                let obj = self.generate_expression(object);
+                todo!("implement type casting");
             }
 
             Expr::Flow(flow) => {

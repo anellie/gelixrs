@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/19/19 3:27 PM.
+ * Last modified on 12/19/19 6:59 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -18,7 +18,7 @@ use crate::mir::generator::builder::MIRBuilder;
 use crate::mir::generator::intrinsics::INTRINSICS;
 use crate::mir::nodes::{ClassMember, Expr, Function, Type, Variable};
 use crate::mir::result::ToMIRResult;
-use crate::mir::{MModule, MutRc, IFACE_IMPLS};
+use crate::mir::{MModule, MutRc, IFACE_IMPLS, get_iface_impls};
 use crate::Error;
 
 pub mod builder;
@@ -367,11 +367,11 @@ impl MIRGenerator {
         right_ty: &Type,
     ) -> Option<Rc<Variable>> {
         let proto = INTRINSICS.with(|i| i.borrow().get_op_iface(op));
-        let iface_impls = IFACE_IMPLS.with(|impls| impls.borrow().get(left_ty).cloned())?;
+        let iface_impls = get_iface_impls(left_ty)?;
         let iface_impls = iface_impls.borrow();
         let op_impls = iface_impls
             .interfaces
-            .iter()
+            .values()
             .filter(|im| Rc::ptr_eq(im.iface.borrow().proto.as_ref().unwrap(), &proto));
 
         for im in op_impls {
@@ -390,6 +390,8 @@ impl MIRGenerator {
         let arg_type = arg.get_type();
         if &arg_type == ty {
             Some(arg)
+        } else if get_iface_impls(&arg_type)?.borrow().interfaces.get(ty).is_some() {
+            Some(Expr::cast(arg, ty))
         } else {
             None
         }
