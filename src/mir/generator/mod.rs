@@ -341,7 +341,11 @@ impl MIRGenerator {
         let method = if let Type::Class(class) = &ty {
             class.borrow().methods.get(&name.lexeme).cloned().map(Left)
         } else if let Type::Interface(iface) = &ty {
-            iface.borrow().methods.get_full(&name.lexeme).map(|(i, _, _)| Right(i))
+            iface
+                .borrow()
+                .methods
+                .get_full(&name.lexeme)
+                .map(|(i, _, _)| Right(i))
         } else {
             None
         };

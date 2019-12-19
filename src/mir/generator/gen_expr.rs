@@ -17,7 +17,7 @@ use crate::mir::generator::{ForLoop, MIRGenerator};
 use crate::mir::nodes::{ArrayLiteral, Class, Expr, Flow, Type, Variable};
 use crate::mir::result::ToMIRResult;
 use crate::mir::MutRc;
-use either::Either::{Right, Left};
+use either::Either::{Left, Right};
 
 /// This impl contains all code of the generator that directly
 /// produces expressions.
@@ -168,7 +168,12 @@ impl MIRGenerator {
         // method above fell through, its either a function call or invalid
         let callee_mir = self.expression(callee)?;
         if let Type::Function(func) = callee_mir.get_type() {
-            let args = self.generate_func_args(func.borrow().parameters.iter().map(|p| &p.type_), arguments, None, callee.get_token())?;
+            let args = self.generate_func_args(
+                func.borrow().parameters.iter().map(|p| &p.type_),
+                arguments,
+                None,
+                callee.get_token(),
+            )?;
             Ok(Expr::call(callee_mir, args))
         } else {
             Err(self.err(
@@ -201,14 +206,20 @@ impl MIRGenerator {
                 match func {
                     Left(func) => {
                         let args = self.generate_func_args(
-                            object.get_type().as_function().borrow().parameters.iter().map(|p| &p.type_),
+                            object
+                                .get_type()
+                                .as_function()
+                                .borrow()
+                                .parameters
+                                .iter()
+                                .map(|p| &p.type_),
                             arguments,
                             Some(object),
                             name,
                         )?;
 
                         Ok(Some(Expr::call(Expr::load(&func), args)))
-                    },
+                    }
 
                     Right(index) => {
                         let ty = object.get_type();
@@ -223,9 +234,8 @@ impl MIRGenerator {
                         )?;
 
                         Ok(Some(Expr::call_dyn(ty.as_interface(), index, args)))
-                    },
+                    }
                 }
-
             }
 
             // Class constructor

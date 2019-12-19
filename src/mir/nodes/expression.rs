@@ -11,7 +11,7 @@ use std::rc::Rc;
 use crate::ast::expression::LOGICAL_BINARY;
 use crate::ast::Literal;
 use crate::lexer::token::TType;
-use crate::mir::nodes::{ClassMember, Type, Variable, Interface};
+use crate::mir::nodes::{ClassMember, Interface, Type, Variable};
 use crate::mir::MutRc;
 
 /// All expressions in MIR. All of them produce a value.
@@ -104,7 +104,7 @@ impl Expr {
             arguments,
         }
     }
-    
+
     pub fn call_dyn(callee: &MutRc<Interface>, index: usize, arguments: Vec<Expr>) -> Expr {
         Expr::CallDyn {
             callee: Rc::clone(callee),
@@ -290,14 +290,7 @@ impl Display for Expr {
                 index,
                 arguments,
             } => {
-                let method_name = Rc::clone(
-                    callee
-                        .borrow()
-                        .methods
-                        .get_index(*index)
-                        .unwrap()
-                        .0,
-                );
+                let method_name = Rc::clone(callee.borrow().methods.get_index(*index).unwrap().0);
                 write!(f, "call method {}", method_name)?;
                 write!(f, " with ")?;
                 for arg in arguments.iter() {
