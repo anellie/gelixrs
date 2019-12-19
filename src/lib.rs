@@ -4,7 +4,6 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-#![feature(test)]
 #![feature(drain_filter)]
 
 #[macro_use]

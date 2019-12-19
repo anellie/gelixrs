@@ -1,8 +1,7 @@
+os: linux
 dist: bionic
 
 language: rust
-
-sudo: required
 
 rust:
   - nightly
@@ -10,10 +9,6 @@ rust:
 script:
   - cargo build --verbose
   - cargo test -- --nocapture
-
-jobs:
-  allow_failures:
-    - rust: nightly
 
 cache: cargo
 
@@ -42,10 +37,9 @@ after_success: |
   cd build &&
   cmake .. &&
   make &&
-  make install DESTDIR=../../kcov-build &&
+  sudo make install &&
   cd ../.. &&
   rm -rf kcov-master &&
-  for file in target/debug/gelixrs-*; do [ -x "${file}" ] || continue; mkdir -p "target/cov/$(basename $file)"; ./kcov-build/usr/local/bin/kcov
-  --exclude-pattern=/.cargo,/usr/lib --verify "target/cov/$(basename $file)" "$file"; done &&
+  kcov --exclude-pattern=/.cargo,/usr/lib --verify target/cov target/debug/gelixrs-* &&
   bash <(curl -s https://codecov.io/bash) &&
   echo "Uploaded code coverage"
