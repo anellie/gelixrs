@@ -1,0 +1,51 @@
+dist: bionic
+
+language: rust
+
+sudo: required
+
+rust:
+  - nightly
+
+script:
+  - cargo build --verbose
+  - cargo test -- --nocapture
+
+jobs:
+  allow_failures:
+    - rust: nightly
+
+cache: cargo
+
+addons:
+  apt:
+    packages:
+      - libcurl4-openssl-dev
+      - libelf-dev
+      - libdw-dev
+      - cmake
+      - gcc
+      - binutils-dev
+      - libiberty-dev
+
+before_install:
+  - sudo wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+  - sudo apt-add-repository "deb https://apt.llvm.org/bionic/ llvm-toolchain-bionic-8 main"
+  - sudo apt-get -q update
+  - sudo apt-get -y install llvm-8 llvm-8-dev libllvm8
+
+after_success: |
+  wget https://github.com/SimonKagstrom/kcov/archive/master.tar.gz &&
+  tar xzf master.tar.gz &&
+  cd kcov-master &&
+  mkdir build &&
+  cd build &&
+  cmake .. &&
+  make &&
+  make install DESTDIR=../../kcov-build &&
+  cd ../.. &&
+  rm -rf kcov-master &&
+  for file in target/debug/gelixrs-*; do [ -x "${file}" ] || continue; mkdir -p "target/cov/$(basename $file)"; ./kcov-build/usr/local/bin/kcov
+  --exclude-pattern=/.cargo,/usr/lib --verify "target/cov/$(basename $file)" "$file"; done &&
+  bash <(curl -s https://codecov.io/bash) &&
+  echo "Uploaded code coverage"
