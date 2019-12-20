@@ -1,4 +1,4 @@
-import cyclic_import/main/hello
+import cyclic_import/main/+
 
 func sub(a: i64, b: i64) -> i64 {
     hello()

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/19/19 6:47 PM.
+ * Last modified on 12/20/19 8:10 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -79,7 +79,7 @@ impl MModule {
                 self.imports
                     .modules
                     .iter()
-                    .find_map(|(_, m)| m.borrow().find_type(name))
+                    .find_map(|(_, m)| m.borrow().types.get(name).cloned())
             })
     }
 
@@ -92,7 +92,7 @@ impl MModule {
                 self.imports
                     .modules
                     .iter()
-                    .find_map(|(_, m)| m.borrow().find_prototype(name))
+                    .find_map(|(_, m)| m.borrow().protos.get(name).cloned())
             })
     }
 
@@ -105,7 +105,7 @@ impl MModule {
                 self.imports
                     .modules
                     .iter()
-                    .find_map(|(_, m)| m.borrow().find_global(name))
+                    .find_map(|(_, m)| m.borrow().globals.get(name).cloned())
             })
     }
 
