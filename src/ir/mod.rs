@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/20/19 6:38 PM.
+ * Last modified on 12/20/19 7:01 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -615,18 +615,33 @@ impl IRGenerator {
         let ptr = builder.build_alloca(ty, "tmpiface");
         unsafe {
             let implptr = self.builder.build_struct_gep(ptr, 0, "implgep");
-            self.builder.build_store(
-                implptr,
-                self.builder.build_bitcast(
-                    implementor,
-                    self.context.i64_type().ptr_type(AddressSpace::Generic),
-                    "bc",
-                ),
-            );
+            self.builder.build_store(implptr, self.coerce_to_i64_ptr(implementor));
             let vtableptr = self.builder.build_struct_gep(ptr, 1, "vtablegep");
             self.builder.build_store(vtableptr, vtable);
         }
         ptr
+    }
+
+    /// Force any type to be turned into an i64 pointer.
+    /// Used for the implementor of interface methods.
+    fn coerce_to_i64_ptr(&self, ty: BasicValueEnum) -> BasicValueEnum {
+        let target = self.context.i64_type().ptr_type(AddressSpace::Generic);
+        match ty {
+            BasicValueEnum::PointerValue(ptr) => self.builder.build_bitcast(ptr, target, "bc"),
+
+            BasicValueEnum::IntValue(int) => {
+                let num = self.builder.build_int_z_extend(int, self.context.i64_type(), "ext");
+                self.builder.build_int_to_ptr(num, target, "inttoptr").into()
+            }
+
+            BasicValueEnum::FloatValue(flt) => {
+                let int = *self.builder.build_bitcast(flt, self.context.i64_type(), "flttoint").as_int_value();
+                let num = self.builder.build_int_z_extend(int, self.context.i64_type(), "ext");
+                self.builder.build_int_to_ptr(num, target, "inttoptr").into()
+            }
+
+            _ => panic!("Cannot coerce to i64 ptr")
+        }
     }
 
     /// Returns the vtable of the interface implementor given.
