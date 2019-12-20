@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/19/19 7:35 PM.
+ * Last modified on 12/20/19 3:32 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -229,7 +229,7 @@ fn check_generic_arguments(
     Ok(())
 }
 
-fn attach_impls(ty: &Type, impls: Vec<IFaceImpl>) -> Res<()> {
+fn attach_impls(_ty: &Type, _impls: Vec<IFaceImpl>) -> Res<()> {
     Ok(())
 }
 
