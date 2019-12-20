@@ -5,6 +5,10 @@ func print(a: ToString) {
     puts(a.to_string())
 }
 
+// TODO: Finish 'String' to allow using sprintf,
+// then depreciate this.
+extern func printnum(a: i64)
+
 /*
 // A simple, fixed-size array type.
 // E is the type of values it can hold.
@@ -46,10 +50,6 @@ class String {
 // in a human-readable format.
 interface ToString {
     func to_string() -> String
-}
-
-impl ToString for None {
-    func to_string() -> String "None"
 }
 
 impl ToString for bool {
