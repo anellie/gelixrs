@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/20/19 11:17 AM.
+ * Last modified on 12/20/19 6:07 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -296,10 +296,12 @@ impl MIRGenerator {
         mut parameters: T,
         arguments: &[ASTExpr],
         first_arg: Option<Expr>,
+        allow_variadic: bool,
         err_tok: &Token,
     ) -> Res<Vec<Expr>> {
+        let para_len = parameters.size_hint().0;
         let args_len = arguments.len() + (first_arg.is_some() as usize);
-        if parameters.size_hint().0 != args_len {
+        if para_len > args_len || (para_len < args_len && !allow_variadic) {
             return Err(self.err(
                 err_tok,
                 &format!(
@@ -331,6 +333,11 @@ impl MIRGenerator {
             )?;
             result.push(arg)
         }
+        // Also generate any variadic args should there be any
+        for argument in arguments.iter().skip(result.len()) {
+            result.push(self.expression(argument)?);
+        }
+
         Ok(result)
     }
 

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 9:25 PM.
+ * Last modified on 12/20/19 6:38 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -102,6 +102,7 @@ fn get_instantiator_fn_sig(class: &ASTClass) -> FuncSignature {
         generics: None,
         return_type: Some(ASTType::Ident(class.name.clone())),
         parameters: vec![],
+        variadic: false,
     }
 }
 
@@ -139,6 +140,7 @@ fn get_constructor_sig(
         generics: None,
         return_type: None,
         parameters,
+        variadic: false,
     })
 }
 

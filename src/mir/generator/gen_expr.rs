@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/20/19 3:37 PM.
+ * Last modified on 12/20/19 6:38 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -172,6 +172,11 @@ impl MIRGenerator {
                 func.borrow().parameters.iter().map(|p| &p.type_),
                 arguments,
                 None,
+                func.borrow()
+                    .ast
+                    .as_ref()
+                    .map(|a| a.sig.variadic)
+                    .unwrap_or(false),
                 callee.get_token(),
             )?;
             Ok(Expr::call(callee_mir, args))
@@ -214,6 +219,7 @@ impl MIRGenerator {
                                 .map(|p| &p.type_),
                             arguments,
                             Some(object),
+                            false,
                             name,
                         )?;
 
@@ -229,6 +235,7 @@ impl MIRGenerator {
                             Some(ty.clone()).iter().chain(params.iter()),
                             arguments,
                             Some(object),
+                            false,
                             name,
                         )?;
 

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 10:53 PM.
+ * Last modified on 12/20/19 6:38 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -35,7 +35,12 @@ static NO_SEMICOLON: [TType; 3] = [TType::If, TType::LeftBrace, TType::When];
 static IFACE_END_OF_FUNCTION: [TType; 2] = [TType::Func, TType::RightBrace];
 
 // All tokens that can be modifiers at all.
-pub static MODIFIERS: [TType; 3] = [TType::Public, TType::Private, TType::Extern];
+pub static MODIFIERS: [TType; 4] = [
+    TType::Public,
+    TType::Private,
+    TType::Extern,
+    TType::Variadic,
+];
 
 // All tokens that can be modifiers on any declaration.
 static GLOBAL_MODIFIERS: [TType; 2] = [TType::Public, TType::Private];
@@ -48,7 +53,7 @@ static MEMBER_MODIFIERS: [TType; 0] = [];
 static METHOD_MODIFIERS: [TType; 0] = [];
 
 // All tokens that can be modifiers on a function.
-static FUNC_MODIFIERS: [TType; 1] = [TType::Extern];
+static FUNC_MODIFIERS: [TType; 2] = [TType::Extern, TType::Variadic];
 // All tokens that can be modifiers on an interface.
 static IFACE_MODIFIERS: [TType; 0] = [];
 // All tokens that can be modifiers on an import declaration.
@@ -131,6 +136,7 @@ impl Parser {
             return_type,
             parameters,
             generics,
+            variadic: self.modifiers.iter().any(|m| m.t_type == TType::Variadic),
         })
     }
 
@@ -580,6 +586,7 @@ impl Parser {
                     return_type,
                     parameters,
                     generics: None,
+                    variadic: false,
                 },
                 body: Some(body),
             })),
@@ -675,7 +682,6 @@ impl Parser {
 
     fn primary(&mut self) -> Option<Expression> {
         Some(match () {
-            _ if self.check(TType::None) => Expression::Literal(Literal::None, self.advance()),
             _ if self.check(TType::False) => {
                 Expression::Literal(Literal::Bool(false), self.advance())
             }
@@ -858,8 +864,6 @@ impl Parser {
                     Type::Ident(token)
                 }
             }
-
-            TType::None => Type::Ident(self.advance()),
 
             TType::LeftBracket => {
                 self.advance(); // consume '['

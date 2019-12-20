@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/12/19 11:10 AM.
+ * Last modified on 12/20/19 6:44 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -105,7 +105,6 @@ pub enum TType {
     Import,
     In,
     Interface,
-    None,
     Or,
     Return,
     To,
@@ -118,6 +117,7 @@ pub enum TType {
     Public,
     Private,
     Extern,
+    Variadic,
 
     ScanError,
     EndOfFile,

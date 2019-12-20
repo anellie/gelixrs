@@ -1,0 +1,25 @@
+/*
+ok: A
+ok: B
+*/
+
+interface Test {
+    func test() -> String
+}
+
+impl Test for bool {
+    func test() -> String "ok: A"
+}
+
+impl Test for f64 {
+    func test() -> String "ok: B"
+}
+
+func main() {
+    test(false)
+    test(23.2)
+}
+
+func test(t: Test) {
+    print(t.test())
+}

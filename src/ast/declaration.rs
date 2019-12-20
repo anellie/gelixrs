@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 10:53 PM.
+ * Last modified on 12/20/19 5:35 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -84,6 +84,7 @@ pub struct FuncSignature {
     pub generics: Option<Vec<Token>>,
     pub return_type: Option<Type>,
     pub parameters: Vec<FunctionArg>,
+    pub variadic: bool,
 }
 
 /// A function argument.

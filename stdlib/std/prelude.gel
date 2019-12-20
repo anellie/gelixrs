@@ -1,6 +1,9 @@
-extern func print(a: String)
+import std/intrinsics/puts
+import std/intrinsics/sprintf
 
-extern func printnum(a: i64)
+func print(a: ToString) {
+    puts(a.to_string())
+}
 
 /*
 // A simple, fixed-size array type.
@@ -42,16 +45,31 @@ class String {
 // For example, a 'Person' class might return its name and age
 // in a human-readable format.
 interface ToString {
-    func toString() -> String
+    func to_string() -> String
 }
 
 impl ToString for None {
-    func toString() -> String "None"
+    func to_string() -> String "None"
 }
 
 impl ToString for bool {
-    func toString() -> String {
+    func to_string() -> String {
         if (this) "true"
         else "false"
+    }
+}
+
+impl ToString for String {
+    func to_string() -> String this
+}
+
+impl ToString for i64 {
+    func to_string() -> String {
+        // This buffer is 20 bytes long.
+        // This length is enough to display the largest
+        // 64bit int: −9223372036854775808
+        var buffer = "                    "
+        sprintf(buffer, "%d", this)
+        buffer
     }
 }

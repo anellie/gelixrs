@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/20/19 4:29 PM.
+ * Last modified on 12/20/19 6:38 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -719,12 +719,15 @@ impl IRGenerator {
             .iter()
             .map(|param| self.to_ir_type(&param.type_))
             .collect();
+        let variadic = func.ast.as_ref().map(|a| a.sig.variadic).unwrap_or(false);
 
         if func.ret_type == Type::None {
-            self.context.void_type().fn_type(params.as_slice(), false)
+            self.context
+                .void_type()
+                .fn_type(params.as_slice(), variadic)
         } else {
             let ret_type = self.to_ir_type(&func.ret_type);
-            ret_type.fn_type(params.as_slice(), false)
+            ret_type.fn_type(params.as_slice(), variadic)
         }
     }
 
