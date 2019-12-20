@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/20/19 3:23 PM.
+ * Last modified on 12/20/19 4:29 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -43,6 +43,7 @@ pub struct IRGenerator {
     context: Context,
     builder: Builder,
     module: Module,
+    fpm: PassManager<FunctionValue>,
     mpm: PassManager<Module>,
 
     /// All variables, the currently compiled function.
@@ -192,7 +193,8 @@ impl IRGenerator {
         let func = func_ty.borrow_mut();
         if !func.blocks.is_empty() {
             let func_val = self.functions[&PtrEqRc::new(&func_var)];
-            self.function_body(func, func_val)
+            self.function_body(func, func_val);
+            self.fpm.run_on(&func_val);
         }
     }
 
@@ -731,26 +733,27 @@ impl IRGenerator {
         let module = context.create_module("main");
         let builder = context.create_builder();
 
+        let fpm = PassManager::create(&module);
+        fpm.add_instruction_combining_pass();
+        fpm.add_reassociate_pass();
+        fpm.add_cfg_simplification_pass();
+        fpm.add_basic_alias_analysis_pass();
+        fpm.add_aggressive_inst_combiner_pass();
+        fpm.add_reassociate_pass();
+        fpm.add_loop_deletion_pass();
+        fpm.add_loop_unswitch_pass();
+        fpm.add_promote_memory_to_register_pass();
+
         let mpm = PassManager::create(());
-        mpm.add_instruction_combining_pass();
-        mpm.add_reassociate_pass();
         mpm.add_cfg_simplification_pass();
-        mpm.add_basic_alias_analysis_pass();
-
-        // Break tests
-        // mpm.add_dead_arg_elimination_pass();
-        // mpm.add_dead_store_elimination_pass();
-        // mpm.add_global_dce_pass();
-        // mpm.add_tail_call_elimination_pass();
-
-        // Cause segfaults
-        // mpm.add_gvn_pass();
-        // mpm.add_loop_deletion_pass();
-        // mpm.add_loop_unswitch_pass();
-        // mpm.add_promote_memory_to_register_pass();
-
-        mpm.add_instruction_combining_pass();
-        mpm.add_reassociate_pass();
+        mpm.add_function_attrs_pass();
+        mpm.add_jump_threading_pass();
+        mpm.add_constant_propagation_pass();
+        mpm.add_dead_arg_elimination_pass();
+        mpm.add_global_dce_pass();
+        mpm.add_new_gvn_pass();
+        mpm.add_global_optimizer_pass();
+        mpm.add_constant_merge_pass();
 
         let none_const = context
             .struct_type(&[BasicTypeEnum::IntType(context.bool_type())], true)
@@ -780,6 +783,7 @@ impl IRGenerator {
             context,
             module,
             builder,
+            fpm,
             mpm,
 
             variables: HashMap::with_capacity(10),
