@@ -24,3 +24,7 @@ extern func puts(s: String)
 
 /// libc sprintf
 extern variadic func sprintf(s: String, format: String) -> i64
+
+/// regular malloc, allocating the given amount of bytes
+/// on the heap and returning a pointer.
+extern func malloc(size: i64) -> i64

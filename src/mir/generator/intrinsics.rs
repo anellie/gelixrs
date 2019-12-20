@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 6:18 PM.
+ * Last modified on 12/20/19 7:27 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -27,6 +27,7 @@ thread_local! {
 #[derive(Default)]
 pub struct Intrinsics {
     ops: HashMap<TType, Rc<Prototype>>,
+    pub array_proto: Option<Rc<Prototype>>,
     pub main_fn: Option<Rc<Variable>>,
 }
 
@@ -79,6 +80,7 @@ impl Intrinsics {
 
     pub fn reset(&mut self) {
         self.ops.clear();
+        self.array_proto = None;
         self.main_fn = None;
     }
 }

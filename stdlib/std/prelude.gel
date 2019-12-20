@@ -22,16 +22,19 @@ extern func printnum(a: i64)
 //
 // This is not valid since the type of elements cannot be inferred:
 // val a = []
+// If you need an empty array, use the constructor on the class.
 //
 // Retrieving elements works as you'd expect using indexing syntax:
 // print([2, 123, 312][1]) // prints 123
-//
-// Note on the internal implementation in LLVM IR:
-// The array's IR struct contains a hidden field, which is a
-// pointer to the beginning of the array (its first element).
-// Indexing is then implemented in IR directly by using the GEP instruction.
 class Array<E> {
-    val len = 0
+    var len = 0
+    var capacity: i64
+    var ptr: Ptr<E>
+
+    construct(size: i64) {
+        this.capacity = size
+        this.ptr = allocate::<E>(size)
+    }
 }
 
 // A UTF-8 string.

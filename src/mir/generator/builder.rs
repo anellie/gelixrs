@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/19/19 2:54 PM.
+ * Last modified on 12/20/19 7:32 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -13,7 +13,7 @@ use crate::error::Res;
 use crate::lexer::token::Token;
 use crate::mir::result::ToMIRResult;
 use crate::mir::{MModule, MutRc};
-
+use crate::mir::generator::intrinsics::INTRINSICS;
 use super::super::nodes::Type;
 
 /// The MIR builder is used alongside the module after
@@ -47,7 +47,11 @@ impl MIRBuilder {
                 ty.or_type_err(&self.path, ast, "Unknown type.")?
             }
 
-            ASTType::Array(_) => unimplemented!(),
+            ASTType::Array(inner) => {
+                let proto = INTRINSICS.with(|i| i.borrow().array_proto.as_ref().cloned().unwrap());
+                let err_tok = inner.get_token().clone();
+                proto.build(vec![self.find_type(inner)?], &err_tok, Rc::clone(&proto))?
+            },
 
             ASTType::Closure { .. } => unimplemented!(),
 

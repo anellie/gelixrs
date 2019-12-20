@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/18/19 11:08 PM.
+ * Last modified on 12/20/19 7:30 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -52,6 +52,7 @@ impl PassRunner {
         let mut passes: Vec<Box<dyn PreMIRPass>> = vec![
             Box::new(FilterPrototypes()),
             Box::new(DeclareTypes()),
+            Box::new(PopulateIntrinsics()),
             Box::new(ImportTypes()),
             Box::new(DeclareGlobals()),
             Box::new(ImportGlobals()),
@@ -74,7 +75,6 @@ impl PassRunner {
             Box::new(DeclareMethods()),
             Box::new(FillIfaceImpls(RefCell::new(true))),
             Box::new(InsertClassMembers()),
-            Box::new(PopulateIntrinsics()),
             Box::new(Generate()),
             Box::new(GenerateImpls()),
             Box::new(ValidateIntrinsics()),
