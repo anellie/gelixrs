@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/20/19 12:14 AM.
+ * Last modified on 12/20/19 3:23 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -31,6 +31,7 @@ use super::{
         MModule, MutRc,
     },
 };
+use crate::mir::get_iface_impls;
 use crate::mir::nodes::{IFaceMethod, Interface};
 
 /// A generator that creates LLVM IR out of Gelix mid-level IR (MIR).
@@ -87,7 +88,7 @@ impl IRGenerator {
                 println!("The compiler generated invalid code, which can be found in the 'invalid_code.ll'.");
                 println!("This is a bug, and should be reported (please include the code when doing so).");
                 println!("The error message reported by LLVM:\n");
-                println!("{}\n", e);
+                println!("{}\n", e.to_string().replace("\\n", "\n"));
                 std::process::exit(1);
             })
             .unwrap();
@@ -139,7 +140,7 @@ impl IRGenerator {
 
         let body = vec![
             self.context
-                .bool_type()
+                .i64_type()
                 .ptr_type(AddressSpace::Generic)
                 .into(),
             vtable_struct.ptr_type(AddressSpace::Generic).into(),
@@ -150,11 +151,18 @@ impl IRGenerator {
     }
 
     fn get_iface_method_type(&mut self, method: &IFaceMethod) -> BasicTypeEnum {
-        let params: Vec<BasicTypeEnum> = method
+        let mut params: Vec<BasicTypeEnum> = method
             .parameters
             .iter()
             .map(|param| self.to_ir_type(&param))
             .collect();
+        params.insert(
+            0,
+            self.context
+                .i64_type()
+                .ptr_type(AddressSpace::Generic)
+                .into(),
+        );
 
         if method.ret_type == Type::None {
             self.context.void_type().fn_type(params.as_slice(), false)
@@ -332,37 +340,61 @@ impl IRGenerator {
             }
 
             Expr::CallDyn {
-                callee,
-                index,
-                arguments,
+                index, arguments, ..
             } => {
-                let arguments: Vec<BasicValueEnum> = arguments
+                let mut arguments: Vec<BasicValueEnum> = arguments
                     .iter()
                     .map(|arg| self.generate_expression(arg))
                     .collect();
 
                 let iface_struct = arguments[0];
                 let iface_ptr = iface_struct.into_pointer_value();
-                let ptr = unsafe {
-                    let indices = vec![
-                        // First index the interface struct; index 0 is the vtable
-                        self.context.i64_type().const_zero(),
-                        // Then index the method in the vtable
-                        self.context.i64_type().const_int(*index as u64, false),
-                    ];
-                    self.builder.build_gep(iface_ptr, &indices, "vtablegep")
+                let method_ptr = unsafe {
+                    // First index the interface struct; index 0 is the vtable
+                    let vtable = self.builder.build_struct_gep(iface_ptr, 1, "vtablegep");
+                    let vtable = *self
+                        .builder
+                        .build_load(vtable, "loadtable")
+                        .as_pointer_value();
+
+                    // Then index the method in the vtable
+                    let method = self
+                        .builder
+                        .build_struct_gep(vtable, *index as u32, "methodgep");
+                    *self
+                        .builder
+                        .build_load(method, "loadmethod")
+                        .as_pointer_value()
                 };
+
+                let implementor_ptr = unsafe {
+                    let ptr = self.builder.build_struct_gep(iface_ptr, 0, "implgep");
+                    *self
+                        .builder
+                        .build_load(ptr, "loadmethod")
+                        .as_pointer_value()
+                };
+                arguments[0] = implementor_ptr.into();
 
                 let ret = self
                     .builder
-                    .build_call(ptr, arguments.as_slice(), "call")
+                    .build_call(method_ptr, arguments.as_slice(), "call")
                     .try_as_basic_value();
                 ret.left().unwrap_or(self.none_const)
             }
 
-            Expr::Cast { object, to } => {
+            Expr::CastToInterface { object, to } => {
+                let implementor = object.get_type();
                 let obj = self.generate_expression(object);
-                todo!("implement type casting");
+                let iface_struct_ty: StructType = *self.to_ir_type_no_ptr(to).as_struct_type();
+                let vtable_ty = *iface_struct_ty.get_field_types()[1]
+                    .as_pointer_type()
+                    .get_element_type()
+                    .as_struct_type();
+
+                let vtable = self.get_vtable(implementor, to, vtable_ty);
+                self.create_tmp_iface_struct(iface_struct_ty, obj, vtable)
+                    .into()
             }
 
             Expr::Flow(flow) => {
@@ -554,6 +586,73 @@ impl IRGenerator {
                 value
             }
         }
+    }
+
+    /// Creates a new stack allocation instruction in the entry block of the function.
+    fn create_tmp_iface_struct(
+        &self,
+        ty: StructType,
+        implementor: BasicValueEnum,
+        vtable: BasicValueEnum,
+    ) -> PointerValue {
+        let builder = self.context.create_builder();
+        let entry = self
+            .builder
+            .get_insert_block()
+            .unwrap()
+            .get_parent()
+            .unwrap()
+            .get_first_basic_block()
+            .unwrap();
+
+        match entry.get_first_instruction() {
+            Some(first_instr) => builder.position_before(&first_instr),
+            None => builder.position_at_end(&entry),
+        }
+
+        let ptr = builder.build_alloca(ty, "tmpiface");
+        unsafe {
+            let implptr = self.builder.build_struct_gep(ptr, 0, "implgep");
+            self.builder.build_store(
+                implptr,
+                self.builder.build_bitcast(
+                    implementor,
+                    self.context.i64_type().ptr_type(AddressSpace::Generic),
+                    "bc",
+                ),
+            );
+            let vtableptr = self.builder.build_struct_gep(ptr, 1, "vtablegep");
+            self.builder.build_store(vtableptr, vtable);
+        }
+        ptr
+    }
+
+    /// Returns the vtable of the interface implementor given.
+    /// Will generate functions as needed to fill the vtable.
+    fn get_vtable(
+        &mut self,
+        implementor: Type,
+        iface: &Type,
+        vtable: StructType,
+    ) -> BasicValueEnum {
+        let field_tys = vtable.get_field_types();
+        let mut field_tys = field_tys.iter();
+        let methods = get_iface_impls(&implementor).unwrap().borrow().interfaces[iface]
+            .methods
+            .iter()
+            .map(|(_, method)| self.functions[&PtrEqRc::new(method)])
+            .map(|func| func.as_global_value().as_pointer_value().into())
+            .map(|func: PointerValue| {
+                self.builder.build_bitcast(
+                    func,
+                    *field_tys.next().unwrap().as_pointer_type(),
+                    "funccast",
+                )
+            })
+            .collect::<Vec<BasicValueEnum>>();
+        let global = self.module.add_global(vtable, None, "vtable");
+        global.set_initializer(&vtable.const_named_struct(&methods));
+        global.as_pointer_value().into()
     }
 
     /// Loads a pointer, turning it into a value.

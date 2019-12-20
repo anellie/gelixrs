@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/20/19 12:16 AM.
+ * Last modified on 12/20/19 3:15 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -43,7 +43,7 @@ pub enum Expr {
 
     /// A cast, where a value is turned into a different type;
     /// casting to an interface implemented by the original type for example
-    Cast { object: Box<Expr>, to: Type },
+    CastToInterface { object: Box<Expr>, to: Type },
 
     /// A 'flow' expression, which changes control flow. See [Flow] enum
     Flow(Box<Flow>),
@@ -85,7 +85,7 @@ impl Expr {
     }
 
     pub fn cast(obj: Expr, ty: &Type) -> Expr {
-        Expr::Cast {
+        Expr::CastToInterface {
             object: Box::new(obj),
             to: ty.clone(),
         }
@@ -210,7 +210,7 @@ impl Expr {
                 .ret_type
                 .clone(),
 
-            Expr::Cast { to, .. } => to.clone(),
+            Expr::CastToInterface { to, .. } => to.clone(),
 
             Expr::Flow(_) => Type::None,
 
@@ -299,7 +299,7 @@ impl Display for Expr {
                 Ok(())
             }
 
-            Expr::Cast { object, to } => write!(f, "cast {} to {}", object, to),
+            Expr::CastToInterface { object, to } => write!(f, "cast {} to {}", object, to),
 
             Expr::Flow(flow) => write!(f, "{}", flow),
 

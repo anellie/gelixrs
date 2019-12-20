@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/20/19 12:20 AM.
+ * Last modified on 12/20/19 11:17 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -311,7 +311,6 @@ impl MIRGenerator {
         }
 
         let mut result = Vec::with_capacity(args_len);
-        let first_arg_is_some = first_arg.is_some();
         if let Some(arg) = first_arg {
             let ty = parameters.next().unwrap();
             let arg = self
