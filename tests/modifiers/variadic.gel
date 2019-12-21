@@ -8,5 +8,6 @@ func main() {
     // Variadic can only be on external functions.
     // ToString on i64 uses sprintf, which is variadic;
     // so this test will fail if sprintf fails to compile.
+    // (Disabled; see notes in std/prelude/ToString.)
     // print(5)
 }

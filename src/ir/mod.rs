@@ -31,8 +31,12 @@ use super::{
         MModule, MutRc,
     },
 };
+use crate::ir::intrinsics::fill_intrinsic_functions;
 use crate::mir::get_iface_impls;
 use crate::mir::nodes::{IFaceMethod, Interface};
+use either::Either::Right;
+
+mod intrinsics;
 
 /// A generator that creates LLVM IR out of Gelix mid-level IR (MIR).
 ///
@@ -74,6 +78,16 @@ impl IRGenerator {
                 self.declare_function(function);
             }
         }
+
+        fill_intrinsic_functions(
+            &mut self,
+            mir.iter()
+                .find(|m| {
+                    let module = m.borrow();
+                    **module.path.0[0] == *"std" && **module.path.0[1] == *"intrinsics"
+                })
+                .unwrap(),
+        );
 
         for module in mir {
             let module = module.borrow_mut();
@@ -207,19 +221,7 @@ impl IRGenerator {
 
         // First, build all function alloca
         self.builder.position_at_end(&entry_bb);
-        for (arg, arg_val) in func.parameters.iter().zip(func_val.get_param_iter()) {
-            // If the type of the function parameter is a pointer (aka a struct or function),
-            // creating an alloca isn't needed; the pointer can be used directly.
-            if let BasicValueEnum::PointerValue(ptr) = arg_val {
-                self.variables.insert(PtrEqRc::new(arg), ptr);
-            } else {
-                let alloca = self
-                    .builder
-                    .build_alloca(self.unwrap_ptr(arg_val.get_type()), &arg.name);
-                self.builder.build_store(alloca, arg_val);
-                self.variables.insert(PtrEqRc::new(arg), alloca);
-            }
-        }
+        self.build_parameter_alloca(&func, func_val);
 
         for (name, var) in func.variables.iter() {
             let alloca_ty = self.to_ir_type_no_ptr(&var.type_);
@@ -241,6 +243,20 @@ impl IRGenerator {
             let bb = self.get_block(name);
             self.position_at_block(bb);
             self.fill_basic_block(block, bb)
+        }
+    }
+
+    fn build_parameter_alloca(&mut self, func: &RefMut<Function>, func_val: FunctionValue) {
+        for (arg, arg_val) in func.parameters.iter().zip(func_val.get_param_iter()) {
+            // If the type of the function parameter is a pointer (aka a struct or function),
+            // creating an alloca isn't needed; the pointer can be used directly.
+            if let BasicValueEnum::PointerValue(ptr) = arg_val {
+                self.variables.insert(PtrEqRc::new(arg), ptr);
+            } else {
+                let alloca = self.builder.build_alloca(arg_val.get_type(), &arg.name);
+                self.builder.build_store(alloca, arg_val);
+                self.variables.insert(PtrEqRc::new(arg), alloca);
+            }
         }
     }
 
@@ -548,6 +564,8 @@ impl IRGenerator {
                     }
                 }
 
+                Literal::Array(Right(_)) => unimplemented!(),
+
                 _ => panic!("unknown literal"),
             },
 
@@ -615,7 +633,8 @@ impl IRGenerator {
         let ptr = builder.build_alloca(ty, "tmpiface");
         unsafe {
             let implptr = self.builder.build_struct_gep(ptr, 0, "implgep");
-            self.builder.build_store(implptr, self.coerce_to_i64_ptr(implementor));
+            self.builder
+                .build_store(implptr, self.coerce_to_i64_ptr(implementor));
             let vtableptr = self.builder.build_struct_gep(ptr, 1, "vtablegep");
             self.builder.build_store(vtableptr, vtable);
         }
@@ -630,17 +649,28 @@ impl IRGenerator {
             BasicValueEnum::PointerValue(ptr) => self.builder.build_bitcast(ptr, target, "bc"),
 
             BasicValueEnum::IntValue(int) => {
-                let num = self.builder.build_int_z_extend(int, self.context.i64_type(), "ext");
-                self.builder.build_int_to_ptr(num, target, "inttoptr").into()
+                let num = self
+                    .builder
+                    .build_int_z_extend(int, self.context.i64_type(), "ext");
+                self.builder
+                    .build_int_to_ptr(num, target, "inttoptr")
+                    .into()
             }
 
             BasicValueEnum::FloatValue(flt) => {
-                let int = *self.builder.build_bitcast(flt, self.context.i64_type(), "flttoint").as_int_value();
-                let num = self.builder.build_int_z_extend(int, self.context.i64_type(), "ext");
-                self.builder.build_int_to_ptr(num, target, "inttoptr").into()
+                let int = *self
+                    .builder
+                    .build_bitcast(flt, self.context.i64_type(), "flttoint")
+                    .as_int_value();
+                let num = self
+                    .builder
+                    .build_int_z_extend(int, self.context.i64_type(), "ext");
+                self.builder
+                    .build_int_to_ptr(num, target, "inttoptr")
+                    .into()
             }
 
-            _ => panic!("Cannot coerce to i64 ptr")
+            _ => panic!("Cannot coerce to i64 ptr"),
         }
     }
 
@@ -688,16 +718,6 @@ impl IRGenerator {
 
     /// If the parameter 'ptr' is a struct pointer, the struct itself is returned.
     /// Otherwise, ptr is simply returned without modification.
-    fn unwrap_ptr(&self, ty: BasicTypeEnum) -> BasicTypeEnum {
-        if let BasicTypeEnum::PointerType(ptr) = ty {
-            if let AnyTypeEnum::StructType(struc) = ptr.get_element_type() {
-                return struc.as_basic_type_enum();
-            }
-        }
-        ty
-    }
-
-    /// Same as [unwrap_ptr], but for values instead of types.
     fn unwrap_value_ptr(&self, val: BasicValueEnum) -> BasicValueEnum {
         if let BasicValueEnum::PointerValue(ptr) = val {
             if let AnyTypeEnum::StructType(_) = ptr.get_type().get_element_type() {
@@ -760,7 +780,6 @@ impl IRGenerator {
         fpm.add_reassociate_pass();
         fpm.add_loop_deletion_pass();
         fpm.add_loop_unswitch_pass();
-        fpm.add_promote_memory_to_register_pass();
 
         let mpm = PassManager::create(());
         mpm.add_cfg_simplification_pass();

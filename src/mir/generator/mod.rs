@@ -24,7 +24,7 @@ use either::Either::{Left, Right};
 
 pub mod builder;
 pub mod gen_expr;
-mod intrinsics;
+pub mod intrinsics;
 pub mod module;
 pub mod passes;
 

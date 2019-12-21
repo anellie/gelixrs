@@ -7,14 +7,14 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use super::super::nodes::Type;
 use crate::ast::module::ModulePath;
 use crate::ast::Type as ASTType;
 use crate::error::Res;
 use crate::lexer::token::Token;
+use crate::mir::generator::intrinsics::INTRINSICS;
 use crate::mir::result::ToMIRResult;
 use crate::mir::{MModule, MutRc};
-use crate::mir::generator::intrinsics::INTRINSICS;
-use super::super::nodes::Type;
 
 /// The MIR builder is used alongside the module after
 /// all types have been declared. It can be used for
@@ -40,18 +40,17 @@ impl MIRBuilder {
     /// and return an error if no such type exists.
     /// Note that this function can call borrow_mut() on the module.
     pub fn find_type(&self, ast: &ASTType) -> Res<Type> {
-        Ok(match ast {
+        match ast {
             ASTType::Ident(tok) => {
                 let ty = self.find_type_by_name(&tok);
                 let ty = ty.or_else(|| Some(self.context.type_aliases.get(&tok.lexeme)?.clone()));
-                ty.or_type_err(&self.path, ast, "Unknown type.")?
+                ty.or_type_err(&self.path, ast, "Unknown type.")
             }
 
             ASTType::Array(inner) => {
-                let proto = INTRINSICS.with(|i| i.borrow().array_proto.as_ref().cloned().unwrap());
-                let err_tok = inner.get_token().clone();
-                proto.build(vec![self.find_type(inner)?], &err_tok, Rc::clone(&proto))?
-            },
+                let tok = inner.get_token().clone();
+                INTRINSICS.with(|i| i.borrow().get_array_type(self.find_type(inner)?, Some(tok)))
+            }
 
             ASTType::Closure { .. } => unimplemented!(),
 
@@ -67,9 +66,9 @@ impl MIRBuilder {
                     .map(|ty| self.find_type(&ty))
                     .collect::<Res<Vec<Type>>>()?;
 
-                proto.build(args, token, Rc::clone(&proto))?
+                proto.build(args, token, Rc::clone(&proto))
             }
-        })
+        }
     }
 
     fn find_type_by_name(&self, tok: &Token) -> Option<Type> {

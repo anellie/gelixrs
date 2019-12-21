@@ -11,8 +11,10 @@ use std::rc::Rc;
 use crate::ast::expression::LOGICAL_BINARY;
 use crate::ast::Literal;
 use crate::lexer::token::TType;
+use crate::mir::generator::intrinsics::INTRINSICS;
 use crate::mir::nodes::{ClassMember, Interface, Type, Variable};
 use crate::mir::MutRc;
+use either::Either::Right;
 
 /// All expressions in MIR. All of them produce a value.
 /// Expressions are in blocks in functions. Gelix does not have statements.
@@ -231,6 +233,10 @@ impl Expr {
                 Literal::F32(_) => Type::F32,
                 Literal::F64(_) => Type::F64,
                 Literal::String(_) => Type::String,
+                Literal::Array(Right(arr)) => INTRINSICS
+                    .with(|i| i.borrow().get_array_type(arr.type_.clone(), None))
+                    .ok()
+                    .unwrap(),
                 _ => panic!("unknown literal"),
             },
 

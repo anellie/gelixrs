@@ -15,8 +15,8 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::error::{Error, Res};
-use crate::lexer::token::TType;
-use crate::mir::nodes::{Prototype, Variable};
+use crate::lexer::token::{TType, Token};
+use crate::mir::nodes::{Prototype, Type, Variable};
 use crate::mir::MModule;
 
 thread_local! {
@@ -34,6 +34,12 @@ pub struct Intrinsics {
 impl Intrinsics {
     pub fn get_op_iface(&self, ty: TType) -> Rc<Prototype> {
         Rc::clone(&self.ops[&ty])
+    }
+
+    pub fn get_array_type(&self, ty: Type, tok: Option<Token>) -> Res<Type> {
+        let proto = self.array_proto.as_ref().cloned().unwrap();
+        let err_tok = tok.unwrap_or_else(|| Token::generic_token(TType::Identifier));
+        proto.build(vec![ty], &err_tok, Rc::clone(&proto))
     }
 
     // Only call this with the std/ops module, containing all operator interfaces

@@ -35,6 +35,10 @@ public class Ptr<E> {
     public func dereference() -> E {
         gelixrs_deref_ptr::<E>(this.pointer)
     }
+
+    public func set(data: E) {
+        gelixrs_set_ptr::<E>(this.pointer, data)
+    }
 }
 
 /// Allocates on the heap, where the amount
@@ -42,6 +46,7 @@ public class Ptr<E> {
 /// times the parameter size.
 /// The returned pointer is not memory-managed.
 public func allocate<T>(size: i64) -> Ptr<T> {
-    var ptr = malloc(size_of::<T>() * size)
+    // TODO: size_of always returns 8 (?)
+    var ptr = malloc(64 * size)
     Ptr::<T>(ptr)
 }

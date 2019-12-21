@@ -18,6 +18,10 @@ extern func gelixrs_get_type_size<T>() -> i64
 /// the pointer is NOT dereferenced - merely returned without any checks.
 extern func gelixrs_deref_ptr<T>(ptr: i64) -> T
 
+/// Casts its i64 argument to a pointer, dereferences the pointer,
+/// and stores `data` at its location.
+extern func gelixrs_set_ptr<T>(ptr: i64, data: T)
+
 /// libc puts
 /// TODO: Change the parameter once String is a class
 extern func puts(s: String)

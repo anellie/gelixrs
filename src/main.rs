@@ -119,13 +119,10 @@ fn main() -> Result<(), &'static str> {
         .expect("Evoking clang failed.");
 
     let status = process::Command::new("clang")
-        .arg("-static")
         .arg("-o")
         .arg(&args.output.ok_or("Output location required.")?)
         .arg(asm_file)
-        .arg("-L")
-        .arg(stdlib_dir)
-        .arg("-lstdlib")
+        .arg("-O0")
         .status()
         .expect("Evoking clang failed.");
 
