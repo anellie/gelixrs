@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 4:09 PM.
+ * Last modified on 12/21/19 5:42 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -48,7 +48,6 @@ fn main() -> Result<(), &'static str> {
     }
 
     let mut std_mod = env::current_dir().expect("Failed to get current directory!");
-    std_mod.push("stdlib");
     std_mod.push("std");
     let modules = vec![args.file.clone(), std_mod];
 

@@ -7,7 +7,9 @@ func print(a: ToString) {
 
 // TODO: Finish 'String' to allow using sprintf,
 // then depreciate this.
-extern func printnum(a: i64)
+func printnum(a: i64) {
+    printf("%d", a)
+}
 
 // A simple, fixed-size array type.
 // E is the type of values it can hold.

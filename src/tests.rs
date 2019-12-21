@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/20/19 4:35 PM.
+ * Last modified on 12/21/19 5:47 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -14,7 +14,6 @@ lazy_static! {
     static ref RESULT: Mutex<String> = Mutex::new(String::from(""));
     static ref STD_LIB: Mutex<PathBuf> = {
         let mut std_mod = env::current_dir().expect("Failed to get current directory!");
-        std_mod.push("stdlib");
         std_mod.push("std");
         Mutex::new(std_mod)
     };
@@ -30,7 +29,7 @@ enum Failure {
 }
 
 #[no_mangle]
-extern "C" fn test_print(string: *const c_char) {
+extern "C" fn test_puts(string: *const c_char) {
     let string = unsafe { CStr::from_ptr(string) };
     RESULT
         .lock()
@@ -38,7 +37,7 @@ extern "C" fn test_print(string: *const c_char) {
         .push_str(&format!("{}\n", string.to_str().unwrap_or("INVALID_UTF8")));
 }
 #[no_mangle]
-extern "C" fn test_printnum(num: i64) {
+extern "C" fn test_printf(_format: *const c_char, num: i64) {
     RESULT.lock().unwrap().push_str(&format!("{}\n", num));
 }
 
@@ -97,11 +96,11 @@ fn exec_jit(path: PathBuf) -> Result<String, Failure> {
         .create_jit_execution_engine(OptimizationLevel::None)
         .ok()
         .ok_or_else(|| Failure::IR("Failed to create JIT".to_string()))?;
-    if let Some(fun) = &module.get_function("printnum") {
-        engine.add_global_mapping(fun, test_printnum as usize);
-    }
     if let Some(fun) = &module.get_function("puts") {
-        engine.add_global_mapping(fun, test_print as usize);
+        engine.add_global_mapping(fun, test_puts as usize);
+    }
+    if let Some(fun) = &module.get_function("printf") {
+        engine.add_global_mapping(fun, test_printf as usize);
     }
 
     unsafe {
