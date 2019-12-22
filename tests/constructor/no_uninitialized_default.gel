@@ -8,8 +8,6 @@ class Test {
 
     val a: String
 
-    construct() {}
-
     func simple() {
         print(this.a)
     }

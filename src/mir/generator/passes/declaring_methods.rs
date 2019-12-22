@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/20/19 6:38 PM.
+ * Last modified on 12/22/19 5:12 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -180,9 +180,11 @@ fn insert_constructor_setters(
 }
 
 /// Will return a default constructor with no parameters
-/// should the class not contain a constructor.
+/// should the class not contain a constructor and
+/// all members have default values.
 fn maybe_default_constructor(class: &ASTClass) -> Option<Constructor> {
-    if class.constructors.is_empty() {
+    let no_uninitialized_members = !class.variables.iter().any(|v| v.initializer.is_none());
+    if class.constructors.is_empty() && no_uninitialized_members {
         Some(Constructor {
             parameters: vec![],
             visibility: Visibility::Public,

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/22/19 4:36 PM.
+ * Last modified on 12/22/19 4:51 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -446,7 +446,6 @@ impl IRGenerator {
                     }
 
                     Flow::Switch { cases, default } => {
-                        // TODO: meh
                         let cases: Vec<(IntValue, BasicBlock)> = cases
                             .iter()
                             .map(|(expr, block)| {
@@ -530,8 +529,7 @@ impl IRGenerator {
                         .build_struct_gep(struc.into_pointer_value(), *index, "classgep")
                 };
                 let value = self.generate_expression(value);
-                let value = self.unwrap_value_ptr(value);
-                self.builder.build_store(ptr, value);
+                self.builder.build_store(ptr, self.unwrap_value_ptr(value));
                 value
             }
 
@@ -617,9 +615,8 @@ impl IRGenerator {
             Expr::VarStore { var, value } => {
                 let variable = self.get_variable(var);
                 let value = self.generate_expression(value);
-                let value = self.unwrap_value_ptr(value);
 
-                self.builder.build_store(variable, value);
+                self.builder.build_store(variable, self.unwrap_value_ptr(value));
                 value
             }
         }

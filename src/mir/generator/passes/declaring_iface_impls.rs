@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/19/19 7:35 PM.
+ * Last modified on 12/22/19 5:20 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -51,6 +51,7 @@ fn declare_impl(
     builder: &mut MIRBuilder,
     override_implementor: Option<Type>,
 ) -> Res<()> {
+    let err_token = iface_impl.iface.get_token().clone();
     let implementor = override_implementor
         .map(|i| Ok(i))
         .unwrap_or_else(|| builder.find_type(&iface_impl.implementor))?;
@@ -59,7 +60,7 @@ fn declare_impl(
         iface
     } else {
         return Err(Error::new(
-            &iface_impl.iface.get_token(),
+            &err_token,
             "MIR",
             "Not an interface".to_string(),
             &builder.path,
@@ -74,7 +75,15 @@ fn declare_impl(
         module: Rc::clone(&builder.module),
         ast: Rc::new(iface_impl),
     };
-    impls.borrow_mut().interfaces.insert(ty, mir_impl);
+    let already_defined = impls.borrow_mut().interfaces.insert(ty, mir_impl).is_some();
+    if already_defined {
+        return Err(Error::new(
+            &err_token,
+            "MIR",
+            "Interface already defined for type".to_string(),
+            &builder.path,
+        ));
+    }
 
     Ok(())
 }

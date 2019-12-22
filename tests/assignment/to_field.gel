@@ -1,0 +1,12 @@
+/*
+12
+*/
+
+func main() {
+    val s = S()
+    print(s.a = 12)
+}
+
+class S {
+    var a = 5
+}
