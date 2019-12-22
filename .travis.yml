@@ -1,7 +1,10 @@
+language: rust
+
 os: linux
 dist: bionic
-
-language: rust
+cache:
+  directories:
+    - /home/travis/.cargo
 
 rust:
   - nightly
@@ -9,8 +12,6 @@ rust:
 script:
   - cargo build --verbose
   - cargo test -- --nocapture
-
-cache: cargo
 
 addons:
   apt:
@@ -22,6 +23,19 @@ addons:
       - gcc
       - binutils-dev
       - libiberty-dev
+      - lib32z1-dev
+      - libedit-dev
+      - binutils-dev
+      - libiberty-dev
+      - libssl-dev
+
+env:
+  global:
+    - RUSTFLAGS="-C link-dead-code -C target-cpu=native -l ffi"
+
+before_cache:
+  - RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install cargo-tarpaulin
+  - rm -rf /home/travis/.cargo/registry
 
 before_install:
   - sudo wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
@@ -29,17 +43,7 @@ before_install:
   - sudo apt-get -q update
   - sudo apt-get -y install llvm-8 llvm-8-dev libllvm8
 
+
 after_success: |
-  wget https://github.com/SimonKagstrom/kcov/archive/master.tar.gz &&
-  tar xzf master.tar.gz &&
-  cd kcov-master &&
-  mkdir build &&
-  cd build &&
-  cmake .. &&
-  make &&
-  sudo make install &&
-  cd ../.. &&
-  rm -rf kcov-master &&
-  kcov --exclude-pattern=/.cargo,/usr/lib --verify target/cov target/debug/gelixrs-* &&
-  bash <(curl -s https://codecov.io/bash) &&
-  echo "Uploaded code coverage"
+  cargo tarpaulin --out Xml
+  bash <(curl -s https://codecov.io/bash)
