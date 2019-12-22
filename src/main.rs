@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/22/19 8:52 PM.
+ * Last modified on 12/22/19 11:11 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -151,6 +151,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn unknown_path() {
         assert!(run(Opt {
             parse: true,
@@ -160,6 +161,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn parse_err() {
         assert!(run(Opt {
             parse: true,
@@ -169,6 +171,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn compile_err() {
         assert!(run(Opt {
             file: get_test("empty_file.gel"),
@@ -177,6 +180,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn no_prelude() {
         assert!(run(Opt {
             no_prelude: true,
@@ -186,6 +190,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn parse_only() -> Result<(), &'static str> {
         run(Opt {
             parse: true,
@@ -195,6 +200,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn mir_only() -> Result<(), &'static str> {
         run(Opt {
             mir: true,
@@ -204,6 +210,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn ir_only() -> Result<(), &'static str> {
         run(Opt {
             ir: true,
@@ -213,6 +220,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn missing_output() {
         assert!(run(Opt {
             file: get_test("unicode.gel"),
@@ -221,6 +229,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn normal_compile() {
         run(Opt {
             file: get_test("unicode.gel"),
