@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/19/19 6:42 PM.
+ * Last modified on 12/22/19 9:15 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -50,7 +50,7 @@ impl PartialEq for Class {
 
 impl Display for Class {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-        writeln!(f, "class {} {{", self.name)?;
+        writeln!(f, "class {} {{\n", self.name)?;
         for (name, member) in self.members.iter() {
             writeln!(
                 f,
@@ -59,6 +59,10 @@ impl Display for Class {
                 name,
                 member.type_
             )?;
+        }
+        writeln!(f)?;
+        for func in self.methods.values() {
+            func.type_.as_function().borrow().display(f, "    ")?;
         }
         writeln!(f, "}}")
     }
@@ -111,6 +115,16 @@ impl Hash for Interface {
 impl PartialEq for Interface {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name
+    }
+}
+
+impl Display for Interface {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+        writeln!(f, "interface {} {{\n", self.name)?;
+        for (_, func) in self.methods.iter() {
+            writeln!(f, "    {}", func)?;
+        }
+        writeln!(f, "}}")
     }
 }
 
@@ -175,6 +189,20 @@ pub struct IFaceMethod {
     pub has_default_impl: bool,
 }
 
+impl Display for IFaceMethod {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+        write!(f, "func {}(", self.name)?;
+
+        let mut params = self.parameters.iter();
+        params.next().map(|param| write!(f, "{}", param));
+        for param in params {
+            write!(f, ", {}", param)?;
+        }
+
+        writeln!(f, ")")
+    }
+}
+
 /// A function.
 #[derive(Debug)]
 pub struct Function {
@@ -225,6 +253,41 @@ impl Function {
         self.variables.insert(Rc::clone(&name), var);
         name
     }
+
+    fn display(&self, f: &mut Formatter, space: &'static str) -> Result<(), Error> {
+        write!(f, "{}func {}(", space, self.name)?;
+
+        let mut params = self.parameters.iter();
+        params
+            .next()
+            .map(|param| write!(f, "{}: {}", param.name, param.type_));
+        for param in params {
+            write!(f, ", {}: {}", param.name, param.type_)?;
+        }
+
+        writeln!(f, ") {{")?;
+        for (name, var) in &self.variables {
+            writeln!(
+                f,
+                "{}{} {}: {}",
+                space,
+                if var.mutable { "var" } else { "val" },
+                name,
+                var.type_
+            )?;
+        }
+        if self.variables.len() != 0 {
+            writeln!(f)?;
+        }
+        for (name, block) in self.blocks.iter() {
+            writeln!(f, "{}{}:", space, name)?;
+            for inst in block.iter() {
+                writeln!(f, "{}    {}", space, inst)?;
+            }
+        }
+        writeln!(f, "{}}}", space)
+    }
+
 }
 
 impl PartialEq for Function {
@@ -241,34 +304,7 @@ impl Hash for Function {
 
 impl Display for Function {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-        write!(f, "func {}(", self.name)?;
-
-        let mut params = self.parameters.iter();
-        params
-            .next()
-            .map(|param| write!(f, "{}: {}", param.name, param.type_));
-        for param in params {
-            write!(f, ", {}: {}", param.name, param.type_)?;
-        }
-
-        writeln!(f, ") {{")?;
-        for (name, var) in &self.variables {
-            writeln!(
-                f,
-                "    {} {}: {}",
-                if var.mutable { "var" } else { "val" },
-                name,
-                var.type_
-            )?;
-        }
-        writeln!(f)?;
-        for (name, block) in self.blocks.iter() {
-            writeln!(f, "{}:", name)?;
-            for inst in block.iter() {
-                writeln!(f, "    {}", inst)?;
-            }
-        }
-        writeln!(f, "}}")
+        self.display(f, "")
     }
 }
 

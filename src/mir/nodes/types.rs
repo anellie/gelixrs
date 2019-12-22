@@ -1,10 +1,10 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/22/19 1:44 AM.
+ * Last modified on 12/22/19 9:01 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::fmt::{Display, Error, Formatter};
+use std::fmt::{Display, Debug, Error, Formatter};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
@@ -100,6 +100,16 @@ impl Type {
             _ => false,
         }
     }
+
+    pub fn display_full(&self, f: &mut Formatter) -> Result<(), Error> {
+        match self {
+            Type::Function(func) => write!(f, "{}", func.borrow()),
+            Type::Class(class) => write!(f, "{}", class.borrow()),
+            Type::Interface(iface) => write!(f, "{}", iface.borrow()),
+            _ => write!(f, "{:?}", self),
+        }
+    }
+
 }
 
 impl Default for Type {

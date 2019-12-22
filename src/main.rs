@@ -1,12 +1,13 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/22/19 8:40 PM.
+ * Last modified on 12/22/19 8:52 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::{env, fs, path::PathBuf, process};
 
 use structopt::StructOpt;
+use gelixrs::stem_to_rc_str;
 
 #[derive(StructOpt, Debug, Default)]
 #[structopt(name = "gelixrs")]
@@ -78,8 +79,9 @@ fn run(args: Opt) -> Result<(), &'static str> {
     })?;
 
     if args.mir {
-        for _module in mir {
-            println!("Unimplemented: MIR printing")
+        let stem = stem_to_rc_str(&args.file);
+        for module in mir.iter().filter(|m| m.borrow().path.0.first().unwrap() == &stem) {
+            println!("{}", module.borrow())
         }
         return Ok(());
     }
@@ -135,6 +137,7 @@ fn run(args: Opt) -> Result<(), &'static str> {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use crate::{run, Opt};
     use std::env;

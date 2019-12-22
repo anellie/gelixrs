@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/20/19 8:10 PM.
+ * Last modified on 12/22/19 9:14 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -15,6 +15,8 @@ use crate::ast::{Import, Module};
 use crate::error::{Error, Res};
 use crate::lexer::token::Token;
 use crate::mir::nodes::{IFaceImpls, Prototype, Type};
+use std::fmt::Display;
+use std::fmt;
 
 pub mod generator;
 pub mod nodes;
@@ -47,10 +49,6 @@ pub struct MModule {
 
     /// The source code of this module.
     pub src: Rc<String>,
-
-    /// The 'stage' the module is on. This indicates how
-    /// far along compilation is.
-    pub stage: ModuleStage,
 
     /// All global variables: Currently only functions.
     pub globals: HashMap<Rc<String>, Rc<Variable>>,
@@ -136,27 +134,19 @@ impl MModule {
     }
 }
 
-#[derive(Debug)]
-pub enum ModuleStage {
-    /// No compilation milestone has been reached
-    None,
-    /// All types in the module, including prototypes, have been declared.
-    /// It is possible to accurately search for types once this is reached.
-    TypesDeclared,
-    /// All globals have been declared. It is possible to generate
-    /// a limited set of code at this stage.
-    GlobalsDeclared,
-    /// All types have been filled with their members/methods.
-    /// It is possible to generate code after this has been reached.
-    TypesFilled,
-    /// The module is currently being modified by a MIRGenerator, code
-    /// is being produced.
-    Generating,
-}
-
-impl Default for ModuleStage {
-    fn default() -> Self {
-        Self::None
+impl Display for MModule {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        writeln!(f, "--> {}:", self.path)?;
+        writeln!(f, "Used names: ")?;
+        for name in self.used_names.iter() {
+            writeln!(f, "{} ", name)?;
+        }
+        writeln!(f, "\n\n")?;
+        for ty in self.types.values().filter(|t| !(t.is_function() && t.as_function().borrow().name.contains('-'))) {
+            ty.display_full(f)?;
+            writeln!(f)?;
+        }
+        Ok(())
     }
 }
 

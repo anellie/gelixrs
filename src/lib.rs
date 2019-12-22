@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/22/19 8:15 PM.
+ * Last modified on 12/22/19 8:51 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -128,6 +128,6 @@ pub fn compile_ir(modules: Vec<MutRc<MModule>>) -> inkwell::module::Module {
     gen.generate(modules)
 }
 
-fn stem_to_rc_str(path: &PathBuf) -> Rc<String> {
+pub fn stem_to_rc_str(path: &PathBuf) -> Rc<String> {
     Rc::new(path.file_stem().unwrap().to_str().unwrap().to_string())
 }
