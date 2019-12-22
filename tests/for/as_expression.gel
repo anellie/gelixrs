@@ -7,5 +7,5 @@ func main() {
     val result = for (i != 86) {
         i = i + 1
     } else 0
-    printnum(result)
+    print(result)
 }

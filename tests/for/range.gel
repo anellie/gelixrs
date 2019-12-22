@@ -10,9 +10,9 @@
 
 func main() {
     val a = for (i from 0 to 6) {
-        printnum(i)
+        print(i)
         i
     } else 0
 
-    printnum(a)
+    print(a)
 }

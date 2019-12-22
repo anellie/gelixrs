@@ -16,7 +16,7 @@ func main() {
     arr.push(555555)
     arr.set(0, 22)
     for (i from 0 to arr.len) {
-        printnum(arr.get(i))
+        print(arr.get(i))
     }
 }
 

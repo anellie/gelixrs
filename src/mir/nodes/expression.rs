@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/20/19 3:15 PM.
+ * Last modified on 12/22/19 12:52 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -232,7 +232,7 @@ impl Expr {
                 Literal::I64(_) => Type::I64,
                 Literal::F32(_) => Type::F32,
                 Literal::F64(_) => Type::F64,
-                Literal::String(_) => Type::String,
+                Literal::String(_) => INTRINSICS.with(|i| i.borrow().string_type.clone().unwrap()),
                 Literal::Array(Right(arr)) => INTRINSICS
                     .with(|i| i.borrow().get_array_type(arr.type_.clone(), None))
                     .ok()

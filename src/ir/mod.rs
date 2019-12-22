@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/20/19 7:01 PM.
+ * Last modified on 12/22/19 4:36 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -208,7 +208,8 @@ impl IRGenerator {
         if !func.blocks.is_empty() {
             let func_val = self.functions[&PtrEqRc::new(&func_var)];
             self.function_body(func, func_val);
-            self.fpm.run_on(&func_val);
+            // Often causes segfaults, needs more investigation
+            // self.fpm.run_on(&func_val);
         }
     }
 
@@ -558,9 +559,31 @@ impl IRGenerator {
                     if self.builder.get_insert_block().is_none() {
                         self.none_const
                     } else {
-                        let const_str =
-                            self.builder.build_global_string_ptr(&string, "literal-str");
-                        BasicValueEnum::PointerValue(const_str.as_pointer_value())
+                        let const_str = self.builder.build_global_string_ptr(&string, "str");
+                        let const_str = self.builder.build_ptr_to_int(
+                            const_str.as_pointer_value(),
+                            self.context.i64_type(),
+                            "strtoint",
+                        );
+                        let string_builder = self
+                            .module
+                            .get_function("std/intrinsics:build_string_literal")
+                            .unwrap();
+                        self.builder
+                            .build_call(
+                                string_builder,
+                                &[
+                                    const_str.into(),
+                                    self.context
+                                        .i64_type()
+                                        .const_int((string.len() + 1) as u64, false)
+                                        .into(),
+                                ],
+                                "str",
+                            )
+                            .try_as_basic_value()
+                            .left()
+                            .unwrap()
                     }
                 }
 
@@ -594,13 +617,7 @@ impl IRGenerator {
             Expr::VarStore { var, value } => {
                 let variable = self.get_variable(var);
                 let value = self.generate_expression(value);
-
-                // String pointers should not be unwrapped
-                let value = if var.type_ == Type::String {
-                    value
-                } else {
-                    self.unwrap_value_ptr(value)
-                };
+                let value = self.unwrap_value_ptr(value);
 
                 self.builder.build_store(variable, value);
                 value
@@ -708,10 +725,6 @@ impl IRGenerator {
         match ptr.get_type().get_element_type() {
             AnyTypeEnum::FunctionType(_) => BasicValueEnum::PointerValue(ptr),
             AnyTypeEnum::StructType(_) => BasicValueEnum::PointerValue(ptr),
-            // TODO: This is a hack to allow string to work until they have a proper class.
-            AnyTypeEnum::IntType(ty) if ty.get_bit_width() == 8 => {
-                BasicValueEnum::PointerValue(ptr)
-            }
             _ => self.builder.build_load(ptr, "var"),
         }
     }
@@ -776,7 +789,6 @@ impl IRGenerator {
         fpm.add_reassociate_pass();
         fpm.add_cfg_simplification_pass();
         fpm.add_basic_alias_analysis_pass();
-        fpm.add_aggressive_inst_combiner_pass();
         fpm.add_reassociate_pass();
         fpm.add_loop_deletion_pass();
         fpm.add_loop_unswitch_pass();
@@ -810,11 +822,6 @@ impl IRGenerator {
 
         types.insert(Type::F32, context.f32_type().into());
         types.insert(Type::F64, context.f64_type().into());
-
-        types.insert(
-            Type::String,
-            context.i8_type().ptr_type(AddressSpace::Generic).into(),
-        );
 
         IRGenerator {
             context,

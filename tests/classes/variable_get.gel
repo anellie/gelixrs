@@ -6,7 +6,7 @@ ok
 func main() {
     val test = Test()
     print(test.str)
-    printnum(test.test)
+    print(test.test)
 }
 
 class Test {

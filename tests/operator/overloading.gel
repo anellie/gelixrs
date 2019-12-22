@@ -38,10 +38,10 @@ func main() {
     a.int = 4
     b.int = 2
 
-    printnum(a + b)
-    printnum(a - b)
-    printnum(a * b)
-    printnum(a / b)
+    print(a + b)
+    print(a - b)
+    print(a * b)
+    print(a / b)
     if (a == b) print("bad")
     if (a != b) print("good")
 }

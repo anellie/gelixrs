@@ -7,15 +7,14 @@
 */
 
 func main() {
-    printnum(23 + 39)
+    print(23 + 39)
     // TODO: Operator overloading
     // print("str" + "ing")
 
-    printnum(42 - 2)
-    printnum(42 * 2)
-    printnum(42 / 2)
+    print(42 - 2)
+    print(42 * 2)
+    print(42 / 2)
 
-    printnum(-(4))
-
+    print(-(4))
     // TODO: float printing
 }

@@ -23,5 +23,5 @@ impl Test<i64> for OtherImpl {
 
 func main() {
     print(Implementor().test())
-    printnum(OtherImpl().test())
+    print(OtherImpl().test())
 }

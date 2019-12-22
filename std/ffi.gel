@@ -21,7 +21,7 @@ public class Ptr<E> {
     /// Create a new pointer given the location in memory.
     private construct(pointer) {}
 
-    /// Returns the element at the given 'index'.
+    /// Returns the element at the given `index`.
     /// Similar to C array indexing - 0 is the
     /// pointer itself, 1 is (ptr + (1 * sizeof(T))) and so on.
     /// This returns a new pointer object, and does not modify the called one.
@@ -42,11 +42,20 @@ public class Ptr<E> {
 }
 
 /// Allocates on the heap, where the amount
-/// of bytes allocated is the size of the type parameter
-/// times the parameter size.
+/// of bytes allocated is the size of the type parameter times `size`.
 /// The returned pointer is not memory-managed.
 public func allocate<T>(size: i64) -> Ptr<T> {
     // TODO: size_of always returns 8 (?)
     var ptr = malloc(64 * size)
     Ptr::<T>(ptr)
+}
+
+/// Copies elements in memory at `src` to `dst`,
+/// copying from index 0 until `len`.
+/// Does not do any memory safety checks.
+public func copy_ptr<T>(src: Ptr<T>, dst: Ptr<T>, len: i64) {
+    for (i from 0 to len) {
+        val elem = src.element_at_index(i).dereference()
+        dst.element_at_index(i).set(elem)
+    }
 }

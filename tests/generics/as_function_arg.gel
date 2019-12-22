@@ -8,7 +8,7 @@ func main() {
 }
 
 func test(t: Test<i64>) {
-    printnum(t.whoAmI(12))
+    print(t.whoAmI(12))
 }
 
 class Test<A> {

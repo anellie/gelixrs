@@ -2,7 +2,7 @@ import overlapping_names/test/testing
 
 func main() {
     val a = Sub()
-    printnum(a.a)
+    print(a.a)
     testing()
 }
 

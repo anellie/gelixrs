@@ -23,5 +23,5 @@ impl Extend for Implementor {
 func main() {
     val a = Implementor()
     print(a.test())
-    printnum(a.test2())
+    print(a.test2())
 }

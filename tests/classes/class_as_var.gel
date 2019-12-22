@@ -1,7 +1,7 @@
 // C-ERR
 
 func main() {
-    printnum(Test.ok)
+    print(Test.ok)
 }
 
 class Test {

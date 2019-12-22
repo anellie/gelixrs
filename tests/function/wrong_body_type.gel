@@ -6,5 +6,5 @@ func test(a: String) -> i64 {
 }
 
 func main() {
-    printnum(test("hmm"))
+    print(test("hmm"))
 }

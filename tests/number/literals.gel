@@ -6,12 +6,12 @@
 */
 
 func main() {
-    printnum(123)
-    printnum(3425235236) 
-    printnum(0)
-    printnum(-4)
+    print(123)
+    print(3425235236) 
+    print(0)
+    print(-4)
 
     // TODO: Float printing
-    // printnum(123.456)
-    // printnum(0.001)
+    // print(123.456)
+    // print(0.001)
 }

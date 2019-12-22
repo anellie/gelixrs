@@ -8,5 +8,5 @@ func fib(n: i64) -> i64 {
 }
 
 func main() {
-    printnum(fib(40))
+    print(fib(40))
 }

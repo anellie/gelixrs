@@ -9,7 +9,7 @@ class Testing {
 
 func main() {
     print(ok())
-    printnum(Testing().test())
+    print(Testing().test())
 }
 
 func ok() -> String "ok"

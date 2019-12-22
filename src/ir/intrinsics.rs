@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/21/19 12:06 AM.
+ * Last modified on 12/22/19 3:59 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -32,7 +32,7 @@ fn fill_function(gen: &mut IRGenerator, func: RefMut<Function>, ir: FunctionValu
         .split('<')
         .next()
         .unwrap();
-    if name.len() < 8 {
+    if name.len() < 8 || &name[..8] != "gelixrs_" {
         return;
     }
 

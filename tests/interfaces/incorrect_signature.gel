@@ -13,5 +13,5 @@ impl Test for Implementor {
 }
 
 func main() {
-    printnum(Implementor().test())
+    print(Implementor().test())
 }

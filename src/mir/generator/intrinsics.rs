@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/20/19 7:27 PM.
+ * Last modified on 12/22/19 12:52 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -28,6 +28,7 @@ thread_local! {
 pub struct Intrinsics {
     ops: HashMap<TType, Rc<Prototype>>,
     pub array_proto: Option<Rc<Prototype>>,
+    pub string_type: Option<Type>,
     pub main_fn: Option<Rc<Variable>>,
 }
 

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/17/19 10:42 PM.
+ * Last modified on 12/22/19 1:44 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -40,11 +40,6 @@ pub enum Type {
     F32,
     F64,
 
-    /// A i8 pointer that points to a string literal.
-    /// TODO: This will be replaced with a class once
-    /// arrays are implemented.
-    String,
-
     /// A function. Note that this is not the signature of a function,
     /// but simply the function directly. Because of this, calling this
     /// a type is kinda questionable, as it is also a value...
@@ -62,7 +57,7 @@ pub enum Type {
 impl Type {
     /// A list of all primitive types that are not defined in any gelix code,
     /// but are instead indirectly globally defined.
-    pub fn primitives() -> [Type; 10] {
+    pub fn primitives() -> [Type; 9] {
         [
             Type::Any,
             Type::None,
@@ -73,7 +68,6 @@ impl Type {
             Type::I64,
             Type::F32,
             Type::F64,
-            Type::String,
         ]
     }
 

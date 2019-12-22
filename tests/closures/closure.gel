@@ -5,7 +5,7 @@
 this text prevents the test from panicking at IR stage by failing parsing.
 
 func main() {
-    printnum(test())
+    print(test())
 }
 
 func test() -> i64 {

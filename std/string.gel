@@ -1,0 +1,43 @@
+import std/intrinsics/sprintf
+
+// An interface for types that can be represented as a string.
+// Note that generally, toString should not expose the implementation
+// of the type, but instead be information relevant to the user.
+//
+// For example, a 'Person' class might return its name and age
+// in a human-readable format.
+interface ToString {
+    func to_string() -> String
+}
+
+impl ToString for bool {
+    func to_string() -> String {
+        if (this) "true"
+        else "false"
+    }
+}
+
+impl ToString for String {
+    func to_string() -> String this
+}
+
+impl ToString for i64 {
+    func to_string() -> String {
+        // This buffer is 20 bytes long.
+        // This length is enough to display the largest
+        // 64bit int: −9223372036854775808
+        var buffer = "                    "
+        sprintf(buffer.chars.ptr.pointer, "%ld".chars.ptr.pointer, this)
+        buffer
+    }
+}
+
+impl ToString for i32 {
+    func to_string() -> String {
+        // This length is enough to display the largest
+        // 32bit int: -2147483647
+        var buffer = "           "
+        sprintf(buffer.chars.ptr.pointer, "%d".chars.ptr.pointer, this)
+        buffer
+    }
+}

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 4:00 PM.
+ * Last modified on 12/22/19 4:09 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -26,19 +26,23 @@ impl PreMIRPass for ImportTypes {
     ) -> Result<(), Errors> {
         module.borrow_mut().imports.ast = mem::replace(&mut ast.imports, vec![]);
         drain_mod_imports(modules, module, &mut |modules, module, import| {
-            let src_module = modules
+            let src_module_rc = modules
                 .iter()
                 .find(|m| {
                     m.try_borrow().ok().map(|m| Rc::clone(&m.path)) == Some(Rc::clone(&import.path))
                 })
                 .or_err(&module.path, &import.symbol, "Unknown module.")?;
 
-            let src_module = src_module.borrow();
+            let src_module = src_module_rc.borrow();
             match &import.symbol.lexeme[..] {
                 "+" => {
                     for name in src_module.types.keys().chain(src_module.protos.keys()) {
                         module.try_reserve_name_rc(name, &import.symbol)?;
                     }
+                    module
+                        .imports
+                        .modules
+                        .insert(Rc::clone(&src_module.path), Rc::clone(src_module_rc));
                     Ok(false)
                 }
 
@@ -88,10 +92,6 @@ impl PreMIRPass for ImportGlobals {
                     for name in src_module.globals.keys() {
                         module.try_reserve_name_rc(name, &import.symbol)?;
                     }
-                    module
-                        .imports
-                        .modules
-                        .insert(Rc::clone(&src_module.path), Rc::clone(src_module_rc));
                     Ok(true)
                 }
 

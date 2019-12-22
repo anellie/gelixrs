@@ -1,14 +1,9 @@
 import std/intrinsics/+
 import std/ffi/+
+import std/string/ToString
 
 func print(a: ToString) {
-    puts(a.to_string())
-}
-
-// TODO: Finish 'String' to allow using sprintf,
-// then depreciate this.
-func printnum(a: i64) {
-    printf("%d", a)
+    puts(a.to_string().chars.ptr.pointer)
 }
 
 // A simple, fixed-size array type.
@@ -33,9 +28,17 @@ class Array<E> {
     var capacity: i64
     var ptr: Ptr<E>
 
-    construct(size: i64) {
-        this.capacity = size
-        this.ptr = allocate::<E>(size)
+    /// Construct an empty array with the given capacity.
+    /// Will allocate the amount given on the heap (malloc),
+    /// capacity of 0 results in no allocation until first insertion.
+    construct(capacity) {
+        this.ptr = allocate::<E>(capacity)
+    }
+
+    /// Simply construct an array out of raw parts.
+    /// Rarely useful, unless dealing with low-level code.
+    construct(len: i64, capacity, ptr) {
+        this.len = len
     }
 
     func get(index: i64) -> E {
@@ -54,60 +57,41 @@ class Array<E> {
         this.len = this.len + 1
     }
 
+    func pop() -> E {
+        this.len = this.len - 1
+        this.get(this.len)
+    }
+
     func maybe_extend() {
         if (this.len == this.capacity) this.extend()
     }
 
     func extend() {
-        this.capacity = this.capacity * 2
+        this.capacity = (this.capacity + 1) * 2
         val new_ptr = allocate::<E>(this.capacity)
-        for (i from 0 to this.len) {
-            val elem = this.get(i)
-            new_ptr.element_at_index(i).set(elem)
-        }
+        copy_ptr::<E>(this.ptr, new_ptr, this.len)
         this.ptr = new_ptr
     }
 }
 
-/*
-// A UTF-8 string.
+
+/// A UTF-8 string.
+/// Currently, strings are null-terminated.
 class String {
-    val chars = [i8]
 
-    func len() -> i64 this.chars.len
-}
-*/
+    /// The array behind this string, containing all
+    /// individual bytes of the string.
+    val chars: [i8]
 
-// An interface for types that can be represented as a string.
-// Note that generally, toString should not expose the implementation
-// of the type, but instead be information relevant to the user.
-//
-// For example, a 'Person' class might return its name and age
-// in a human-readable format.
-interface ToString {
-    func to_string() -> String
-}
+    /// A constructor to create a string from a byte array.
+    /// Does not check for valid UTF-8!
+    construct(chars) {}
 
-impl ToString for bool {
-    func to_string() -> String {
-        if (this) "true"
-        else "false"
-    }
-}
-
-impl ToString for String {
-    func to_string() -> String this
-}
-
-impl ToString for i64 {
-    func to_string() -> String {
-        // This buffer is 20 bytes long.
-        // This length is enough to display the largest
-        // 64bit int: −9223372036854775808
-        var buffer = "                    "
-        // TODO: This segfaults, since the buffer is a constant.
-        // Dynamic strings need to be implemented first.
-        // sprintf(buffer, "%d", this)
-        buffer
+    /// The length of the string, in bytes.
+    /// Note that byte length in UTF-8 does not
+    /// equal the amount of characters in the string.
+    func len() -> i64 {
+        // Subtract the null terminator
+        this.chars.len - 1
     }
 }

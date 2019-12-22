@@ -4,7 +4,7 @@ hi
 */
 
 func main() {
-    printnum(echo::<i64>(1))
+    print(echo::<i64>(1))
     print(echo::<String>("hi"))
 }
 
