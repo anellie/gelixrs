@@ -1,0 +1,11 @@
+import protos/main/+
+
+class Sub<A> {
+    var b: A
+
+    construct(b) {}
+
+    func sup() {
+        print("sup!")
+    }
+}

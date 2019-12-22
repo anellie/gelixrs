@@ -1,8 +1,6 @@
 /*
+13
 */
-
-This test causes SIGSEGV.
-This text prevents that with a parse error.
 
 func main() {
     var arr = Array::<Array<i64>>(2)
@@ -10,3 +8,4 @@ func main() {
     arr.get(0).push(13)
     print(arr.get(0).get(0))
 }
+class S {}

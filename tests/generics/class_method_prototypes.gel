@@ -5,9 +5,6 @@ I'm a method!
 bye
 */
 
-This test causes SIGSEGV.
-This text prevents that with a parse error.
-
 func main() {
     print(Test::<i64>().whoAmI(12))
     print(Test::<String>().whoAmI("bye"))
