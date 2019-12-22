@@ -53,7 +53,7 @@ fn declare_impl(
 ) -> Res<()> {
     let err_token = iface_impl.iface.get_token().clone();
     let implementor = override_implementor
-        .map(|i| Ok(i))
+        .map(Ok)
         .unwrap_or_else(|| builder.find_type(&iface_impl.implementor))?;
     let ty = builder.find_type(&iface_impl.iface)?;
     let iface = if let Type::Interface(iface) = ty.clone() {

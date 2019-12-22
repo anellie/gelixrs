@@ -48,7 +48,10 @@ fn run_all() -> Result<(), ()> {
     test_path.push("tests");
 
     let iter = test_path.read_dir().expect("Test path is a file?");
-    for file in iter.map(|f| f.unwrap().path()) {
+    for file in iter
+        .map(|f| f.unwrap().path())
+        .filter(|p| p.file_stem().unwrap() != "benchmark")
+    {
         match file.read_dir() {
             Ok(iter) => iter.for_each(|file| {
                 run_test(

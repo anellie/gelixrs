@@ -47,7 +47,7 @@ pub struct IRGenerator {
     context: Context,
     builder: Builder,
     module: Module,
-    fpm: PassManager<FunctionValue>,
+    _fpm: PassManager<FunctionValue>,
     mpm: PassManager<Module>,
 
     /// All variables, the currently compiled function.
@@ -114,6 +114,12 @@ impl IRGenerator {
     /// Generates a type, if it was not found in self.types.
     fn build_type(&mut self, ty: &Type) -> BasicTypeEnum {
         let ir_ty = match ty {
+            // Any is a special case - it is not in self.types
+            // as it is considered equal to all other types -
+            // this would break the hashmap and result in returning
+            // of Any when the type searched for is not Any.
+            Type::Any => return self.none_const.get_type(),
+
             Type::Function(func) => self
                 .get_fn_type(&func.borrow())
                 .ptr_type(AddressSpace::Generic)
@@ -616,7 +622,8 @@ impl IRGenerator {
                 let variable = self.get_variable(var);
                 let value = self.generate_expression(value);
 
-                self.builder.build_store(variable, self.unwrap_value_ptr(value));
+                self.builder
+                    .build_store(variable, self.unwrap_value_ptr(value));
                 value
             }
         }
@@ -702,8 +709,8 @@ impl IRGenerator {
             .methods
             .iter()
             .map(|(_, method)| self.functions[&PtrEqRc::new(method)])
-            .map(|func| func.as_global_value().as_pointer_value().into())
-            .map(|func: PointerValue| {
+            .map(|func| func.as_global_value().as_pointer_value())
+            .map(|func| {
                 self.builder.build_bitcast(
                     func,
                     *field_tys.next().unwrap().as_pointer_type(),
@@ -808,7 +815,6 @@ impl IRGenerator {
             )]);
 
         let mut types = HashMap::with_capacity(20);
-        types.insert(Type::Any, none_const.get_type().into());
         types.insert(Type::None, none_const.get_type().into());
         types.insert(Type::Bool, context.bool_type().into());
 
@@ -824,7 +830,7 @@ impl IRGenerator {
             context,
             module,
             builder,
-            fpm,
+            _fpm: fpm,
             mpm,
 
             variables: HashMap::with_capacity(10),

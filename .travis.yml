@@ -29,12 +29,8 @@ addons:
       - libiberty-dev
       - libssl-dev
 
-env:
-  global:
-    - RUSTFLAGS="-C link-dead-code -C target-cpu=native -l ffi"
-
 before_cache:
-  - RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install cargo-tarpaulin
+  - cargo install cargo-tarpaulin
   - rm -rf /home/travis/.cargo/registry
 
 before_install:

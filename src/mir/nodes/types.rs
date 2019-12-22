@@ -57,9 +57,8 @@ pub enum Type {
 impl Type {
     /// A list of all primitive types that are not defined in any gelix code,
     /// but are instead indirectly globally defined.
-    pub fn primitives() -> [Type; 9] {
+    pub fn primitives() -> [Type; 8] {
         [
-            Type::Any,
             Type::None,
             Type::Bool,
             Type::I8,
