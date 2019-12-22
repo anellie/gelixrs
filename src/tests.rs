@@ -92,7 +92,9 @@ fn exec_jit(path: PathBuf) -> Result<String, Failure> {
         .ok()
         .ok_or(Failure::Parse)?;
     super::auto_import_prelude(&mut code);
-    let mir = super::compile_mir(code).ok().ok_or(Failure::Compile)?;
+    let mir = super::compile_mir(code).map_err(|es| for er in es {
+        println!("{}\n", er);
+    }).ok().ok_or(Failure::Compile)?;
     let module = super::compile_ir(mir);
 
     let engine = module
