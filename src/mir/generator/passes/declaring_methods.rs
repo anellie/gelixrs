@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/22/19 5:12 PM.
+ * Last modified on 12/22/19 8:15 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -21,7 +21,6 @@ use crate::mir::generator::MIRGenerator;
 use crate::mir::nodes::{Block, Class, Expr, IFaceMethod, Interface, Type, Variable};
 use crate::mir::result::ToMIRResult;
 use crate::mir::MutRc;
-use crate::option::Flatten;
 
 /// This pass defines all methods on classes and interfaces.
 pub struct DeclareMethods();
@@ -121,7 +120,7 @@ fn get_constructor_sig(
         .map(|(name, ty)| {
             let type_ = ty
                 .clone()
-                .or_else(|| get_field_by_name(class, name).map(|(_, ty)| ty).flatten_())
+                .or_else(|| get_field_by_name(class, name).map(|(_, ty)| ty).and_then(|t| t))
                 .or_err(
                     &builder.path,
                     name,

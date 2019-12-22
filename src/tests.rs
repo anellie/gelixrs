@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/21/19 5:47 PM.
+ * Last modified on 12/22/19 8:35 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -36,13 +36,9 @@ extern "C" fn test_puts(string: *const c_char) {
         .unwrap()
         .push_str(&format!("{}\n", string.to_str().unwrap_or("INVALID_UTF8")));
 }
-#[no_mangle]
-extern "C" fn test_printf(_format: *const c_char, num: i64) {
-    RESULT.lock().unwrap().push_str(&format!("{}\n", num));
-}
 
 #[test]
-fn run_all() -> Result<(), ()> {
+fn gelix_tests() -> Result<(), ()> {
     let (mut test_total, mut test_failed) = (0, 0);
     let mut test_path = env::current_dir().expect("Couldn't get current dir.");
     test_path.push("tests");
@@ -88,31 +84,22 @@ fn run_test(path: PathBuf, total: &mut usize, failed: &mut usize) {
 }
 
 fn exec_jit(path: PathBuf) -> Result<String, Failure> {
-    let mut code = super::parse_source(vec![path, STD_LIB.lock().unwrap().clone()])
-        .ok()
-        .ok_or(Failure::Parse)?;
+    let mut code = super::parse_source(vec![path, STD_LIB.lock().unwrap().clone()]).map_err(|_| Failure::Parse)?;
     super::auto_import_prelude(&mut code);
-    let mir = super::compile_mir(code).map_err(|es| for er in es {
-        println!("{}\n", er);
-    }).ok().ok_or(Failure::Compile)?;
+    let mir = super::compile_mir(code).map_err(|_| Failure::Compile)?;
     let module = super::compile_ir(mir);
 
     let engine = module
         .create_jit_execution_engine(OptimizationLevel::None)
-        .ok()
-        .ok_or_else(|| Failure::IR("Failed to create JIT".to_string()))?;
+        .map_err(|_| Failure::IR("Failed to create JIT".to_string()))?;
     if let Some(fun) = &module.get_function("puts") {
         engine.add_global_mapping(fun, test_puts as usize);
-    }
-    if let Some(fun) = &module.get_function("printf") {
-        engine.add_global_mapping(fun, test_printf as usize);
     }
 
     unsafe {
         let main_fn: JitFunction<MainFn> = engine
             .get_function("main")
-            .ok()
-            .ok_or_else(|| Failure::IR("No main fn".to_string()))?;
+            .map_err(|_| Failure::IR("No main fn".to_string()))?;
         main_fn.call();
     }
 

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/21/19 5:42 PM.
+ * Last modified on 12/22/19 8:40 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -8,7 +8,7 @@ use std::{env, fs, path::PathBuf, process};
 
 use structopt::StructOpt;
 
-#[derive(StructOpt, Debug)]
+#[derive(StructOpt, Debug, Default)]
 #[structopt(name = "gelixrs")]
 struct Opt {
     /// Run in-place instead of compiling
@@ -17,7 +17,7 @@ struct Opt {
 
     /// Parse to AST and exit
     #[structopt(long = "parse-only")]
-    parse_only: bool,
+    parse: bool,
 
     /// Compile to MIR, print, and exit
     #[structopt(long)]
@@ -40,9 +40,11 @@ struct Opt {
     file: PathBuf,
 }
 
-fn main() -> Result<(), &'static str> {
-    let args = Opt::from_args();
+fn main() {
+    run(Opt::from_args()).map_err(|e| println!("{}", e)).ok();
+}
 
+fn run(args: Opt) -> Result<(), &'static str> {
     if !args.file.exists() {
         return Err("Given path does not exist.");
     }
@@ -63,7 +65,7 @@ fn main() -> Result<(), &'static str> {
         gelixrs::auto_import_prelude(&mut code)
     }
 
-    if args.parse_only {
+    if args.parse {
         println!("{:#?}", code);
         return Ok(());
     }
@@ -77,7 +79,7 @@ fn main() -> Result<(), &'static str> {
 
     if args.mir {
         for _module in mir {
-            unimplemented!("MIR printing")
+            println!("Unimplemented: MIR printing")
         }
         return Ok(());
     }
@@ -130,5 +132,98 @@ fn main() -> Result<(), &'static str> {
         Ok(())
     } else {
         Err("Compiling to native binary failed. Please file a bug report.")
+    }
+}
+
+mod tests {
+    use crate::{run, Opt};
+    use std::env;
+    use std::path::PathBuf;
+
+    fn get_test(name: &'static str) -> PathBuf {
+        let mut test_path = env::current_dir().expect("Couldn't get current dir.");
+        test_path.push("tests");
+        test_path.push(name);
+        test_path
+    }
+
+    #[test]
+    fn unknown_path() {
+        assert!(run(Opt {
+            parse: true,
+            file: get_test("who.gel"),
+            ..Default::default()
+        }) == Err("Given path does not exist."))
+    }
+
+    #[test]
+    fn parse_err() {
+        assert!(run(Opt {
+            parse: true,
+            file: get_test("unexpected_character.gel"),
+            ..Default::default()
+        }) == Err("Parser encountered errors. Exiting."))
+    }
+
+    #[test]
+    fn compile_err() {
+        assert!(run(Opt {
+            file: get_test("empty_file.gel"),
+            ..Default::default()
+        }) == Err("MIR generator encountered errors. Exiting."))
+    }
+
+    #[test]
+    fn no_prelude() {
+        assert!(run(Opt {
+            no_prelude: true,
+            file: get_test("scoping.gel"),
+            ..Default::default()
+        }) == Err("MIR generator encountered errors. Exiting."))
+    }
+
+    #[test]
+    fn parse_only() -> Result<(), &'static str> {
+        run(Opt {
+            parse: true,
+            file: get_test("unicode.gel"),
+            ..Default::default()
+        })
+    }
+
+    #[test]
+    fn mir_only() -> Result<(), &'static str> {
+        run(Opt {
+            mir: true,
+            file: get_test("unicode.gel"),
+            ..Default::default()
+        })
+    }
+
+    #[test]
+    fn ir_only() -> Result<(), &'static str> {
+        run(Opt {
+            ir: true,
+            file: get_test("unicode.gel"),
+            ..Default::default()
+        })
+    }
+
+    #[test]
+    fn missing_output() {
+        assert!(run(Opt {
+            file: get_test("unicode.gel"),
+            ..Default::default()
+        }) == Err("Output location required."))
+    }
+
+    #[test]
+    fn normal_compile() {
+        run(Opt {
+            file: get_test("unicode.gel"),
+            output: Some(PathBuf::from("/tmp/gelix-test")),
+            ..Default::default()
+        }).ok().unwrap();
+        assert!(PathBuf::from("/tmp/gelix-test").exists())
     }
 }

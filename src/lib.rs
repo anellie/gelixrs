@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 9:51 PM.
+ * Last modified on 12/22/19 8:15 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -34,7 +34,6 @@ pub mod error;
 pub mod ir;
 pub mod lexer;
 pub mod mir;
-pub mod option;
 pub mod parser;
 #[cfg(test)]
 pub mod tests;
