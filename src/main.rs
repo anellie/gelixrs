@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/22/19 11:11 PM.
+ * Last modified on 12/23/19 5:05 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -8,6 +8,8 @@ use std::{env, fs, path::PathBuf, process};
 
 use structopt::StructOpt;
 use gelixrs::stem_to_rc_str;
+use inkwell::OptimizationLevel;
+use inkwell::execution_engine::JitFunction;
 
 #[derive(StructOpt, Debug, Default)]
 #[structopt(name = "gelixrs")]
@@ -93,6 +95,21 @@ fn run(args: Opt) -> Result<(), &'static str> {
         return Ok(());
     }
 
+    if args.run {
+        let engine = module
+            .create_jit_execution_engine(OptimizationLevel::Default)
+            .map_err(|_| "Failed to create JIT VM.")?;
+
+        unsafe {
+            let main_fn: JitFunction<unsafe extern "C" fn()> = engine
+                .get_function("main")
+                .map_err(|_| "No main fn in JIT?")?;
+            main_fn.call();
+        }
+
+        return Ok(())
+    }
+
     let mut tmp_dir = env::temp_dir();
     tmp_dir.push("gelixrs");
     if !tmp_dir.exists() {
@@ -125,7 +142,7 @@ fn run(args: Opt) -> Result<(), &'static str> {
         .arg("-o")
         .arg(&args.output.ok_or("Output location required.")?)
         .arg(asm_file)
-        .arg("-O0")
+        .arg("-O3")
         .status()
         .expect("Evoking clang failed.");
 

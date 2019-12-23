@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/22/19 4:51 PM.
+ * Last modified on 12/23/19 4:55 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -17,7 +17,6 @@ use inkwell::{
     builder::Builder,
     context::Context,
     module::Module,
-    passes::PassManager,
     types::{AnyTypeEnum, BasicType, BasicTypeEnum, FunctionType, StructType},
     values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
     AddressSpace, FloatPredicate, IntPredicate,
@@ -47,8 +46,6 @@ pub struct IRGenerator {
     context: Context,
     builder: Builder,
     module: Module,
-    _fpm: PassManager<FunctionValue>,
-    mpm: PassManager<Module>,
 
     /// All variables, the currently compiled function.
     /// Note that not all variables are valid - they are kept after going out of scope.
@@ -107,7 +104,6 @@ impl IRGenerator {
                 std::process::exit(1);
             })
             .unwrap();
-        self.mpm.run_on(&self.module);
         self.module
     }
 
@@ -788,26 +784,6 @@ impl IRGenerator {
         let module = context.create_module("main");
         let builder = context.create_builder();
 
-        let fpm = PassManager::create(&module);
-        fpm.add_instruction_combining_pass();
-        fpm.add_reassociate_pass();
-        fpm.add_cfg_simplification_pass();
-        fpm.add_basic_alias_analysis_pass();
-        fpm.add_reassociate_pass();
-        fpm.add_loop_deletion_pass();
-        fpm.add_loop_unswitch_pass();
-
-        let mpm = PassManager::create(());
-        mpm.add_cfg_simplification_pass();
-        mpm.add_function_attrs_pass();
-        mpm.add_jump_threading_pass();
-        mpm.add_constant_propagation_pass();
-        mpm.add_dead_arg_elimination_pass();
-        mpm.add_global_dce_pass();
-        mpm.add_new_gvn_pass();
-        mpm.add_global_optimizer_pass();
-        mpm.add_constant_merge_pass();
-
         let none_const = context
             .struct_type(&[BasicTypeEnum::IntType(context.bool_type())], true)
             .const_named_struct(&[BasicValueEnum::IntValue(
@@ -830,8 +806,6 @@ impl IRGenerator {
             context,
             module,
             builder,
-            _fpm: fpm,
-            mpm,
 
             variables: HashMap::with_capacity(10),
             blocks: HashMap::with_capacity(10),
