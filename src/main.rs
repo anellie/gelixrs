@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/23/19 5:05 PM.
+ * Last modified on 12/23/19 6:30 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -120,31 +120,14 @@ fn run(args: Opt) -> Result<(), &'static str> {
     module_file.push("out.bc");
     module.write_bitcode_to_path(&module_file);
 
-    let mut asm_file = tmp_dir;
-    asm_file.push("out.o");
-
-    let mut stdlib_dir = env::current_dir().expect("Failed to get current directory!");
-    stdlib_dir.push("stdlib");
-    stdlib_dir.push("target");
-    stdlib_dir.push("x86_64-unknown-linux-musl");
-    stdlib_dir.push("release");
-
-    // TODO: Invoking clang as a command feels soo wrong, but I don't think there's a stable Rust API for it...
-    process::Command::new("clang")
-        .arg("-c")
-        .arg("-o")
-        .arg(&asm_file)
-        .arg(module_file)
-        .status()
-        .expect("Evoking clang failed.");
-
     let status = process::Command::new("clang")
         .arg("-o")
         .arg(&args.output.ok_or("Output location required.")?)
-        .arg(asm_file)
+        .arg(module_file)
         .arg("-O3")
-        .status()
-        .expect("Evoking clang failed.");
+        .output()
+        .expect("Evoking clang failed.")
+        .status;
 
     if status.success() {
         println!("Compilation successful!");
