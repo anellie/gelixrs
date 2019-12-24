@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/18/19 3:49 PM.
+ * Last modified on 12/24/19 3:47 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,6 +11,7 @@ use crate::error::Errors;
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::nodes::{ProtoAST, Prototype};
 use crate::mir::{MModule, MutRc};
+use std::cell::RefCell;
 
 /// This pass removes all types/functions with generic parameters
 /// from the AST list, since they are handled separately.
@@ -49,7 +50,7 @@ impl PreMIRPass for FilterPrototypes {
                 Rc::new(Prototype {
                     name: name.lexeme,
                     instances: Default::default(),
-                    impls: vec![],
+                    impls: RefCell::new(vec![]),
                     module: Rc::clone(&module_rc),
                     ast,
                 }),

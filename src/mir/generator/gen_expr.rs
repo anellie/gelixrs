@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/24/19 3:18 AM.
+ * Last modified on 12/24/19 4:18 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -270,13 +270,18 @@ impl MIRGenerator {
 
             // Prototype constructor
             ASTExpr::VarWithGenerics { name, generics } => {
-                let ty = self.builder.find_type(&ASTType::Generic {
-                    token: name.clone(),
-                    types: generics.clone(),
-                });
-                if let Ok(Type::Class(class)) = ty {
+                let proto = self
+                    .module
+                    .borrow()
+                    .find_prototype(&name.lexeme);
+
+                if proto.is_some() && proto.unwrap().ast.is_class() {
+                    let ty = self.builder.find_type(&ASTType::Generic {
+                        token: name.clone(),
+                        types: generics.clone(),
+                    })?;
                     Ok(Some(
-                        self.generate_class_instantiation(class, arguments, name)?,
+                        self.generate_class_instantiation(Rc::clone(ty.as_class()), arguments, name)?,
                     ))
                 } else {
                     Ok(None)

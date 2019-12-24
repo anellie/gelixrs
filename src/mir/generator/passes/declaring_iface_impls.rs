@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/22/19 5:20 PM.
+ * Last modified on 12/24/19 3:49 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -16,6 +16,7 @@ use crate::mir::generator::builder::MIRBuilder;
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::nodes::{IFaceImpl, IFaceImpls, Type};
 use crate::mir::{get_iface_impls, mutrc_new, MModule, MutRc, IFACE_IMPLS};
+use crate::mir::result::ToMIRResult;
 
 /// This pass inserts all iface impls in the global impl
 /// table. It only validates that the type implementing for
@@ -46,7 +47,7 @@ impl PreMIRPass for DeclareIfaceImpls {
     }
 }
 
-fn declare_impl(
+pub fn declare_impl(
     iface_impl: ast::IFaceImpl,
     builder: &mut MIRBuilder,
     override_implementor: Option<Type>,
@@ -54,7 +55,12 @@ fn declare_impl(
     let err_token = iface_impl.iface.get_token().clone();
     let implementor = override_implementor
         .map(Ok)
-        .unwrap_or_else(|| builder.find_type(&iface_impl.implementor))?;
+        .unwrap_or_else(|| builder.find_type(&iface_impl.implementor));
+    if implementor.is_err() && iface_impl.implementor.is_generic() {
+        return add_impl_to_proto(iface_impl, builder);
+    }
+    let implementor = implementor?;
+
     let ty = builder.find_type(&iface_impl.iface)?;
     let iface = if let Type::Interface(iface) = ty.clone() {
         iface
@@ -104,4 +110,14 @@ pub fn get_or_create_iface_impls(ty: &Type) -> MutRc<IFaceImpls> {
             iface_impls
         }),
     }
+}
+
+fn add_impl_to_proto(
+    iface_impl: ast::IFaceImpl,
+    builder: &mut MIRBuilder,
+) -> Res<()> {
+    let implementor = iface_impl.implementor.get_token();
+    let proto = builder.module.borrow().find_prototype(&implementor.lexeme).or_err(&builder.path, &implementor, "Unknown prototype.")?;
+    proto.impls.borrow_mut().push(iface_impl);
+    Ok(())
 }

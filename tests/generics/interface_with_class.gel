@@ -1,5 +1,6 @@
 /*
 ok
+23
 */
 
 interface Test<A> {
@@ -12,9 +13,10 @@ class Implementor<A> {
 }
 
 impl Test<A> for Implementor<A> {
-    func test() -> String this.a
+    func test() -> A this.a
 }
 
 func main() {
     print(Implementor::<String>("ok").test())
+    print(Implementor::<i64>(23).test())
 }

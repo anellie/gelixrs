@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/20/19 3:32 PM.
+ * Last modified on 12/24/19 4:21 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -13,6 +13,7 @@ use indexmap::IndexMap;
 use crate::ast::Function as ASTFunc;
 use crate::ast::IFaceImpl as ASTImpl;
 use crate::ast::Interface as ASTIFace;
+use crate::ast::Type as ASTType;
 use crate::ast::{Class as ASTClass, IFaceImpl};
 use crate::error::{Error, Res};
 use crate::lexer::token::Token;
@@ -22,6 +23,7 @@ use crate::mir::generator::passes::declaring_globals::get_function_name;
 use crate::mir::generator::MIRGenerator;
 use crate::mir::nodes::{Class, Function, Interface, Type, Variable};
 use crate::mir::{mutrc_new, MModule, MutRc};
+use crate::mir::generator::passes::declaring_iface_impls::declare_impl;
 
 /// A prototype that classes can be instantiated from.
 /// This prototype is kept in AST form,
@@ -44,7 +46,7 @@ use crate::mir::{mutrc_new, MModule, MutRc};
 pub struct Prototype {
     pub name: Rc<String>,
     pub instances: RefCell<HashMap<Vec<Type>, Type>>,
-    pub impls: Vec<ASTImpl>,
+    pub impls: RefCell<Vec<ASTImpl>>,
     pub module: MutRc<MModule>,
     pub ast: ProtoAST,
 }
@@ -66,17 +68,18 @@ impl Prototype {
         let ty = self.ast.create_mir(&name, &arguments, self_ref)?;
         let mut generator = MIRGenerator::new(MIRBuilder::new(&self.module));
 
-        self.module.borrow_mut().types.insert(name, ty.clone());
+        self.module.borrow_mut().types.insert(Rc::clone(&name), ty.clone());
         self.instances.borrow_mut().insert(arguments, ty.clone());
 
-        attach_impls(&ty, self.impls.clone())?;
+        generator.builder.context = ty.context().unwrap();
+        attach_impls(&mut generator.builder, &ty, &name, &self.impls.borrow())?;
         catch_up_passes(&mut generator, &ty)?;
 
         Ok(ty)
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, EnumIsA)]
 pub enum ProtoAST {
     Class(Rc<ASTClass>),
     Interface(Rc<ASTIFace>),
@@ -229,12 +232,18 @@ fn check_generic_arguments(
     Ok(())
 }
 
-fn attach_impls(_ty: &Type, _impls: Vec<IFaceImpl>) -> Res<()> {
+fn attach_impls(builder: &mut MIRBuilder, ty: &Type, name: &Rc<String>, impls: &[IFaceImpl]) -> Res<()> {
+    for im in impls {
+        let mut ast = im.clone();
+        let mut tok = ast.implementor.get_token().clone();
+        tok.lexeme = Rc::clone(&name);
+        ast.implementor = ASTType::Ident(tok);
+        declare_impl(ast, builder, Some(ty.clone()))?;
+    }
     Ok(())
 }
 
 fn catch_up_passes(gen: &mut MIRGenerator, ty: &Type) -> Res<()> {
-    gen.builder.context = ty.context().unwrap();
     let len = DONE_PASSES.with(|d| d.borrow().len());
     for i in 0..len {
         DONE_PASSES.with(|d| d.borrow()[i].run_type(gen, ty.clone()))?
