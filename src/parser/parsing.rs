@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/24/19 1:45 AM.
+ * Last modified on 12/24/19 3:19 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -606,7 +606,7 @@ impl Parser {
                     name,
                     value,
                 }),
-                Expression::IndexGet { indexed, index } => Some(Expression::IndexSet {
+                Expression::IndexGet { indexed, index, .. } => Some(Expression::IndexSet {
                     indexed,
                     index,
                     value,
@@ -671,12 +671,14 @@ impl Parser {
                     }
                 }
 
-                _ if self.match_token(TType::LeftBracket) => {
+                _ if self.check(TType::LeftBracket) => {
+                    let bracket = self.advance();
                     let index = self.expression()?;
                     self.consume(TType::RightBracket, "Expected ']' after index.")?;
                     expression = Expression::IndexGet {
                         indexed: Box::new(expression),
                         index: Box::new(index),
+                        bracket,
                     }
                 }
 

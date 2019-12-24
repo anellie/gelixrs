@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/24/19 1:45 AM.
+ * Last modified on 12/24/19 3:18 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -54,9 +54,17 @@ impl MIRGenerator {
                 else_branch,
             } => self.if_(condition, then_branch, else_branch),
 
-            ASTExpr::IndexGet { indexed, index } => self.index_get(indexed, index),
+            ASTExpr::IndexGet {
+                indexed,
+                index,
+                bracket,
+            } => self.index_get(indexed, index, bracket),
 
-            ASTExpr::IndexSet { indexed, index, value } => self.index_set(indexed, index, value),
+            ASTExpr::IndexSet {
+                indexed,
+                index,
+                value,
+            } => self.index_set(indexed, index, value),
 
             ASTExpr::Literal(literal, _) => self.literal(literal),
 
@@ -463,12 +471,38 @@ impl MIRGenerator {
         Ok(Expr::none_const())
     }
 
-    fn index_get(&mut self, indexed: &ASTExpr, index: &ASTExpr) -> Res<Expr> {
-        unimplemented!()
+    fn index_get(&mut self, indexed: &ASTExpr, index: &ASTExpr, bracket: &Token) -> Res<Expr> {
+        let obj = self.expression(indexed)?;
+        let index = self.expression(index)?;
+        self.binary_mir(obj, bracket, index)
     }
 
-    fn index_set(&mut self, indexed: &ASTExpr, index: &ASTExpr, value: &ASTExpr) -> Res<Expr> {
-        unimplemented!()
+    fn index_set(
+        &mut self,
+        indexed: &ASTExpr,
+        ast_index: &ASTExpr,
+        ast_value: &ASTExpr,
+    ) -> Res<Expr> {
+        let obj = self.expression(indexed)?;
+        let index = self.expression(ast_index)?;
+        let value = self.expression(ast_value)?;
+        let method = self
+            .get_operator_overloading_method(
+                TType::RightBracket,
+                &obj.get_type(),
+                &index.get_type(),
+            )
+            .or_err(
+                &self.builder.path,
+                ast_index.get_token(),
+                "No implementation of operator found for types.",
+            )?;
+
+        if value.get_type() != method.type_.as_function().borrow().parameters[2].type_ {
+            Err(self.err(ast_value.get_token(), "Setter is of wrong type."))
+        } else {
+            Ok(Expr::call(Expr::load(&method), vec![obj, index, value]))
+        }
     }
 
     fn literal(&mut self, literal: &Literal) -> Res<Expr> {

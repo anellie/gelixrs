@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/19/19 6:45 PM.
+ * Last modified on 12/24/19 3:14 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -120,6 +120,7 @@ fn check_equal_signature(
     for (i, (method_param, iface_param)) in mir_method
         .parameters
         .iter()
+        .skip(1)
         .zip(iface_method.parameters.iter())
         .enumerate()
     {
@@ -129,8 +130,8 @@ fn check_equal_signature(
                 tok,
                 "MIR",
                 format!(
-                    "Incorrect parameter type on interface method (Expected {}).",
-                    iface_param
+                    "Incorrect parameter type on interface method (Expected {}, was {}).",
+                    iface_param, method_param.type_
                 ),
                 &builder.path,
             ));

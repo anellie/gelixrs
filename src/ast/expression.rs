@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/24/19 1:44 AM.
+ * Last modified on 12/24/19 3:17 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -82,7 +82,8 @@ pub enum Expression {
     /// where `arr` is the indexed and `i` is the index.
     IndexGet {
         indexed: Box<Expression>,
-        index: Box<Expression>
+        index: Box<Expression>,
+        bracket: Token,
     },
 
     /// An index into a type, for example arr[i] = 5,
@@ -145,7 +146,7 @@ impl Expression {
             Expression::For { condition, .. } => condition.get_token(),
             Expression::Get { name, .. } => name,
             Expression::If { condition, .. } => condition.get_token(),
-            Expression::IndexGet { index, .. } => index.get_token(),
+            Expression::IndexGet { bracket, .. } => &bracket,
             Expression::IndexSet { index, .. } => index.get_token(),
             Expression::Literal(_, tok) => tok,
             Expression::Return(_, tok) => tok,

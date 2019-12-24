@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/22/19 12:52 AM.
+ * Last modified on 12/24/19 3:04 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -26,6 +26,10 @@ thread_local! {
 /// Contains all data structures that require some sort of special treatment.
 #[derive(Default)]
 pub struct Intrinsics {
+    /// Contains prototypes of all operators.
+    /// For binary operators, the key is the TType of the operator.
+    /// For IndexGet, its LeftBracket.
+    /// For IndexSet, its RightBracket.
     ops: HashMap<TType, Rc<Prototype>>,
     pub array_proto: Option<Rc<Prototype>>,
     pub string_type: Option<Type>,
@@ -56,6 +60,8 @@ impl Intrinsics {
                     self.ops.insert(TType::EqualEqual, Rc::clone(&iface));
                     self.ops.insert(TType::BangEqual, iface)
                 }
+                "IndexGet" => self.ops.insert(TType::LeftBracket, iface),
+                "IndexSet" => self.ops.insert(TType::RightBracket, iface),
                 _ => None,
             };
         }
