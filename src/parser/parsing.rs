@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/20/19 6:38 PM.
+ * Last modified on 12/24/19 1:45 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -606,6 +606,11 @@ impl Parser {
                     name,
                     value,
                 }),
+                Expression::IndexGet { indexed, index } => Some(Expression::IndexSet {
+                    indexed,
+                    index,
+                    value,
+                }),
                 _ => {
                     self.error_at_current("Invalid assignment target.");
                     None
@@ -663,6 +668,15 @@ impl Parser {
                     expression = Expression::Call {
                         callee: Box::new(expression),
                         arguments,
+                    }
+                }
+
+                _ if self.match_token(TType::LeftBracket) => {
+                    let index = self.expression()?;
+                    self.consume(TType::RightBracket, "Expected ']' after index.")?;
+                    expression = Expression::IndexGet {
+                        indexed: Box::new(expression),
+                        index: Box::new(index),
                     }
                 }
 

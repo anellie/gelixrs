@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 11/5/19 5:54 PM.
+ * Last modified on 12/24/19 1:44 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -78,6 +78,20 @@ pub enum Expression {
         else_branch: Option<Box<Expression>>,
     },
 
+    /// An index into a type, for example arr[i],
+    /// where `arr` is the indexed and `i` is the index.
+    IndexGet {
+        indexed: Box<Expression>,
+        index: Box<Expression>
+    },
+
+    /// An index into a type, for example arr[i] = 5,
+    IndexSet {
+        indexed: Box<Expression>,
+        index: Box<Expression>,
+        value: Box<Expression>,
+    },
+
     /// A simple literal.
     Literal(Literal, Token),
 
@@ -131,6 +145,8 @@ impl Expression {
             Expression::For { condition, .. } => condition.get_token(),
             Expression::Get { name, .. } => name,
             Expression::If { condition, .. } => condition.get_token(),
+            Expression::IndexGet { index, .. } => index.get_token(),
+            Expression::IndexSet { index, .. } => index.get_token(),
             Expression::Literal(_, tok) => tok,
             Expression::Return(_, tok) => tok,
             Expression::Set { name, .. } => name,

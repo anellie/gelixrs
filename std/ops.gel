@@ -73,11 +73,22 @@ interface Equal<O> {
 
 /// An interface that allows overriding the behavior of the 'a[T]' index operator on a type.
 /// Implementing this interface will cause the following translation:
-/// (a[243]) -> (a.index(243))
+/// (a[243]) -> (a.index_get(243))
 ///
 /// This operation should not modify parameters.
 ///
 /// If no suitable element is found at the given index, panicking is appropriate.
-interface Index<I, T> {
-    func index(index: I) -> T
+interface IndexGet<I, T> {
+    func index_get(index: I) -> T
+}
+
+/// An interface that allows overriding the behavior of the 'a[T] = ...' index operator on a type.
+/// Implementing this interface will cause the following translation:
+/// (a[243] = 5) -> (a.index_set(243, 5))
+///
+/// This operation should not modify the index.
+///
+/// If no suitable element is found at the given index, panicking is appropriate.
+interface IndexSet<I, T> {
+    func index_set(index: I, value: T)
 }

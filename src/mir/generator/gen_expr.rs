@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/20/19 6:38 PM.
+ * Last modified on 12/24/19 1:45 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -53,6 +53,10 @@ impl MIRGenerator {
                 then_branch,
                 else_branch,
             } => self.if_(condition, then_branch, else_branch),
+
+            ASTExpr::IndexGet { indexed, index } => self.index_get(indexed, index),
+
+            ASTExpr::IndexSet { indexed, index, value } => self.index_set(indexed, index, value),
 
             ASTExpr::Literal(literal, _) => self.literal(literal),
 
@@ -457,6 +461,14 @@ impl MIRGenerator {
 
         self.set_block(&cont_block);
         Ok(Expr::none_const())
+    }
+
+    fn index_get(&mut self, indexed: &ASTExpr, index: &ASTExpr) -> Res<Expr> {
+        unimplemented!()
+    }
+
+    fn index_set(&mut self, indexed: &ASTExpr, index: &ASTExpr, value: &ASTExpr) -> Res<Expr> {
+        unimplemented!()
     }
 
     fn literal(&mut self, literal: &Literal) -> Res<Expr> {
