@@ -287,7 +287,6 @@ impl Function {
         }
         writeln!(f, "{}}}", space)
     }
-
 }
 
 impl PartialEq for Function {

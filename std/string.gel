@@ -23,21 +23,16 @@ impl ToString for String {
 
 impl ToString for i64 {
     func to_string() -> String {
-        // This buffer is 20 bytes long.
-        // This length is enough to display the largest
-        // 64bit int: −9223372036854775808
-        var buffer = "                    "
-        sprintf(buffer.chars.ptr.pointer, "%ld".chars.ptr.pointer, this)
+        var buffer = String(21)
+        sprintf(buffer.ptr.pointer, "%ld".ptr.pointer, this)
         buffer
     }
 }
 
 impl ToString for i32 {
     func to_string() -> String {
-        // This length is enough to display the largest
-        // 32bit int: -2147483647
-        var buffer = "           "
-        sprintf(buffer.chars.ptr.pointer, "%d".chars.ptr.pointer, this)
+        var buffer = String(12)
+        sprintf(buffer.ptr.pointer, "%d".ptr.pointer, this)
         buffer
     }
 }

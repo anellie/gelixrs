@@ -30,9 +30,6 @@ extern func puts(s: i64)
 /// libc sprintf
 extern variadic func sprintf(s: i64, format: i64) -> i64
 
-/// libc printf (TODO: Remove after #39)
-extern variadic func printf(format: String) -> i64
-
 /// regular malloc, allocating the given amount of bytes
 /// on the heap and returning a pointer.
 extern func malloc(size: i64) -> i64
@@ -44,7 +41,5 @@ func build_string_literal(literal_ptr: i64, len: i64) -> String {
     val literal_ptr = Ptr::<i8>(literal_ptr)
     val new_ptr = allocate::<i8>(len)
     copy_ptr::<i8>(literal_ptr, new_ptr, len)
-    val array = Array::<i8>(len, len, new_ptr)
-    val string = String(array)
-    string
+    String(len, len, new_ptr)
 }

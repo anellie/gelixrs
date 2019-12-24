@@ -4,7 +4,7 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::fmt::{Display, Debug, Error, Formatter};
+use std::fmt::{Debug, Display, Error, Formatter};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
@@ -109,7 +109,6 @@ impl Type {
             _ => write!(f, "{:?}", self),
         }
     }
-
 }
 
 impl Default for Type {

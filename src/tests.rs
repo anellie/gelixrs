@@ -84,7 +84,8 @@ fn run_test(path: PathBuf, total: &mut usize, failed: &mut usize) {
 }
 
 fn exec_jit(path: PathBuf) -> Result<String, Failure> {
-    let mut code = super::parse_source(vec![path, STD_LIB.lock().unwrap().clone()]).map_err(|_| Failure::Parse)?;
+    let mut code = super::parse_source(vec![path, STD_LIB.lock().unwrap().clone()])
+        .map_err(|_| Failure::Parse)?;
     super::auto_import_prelude(&mut code);
     let mir = super::compile_mir(code).map_err(|_| Failure::Compile)?;
     let module = super::compile_ir(mir);

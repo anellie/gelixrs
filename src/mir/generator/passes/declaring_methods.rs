@@ -120,7 +120,11 @@ fn get_constructor_sig(
         .map(|(name, ty)| {
             let type_ = ty
                 .clone()
-                .or_else(|| get_field_by_name(class, name).map(|(_, ty)| ty).and_then(|t| t))
+                .or_else(|| {
+                    get_field_by_name(class, name)
+                        .map(|(_, ty)| ty)
+                        .and_then(|t| t)
+                })
                 .or_err(
                     &builder.path,
                     name,

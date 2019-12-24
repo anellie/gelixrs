@@ -3,7 +3,7 @@ import std/ffi/+
 import std/string/ToString
 
 func print(a: ToString) {
-    puts(a.to_string().chars.ptr.pointer)
+    puts(a.to_string().ptr.pointer)
 }
 
 // A simple, fixed-size array type.
@@ -79,19 +79,28 @@ class Array<E> {
 /// Currently, strings are null-terminated.
 class String {
 
-    /// The array behind this string, containing all
-    /// individual bytes of the string.
-    val chars: [i8]
+    var length = 0
+    var capacity: i64
+    var ptr: Ptr<i8>
 
-    /// A constructor to create a string from a byte array.
-    /// Does not check for valid UTF-8!
-    construct(chars) {}
+    /// Construct an empty string with the given capacity.
+    /// Will allocate the amount given on the heap (malloc),
+    /// capacity of 0 results in no allocation until first insertion.
+    construct(capacity) {
+        this.ptr = allocate::<i8>(capacity)
+    }
+
+    /// Simply construct a string out of raw parts.
+    /// Rarely useful, unless dealing with low-level code.
+    construct(len: i64, capacity, ptr) {
+        this.length = len
+    }
 
     /// The length of the string, in bytes.
     /// Note that byte length in UTF-8 does not
     /// equal the amount of characters in the string.
     func len() -> i64 {
         // Subtract the null terminator
-        this.chars.len - 1
+        this.length - 1
     }
 }

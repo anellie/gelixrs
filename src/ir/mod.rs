@@ -119,13 +119,11 @@ impl IRGenerator {
             Type::Function(func) => self
                 .get_fn_type(&func.borrow())
                 .ptr_type(AddressSpace::Generic)
-                .as_basic_type_enum(),
+                .into(),
 
-            Type::Class(class) => self.build_class(Rc::clone(class)).as_basic_type_enum(),
+            Type::Class(class) => self.build_class(Rc::clone(class)).into(),
 
-            Type::Interface(iface) => self
-                .build_iface_ptr_struct(Rc::clone(iface))
-                .as_basic_type_enum(),
+            Type::Interface(iface) => self.build_iface_ptr_struct(Rc::clone(iface)).into(),
 
             _ => panic!(format!("Unknown type '{}' to build", ty)),
         };
@@ -184,7 +182,7 @@ impl IRGenerator {
         if method.ret_type == Type::None {
             self.context.void_type().fn_type(params.as_slice(), false)
         } else {
-            let ret_type = self.to_ir_type(&method.ret_type);
+            let ret_type = self.to_ir_type_no_ptr(&method.ret_type);
             ret_type.fn_type(params.as_slice(), false)
         }
         .ptr_type(AddressSpace::Generic)
@@ -210,8 +208,6 @@ impl IRGenerator {
         if !func.blocks.is_empty() {
             let func_val = self.functions[&PtrEqRc::new(&func_var)];
             self.function_body(func, func_val);
-            // Often causes segfaults, needs more investigation
-            // self.fpm.run_on(&func_val);
         }
     }
 
@@ -341,7 +337,7 @@ impl IRGenerator {
                         })
                     }
 
-                    _ => panic!("invalid binary operation"),
+                    _ => panic!("invalid binary operation: {:?}", left.get_type()),
                 }
             }
 
@@ -357,7 +353,8 @@ impl IRGenerator {
                     .builder
                     .build_call(ptr, arguments.as_slice(), "call")
                     .try_as_basic_value();
-                ret.left().unwrap_or(self.none_const)
+                let ret = ret.left().unwrap_or(self.none_const);
+                self.create_tmp_store(ret)
             }
 
             Expr::CallDyn {
@@ -401,7 +398,8 @@ impl IRGenerator {
                     .builder
                     .build_call(method_ptr, arguments.as_slice(), "call")
                     .try_as_basic_value();
-                ret.left().unwrap_or(self.none_const)
+                let ret = ret.left().unwrap_or(self.none_const);
+                self.create_tmp_store(ret)
             }
 
             Expr::CastToInterface { object, to } => {
@@ -471,6 +469,9 @@ impl IRGenerator {
                         let value = self.generate_expression(value);
                         if value.get_type() == self.none_const.get_type() {
                             self.builder.build_return(None)
+                        } else if let BasicValueEnum::PointerValue(ptr) = value {
+                            self.builder
+                                .build_return(Some(&self.builder.build_load(ptr, "retload")))
                         } else {
                             self.builder.build_return(Some(&value))
                         }
@@ -569,7 +570,8 @@ impl IRGenerator {
                             .module
                             .get_function("std/intrinsics:build_string_literal")
                             .unwrap();
-                        self.builder
+                        let string = self
+                            .builder
                             .build_call(
                                 string_builder,
                                 &[
@@ -583,7 +585,8 @@ impl IRGenerator {
                             )
                             .try_as_basic_value()
                             .left()
-                            .unwrap()
+                            .unwrap();
+                        self.create_tmp_store(string)
                     }
                 }
 
@@ -632,6 +635,18 @@ impl IRGenerator {
         implementor: BasicValueEnum,
         vtable: BasicValueEnum,
     ) -> PointerValue {
+        let ptr = self.create_alloca(ty.into());
+        unsafe {
+            let implptr = self.builder.build_struct_gep(ptr, 0, "implgep");
+            self.builder
+                .build_store(implptr, self.coerce_to_i64_ptr(implementor));
+            let vtableptr = self.builder.build_struct_gep(ptr, 1, "vtablegep");
+            self.builder.build_store(vtableptr, vtable);
+        }
+        ptr
+    }
+
+    fn create_alloca(&self, ty: BasicTypeEnum) -> PointerValue {
         let builder = self.context.create_builder();
         let entry = self
             .builder
@@ -647,15 +662,14 @@ impl IRGenerator {
             None => builder.position_at_end(&entry),
         }
 
-        let ptr = builder.build_alloca(ty, "tmpiface");
-        unsafe {
-            let implptr = self.builder.build_struct_gep(ptr, 0, "implgep");
-            self.builder
-                .build_store(implptr, self.coerce_to_i64_ptr(implementor));
-            let vtableptr = self.builder.build_struct_gep(ptr, 1, "vtablegep");
-            self.builder.build_store(vtableptr, vtable);
-        }
-        ptr
+        builder.build_alloca(ty, "tmpalloc")
+    }
+
+    fn create_tmp_store(&self, value: BasicValueEnum) -> BasicValueEnum {
+        let alloca = self.create_alloca(value.get_type());
+        self.builder
+            .build_store(alloca, self.unwrap_value_ptr(value));
+        self.load_ptr(alloca)
     }
 
     /// Force any type to be turned into an i64 pointer.
@@ -721,7 +735,7 @@ impl IRGenerator {
 
     /// Loads a pointer, turning it into a value.
     /// Does not load structs or functions, since they are only ever used as pointers.
-    fn load_ptr(&mut self, ptr: PointerValue) -> BasicValueEnum {
+    fn load_ptr(&self, ptr: PointerValue) -> BasicValueEnum {
         match ptr.get_type().get_element_type() {
             AnyTypeEnum::FunctionType(_) => BasicValueEnum::PointerValue(ptr),
             AnyTypeEnum::StructType(_) => BasicValueEnum::PointerValue(ptr),
@@ -774,7 +788,7 @@ impl IRGenerator {
                 .void_type()
                 .fn_type(params.as_slice(), variadic)
         } else {
-            let ret_type = self.to_ir_type(&func.ret_type);
+            let ret_type = self.to_ir_type_no_ptr(&func.ret_type);
             ret_type.fn_type(params.as_slice(), variadic)
         }
     }

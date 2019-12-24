@@ -15,8 +15,8 @@ use crate::ast::{Import, Module};
 use crate::error::{Error, Res};
 use crate::lexer::token::Token;
 use crate::mir::nodes::{IFaceImpls, Prototype, Type};
-use std::fmt::Display;
 use std::fmt;
+use std::fmt::Display;
 
 pub mod generator;
 pub mod nodes;
@@ -142,7 +142,11 @@ impl Display for MModule {
             writeln!(f, "{} ", name)?;
         }
         writeln!(f, "\n\n")?;
-        for ty in self.types.values().filter(|t| !(t.is_function() && t.as_function().borrow().name.contains('-'))) {
+        for ty in self
+            .types
+            .values()
+            .filter(|t| !(t.is_function() && t.as_function().borrow().name.contains('-')))
+        {
             ty.display_full(f)?;
             writeln!(f)?;
         }

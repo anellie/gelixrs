@@ -45,8 +45,7 @@ public class Ptr<E> {
 /// of bytes allocated is the size of the type parameter times `size`.
 /// The returned pointer is not memory-managed.
 public func allocate<T>(size: i64) -> Ptr<T> {
-    // TODO: size_of always returns 8 (?)
-    var ptr = malloc(64 * size)
+    var ptr = malloc(size_of::<T>() * size)
     Ptr::<T>(ptr)
 }
 

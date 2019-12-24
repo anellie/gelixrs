@@ -103,19 +103,23 @@ impl PassRunner {
             PassType::Module => {
                 for module in self.modules.iter() {
                     gen.switch_module(module);
-                    pass.run_mod(gen).map_err(|e| errors.push(Errors(e, Rc::clone(&module.borrow().src)))).ok();
+                    pass.run_mod(gen)
+                        .map_err(|e| errors.push(Errors(e, Rc::clone(&module.borrow().src))))
+                        .ok();
                 }
             }
 
             PassType::Type => {
-                let types = self.modules.iter().map(|module| {
-                    (module
-                        .borrow()
-                        .types
-                        .values()
-                        .cloned()
-                        .collect::<Vec<_>>(), Rc::clone(module))
-                }).collect::<Vec<_>>();
+                let types = self
+                    .modules
+                    .iter()
+                    .map(|module| {
+                        (
+                            module.borrow().types.values().cloned().collect::<Vec<_>>(),
+                            Rc::clone(module),
+                        )
+                    })
+                    .collect::<Vec<_>>();
 
                 for (types, module) in types {
                     let mut errs = Vec::new();
@@ -133,21 +137,30 @@ impl PassRunner {
             }
 
             PassType::GlobalVar => {
-                let globals = self.modules.iter().map(|module| {
-                    (module
-                         .borrow()
-                         .globals
-                         .values()
-                         .cloned()
-                         .collect::<Vec<_>>(), Rc::clone(module))
-                }).collect::<Vec<_>>();
+                let globals = self
+                    .modules
+                    .iter()
+                    .map(|module| {
+                        (
+                            module
+                                .borrow()
+                                .globals
+                                .values()
+                                .cloned()
+                                .collect::<Vec<_>>(),
+                            Rc::clone(module),
+                        )
+                    })
+                    .collect::<Vec<_>>();
 
                 for (globals, module) in globals {
                     let mut errs = Vec::new();
 
                     gen.switch_module(&module);
                     for global in globals {
-                        pass.run_global_var(gen, global).map_err(|e| errs.push(e)).ok();
+                        pass.run_global_var(gen, global)
+                            .map_err(|e| errs.push(e))
+                            .ok();
                     }
 
                     if !errs.is_empty() {

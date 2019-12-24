@@ -6,10 +6,10 @@
 
 use std::{env, fs, path::PathBuf, process};
 
-use structopt::StructOpt;
 use gelixrs::stem_to_rc_str;
-use inkwell::OptimizationLevel;
 use inkwell::execution_engine::JitFunction;
+use inkwell::OptimizationLevel;
+use structopt::StructOpt;
 
 #[derive(StructOpt, Debug, Default)]
 #[structopt(name = "gelixrs")]
@@ -82,7 +82,10 @@ fn run(args: Opt) -> Result<(), &'static str> {
 
     if args.mir {
         let stem = stem_to_rc_str(&args.file);
-        for module in mir.iter().filter(|m| m.borrow().path.0.first().unwrap() == &stem) {
+        for module in mir
+            .iter()
+            .filter(|m| m.borrow().path.0.first().unwrap() == &stem)
+        {
             println!("{}", module.borrow())
         }
         return Ok(());
@@ -107,7 +110,7 @@ fn run(args: Opt) -> Result<(), &'static str> {
             main_fn.call();
         }
 
-        return Ok(())
+        return Ok(());
     }
 
     let mut tmp_dir = env::temp_dir();
@@ -153,40 +156,48 @@ mod tests {
     #[test]
     #[ignore]
     fn unknown_path() {
-        assert!(run(Opt {
-            parse: true,
-            file: get_test("who.gel"),
-            ..Default::default()
-        }) == Err("Given path does not exist."))
+        assert!(
+            run(Opt {
+                parse: true,
+                file: get_test("who.gel"),
+                ..Default::default()
+            }) == Err("Given path does not exist.")
+        )
     }
 
     #[test]
     #[ignore]
     fn parse_err() {
-        assert!(run(Opt {
-            parse: true,
-            file: get_test("unexpected_character.gel"),
-            ..Default::default()
-        }) == Err("Parser encountered errors. Exiting."))
+        assert!(
+            run(Opt {
+                parse: true,
+                file: get_test("unexpected_character.gel"),
+                ..Default::default()
+            }) == Err("Parser encountered errors. Exiting.")
+        )
     }
 
     #[test]
     #[ignore]
     fn compile_err() {
-        assert!(run(Opt {
-            file: get_test("empty_file.gel"),
-            ..Default::default()
-        }) == Err("MIR generator encountered errors. Exiting."))
+        assert!(
+            run(Opt {
+                file: get_test("empty_file.gel"),
+                ..Default::default()
+            }) == Err("MIR generator encountered errors. Exiting.")
+        )
     }
 
     #[test]
     #[ignore]
     fn no_prelude() {
-        assert!(run(Opt {
-            no_prelude: true,
-            file: get_test("scoping.gel"),
-            ..Default::default()
-        }) == Err("MIR generator encountered errors. Exiting."))
+        assert!(
+            run(Opt {
+                no_prelude: true,
+                file: get_test("scoping.gel"),
+                ..Default::default()
+            }) == Err("MIR generator encountered errors. Exiting.")
+        )
     }
 
     #[test]
@@ -222,10 +233,12 @@ mod tests {
     #[test]
     #[ignore]
     fn missing_output() {
-        assert!(run(Opt {
-            file: get_test("unicode.gel"),
-            ..Default::default()
-        }) == Err("Output location required."))
+        assert!(
+            run(Opt {
+                file: get_test("unicode.gel"),
+                ..Default::default()
+            }) == Err("Output location required.")
+        )
     }
 
     #[test]
@@ -235,7 +248,9 @@ mod tests {
             file: get_test("unicode.gel"),
             output: Some(PathBuf::from("/tmp/gelix-test")),
             ..Default::default()
-        }).ok().unwrap();
+        })
+        .ok()
+        .unwrap();
         assert!(PathBuf::from("/tmp/gelix-test").exists())
     }
 }
