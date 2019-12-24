@@ -1,8 +1,12 @@
 /*
-2
+5
+24
 */
 
 func main() {
-    var arr = [1, 2, 3, 4]
+    var arr = Array::<i64>(2)
+    arr[0] = 5
+    arr[1] = 24
+    print(arr[0])
     print(arr[1])
 }

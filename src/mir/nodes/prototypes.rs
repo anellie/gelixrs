@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/24/19 4:21 PM.
+ * Last modified on 12/24/19 4:40 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -46,7 +46,7 @@ use crate::mir::generator::passes::declaring_iface_impls::declare_impl;
 pub struct Prototype {
     pub name: Rc<String>,
     pub instances: RefCell<HashMap<Vec<Type>, Type>>,
-    pub impls: RefCell<Vec<ASTImpl>>,
+    pub impls: RefCell<Vec<(ASTImpl, MutRc<MModule>)>>,
     pub module: MutRc<MModule>,
     pub ast: ProtoAST,
 }
@@ -232,8 +232,9 @@ fn check_generic_arguments(
     Ok(())
 }
 
-fn attach_impls(builder: &mut MIRBuilder, ty: &Type, name: &Rc<String>, impls: &[IFaceImpl]) -> Res<()> {
-    for im in impls {
+fn attach_impls(builder: &mut MIRBuilder, ty: &Type, name: &Rc<String>, impls: &[(IFaceImpl, MutRc<MModule>)]) -> Res<()> {
+    for (im, module) in impls {
+        builder.switch_module(module);
         let mut ast = im.clone();
         let mut tok = ast.implementor.get_token().clone();
         tok.lexeme = Rc::clone(&name);
@@ -244,8 +245,10 @@ fn attach_impls(builder: &mut MIRBuilder, ty: &Type, name: &Rc<String>, impls: &
 }
 
 fn catch_up_passes(gen: &mut MIRGenerator, ty: &Type) -> Res<()> {
+    let module = Rc::clone(&gen.module);
     let len = DONE_PASSES.with(|d| d.borrow().len());
     for i in 0..len {
+        gen.switch_module(&module);
         DONE_PASSES.with(|d| d.borrow()[i].run_type(gen, ty.clone()))?
     }
     Ok(())

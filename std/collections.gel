@@ -1,0 +1,14 @@
+import std/ops/+
+
+impl IndexGet<i64, E> for Array<E> {
+    func index_get(index: i64) -> E {
+        this.get(index)
+    }
+}
+
+impl IndexSet<i64, E> for Array<E> {
+    func index_set(index: i64, value: E) {
+        this.set(index, value)
+    }
+}
+

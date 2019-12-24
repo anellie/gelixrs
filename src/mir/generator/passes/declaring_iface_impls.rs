@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/24/19 3:49 PM.
+ * Last modified on 12/24/19 4:34 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -118,6 +118,6 @@ fn add_impl_to_proto(
 ) -> Res<()> {
     let implementor = iface_impl.implementor.get_token();
     let proto = builder.module.borrow().find_prototype(&implementor.lexeme).or_err(&builder.path, &implementor, "Unknown prototype.")?;
-    proto.impls.borrow_mut().push(iface_impl);
+    proto.impls.borrow_mut().push((iface_impl, Rc::clone(&builder.module)));
     Ok(())
 }
