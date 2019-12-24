@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/24/19 4:40 PM.
+ * Last modified on 12/24/19 5:05 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -20,10 +20,10 @@ use crate::lexer::token::Token;
 use crate::mir::generator::builder::{Context, MIRBuilder};
 use crate::mir::generator::module::DONE_PASSES;
 use crate::mir::generator::passes::declaring_globals::get_function_name;
+use crate::mir::generator::passes::declaring_iface_impls::declare_impl;
 use crate::mir::generator::MIRGenerator;
 use crate::mir::nodes::{Class, Function, Interface, Type, Variable};
 use crate::mir::{mutrc_new, MModule, MutRc};
-use crate::mir::generator::passes::declaring_iface_impls::declare_impl;
 
 /// A prototype that classes can be instantiated from.
 /// This prototype is kept in AST form,
@@ -68,7 +68,10 @@ impl Prototype {
         let ty = self.ast.create_mir(&name, &arguments, self_ref)?;
         let mut generator = MIRGenerator::new(MIRBuilder::new(&self.module));
 
-        self.module.borrow_mut().types.insert(Rc::clone(&name), ty.clone());
+        self.module
+            .borrow_mut()
+            .types
+            .insert(Rc::clone(&name), ty.clone());
         self.instances.borrow_mut().insert(arguments, ty.clone());
 
         generator.builder.context = ty.context().unwrap();
@@ -232,7 +235,12 @@ fn check_generic_arguments(
     Ok(())
 }
 
-fn attach_impls(builder: &mut MIRBuilder, ty: &Type, name: &Rc<String>, impls: &[(IFaceImpl, MutRc<MModule>)]) -> Res<()> {
+fn attach_impls(
+    builder: &mut MIRBuilder,
+    ty: &Type,
+    name: &Rc<String>,
+    impls: &[(IFaceImpl, MutRc<MModule>)],
+) -> Res<()> {
     for (im, module) in impls {
         builder.switch_module(module);
         let mut ast = im.clone();

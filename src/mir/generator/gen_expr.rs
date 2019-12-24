@@ -1,12 +1,10 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/24/19 4:18 PM.
+ * Last modified on 12/24/19 5:19 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::rc::Rc;
-
-use either::Either;
 
 use crate::ast::declaration::Variable as ASTVar;
 use crate::ast::Type as ASTType;
@@ -14,7 +12,7 @@ use crate::ast::{Expression as ASTExpr, Literal};
 use crate::error::Res;
 use crate::lexer::token::{TType, Token};
 use crate::mir::generator::{ForLoop, MIRGenerator};
-use crate::mir::nodes::{ArrayLiteral, Class, Expr, Flow, Type, Variable};
+use crate::mir::nodes::{Class, Expr, Flow, Type, Variable};
 use crate::mir::result::ToMIRResult;
 use crate::mir::MutRc;
 use either::Either::{Left, Right};
@@ -270,19 +268,18 @@ impl MIRGenerator {
 
             // Prototype constructor
             ASTExpr::VarWithGenerics { name, generics } => {
-                let proto = self
-                    .module
-                    .borrow()
-                    .find_prototype(&name.lexeme);
+                let proto = self.module.borrow().find_prototype(&name.lexeme);
 
                 if proto.is_some() && proto.unwrap().ast.is_class() {
                     let ty = self.builder.find_type(&ASTType::Generic {
                         token: name.clone(),
                         types: generics.clone(),
                     })?;
-                    Ok(Some(
-                        self.generate_class_instantiation(Rc::clone(ty.as_class()), arguments, name)?,
-                    ))
+                    Ok(Some(self.generate_class_instantiation(
+                        Rc::clone(ty.as_class()),
+                        arguments,
+                        name,
+                    )?))
                 } else {
                     Ok(None)
                 }
@@ -516,19 +513,19 @@ impl MIRGenerator {
             let mut values_mir = Vec::new();
             let mut ast_values = ast_values.iter();
             let first = self.expression(ast_values.next().unwrap())?;
-            let arr_type = first.get_type();
+            let elem_type = first.get_type();
 
             values_mir.push(first);
             for value in ast_values {
                 let mir_val = self.expression(value)?;
 
-                if mir_val.get_type() != arr_type {
+                if mir_val.get_type() != elem_type {
                     return Err(self.err(
                         value.get_token(),
                         &format!(
-                            "Type of array value ({}) does not rest of array ({}).",
+                            "Type of array value ({}) does not match rest of array ({}).",
                             mir_val.get_type(),
-                            arr_type
+                            elem_type
                         ),
                     ));
                 }
@@ -536,10 +533,44 @@ impl MIRGenerator {
                 values_mir.push(mir_val);
             }
 
-            Ok(Expr::Literal(Literal::Array(Either::Right(ArrayLiteral {
-                values: values_mir,
-                type_: arr_type,
-            }))))
+            let arr_proto = self
+                .module
+                .borrow()
+                .find_prototype(&"Array".to_string())
+                .unwrap();
+            let array_type: MutRc<Class> = Rc::clone(
+                arr_proto
+                    .build(
+                        vec![elem_type.clone()],
+                        &Token::generic_token(TType::RightBracket),
+                        Rc::clone(&arr_proto),
+                    )?
+                    .as_class(),
+            );
+
+            let dummy_tok = Token::generic_token(TType::Var);
+            let push_method = {
+                let arr = array_type.borrow();
+                Rc::clone(arr.methods.get(&Rc::new("push".to_string())).unwrap())
+            };
+
+            let array = self.generate_class_instantiation(
+                array_type,
+                &[ASTExpr::Literal(
+                    Literal::I64(values_mir.len() as u64),
+                    dummy_tok.clone(),
+                )],
+                &dummy_tok,
+            )?;
+
+            for value in values_mir {
+                self.insert_at_ptr(Expr::call(
+                    Expr::load(&push_method),
+                    vec![array.clone(), value],
+                ))
+            }
+
+            Ok(array)
         } else {
             Ok(Expr::Literal(literal.clone()))
         }

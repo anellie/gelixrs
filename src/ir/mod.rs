@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/23/19 4:55 PM.
+ * Last modified on 12/24/19 5:14 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -33,7 +33,6 @@ use super::{
 use crate::ir::intrinsics::fill_intrinsic_functions;
 use crate::mir::get_iface_impls;
 use crate::mir::nodes::{IFaceMethod, Interface};
-use either::Either::Right;
 
 mod intrinsics;
 
@@ -589,8 +588,6 @@ impl IRGenerator {
                         self.create_tmp_store(string)
                     }
                 }
-
-                Literal::Array(Right(_)) => unimplemented!(),
 
                 _ => panic!("unknown literal"),
             },
