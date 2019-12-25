@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/22/19 8:35 PM.
+ * Last modified on 12/25/19 1:52 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -49,13 +49,10 @@ fn gelix_tests() -> Result<(), ()> {
         .filter(|p| p.file_stem().unwrap() != "benchmark")
     {
         match file.read_dir() {
-            Ok(iter) => iter.for_each(|file| {
-                run_test(
-                    file.expect("Couldn't get file.").path(),
-                    &mut test_total,
-                    &mut test_failed,
-                )
-            }),
+            Ok(iter) => iter
+                .map(|file| file.unwrap().path())
+                .filter(|file| file.extension() != Some("disabled".as_ref()))
+                .for_each(|file| run_test(file, &mut test_total, &mut test_failed)),
             Err(_) => run_test(file, &mut test_total, &mut test_failed),
         }
     }
