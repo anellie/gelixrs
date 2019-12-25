@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/20/19 5:35 PM.
+ * Last modified on 12/25/19 4:59 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -83,29 +83,29 @@ pub struct FuncSignature {
     pub visibility: Visibility,
     pub generics: Option<Vec<Token>>,
     pub return_type: Option<Type>,
-    pub parameters: Vec<FunctionArg>,
+    pub parameters: Vec<FunctionParam>,
     pub variadic: bool,
 }
 
 /// A function argument.
 #[derive(Debug, Clone)]
-pub struct FunctionArg {
+pub struct FunctionParam {
     pub type_: Type,
     pub name: Token,
 }
 
-impl FunctionArg {
-    /// Used to create the implicit 'this' arg in class & iface methods.
-    pub fn this_arg(ty: &Token) -> FunctionArg {
-        FunctionArg {
+impl FunctionParam {
+    /// Used to create the implicit 'this' parameter in class & iface methods.
+    pub fn this_param(ty: &Token) -> FunctionParam {
+        FunctionParam {
             name: Token::generic_identifier("this".to_string()),
             type_: Type::Ident(ty.clone()),
         }
     }
 
     /// See above.
-    pub fn this_arg_(ty: &Type) -> FunctionArg {
-        FunctionArg {
+    pub fn this_param_(ty: &Type) -> FunctionParam {
+        FunctionParam {
             name: Token::generic_identifier("this".to_string()),
             type_: ty.clone(),
         }

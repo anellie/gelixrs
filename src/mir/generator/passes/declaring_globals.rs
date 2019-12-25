@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/17/19 10:42 PM.
+ * Last modified on 12/25/19 4:58 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -9,7 +9,7 @@ use std::rc::Rc;
 use either::Either;
 
 use crate::ast;
-use crate::ast::declaration::{FuncSignature, FunctionArg};
+use crate::ast::declaration::{FuncSignature, FunctionParam};
 use crate::ast::module::ModulePath;
 use crate::ast::Module;
 use crate::error::{Errors, Res};
@@ -61,7 +61,7 @@ pub fn create_function(
     builder: &MIRBuilder,
     func: Either<&FuncSignature, ast::Function>,
     is_external: bool,
-    this_arg: Option<FunctionArg>,
+    this_arg: Option<FunctionParam>,
 ) -> Res<Rc<Variable>> {
     let module = &builder.module;
     let func_sig = match &func {

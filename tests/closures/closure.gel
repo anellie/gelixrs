@@ -2,13 +2,11 @@
 40
 */
 
-this text prevents the test from panicking at IR stage by failing parsing.
-
 func main() {
     print(test())
 }
 
 func test() -> i64 {
-    val fn = func(a: i64, b: i64) -> i64 a * b
+    val fn = (a: i64, b: i64): i64 -> a * b
     fn(5, 8)
 }

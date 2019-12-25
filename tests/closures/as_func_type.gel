@@ -1,0 +1,16 @@
+/*
+5
+2
+15
+*/
+
+func main() {
+    val c = test()
+    print(c(1, 5))
+    print(c(1, 2))
+    print(c(3, 5))
+}
+
+func test() -> (i64, i64): i64 {
+    (a: i64, b: i64): i64 -> a * b
+}

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/22/19 8:15 PM.
+ * Last modified on 12/25/19 4:59 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -9,7 +9,7 @@ use std::rc::Rc;
 
 use either::Either::Left;
 
-use crate::ast::declaration::{Constructor, FuncSignature, FunctionArg, Visibility};
+use crate::ast::declaration::{Constructor, FuncSignature, FunctionParam, Visibility};
 use crate::ast::Type as ASTType;
 use crate::ast::{Class as ASTClass, Expression};
 use crate::error::{Error, Res};
@@ -42,7 +42,7 @@ impl ModulePass for DeclareMethods {
 
 fn declare_for_class(builder: &mut MIRBuilder, class: MutRc<Class>) -> Res<()> {
     let ast = Rc::clone(&class.borrow().ast);
-    let this_arg = FunctionArg::this_arg(&ast.name);
+    let this_arg = FunctionParam::this_param(&ast.name);
 
     // Do the instantiator
     let init_fn_sig = get_instantiator_fn_sig(&ast);
@@ -110,7 +110,7 @@ fn get_constructor_sig(
     builder: &mut MIRBuilder,
     class: &ASTClass,
     constructor: &Constructor,
-    this_arg: &FunctionArg,
+    this_arg: &FunctionParam,
     index: usize,
 ) -> Res<FuncSignature> {
     let name = Token::generic_identifier(format!("{}-constructor-{}", &class.name.lexeme, index));
@@ -130,12 +130,12 @@ fn get_constructor_sig(
                     name,
                     "Cannot infer type of field with default value (specify type explicitly.)",
                 )?;
-            Ok(FunctionArg {
+            Ok(FunctionParam {
                 type_,
                 name: name.clone(),
             })
         })
-        .collect::<Res<Vec<FunctionArg>>>()?;
+        .collect::<Res<Vec<FunctionParam>>>()?;
     parameters.insert(0, this_arg.clone());
     Ok(FuncSignature {
         name,

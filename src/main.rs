@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/23/19 6:30 PM.
+ * Last modified on 12/25/19 5:06 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -19,7 +19,7 @@ struct Opt {
     run: bool,
 
     /// Parse to AST and exit
-    #[structopt(long = "parse-only")]
+    #[structopt(long = "parse")]
     parse: bool,
 
     /// Compile to MIR, print, and exit
@@ -69,7 +69,10 @@ fn run(args: Opt) -> Result<(), &'static str> {
     }
 
     if args.parse {
-        println!("{:#?}", code);
+        let stem = stem_to_rc_str(&args.file);
+        for module in code.iter().filter(|m| m.path.0.first().unwrap() == &stem) {
+            println!("{:#?}\n\n", module);
+        }
         return Ok(());
     }
 

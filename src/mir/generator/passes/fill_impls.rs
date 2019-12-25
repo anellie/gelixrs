@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/24/19 3:14 AM.
+ * Last modified on 12/25/19 4:59 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,7 +11,7 @@ use std::rc::Rc;
 
 use either::Either::Left;
 
-use crate::ast::declaration::{Function, FunctionArg};
+use crate::ast::declaration::{Function, FunctionParam};
 use crate::error::{Error, Res};
 use crate::mir::generator::builder::MIRBuilder;
 use crate::mir::generator::passes::declaring_globals::create_function;
@@ -49,7 +49,7 @@ impl ModulePass for FillIfaceImpls {
 
             let ast = Rc::clone(&iface_impl.ast);
             let iface = Rc::clone(&iface_impl.iface);
-            let this_arg = FunctionArg::this_arg_(&ast.implementor);
+            let this_arg = FunctionParam::this_param_(&ast.implementor);
 
             for method in ast.methods.iter() {
                 let iface = iface.borrow();
