@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/22/19 5:12 PM.
+ * Last modified on 12/27/19 12:41 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -21,6 +21,7 @@ use crate::mir::result::ToMIRResult;
 use crate::mir::{get_iface_impls, MModule, MutRc, IFACE_IMPLS};
 use crate::Error;
 use either::Either::{Left, Right};
+use std::mem;
 
 pub mod builder;
 pub mod gen_expr;
@@ -67,6 +68,9 @@ pub struct MIRGenerator {
     /// Because of this, accesses of members on other objects of the same type
     /// (that ARE initialized) will be considered illegal.
     uninitialized_this_members: HashSet<Rc<ClassMember>>,
+
+    /// Closure-related data, if compiling a closure.
+    closure_data: Option<ClosureData>,
 }
 
 impl MIRGenerator {
@@ -237,6 +241,15 @@ impl MIRGenerator {
         for env in self.environments.iter().rev() {
             if let Some(var) = env.get(&token.lexeme) {
                 return Ok(Rc::clone(var));
+            }
+        }
+
+        if let Some(closure_data) = &mut self.closure_data {
+            for env in closure_data.outer_env.iter().rev() {
+                if let Some(var) = env.get(&token.lexeme) {
+                    closure_data.captured.push(Rc::clone(var));
+                    return Ok(Rc::clone(var));
+                }
             }
         }
 
@@ -493,7 +506,29 @@ impl MIRGenerator {
             environments: Vec::with_capacity(5),
             current_loop: None,
             uninitialized_this_members: HashSet::with_capacity(10),
+            closure_data: None,
         }
+    }
+
+    pub fn for_closure(outer: &mut MIRGenerator) -> Self {
+        MIRGenerator {
+            module: Rc::clone(&outer.module),
+            builder: MIRBuilder::with_context(&outer.module, outer.builder.context.clone()),
+            position: None,
+            environments: vec![HashMap::with_capacity(3)],
+            current_loop: None,
+            uninitialized_this_members: HashSet::new(),
+            closure_data: Some(ClosureData {
+                outer_env: mem::replace(&mut outer.environments, vec![]),
+                captured: Vec::with_capacity(3),
+            }),
+        }
+    }
+
+    pub fn end_closure(self, outer: &mut MIRGenerator) -> ClosureData {
+        let mut closure_data = self.closure_data.unwrap();
+        outer.environments = mem::replace(&mut closure_data.outer_env, vec![]);
+        closure_data
     }
 }
 
@@ -527,3 +562,8 @@ impl ForLoop {
 
 pub type Callable = Either<Rc<Variable>, IFaceFuncIndex>;
 pub type IFaceFuncIndex = usize;
+
+pub struct ClosureData {
+    pub outer_env: Vec<HashMap<Rc<String>, Rc<Variable>>>,
+    pub captured: Vec<Rc<Variable>>,
+}

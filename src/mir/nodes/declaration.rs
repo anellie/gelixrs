@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/26/19 5:02 PM.
+ * Last modified on 12/26/19 8:59 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -286,7 +286,13 @@ impl Function {
 
     pub fn to_closure_type(&self) -> Type {
         Type::Closure(Rc::new(ClosureType {
-            parameters: self.parameters.iter().map(|p| p.type_.clone()).collect(),
+            // Skip the first parameter, which is the parameter for captured variables.
+            parameters: self
+                .parameters
+                .iter()
+                .skip(1)
+                .map(|p| p.type_.clone())
+                .collect(),
             ret_type: self.ret_type.clone(),
         }))
     }

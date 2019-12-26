@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/26/19 5:20 PM.
+ * Last modified on 12/26/19 8:59 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -13,7 +13,6 @@ use crate::ast::Type as ASTType;
 use crate::ast::{Expression as ASTExpr, Literal};
 use crate::error::Res;
 use crate::lexer::token::{TType, Token};
-use crate::mir::generator::builder::MIRBuilder;
 use crate::mir::generator::passes::declaring_globals::{
     create_global, generate_mir_fn, insert_global_and_type,
 };
@@ -616,23 +615,28 @@ impl MIRGenerator {
             body: Some(closure.body.clone()),
         };
 
-        let mut gen = Self::new(MIRBuilder::with_context(
-            &self.module,
-            self.builder.context.clone(),
-        ));
-
-        // TODO: Capturing variables
+        let mut gen = Self::for_closure(self);
         let function = generate_mir_fn(
             &gen.builder,
             Right(ast_func),
             String::clone(&name.lexeme),
-            None,
+            Some(FunctionParam::this_param(&Token::generic_identifier(
+                "i64".to_string(),
+            ))),
         )?;
         let global = create_global(&name.lexeme, false, Type::Function(Rc::clone(&function)));
         insert_global_and_type(&gen.module, &global);
 
-        catch_up_passes(&mut gen, &Type::Function(function))?;
-        Ok(Expr::construct_closure(&global, vec![]))
+        catch_up_passes(&mut gen, &Type::Function(Rc::clone(&function)))?;
+        let closure_data = gen.end_closure(self);
+
+        let captured = Rc::new(closure_data.captured);
+        function.borrow_mut().parameters[0] = Rc::new(Variable {
+            mutable: false,
+            type_: Type::ClosureCaptured(Rc::clone(&captured)),
+            name: Rc::new("CLOSURE-CAPTURED".to_string()),
+        });
+        Ok(Expr::construct_closure(&global, captured))
     }
 
     fn return_(&mut self, val: &Option<Box<ASTExpr>>, err_tok: &Token) -> Res<Expr> {

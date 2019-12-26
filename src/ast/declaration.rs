@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/25/19 4:59 PM.
+ * Last modified on 12/26/19 8:59 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -108,6 +108,13 @@ impl FunctionParam {
         FunctionParam {
             name: Token::generic_identifier("this".to_string()),
             type_: ty.clone(),
+        }
+    }
+
+    pub fn captured_param() -> FunctionParam {
+        FunctionParam {
+            type_: Type::Ident(Token::generic_identifier("CLOSURE-CAPTURED".to_string())),
+            name: Token::generic_identifier("captured-vars".to_string()),
         }
     }
 }

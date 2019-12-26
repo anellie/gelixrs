@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/26/19 5:37 PM.
+ * Last modified on 12/26/19 7:57 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -54,7 +54,7 @@ pub enum Expr {
     ConstructClosure {
         function: MutRc<Function>,
         global: Rc<Variable>,
-        captured: Vec<Rc<Variable>>,
+        captured: Rc<Vec<Rc<Variable>>>,
     },
 
     /// A 'flow' expression, which changes control flow. See [Flow] enum
@@ -103,7 +103,7 @@ impl Expr {
         }
     }
 
-    pub fn construct_closure(global: &Rc<Variable>, captured: Vec<Rc<Variable>>) -> Expr {
+    pub fn construct_closure(global: &Rc<Variable>, captured: Rc<Vec<Rc<Variable>>>) -> Expr {
         Expr::ConstructClosure {
             function: Rc::clone(global.type_.as_function()),
             global: Rc::clone(global),

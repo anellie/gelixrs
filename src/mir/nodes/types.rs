@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/26/19 5:34 PM.
+ * Last modified on 12/26/19 7:56 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -9,7 +9,7 @@ use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
 use crate::mir::generator::builder::Context;
-use crate::mir::nodes::{Class, Function, Interface};
+use crate::mir::nodes::{Class, Function, Interface, Variable};
 use crate::mir::MutRc;
 
 /// All types in Gelix.
@@ -49,6 +49,11 @@ pub enum Type {
     /// another pointer to a struct containing captured data.
     /// Functions can be cast to closures using Expr::ConstructClosure.
     Closure(Rc<ClosureType>),
+
+    /// An ADT holding all the variables captured by a closure.
+    /// Only used as the receiver on closure functions, this anywhere
+    /// else is undefined behavior.
+    ClosureCaptured(Rc<Vec<Rc<Variable>>>),
 
     /// A class. This type is lowered to a pointer of the underlying struct
     /// in IR.

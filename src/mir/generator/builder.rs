@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/26/19 5:02 PM.
+ * Last modified on 12/26/19 7:52 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -99,8 +99,6 @@ impl MIRBuilder {
 
             "f32" => Type::F32,
             "f64" => Type::F64,
-
-            "String" => INTRINSICS.with(|i| i.borrow().string_type.clone().unwrap()),
 
             _ => self.module.borrow().find_type(&tok.lexeme)?,
         })

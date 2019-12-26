@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/26/19 2:47 AM.
+ * Last modified on 12/27/19 12:36 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -711,8 +711,9 @@ impl Parser {
     }
 
     fn grouping_or_closure(&mut self) -> Option<Expression> {
-        if self.check(TType::Identifier)
-            && (self.check_next(TType::Colon) || self.check_next(TType::Comma))
+        if (self.check(TType::Identifier)
+            && (self.check_next(TType::Colon) || self.check_next(TType::Comma)))
+            || self.check(TType::RightParen)
         {
             self.closure()
         } else {

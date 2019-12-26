@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/26/19 5:37 PM.
+ * Last modified on 12/27/19 12:36 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -122,7 +122,9 @@ impl IRGenerator {
 
             Type::Closure(closure) => self.get_closure_type(closure),
 
-            Type::Class(class) => self.build_class(Rc::clone(class)).into(),
+            Type::ClosureCaptured(captured) => self.get_captured_type(captured).into(),
+
+            Type::Class(class) => self.build_class(class).into(),
 
             Type::Interface(iface) => self.build_iface_ptr_struct(Rc::clone(iface)).into(),
 
@@ -133,7 +135,7 @@ impl IRGenerator {
     }
 
     /// Generates a class struct and its body.
-    fn build_class(&mut self, class: MutRc<Class>) -> StructType {
+    fn build_class(&mut self, class: &MutRc<Class>) -> StructType {
         let struc_val = self.context.opaque_struct_type(&class.borrow().name);
         let body: Vec<BasicTypeEnum> = class
             .borrow()
@@ -147,18 +149,28 @@ impl IRGenerator {
 
     fn get_closure_type(&mut self, closure: &ClosureType) -> BasicTypeEnum {
         let func_ty = self
-            .fn_type_from_raw(closure.parameters.iter(), &closure.ret_type, false)
+            .fn_type_from_raw(
+                Some(Type::I64).iter().chain(closure.parameters.iter()),
+                &closure.ret_type,
+                false,
+            )
             .ptr_type(AddressSpace::Generic)
             .into();
-        let captured_ty = self
-            .context
-            .i64_type()
-            .ptr_type(AddressSpace::Generic)
-            .into();
+        let captured_ty = self.context.i64_type().into();
 
         let ty = self.context.opaque_struct_type("closure");
         ty.set_body(&[func_ty, captured_ty], false);
         ty.into()
+    }
+
+    fn get_captured_type(&mut self, captured: &[Rc<Variable>]) -> StructType {
+        let struc_val = self.context.opaque_struct_type("closure-captured");
+        let body: Vec<BasicTypeEnum> = captured
+            .iter()
+            .map(|var| self.to_ir_type_no_ptr(&var.type_))
+            .collect();
+        struc_val.set_body(body.as_slice(), false);
+        struc_val
     }
 
     /// Generates the LLVM FunctionType of a MIR function.
@@ -289,9 +301,22 @@ impl IRGenerator {
 
     fn build_parameter_alloca(&mut self, func: &RefMut<Function>, func_val: FunctionValue) {
         for (arg, arg_val) in func.parameters.iter().zip(func_val.get_param_iter()) {
-            // If the type of the function parameter is a pointer (aka a struct or function),
-            // creating an alloca isn't needed; the pointer can be used directly.
-            if let BasicValueEnum::PointerValue(ptr) = arg_val {
+            if let Type::ClosureCaptured(captured) = &arg.type_ {
+                // If this is the first arg on a closure containing all captured variables,
+                // 'unpack' them and create separate entries for each in self.variables
+                // so they can be used like regular variables.
+                let arg_val = *arg_val.as_pointer_value();
+                for (i, var) in captured.iter().enumerate() {
+                    unsafe {
+                        let field =
+                            self.builder
+                                .build_struct_gep(arg_val, i as u32, "capture-unwrap");
+                        self.variables.insert(PtrEqRc::new(var), field);
+                    }
+                }
+            } else if let BasicValueEnum::PointerValue(ptr) = arg_val {
+                // If the type of the function parameter is a pointer (aka a struct or function),
+                // creating an alloca isn't needed; the pointer can be used directly.
                 self.variables.insert(PtrEqRc::new(arg), ptr);
             } else {
                 let alloca = self.builder.build_alloca(arg_val.get_type(), &arg.name);
@@ -326,6 +351,7 @@ impl IRGenerator {
 
     fn get_variable(&self, var: &Rc<Variable>) -> PointerValue {
         let wrap = PtrEqRc::new(var);
+
         self.variables
             .get(&wrap)
             .cloned()
@@ -398,17 +424,26 @@ impl IRGenerator {
                                     "closureload",
                                 )
                                 .into_pointer_value(),
-                            None,
+                            Some(
+                                self.builder
+                                    .build_load(
+                                        self.builder.build_struct_gep(ptr, 1, "captgep"),
+                                        "captload",
+                                    )
+                                    .into(),
+                            ),
                         )
                     },
                     _ => panic!("Invalid callee"),
                 };
 
-                let arguments: Vec<BasicValueEnum> = first_arg
+                let mut arguments: Vec<BasicValueEnum> = arguments
                     .iter()
-                    .chain(arguments.iter())
                     .map(|arg| self.generate_expression(arg))
                     .collect();
+                if let Some(arg) = first_arg {
+                    arguments.insert(0, arg);
+                }
 
                 let ret = self
                     .builder
@@ -478,18 +513,39 @@ impl IRGenerator {
             }
 
             Expr::ConstructClosure {
-                function, global, ..
+                function,
+                global,
+                captured,
             } => {
                 let func_ptr = self.get_variable(global);
+                let func_ty: FunctionType =
+                    *func_ptr.get_type().get_element_type().as_function_type();
+                let mut params = func_ty.get_param_types();
+                params[0] = self.context.i64_type().into();
+                let func_ty = func_ty.get_return_type().unwrap().fn_type(&params, false);
+                let func_ptr = self.builder.build_bitcast(
+                    func_ptr,
+                    func_ty.ptr_type(AddressSpace::Generic),
+                    "ccast",
+                );
 
                 let ty = self.to_ir_type_no_ptr(&function.borrow().to_closure_type());
                 let ptr = self.create_alloca(ty.into());
                 unsafe {
                     let func_slot = self.builder.build_struct_gep(ptr, 0, "funcgep");
                     self.builder.build_store(func_slot, func_ptr);
-                    // TODO: Capturing variables
-                    // let captured_slot = self.builder.build_struct_gep(ptr, 1, "captgep");
-                    // self.builder.build_store(vtableptr, vtable);
+                }
+
+                let captured_ty = self.get_captured_type(captured);
+                let captured_vals = self.create_captured_values(captured_ty, captured);
+                let captured_vals = self.builder.build_ptr_to_int(
+                    captured_vals,
+                    self.context.i64_type(),
+                    "captcast",
+                );
+                unsafe {
+                    let captured_slot = self.builder.build_struct_gep(ptr, 1, "captgep");
+                    self.builder.build_store(captured_slot, captured_vals);
                 }
                 ptr.into()
             }
@@ -719,6 +775,20 @@ impl IRGenerator {
             self.builder.build_store(vtableptr, vtable);
         }
         ptr
+    }
+
+    fn create_captured_values(
+        &mut self,
+        ty: StructType,
+        captured: &[Rc<Variable>],
+    ) -> PointerValue {
+        let value = self.builder.build_malloc(ty, "captmalloc");
+        for (i, var) in captured.iter().enumerate() {
+            let ptr = unsafe { self.builder.build_struct_gep(value, i as u32, "captgep") };
+            let value = self.load_ptr(self.get_variable(var));
+            self.builder.build_store(ptr, self.unwrap_value_ptr(value));
+        }
+        value
     }
 
     /// Creates a new stack allocation instruction in the entry block of the function.
