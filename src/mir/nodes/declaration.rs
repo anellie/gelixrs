@@ -14,7 +14,7 @@ use indexmap::IndexMap;
 use crate::ast;
 use crate::mir::generator::builder::Context;
 use crate::mir::nodes::{Expr, Prototype, Type};
-use crate::mir::{MModule, MutRc, mutrc_new};
+use crate::mir::{mutrc_new, MModule, MutRc};
 
 /// A full class including all members and methods.
 /// Members are ordered, as the class is represented as a struct in IR;
@@ -121,7 +121,11 @@ pub struct Interface {
 }
 
 impl Interface {
-    pub fn from_ast(ast: ast::Interface, proto: Option<Rc<Prototype>>, context: Context) -> MutRc<Interface> {
+    pub fn from_ast(
+        ast: ast::Interface,
+        proto: Option<Rc<Prototype>>,
+        context: Context,
+    ) -> MutRc<Interface> {
         mutrc_new(Interface {
             name: Rc::clone(&ast.name.lexeme),
             methods: IndexMap::with_capacity(ast.methods.len()),

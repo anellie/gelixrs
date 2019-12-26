@@ -6,17 +6,22 @@
 
 use std::rc::Rc;
 
-use crate::ast::declaration::Variable as ASTVar;
+use crate::ast;
+use crate::ast::declaration::{FuncSignature, FunctionParam, Variable as ASTVar, Visibility};
+use crate::ast::literal::Closure;
 use crate::ast::Type as ASTType;
 use crate::ast::{Expression as ASTExpr, Literal};
 use crate::error::Res;
 use crate::lexer::token::{TType, Token};
+use crate::mir::generator::builder::MIRBuilder;
+use crate::mir::generator::passes::declaring_globals::{
+    create_global, generate_mir_fn, insert_global_and_type,
+};
 use crate::mir::generator::{ForLoop, MIRGenerator};
-use crate::mir::nodes::{Class, Expr, Flow, Type, Variable};
+use crate::mir::nodes::{catch_up_passes, Class, Expr, Flow, Type, Variable};
 use crate::mir::result::ToMIRResult;
 use crate::mir::MutRc;
 use either::Either::{Left, Right};
-use crate::ast::literal::Closure;
 
 /// This impl contains all code of the generator that directly
 /// produces expressions.
@@ -581,7 +586,44 @@ impl MIRGenerator {
     }
 
     fn closure(&mut self, closure: &Closure, token: &Token) -> Res<Expr> {
-        unimplemented!();
+        let mut name = token.clone();
+        name.lexeme = Rc::new(format!("closure-{}:{}", token.line, token.index));
+        let ast_func = ast::Function {
+            sig: FuncSignature {
+                name: name.clone(),
+                visibility: Visibility::Public,
+                generics: None,
+                return_type: closure.ret_ty.clone(),
+                parameters: closure
+                    .parameters
+                    .iter()
+                    .map(|p| FunctionParam {
+                        type_: p.type_.as_ref().unwrap().clone(),
+                        name: p.name.clone(),
+                    })
+                    .collect(),
+                variadic: false,
+            },
+            body: Some(closure.body.clone()),
+        };
+
+        let mut gen = Self::new(MIRBuilder::with_context(
+            &self.module,
+            self.builder.context.clone(),
+        ));
+
+        // TODO: Capturing variables
+        let function = generate_mir_fn(
+            &gen.builder,
+            Right(ast_func),
+            String::clone(&name.lexeme),
+            None,
+        )?;
+        let global = create_global(&name.lexeme, false, Type::Function(Rc::clone(&function)));
+        insert_global_and_type(&gen.module, &global);
+
+        catch_up_passes(&mut gen, &Type::Function(function))?;
+        Ok(Expr::load(&global))
     }
 
     fn return_(&mut self, val: &Option<Box<ASTExpr>>, err_tok: &Token) -> Res<Expr> {

@@ -166,11 +166,7 @@ fn maybe_set_main_fn(path: &Rc<ModulePath>, global: &Rc<Variable>, err_tok: Toke
     if &global.name[..] == "main" {
         INTRINSICS
             .with(|i| i.borrow_mut().set_main_fn(global))
-            .or_err(
-                path,
-                &err_tok,
-                "Can't define main multiple times.",
-            )?;
+            .or_err(path, &err_tok, "Can't define main multiple times.")?;
     }
     Ok(())
 }

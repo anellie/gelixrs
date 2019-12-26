@@ -8,8 +8,6 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use indexmap::IndexMap;
-
 use crate::ast::Function as ASTFunc;
 use crate::ast::IFaceImpl as ASTImpl;
 use crate::ast::Interface as ASTIFace;
@@ -19,11 +17,13 @@ use crate::error::{Error, Res};
 use crate::lexer::token::Token;
 use crate::mir::generator::builder::{Context, MIRBuilder};
 use crate::mir::generator::module::DONE_PASSES;
-use crate::mir::generator::passes::declaring_globals::{get_function_name, generate_mir_fn, create_global, insert_global_and_type};
+use crate::mir::generator::passes::declaring_globals::{
+    create_global, generate_mir_fn, get_function_name, insert_global_and_type,
+};
 use crate::mir::generator::passes::declaring_iface_impls::declare_impl;
 use crate::mir::generator::MIRGenerator;
 use crate::mir::nodes::{Class, Interface, Type};
-use crate::mir::{mutrc_new, MModule, MutRc};
+use crate::mir::{MModule, MutRc};
 use either::Either::Right;
 
 /// A prototype that classes can be instantiated from.
@@ -139,7 +139,10 @@ impl ProtoAST {
                 let mut ast = (**ast).clone();
                 ast.sig.name.lexeme = Rc::clone(&name);
 
-                let builder = MIRBuilder::with_context(&self_ref.module, get_context(ast.sig.generics.as_ref().unwrap(), arguments));
+                let builder = MIRBuilder::with_context(
+                    &self_ref.module,
+                    get_context(ast.sig.generics.as_ref().unwrap(), arguments),
+                );
                 let mir_fn = generate_mir_fn(&builder, Right(ast), String::clone(name), None)?;
                 let global = create_global(name, false, Type::Function(Rc::clone(&mir_fn)));
                 insert_global_and_type(&builder.module, &global);
@@ -208,7 +211,7 @@ fn attach_impls(
     Ok(())
 }
 
-fn catch_up_passes(gen: &mut MIRGenerator, ty: &Type) -> Res<()> {
+pub fn catch_up_passes(gen: &mut MIRGenerator, ty: &Type) -> Res<()> {
     let module = Rc::clone(&gen.module);
     let len = DONE_PASSES.with(|d| d.borrow().len());
     for i in 0..len {

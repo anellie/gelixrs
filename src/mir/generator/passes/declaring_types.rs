@@ -4,17 +4,14 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::collections::HashMap;
 use std::rc::Rc;
-
-use indexmap::IndexMap;
 
 use crate::ast::Module;
 use crate::error::Errors;
 use crate::mir::generator::builder::Context;
 use crate::mir::generator::passes::PreMIRPass;
 use crate::mir::nodes::{Class, Interface, Type};
-use crate::mir::{mutrc_new, MModule, MutRc};
+use crate::mir::{MModule, MutRc};
 
 /// This pass defines all types inside the module; currently classes and interfaces.
 /// It only creates a stub MIR definition and inserts it as a type;
@@ -38,9 +35,10 @@ impl PreMIRPass for DeclareTypes {
                 .map_err(|e| errs.push(e))
                 .ok();
 
-            module
-                .types
-                .insert(Rc::clone(&name.lexeme), Type::Class(Class::from_ast(class, Context::default())));
+            module.types.insert(
+                Rc::clone(&name.lexeme),
+                Type::Class(Class::from_ast(class, Context::default())),
+            );
         }
 
         for iface in ast.interfaces.drain(..) {
@@ -50,9 +48,10 @@ impl PreMIRPass for DeclareTypes {
                 .map_err(|e| errs.push(e))
                 .ok();
 
-            module
-                .types
-                .insert(Rc::clone(&name.lexeme), Type::Interface(Interface::from_ast(iface, None, Context::default())));
+            module.types.insert(
+                Rc::clone(&name.lexeme),
+                Type::Interface(Interface::from_ast(iface, None, Context::default())),
+            );
         }
 
         if errs.is_empty() {
