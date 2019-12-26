@@ -6,7 +6,7 @@ func main() {
 
 func test() -> i64 {
     for (i from 0 to 12) {
-        let fn = (a: i64, b: i64): i64 -> {
+        var fn = (a: i64, b: i64): i64 -> {
             break 4
             52
         }

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/26/19 3:29 AM.
+ * Last modified on 12/26/19 5:02 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -13,7 +13,7 @@ use indexmap::IndexMap;
 
 use crate::ast;
 use crate::mir::generator::builder::Context;
-use crate::mir::nodes::{Expr, Prototype, Type};
+use crate::mir::nodes::{ClosureType, Expr, Prototype, Type};
 use crate::mir::{mutrc_new, MModule, MutRc};
 
 /// A full class including all members and methods.
@@ -282,6 +282,13 @@ impl Function {
         }
         self.variables.insert(Rc::clone(&name), var);
         name
+    }
+
+    pub fn to_closure_type(&self) -> Type {
+        Type::Closure(Rc::new(ClosureType {
+            parameters: self.parameters.iter().map(|p| p.type_.clone()).collect(),
+            ret_type: self.ret_type.clone(),
+        }))
     }
 
     fn display(&self, f: &mut Formatter, space: &'static str) -> Result<(), Error> {

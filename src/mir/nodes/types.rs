@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/22/19 9:01 PM.
+ * Last modified on 12/26/19 5:34 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -44,6 +44,11 @@ pub enum Type {
     /// but simply the function directly. Because of this, calling this
     /// a type is kinda questionable, as it is also a value...
     Function(MutRc<Function>),
+
+    /// A closure. Essentially a function pointer together with
+    /// another pointer to a struct containing captured data.
+    /// Functions can be cast to closures using Expr::ConstructClosure.
+    Closure(Rc<ClosureType>),
 
     /// A class. This type is lowered to a pointer of the underlying struct
     /// in IR.
@@ -133,6 +138,14 @@ impl PartialEq for Type {
                 }
             }
 
+            Type::Closure(c) => {
+                if let Type::Closure(o) = o {
+                    c.parameters == o.parameters && c.ret_type == o.ret_type
+                } else {
+                    false
+                }
+            }
+
             Type::Class(c) => {
                 if let Type::Class(o) = o {
                     Rc::ptr_eq(c, o)
@@ -173,10 +186,31 @@ impl Hash for Type {
 impl Display for Type {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         match self {
-            Type::Function(func) => write!(f, "<func {}>", func.borrow().name),
+            Type::Function(func) => write!(f, "{}", func.borrow().to_closure_type()),
+            Type::Closure(closure) => write!(f, "{}", closure),
             Type::Class(class) => write!(f, "{}", class.borrow().name),
             Type::Interface(iface) => write!(f, "{}", iface.borrow().name),
             _ => write!(f, "{:?}", self),
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct ClosureType {
+    pub parameters: Vec<Type>,
+    pub ret_type: Type,
+}
+
+impl Display for ClosureType {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+        write!(f, "(")?;
+        if !self.parameters.is_empty() {
+            let mut p_iter = self.parameters.iter();
+            write!(f, "{}", p_iter.next().unwrap())?;
+            for ty in p_iter {
+                write!(f, ", {}", ty)?;
+            }
+        }
+        write!(f, "): {}", self.ret_type)
     }
 }

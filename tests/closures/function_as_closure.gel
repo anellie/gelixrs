@@ -1,0 +1,15 @@
+/*
+40
+*/
+
+func main() {
+    print(test())
+}
+
+func test() -> (i64, i64): i64 {
+    closure
+}
+
+func closure(a: i64, b: i64) -> i64 {
+    a * b
+}

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/26/19 3:18 AM.
+ * Last modified on 12/26/19 5:20 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -181,7 +181,7 @@ impl MIRGenerator {
             return Ok(expr);
         }
 
-        // method above fell through, its either a function call or invalid
+        // method above fell through, its either a function/closure call or invalid
         let callee_mir = self.expression(callee)?;
         if let Type::Function(func) = callee_mir.get_type() {
             let args = self.generate_func_args(
@@ -193,6 +193,15 @@ impl MIRGenerator {
                     .as_ref()
                     .map(|a| a.sig.variadic)
                     .unwrap_or(false),
+                callee.get_token(),
+            )?;
+            Ok(Expr::call(callee_mir, args))
+        } else if let Type::Closure(closure) = callee_mir.get_type() {
+            let args = self.generate_func_args(
+                closure.parameters.iter(),
+                arguments,
+                None,
+                false,
                 callee.get_token(),
             )?;
             Ok(Expr::call(callee_mir, args))
@@ -623,7 +632,7 @@ impl MIRGenerator {
         insert_global_and_type(&gen.module, &global);
 
         catch_up_passes(&mut gen, &Type::Function(function))?;
-        Ok(Expr::load(&global))
+        Ok(Expr::construct_closure(&global, vec![]))
     }
 
     fn return_(&mut self, val: &Option<Box<ASTExpr>>, err_tok: &Token) -> Res<Expr> {

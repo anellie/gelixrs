@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/26/19 2:47 AM.
+ * Last modified on 12/26/19 5:02 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -13,6 +13,7 @@ use crate::ast::Type as ASTType;
 use crate::error::Res;
 use crate::lexer::token::Token;
 use crate::mir::generator::intrinsics::INTRINSICS;
+use crate::mir::nodes::ClosureType;
 use crate::mir::result::ToMIRResult;
 use crate::mir::{MModule, MutRc};
 
@@ -52,7 +53,22 @@ impl MIRBuilder {
                 INTRINSICS.with(|i| i.borrow().get_array_type(self.find_type(inner)?, Some(tok)))
             }
 
-            ASTType::Closure { .. } => unimplemented!(),
+            ASTType::Closure {
+                params, ret_type, ..
+            } => {
+                let parameters = params
+                    .iter()
+                    .map(|p| self.find_type(p))
+                    .collect::<Res<Vec<_>>>()?;
+                let ret_type = ret_type
+                    .as_ref()
+                    .map(|t| self.find_type(t))
+                    .unwrap_or(Ok(Type::None))?;
+                Ok(Type::Closure(Rc::new(ClosureType {
+                    parameters,
+                    ret_type,
+                })))
+            }
 
             ASTType::Generic { token, types } => {
                 let proto = self

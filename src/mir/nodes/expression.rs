@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/22/19 12:52 AM.
+ * Last modified on 12/26/19 5:37 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,7 +12,7 @@ use crate::ast::expression::LOGICAL_BINARY;
 use crate::ast::Literal;
 use crate::lexer::token::TType;
 use crate::mir::generator::intrinsics::INTRINSICS;
-use crate::mir::nodes::{ClassMember, Interface, Type, Variable};
+use crate::mir::nodes::{ClassMember, Function, Interface, Type, Variable};
 use crate::mir::MutRc;
 use either::Either::Right;
 
@@ -28,6 +28,7 @@ pub enum Expr {
     },
 
     /// A static function call.
+    /// callee can be both a function or a closure.
     Call {
         callee: Box<Expr>,
         arguments: Vec<Expr>,
@@ -46,6 +47,15 @@ pub enum Expr {
     /// A cast, where a value is turned into a different type;
     /// casting to an interface implemented by the original type for example
     CastToInterface { object: Box<Expr>, to: Type },
+
+    /// Construct a closure from the given function along with the captured
+    /// variables. The function must have an additional first parameter
+    /// for all captured variables; similarly to the 'this' param on methods.
+    ConstructClosure {
+        function: MutRc<Function>,
+        global: Rc<Variable>,
+        captured: Vec<Rc<Variable>>,
+    },
 
     /// A 'flow' expression, which changes control flow. See [Flow] enum
     Flow(Box<Flow>),
@@ -90,6 +100,14 @@ impl Expr {
         Expr::CastToInterface {
             object: Box::new(obj),
             to: ty.clone(),
+        }
+    }
+
+    pub fn construct_closure(global: &Rc<Variable>, captured: Vec<Rc<Variable>>) -> Expr {
+        Expr::ConstructClosure {
+            function: Rc::clone(global.type_.as_function()),
+            global: Rc::clone(global),
+            captured,
         }
     }
 
@@ -201,7 +219,11 @@ impl Expr {
                 }
             }
 
-            Expr::Call { callee, .. } => callee.get_type().as_function().borrow().ret_type.clone(),
+            Expr::Call { callee, .. } => match callee.get_type() {
+                Type::Function(func) => func.borrow().ret_type.clone(),
+                Type::Closure(closure) => closure.ret_type.clone(),
+                _ => panic!("Invalid callee"),
+            },
 
             Expr::CallDyn { callee, index, .. } => callee
                 .borrow()
@@ -213,6 +235,8 @@ impl Expr {
                 .clone(),
 
             Expr::CastToInterface { to, .. } => to.clone(),
+
+            Expr::ConstructClosure { function, .. } => function.borrow().to_closure_type(),
 
             Expr::Flow(_) => Type::None,
 
@@ -306,6 +330,16 @@ impl Display for Expr {
             }
 
             Expr::CastToInterface { object, to } => write!(f, "cast {} to {}", object, to),
+
+            Expr::ConstructClosure {
+                global, captured, ..
+            } => {
+                write!(f, "closure fn({}) capture", global.name)?;
+                for capture in captured.iter() {
+                    write!(f, " {}", capture.name)?;
+                }
+                Ok(())
+            }
 
             Expr::Flow(flow) => write!(f, "{}", flow),
 

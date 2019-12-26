@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/24/19 5:14 PM.
+ * Last modified on 12/26/19 5:37 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -32,7 +32,7 @@ use super::{
 };
 use crate::ir::intrinsics::fill_intrinsic_functions;
 use crate::mir::get_iface_impls;
-use crate::mir::nodes::{IFaceMethod, Interface};
+use crate::mir::nodes::{ClosureType, IFaceMethod, Interface};
 
 mod intrinsics;
 
@@ -120,6 +120,8 @@ impl IRGenerator {
                 .ptr_type(AddressSpace::Generic)
                 .into(),
 
+            Type::Closure(closure) => self.get_closure_type(closure),
+
             Type::Class(class) => self.build_class(Rc::clone(class)).into(),
 
             Type::Interface(iface) => self.build_iface_ptr_struct(Rc::clone(iface)).into(),
@@ -141,6 +143,47 @@ impl IRGenerator {
             .collect();
         struc_val.set_body(body.as_slice(), false);
         struc_val
+    }
+
+    fn get_closure_type(&mut self, closure: &ClosureType) -> BasicTypeEnum {
+        let func_ty = self
+            .fn_type_from_raw(closure.parameters.iter(), &closure.ret_type, false)
+            .ptr_type(AddressSpace::Generic)
+            .into();
+        let captured_ty = self
+            .context
+            .i64_type()
+            .ptr_type(AddressSpace::Generic)
+            .into();
+
+        let ty = self.context.opaque_struct_type("closure");
+        ty.set_body(&[func_ty, captured_ty], false);
+        ty.into()
+    }
+
+    /// Generates the LLVM FunctionType of a MIR function.
+    fn get_fn_type(&mut self, func: &Ref<Function>) -> FunctionType {
+        let params = func.parameters.iter().map(|param| &param.type_);
+        let variadic = func.ast.as_ref().map(|a| a.sig.variadic).unwrap_or(false);
+        self.fn_type_from_raw(params, &func.ret_type, variadic)
+    }
+
+    fn fn_type_from_raw<'a, T: Iterator<Item = &'a Type>>(
+        &mut self,
+        params: T,
+        ret_type: &Type,
+        variadic: bool,
+    ) -> FunctionType {
+        let params: Vec<BasicTypeEnum> = params.map(|param| self.to_ir_type(param)).collect();
+
+        if ret_type == &Type::None {
+            self.context
+                .void_type()
+                .fn_type(params.as_slice(), variadic)
+        } else {
+            let ret_type = self.to_ir_type_no_ptr(ret_type);
+            ret_type.fn_type(params.as_slice(), variadic)
+        }
     }
 
     fn build_iface_ptr_struct(&mut self, iface: MutRc<Interface>) -> StructType {
@@ -343,8 +386,27 @@ impl IRGenerator {
             Expr::Call { callee, arguments } => {
                 let callee = self.generate_expression(callee);
                 let ptr = callee.into_pointer_value();
-                let arguments: Vec<BasicValueEnum> = arguments
+                let (ptr, first_arg) = match ptr.get_type().get_element_type() {
+                    // Regular function call
+                    AnyTypeEnum::FunctionType(_) => (ptr, None),
+                    // Closure call with captured as first arg
+                    AnyTypeEnum::StructType(_) => unsafe {
+                        (
+                            self.builder
+                                .build_load(
+                                    self.builder.build_struct_gep(ptr, 0, "closuregep"),
+                                    "closureload",
+                                )
+                                .into_pointer_value(),
+                            None,
+                        )
+                    },
+                    _ => panic!("Invalid callee"),
+                };
+
+                let arguments: Vec<BasicValueEnum> = first_arg
                     .iter()
+                    .chain(arguments.iter())
                     .map(|arg| self.generate_expression(arg))
                     .collect();
 
@@ -413,6 +475,23 @@ impl IRGenerator {
                 let vtable = self.get_vtable(implementor, to, vtable_ty);
                 self.create_tmp_iface_struct(iface_struct_ty, obj, vtable)
                     .into()
+            }
+
+            Expr::ConstructClosure {
+                function, global, ..
+            } => {
+                let func_ptr = self.get_variable(global);
+
+                let ty = self.to_ir_type_no_ptr(&function.borrow().to_closure_type());
+                let ptr = self.create_alloca(ty.into());
+                unsafe {
+                    let func_slot = self.builder.build_struct_gep(ptr, 0, "funcgep");
+                    self.builder.build_store(func_slot, func_ptr);
+                    // TODO: Capturing variables
+                    // let captured_slot = self.builder.build_struct_gep(ptr, 1, "captgep");
+                    // self.builder.build_store(vtableptr, vtable);
+                }
+                ptr.into()
             }
 
             Expr::Flow(flow) => {
@@ -625,7 +704,6 @@ impl IRGenerator {
         }
     }
 
-    /// Creates a new stack allocation instruction in the entry block of the function.
     fn create_tmp_iface_struct(
         &self,
         ty: StructType,
@@ -643,6 +721,7 @@ impl IRGenerator {
         ptr
     }
 
+    /// Creates a new stack allocation instruction in the entry block of the function.
     fn create_alloca(&self, ty: BasicTypeEnum) -> PointerValue {
         let builder = self.context.create_builder();
         let entry = self
@@ -769,25 +848,6 @@ impl IRGenerator {
             .get(mir)
             .copied()
             .unwrap_or_else(|| self.build_type(mir))
-    }
-
-    /// Generates the LLVM FunctionType of a MIR function.
-    fn get_fn_type(&mut self, func: &Ref<Function>) -> FunctionType {
-        let params: Vec<BasicTypeEnum> = func
-            .parameters
-            .iter()
-            .map(|param| self.to_ir_type(&param.type_))
-            .collect();
-        let variadic = func.ast.as_ref().map(|a| a.sig.variadic).unwrap_or(false);
-
-        if func.ret_type == Type::None {
-            self.context
-                .void_type()
-                .fn_type(params.as_slice(), variadic)
-        } else {
-            let ret_type = self.to_ir_type_no_ptr(&func.ret_type);
-            ret_type.fn_type(params.as_slice(), variadic)
-        }
     }
 
     pub fn new() -> IRGenerator {
