@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/17/19 10:42 PM.
+ * Last modified on 12/26/19 3:29 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -38,19 +38,9 @@ impl PreMIRPass for DeclareTypes {
                 .map_err(|e| errs.push(e))
                 .ok();
 
-            let mir_class_rc = mutrc_new(Class {
-                name: Rc::clone(&name.lexeme),
-                members: IndexMap::with_capacity(class.variables.len()),
-                methods: HashMap::with_capacity(class.methods.len()),
-                instantiator: Rc::new(Default::default()),
-                constructors: Vec::with_capacity(class.constructors.len()),
-                context: Context::default(),
-                ast: Rc::new(class),
-            });
-
             module
                 .types
-                .insert(Rc::clone(&name.lexeme), Type::Class(mir_class_rc));
+                .insert(Rc::clone(&name.lexeme), Type::Class(Class::from_ast(class, Context::default())));
         }
 
         for iface in ast.interfaces.drain(..) {
@@ -60,17 +50,9 @@ impl PreMIRPass for DeclareTypes {
                 .map_err(|e| errs.push(e))
                 .ok();
 
-            let mir_iface_rc = mutrc_new(Interface {
-                name: Rc::clone(&name.lexeme),
-                methods: IndexMap::with_capacity(iface.methods.len()),
-                proto: None,
-                context: Context::default(),
-                ast: Rc::new(iface),
-            });
-
             module
                 .types
-                .insert(Rc::clone(&name.lexeme), Type::Interface(mir_iface_rc));
+                .insert(Rc::clone(&name.lexeme), Type::Interface(Interface::from_ast(iface, None, Context::default())));
         }
 
         if errs.is_empty() {

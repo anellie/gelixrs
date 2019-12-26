@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/25/19 5:10 PM.
+ * Last modified on 12/26/19 2:47 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -27,7 +27,7 @@ use super::super::{
     lexer::token::{TType, Token},
 };
 use super::Parser;
-use crate::ast::literal::{ClosureParameter, Closure};
+use crate::ast::literal::{Closure, ClosureParameter};
 
 // All expressions that require no semicolon when used as a higher expression.
 static NO_SEMICOLON: [TType; 3] = [TType::If, TType::LeftBrace, TType::When];
@@ -711,7 +711,9 @@ impl Parser {
     }
 
     fn grouping_or_closure(&mut self) -> Option<Expression> {
-        if self.check(TType::Identifier) && (self.check_next(TType::Colon) || self.check_next(TType::Comma)) {
+        if self.check(TType::Identifier)
+            && (self.check_next(TType::Colon) || self.check_next(TType::Comma))
+        {
             self.closure()
         } else {
             self.grouping()
@@ -753,7 +755,7 @@ impl Parser {
             Literal::Closure(Box::new(Closure {
                 parameters,
                 ret_ty,
-                body
+                body,
             })),
             tok,
         ))

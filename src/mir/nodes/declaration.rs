@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/22/19 9:15 PM.
+ * Last modified on 12/26/19 3:29 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -14,7 +14,7 @@ use indexmap::IndexMap;
 use crate::ast;
 use crate::mir::generator::builder::Context;
 use crate::mir::nodes::{Expr, Prototype, Type};
-use crate::mir::{MModule, MutRc};
+use crate::mir::{MModule, MutRc, mutrc_new};
 
 /// A full class including all members and methods.
 /// Members are ordered, as the class is represented as a struct in IR;
@@ -40,6 +40,20 @@ pub struct Class {
     pub context: Context,
     /// The AST this was compiled from.
     pub ast: Rc<ast::Class>,
+}
+
+impl Class {
+    pub fn from_ast(ast: ast::Class, context: Context) -> MutRc<Class> {
+        mutrc_new(Class {
+            name: Rc::clone(&ast.name.lexeme),
+            members: IndexMap::with_capacity(ast.variables.len()),
+            methods: HashMap::with_capacity(ast.methods.len()),
+            instantiator: Rc::new(Default::default()),
+            constructors: Vec::with_capacity(ast.constructors.len()),
+            context,
+            ast: Rc::new(ast),
+        })
+    }
 }
 
 impl PartialEq for Class {
@@ -104,6 +118,18 @@ pub struct Interface {
     pub context: Context,
     /// The AST this was compiled from.
     pub ast: Rc<ast::Interface>,
+}
+
+impl Interface {
+    pub fn from_ast(ast: ast::Interface, proto: Option<Rc<Prototype>>, context: Context) -> MutRc<Interface> {
+        mutrc_new(Interface {
+            name: Rc::clone(&ast.name.lexeme),
+            methods: IndexMap::with_capacity(ast.methods.len()),
+            proto,
+            context,
+            ast: Rc::new(ast),
+        })
+    }
 }
 
 impl Hash for Interface {

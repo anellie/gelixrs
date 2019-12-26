@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/24/19 5:05 PM.
+ * Last modified on 12/26/19 3:31 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -19,11 +19,12 @@ use crate::error::{Error, Res};
 use crate::lexer::token::Token;
 use crate::mir::generator::builder::{Context, MIRBuilder};
 use crate::mir::generator::module::DONE_PASSES;
-use crate::mir::generator::passes::declaring_globals::get_function_name;
+use crate::mir::generator::passes::declaring_globals::{get_function_name, generate_mir_fn, create_global, insert_global_and_type};
 use crate::mir::generator::passes::declaring_iface_impls::declare_impl;
 use crate::mir::generator::MIRGenerator;
-use crate::mir::nodes::{Class, Function, Interface, Type, Variable};
+use crate::mir::nodes::{Class, Interface, Type};
 use crate::mir::{mutrc_new, MModule, MutRc};
+use either::Either::Right;
 
 /// A prototype that classes can be instantiated from.
 /// This prototype is kept in AST form,
@@ -119,28 +120,18 @@ impl ProtoAST {
             ProtoAST::Class(ast) => {
                 let mut ast = (**ast).clone();
                 ast.name.lexeme = Rc::clone(&name);
-                let class = mutrc_new(Class {
-                    name: Rc::clone(&name),
-                    members: IndexMap::with_capacity(ast.variables.len()),
-                    methods: HashMap::with_capacity(ast.methods.len()),
-                    instantiator: Default::default(),
-                    constructors: Vec::with_capacity(ast.constructors.len()),
-                    context: get_context(ast.generics.as_ref().unwrap(), arguments),
-                    ast: Rc::new(ast),
-                });
+
+                let context = get_context(ast.generics.as_ref().unwrap(), arguments);
+                let class = Class::from_ast(ast, context);
                 Type::Class(class)
             }
 
             ProtoAST::Interface(ast) => {
                 let mut ast = (**ast).clone();
                 ast.name.lexeme = Rc::clone(&name);
-                let iface = mutrc_new(Interface {
-                    name: Rc::clone(&name),
-                    methods: IndexMap::with_capacity(ast.methods.len()),
-                    proto: Some(self_ref),
-                    context: get_context(ast.generics.as_ref().unwrap(), arguments),
-                    ast: Rc::new(ast),
-                });
+
+                let context = get_context(ast.generics.as_ref().unwrap(), arguments);
+                let iface = Interface::from_ast(ast, Some(self_ref), context);
                 Type::Interface(iface)
             }
 
@@ -148,47 +139,12 @@ impl ProtoAST {
                 let mut ast = (**ast).clone();
                 ast.sig.name.lexeme = Rc::clone(&name);
 
-                let mut builder = MIRBuilder::new(&self_ref.module);
-                builder.context = get_context(ast.sig.generics.as_ref().unwrap(), arguments);
+                let builder = MIRBuilder::with_context(&self_ref.module, get_context(ast.sig.generics.as_ref().unwrap(), arguments));
+                let mir_fn = generate_mir_fn(&builder, Right(ast), String::clone(name), None)?;
+                let global = create_global(name, false, Type::Function(Rc::clone(&mir_fn)));
+                insert_global_and_type(&builder.module, &global);
 
-                let ret_type = ast
-                    .sig
-                    .return_type
-                    .as_ref()
-                    .map(|ty| builder.find_type(ty))
-                    .unwrap_or(Ok(Type::None))?;
-
-                let mut parameters = Vec::with_capacity(ast.sig.parameters.len());
-                for param in ast.sig.parameters.iter() {
-                    parameters.push(Rc::new(Variable {
-                        mutable: false,
-                        name: Rc::clone(&param.name.lexeme),
-                        type_: builder.find_type(&param.type_)?,
-                    }));
-                }
-
-                let func = mutrc_new(Function {
-                    name: (**name).clone(),
-                    parameters,
-                    blocks: Default::default(),
-                    variables: Default::default(),
-                    ret_type,
-                    context: builder.context,
-                    ast: Some(Rc::new(ast)),
-                });
-
-                let global = Rc::new(Variable {
-                    name: Rc::clone(&name),
-                    type_: Type::Function(Rc::clone(&func)),
-                    mutable: false,
-                });
-                self_ref
-                    .module
-                    .borrow_mut()
-                    .globals
-                    .insert(Rc::clone(&name), global);
-
-                Type::Function(func)
+                Type::Function(mir_fn)
             }
         })
     }

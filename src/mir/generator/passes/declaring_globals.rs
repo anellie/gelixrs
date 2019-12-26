@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/25/19 4:58 PM.
+ * Last modified on 12/26/19 3:23 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -13,6 +13,7 @@ use crate::ast::declaration::{FuncSignature, FunctionParam};
 use crate::ast::module::ModulePath;
 use crate::ast::Module;
 use crate::error::{Errors, Res};
+use crate::lexer::token::Token;
 use crate::mir::generator::builder::MIRBuilder;
 use crate::mir::generator::intrinsics::INTRINSICS;
 use crate::mir::generator::passes::PreMIRPass;
@@ -63,22 +64,57 @@ pub fn create_function(
     is_external: bool,
     this_arg: Option<FunctionParam>,
 ) -> Res<Rc<Variable>> {
-    let module = &builder.module;
-    let func_sig = match &func {
-        Either::Left(sig) => sig,
-        Either::Right(func) => &func.sig,
-    };
+    let name_token = match &func {
+        Either::Left(sig) => &sig.name,
+        Either::Right(func) => &func.sig.name,
+    }
+    .clone();
 
-    let mut name = func_sig.name.clone();
-    if let Some(arg) = &this_arg {
+    let (full_name, name) =
+        get_and_reserve_func_name(&builder.module, name_token.clone(), &this_arg, is_external)?;
+    let function = generate_mir_fn(builder, func, full_name, this_arg)?;
+    let global = create_global(&name, false, Type::Function(function));
+    insert_global_and_type(&builder.module, &global);
+    maybe_set_main_fn(&builder.module.borrow().path, &global, name_token)?;
+    Ok(global)
+}
+
+fn get_and_reserve_func_name(
+    module: &MutRc<MModule>,
+    mut name: Token,
+    this_param: &Option<FunctionParam>,
+    is_external: bool,
+) -> Res<(String, Rc<String>)> {
+    if let Some(arg) = &this_param {
         name.lexeme = Rc::new(format!("{}-{}", arg.type_, name.lexeme));
     }
     module.borrow_mut().try_reserve_name(&name)?;
 
-    let name_str = if is_external {
+    let full_name = if is_external {
         String::clone(&name.lexeme)
     } else {
         get_function_name(&module.borrow().path, &name.lexeme)
+    };
+    Ok((full_name, Rc::clone(&name.lexeme)))
+}
+
+pub fn get_function_name(path: &Rc<ModulePath>, func_name: &Rc<String>) -> String {
+    if func_name.as_ref() != "main" {
+        format!("{}:{}", path, func_name)
+    } else {
+        func_name.to_string()
+    }
+}
+
+pub fn generate_mir_fn(
+    builder: &MIRBuilder,
+    func: Either<&FuncSignature, ast::Function>,
+    name: String,
+    this_arg: Option<FunctionParam>,
+) -> Res<MutRc<Function>> {
+    let func_sig = match &func {
+        Either::Left(sig) => sig,
+        Either::Right(func) => &func.sig,
     };
 
     let ret_type = func_sig
@@ -96,47 +132,45 @@ pub fn create_function(
         }));
     }
 
-    let function = mutrc_new(Function {
-        name: name_str,
+    Ok(mutrc_new(Function {
+        name,
         parameters,
         blocks: Default::default(),
         variables: Default::default(),
         ret_type,
         context: builder.context.clone(),
         ast: func.right().map(Rc::new),
-    });
+    }))
+}
 
-    let global = Rc::new(Variable {
-        name: Rc::clone(&name.lexeme),
-        type_: Type::Function(Rc::clone(&function)),
-        mutable: false,
-    });
+pub fn create_global(name: &Rc<String>, mutable: bool, type_: Type) -> Rc<Variable> {
+    Rc::new(Variable {
+        name: Rc::clone(name),
+        type_,
+        mutable,
+    })
+}
 
-    if &name.lexeme[..] == "main" {
-        INTRINSICS
-            .with(|i| i.borrow_mut().set_main_fn(&global))
-            .or_err(
-                &module.borrow().path,
-                &name,
-                "Can't define main multiple times.",
-            )?;
-    }
-
+pub fn insert_global_and_type(module: &MutRc<MModule>, global: &Rc<Variable>) {
     module
         .borrow_mut()
         .globals
-        .insert(Rc::clone(&name.lexeme), Rc::clone(&global));
+        .insert(Rc::clone(&global.name), Rc::clone(&global));
     module
         .borrow_mut()
         .types
-        .insert(Rc::clone(&name.lexeme), Type::Function(function));
-    Ok(global)
+        .insert(Rc::clone(&global.name), global.type_.clone());
 }
 
-pub fn get_function_name(path: &Rc<ModulePath>, func_name: &Rc<String>) -> String {
-    if func_name.as_ref() != "main" {
-        format!("{}:{}", path, func_name)
-    } else {
-        func_name.to_string()
+fn maybe_set_main_fn(path: &Rc<ModulePath>, global: &Rc<Variable>, err_tok: Token) -> Res<()> {
+    if &global.name[..] == "main" {
+        INTRINSICS
+            .with(|i| i.borrow_mut().set_main_fn(global))
+            .or_err(
+                path,
+                &err_tok,
+                "Can't define main multiple times.",
+            )?;
     }
+    Ok(())
 }

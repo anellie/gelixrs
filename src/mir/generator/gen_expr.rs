@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/24/19 5:19 PM.
+ * Last modified on 12/26/19 3:18 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -16,6 +16,7 @@ use crate::mir::nodes::{Class, Expr, Flow, Type, Variable};
 use crate::mir::result::ToMIRResult;
 use crate::mir::MutRc;
 use either::Either::{Left, Right};
+use crate::ast::literal::Closure;
 
 /// This impl contains all code of the generator that directly
 /// produces expressions.
@@ -64,7 +65,7 @@ impl MIRGenerator {
                 value,
             } => self.index_set(indexed, index, value),
 
-            ASTExpr::Literal(literal, _) => self.literal(literal),
+            ASTExpr::Literal(literal, token) => self.literal(literal, token),
 
             ASTExpr::Return(val, err_tok) => self.return_(val, err_tok),
 
@@ -507,73 +508,80 @@ impl MIRGenerator {
         }
     }
 
-    fn literal(&mut self, literal: &Literal) -> Res<Expr> {
-        if let Literal::Array(arr) = literal {
-            let ast_values = arr.as_ref().left().unwrap();
-            let mut values_mir = Vec::new();
-            let mut ast_values = ast_values.iter();
-            let first = self.expression(ast_values.next().unwrap())?;
-            let elem_type = first.get_type();
-
-            values_mir.push(first);
-            for value in ast_values {
-                let mir_val = self.expression(value)?;
-
-                if mir_val.get_type() != elem_type {
-                    return Err(self.err(
-                        value.get_token(),
-                        &format!(
-                            "Type of array value ({}) does not match rest of array ({}).",
-                            mir_val.get_type(),
-                            elem_type
-                        ),
-                    ));
-                }
-
-                values_mir.push(mir_val);
-            }
-
-            let arr_proto = self
-                .module
-                .borrow()
-                .find_prototype(&"Array".to_string())
-                .unwrap();
-            let array_type: MutRc<Class> = Rc::clone(
-                arr_proto
-                    .build(
-                        vec![elem_type.clone()],
-                        &Token::generic_token(TType::RightBracket),
-                        Rc::clone(&arr_proto),
-                    )?
-                    .as_class(),
-            );
-
-            let dummy_tok = Token::generic_token(TType::Var);
-            let push_method = {
-                let arr = array_type.borrow();
-                Rc::clone(arr.methods.get(&Rc::new("push".to_string())).unwrap())
-            };
-
-            let array = self.generate_class_instantiation(
-                array_type,
-                &[ASTExpr::Literal(
-                    Literal::I64(values_mir.len() as u64),
-                    dummy_tok.clone(),
-                )],
-                &dummy_tok,
-            )?;
-
-            for value in values_mir {
-                self.insert_at_ptr(Expr::call(
-                    Expr::load(&push_method),
-                    vec![array.clone(), value],
-                ))
-            }
-
-            Ok(array)
-        } else {
-            Ok(Expr::Literal(literal.clone()))
+    fn literal(&mut self, literal: &Literal, token: &Token) -> Res<Expr> {
+        match literal {
+            Literal::Array(arr) => self.array_literal(arr.as_ref().left().unwrap()),
+            Literal::Closure(closure) => self.closure(closure, token),
+            _ => Ok(Expr::Literal(literal.clone())),
         }
+    }
+
+    fn array_literal(&mut self, literal: &[ASTExpr]) -> Res<Expr> {
+        let mut values_mir = Vec::new();
+        let mut ast_values = literal.iter();
+        let first = self.expression(ast_values.next().unwrap())?;
+        let elem_type = first.get_type();
+
+        values_mir.push(first);
+        for value in ast_values {
+            let mir_val = self.expression(value)?;
+
+            if mir_val.get_type() != elem_type {
+                return Err(self.err(
+                    value.get_token(),
+                    &format!(
+                        "Type of array value ({}) does not match rest of array ({}).",
+                        mir_val.get_type(),
+                        elem_type
+                    ),
+                ));
+            }
+
+            values_mir.push(mir_val);
+        }
+
+        let arr_proto = self
+            .module
+            .borrow()
+            .find_prototype(&"Array".to_string())
+            .unwrap();
+        let array_type: MutRc<Class> = Rc::clone(
+            arr_proto
+                .build(
+                    vec![elem_type.clone()],
+                    &Token::generic_token(TType::RightBracket),
+                    Rc::clone(&arr_proto),
+                )?
+                .as_class(),
+        );
+
+        let dummy_tok = Token::generic_token(TType::Var);
+        let push_method = {
+            let arr = array_type.borrow();
+            Rc::clone(arr.methods.get(&Rc::new("push".to_string())).unwrap())
+        };
+
+        let array = self.generate_class_instantiation(
+            array_type,
+            &[ASTExpr::Literal(
+                Literal::I64(values_mir.len() as u64),
+                dummy_tok.clone(),
+            )],
+            &dummy_tok,
+        )?;
+
+        for value in values_mir {
+            self.insert_at_ptr(Expr::call(
+                Expr::load(&push_method),
+                vec![array.clone(), value],
+            ))
+        }
+
+        Ok(array)
+    }
+
+    fn closure(&mut self, closure: &Closure, token: &Token) -> Res<Expr> {
+        unimplemented!();
     }
 
     fn return_(&mut self, val: &Option<Box<ASTExpr>>, err_tok: &Token) -> Res<Expr> {

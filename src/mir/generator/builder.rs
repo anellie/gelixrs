@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/22/19 12:52 AM.
+ * Last modified on 12/26/19 2:47 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -101,6 +101,14 @@ impl MIRBuilder {
             path: Rc::clone(&module.borrow().path),
             module: Rc::clone(module),
             context: Context::default(),
+        }
+    }
+
+    pub fn with_context(module: &MutRc<MModule>, context: Context) -> MIRBuilder {
+        MIRBuilder {
+            path: Rc::clone(&module.borrow().path),
+            module: Rc::clone(module),
+            context,
         }
     }
 }

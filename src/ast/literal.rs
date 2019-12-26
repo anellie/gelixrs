@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/25/19 4:59 PM.
+ * Last modified on 12/26/19 2:47 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -10,9 +10,9 @@ use std::rc::Rc;
 use either::Either;
 
 use crate::ast::expression::Expression;
-use crate::mir::nodes::ArrayLiteral;
 use crate::ast::Type;
 use crate::lexer::token::Token;
+use crate::mir::nodes::ArrayLiteral;
 
 /// An enum containing all literals possible in Gelix.
 #[derive(Debug, Clone)]
@@ -64,11 +64,11 @@ impl Display for Literal {
 pub struct Closure {
     pub parameters: Vec<ClosureParameter>,
     pub ret_ty: Option<Type>,
-    pub body: Expression
+    pub body: Expression,
 }
 
 #[derive(Debug, Clone)]
 pub struct ClosureParameter {
     pub name: Token,
-    pub type_: Option<Type>
+    pub type_: Option<Type>,
 }
