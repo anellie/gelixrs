@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/26/19 7:56 PM.
+ * Last modified on 12/27/19 1:59 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -133,7 +133,6 @@ impl PartialEq for Type {
             return true;
         }
 
-        // TODO: Is there really no other way than whatever the heck this is?
         match self {
             Type::Function(f) => {
                 if let Type::Function(o) = o {
@@ -178,7 +177,6 @@ impl Eq for Type {}
 
 impl Hash for Type {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        // TODO: Is there really no other way than whatever the heck this is?
         match self {
             Type::Function(v) => v.borrow().name.hash(state),
             Type::Class(v) => v.borrow().name.hash(state),

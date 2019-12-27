@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/26/19 8:59 PM.
+ * Last modified on 12/27/19 2:06 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -284,6 +284,8 @@ impl Function {
         name
     }
 
+    /// Returns the corresponding closure type for this function.
+    /// Will not include the first parameter containing captures.
     pub fn to_closure_type(&self) -> Type {
         Type::Closure(Rc::new(ClosureType {
             // Skip the first parameter, which is the parameter for captured variables.
@@ -319,7 +321,7 @@ impl Function {
                 var.type_
             )?;
         }
-        if self.variables.len() != 0 {
+        if !self.variables.is_empty() {
             writeln!(f)?;
         }
         for (name, block) in self.blocks.iter() {

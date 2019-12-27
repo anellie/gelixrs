@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/26/19 8:59 PM.
+ * Last modified on 12/27/19 2:06 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -561,7 +561,7 @@ impl MIRGenerator {
         let array_type: MutRc<Class> = Rc::clone(
             arr_proto
                 .build(
-                    vec![elem_type.clone()],
+                    vec![elem_type],
                     &Token::generic_token(TType::RightBracket),
                     Rc::clone(&arr_proto),
                 )?

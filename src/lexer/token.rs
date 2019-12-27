@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 1:01 AM.
+ * Last modified on 12/27/19 1:32 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -22,7 +22,7 @@ pub struct Token {
     /// The length of the token. Even though this can be taken from
     /// the lexeme in most cases, it sometimes differs because the
     /// lexeme was modified.
-    pub len: usize
+    pub len: usize,
 }
 
 impl Token {
@@ -43,7 +43,7 @@ impl Token {
             lexeme: Rc::new(lexeme),
             index,
             line: 0,
-            len: 0
+            len: 0,
         }
     }
 
@@ -53,7 +53,7 @@ impl Token {
             lexeme: Rc::new("".to_string()),
             index: 0,
             line: 0,
-            len: 0
+            len: 0,
         }
     }
 }

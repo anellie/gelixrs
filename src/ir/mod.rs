@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 12:36 AM.
+ * Last modified on 12/27/19 2:10 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -424,14 +424,10 @@ impl IRGenerator {
                                     "closureload",
                                 )
                                 .into_pointer_value(),
-                            Some(
-                                self.builder
-                                    .build_load(
-                                        self.builder.build_struct_gep(ptr, 1, "captgep"),
-                                        "captload",
-                                    )
-                                    .into(),
-                            ),
+                            Some(self.builder.build_load(
+                                self.builder.build_struct_gep(ptr, 1, "captgep"),
+                                "captload",
+                            )),
                         )
                     },
                     _ => panic!("Invalid callee"),
@@ -530,7 +526,7 @@ impl IRGenerator {
                 );
 
                 let ty = self.to_ir_type_no_ptr(&function.borrow().to_closure_type());
-                let ptr = self.create_alloca(ty.into());
+                let ptr = self.create_alloca(ty);
                 unsafe {
                     let func_slot = self.builder.build_struct_gep(ptr, 0, "funcgep");
                     self.builder.build_store(func_slot, func_ptr);

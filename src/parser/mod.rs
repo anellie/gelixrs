@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 4:19 PM.
+ * Last modified on 12/27/19 2:04 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -44,7 +44,7 @@ pub struct Parser {
 /// to manipulate the stream of tokens.
 impl Parser {
     /// Checks if the current token is the given type. If yes, it consumes it.
-    fn match_token(&mut self, t_type: TType) -> bool {
+    fn matches(&mut self, t_type: TType) -> bool {
         let matches = self.check(t_type);
         if matches {
             self.advance();
@@ -75,14 +75,12 @@ impl Parser {
     /// Same as consume, but consumes semicolons or newlines.
     /// Also does not return a token, since newlines are not tokens.
     /// (This special function is needed because of this)
-    fn consume_semi_or_nl(&mut self, message: &'static str) -> Option<Option<Token>> {
-        if self.check(TType::Semicolon) {
-            Some(Some(self.advance()))
-        } else if self.previous_line == self.current.line {
+    fn consume_semi_or_nl(&mut self, message: &'static str) -> Option<()> {
+        if self.matches(TType::Semicolon) || self.previous_line == self.current.line {
+            Some(())
+        } else {
             self.error_at_current(message);
             None
-        } else {
-            Some(None)
         }
     }
 

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/25/19 5:06 PM.
+ * Last modified on 12/27/19 2:03 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -122,7 +122,7 @@ fn run(args: Opt) -> Result<(), &'static str> {
         fs::create_dir(&tmp_dir).expect("Failed to create temporary directory!");
     }
 
-    let mut module_file = tmp_dir.clone();
+    let mut module_file = tmp_dir;
     module_file.push("out.bc");
     module.write_bitcode_to_path(&module_file);
 

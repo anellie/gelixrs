@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 12:41 AM.
+ * Last modified on 12/27/19 2:02 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -479,7 +479,7 @@ impl MIRGenerator {
 
     /// Switch the module this generator is operating on.
     /// Doing this will cause everything related to the currently generating code
-    /// to be unset.
+    /// to be reset.
     pub fn switch_module(&mut self, module: &MutRc<MModule>) {
         self.module = Rc::clone(module);
         self.builder.switch_module(&module);

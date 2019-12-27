@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 12:36 AM.
+ * Last modified on 12/27/19 1:57 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -125,7 +125,7 @@ impl Parser {
         self.consume(TType::LeftParen, "Expected '(' after function name.");
 
         let parameters = self.func_parameters()?;
-        let return_type = if self.match_token(TType::Arrow) {
+        let return_type = if self.matches(TType::Arrow) {
             Some(self.type_("Expected return type after '->'.")?)
         } else {
             None
@@ -149,7 +149,7 @@ impl Parser {
                 self.consume(TType::Colon, "Expected ':' after parameter name.")?;
                 let type_ = self.type_("Expected parameter type.")?;
                 parameters.push(FunctionParam { type_, name });
-                if !self.match_token(TType::Comma) {
+                if !self.matches(TType::Comma) {
                     break;
                 }
             }
@@ -212,6 +212,9 @@ impl Parser {
 
             TType::Colon => {
                 ty = Some(self.type_("Expected class member type.")?);
+                if self.matches(TType::Equal) {
+                    initializer = Some(self.expression()?);
+                }
             }
 
             _ => {
@@ -238,13 +241,13 @@ impl Parser {
         if !self.check(TType::RightParen) {
             loop {
                 let name = self.consume(TType::Identifier, "Expected parameter name.")?;
-                let ty = if self.match_token(TType::Colon) {
+                let ty = if self.matches(TType::Colon) {
                     Some(self.type_("Expected parameter type.")?)
                 } else {
                     None
                 };
                 parameters.push((name, ty));
-                if !self.match_token(TType::Comma) {
+                if !self.matches(TType::Comma) {
                     break;
                 }
             }
@@ -267,10 +270,10 @@ impl Parser {
         }
 
         let mut symbol = self.advance();
-        let mut consumed_slash = self.match_token(TType::Slash);
+        let mut consumed_slash = self.matches(TType::Slash);
         while self.check(TType::Identifier) || self.check(TType::Plus) {
             path.push(std::mem::replace(&mut symbol, self.advance()).lexeme);
-            consumed_slash = self.match_token(TType::Slash);
+            consumed_slash = self.matches(TType::Slash);
         }
         if consumed_slash {
             self.error_at_current("Trailing '/' in import.")?
@@ -364,10 +367,8 @@ impl Parser {
     /// This function can also produce a top-level non-higher expression.
     fn higher_expression(&mut self) -> Option<Expression> {
         Some(match () {
-            _ if self.match_token(TType::Var) => Expression::VarDef(Box::new(self.variable(true)?)),
-            _ if self.match_token(TType::Val) => {
-                Expression::VarDef(Box::new(self.variable(false)?))
-            }
+            _ if self.matches(TType::Var) => Expression::VarDef(Box::new(self.variable(true)?)),
+            _ if self.matches(TType::Val) => Expression::VarDef(Box::new(self.variable(false)?)),
             _ => {
                 let requires_semicolon = !NO_SEMICOLON.contains(&self.current.t_type);
                 let expression = self.expression()?;
@@ -381,12 +382,12 @@ impl Parser {
 
     fn expression(&mut self) -> Option<Expression> {
         match () {
-            _ if self.match_token(TType::LeftBrace) => self.block(),
-            _ if self.match_token(TType::If) => self.if_expression(),
+            _ if self.matches(TType::LeftBrace) => self.block(),
+            _ if self.matches(TType::If) => self.if_expression(),
             _ if self.check(TType::Return) => self.return_expression(),
             _ if self.check(TType::Break) => self.break_expression(),
-            _ if self.match_token(TType::For) => self.for_expression(),
-            _ if self.match_token(TType::When) => self.when_expression(),
+            _ if self.matches(TType::For) => self.for_expression(),
+            _ if self.matches(TType::When) => self.when_expression(),
             _ => self.assignment(),
         }
     }
@@ -407,7 +408,7 @@ impl Parser {
         self.consume(TType::RightParen, "Expected ')' after if condition.")?;
         let then_branch = Box::new(self.expression()?);
 
-        let else_branch = if self.match_token(TType::Else) {
+        let else_branch = if self.matches(TType::Else) {
             Some(Box::new(self.expression()?))
         } else {
             None
@@ -469,7 +470,7 @@ impl Parser {
             };
 
             let body = self.expression()?;
-            let else_b = if self.match_token(TType::Else) {
+            let else_b = if self.matches(TType::Else) {
                 Some(Box::new(self.expression()?))
             } else {
                 None
@@ -498,7 +499,7 @@ impl Parser {
             self.consume(TType::RightParen, "Expected ')' after for condition.")?;
             let body = Box::new(self.expression()?);
 
-            let else_b = if self.match_token(TType::Else) {
+            let else_b = if self.matches(TType::Else) {
                 Some(Box::new(self.expression()?))
             } else {
                 None
@@ -542,8 +543,8 @@ impl Parser {
 
         let mut branches: Vec<(Expression, Expression)> = Vec::new();
         let mut else_branch = None;
-        while !self.match_token(TType::RightBrace) {
-            if self.match_token(TType::Else) {
+        while !self.matches(TType::RightBrace) {
+            if self.matches(TType::Else) {
                 if else_branch.is_some() {
                     self.error_at_current("'when' expression can only have 1 'else' branch.");
                 }
@@ -570,7 +571,7 @@ impl Parser {
     fn assignment(&mut self) -> Option<Expression> {
         let expression = self.logic_or()?;
 
-        if self.match_token(TType::Equal) {
+        if self.matches(TType::Equal) {
             let value = Box::new(self.expression()?);
             match expression {
                 Expression::Variable(name) => Some(Expression::Assignment { name, value }),
@@ -626,12 +627,12 @@ impl Parser {
         let mut expression = self.primary()?;
         loop {
             match () {
-                _ if self.match_token(TType::LeftParen) => {
+                _ if self.matches(TType::LeftParen) => {
                     let mut arguments: Vec<Expression> = Vec::new();
                     if !self.check(TType::RightParen) {
                         loop {
                             arguments.push(self.expression()?);
-                            if !self.match_token(TType::Comma) {
+                            if !self.matches(TType::Comma) {
                                 break;
                             }
                         }
@@ -655,7 +656,7 @@ impl Parser {
                     }
                 }
 
-                _ if self.match_token(TType::Dot) => {
+                _ if self.matches(TType::Dot) => {
                     expression = Expression::Get {
                         object: Box::new(expression),
                         name: self
@@ -677,12 +678,12 @@ impl Parser {
             _ if self.check(TType::True) => {
                 Expression::Literal(Literal::Bool(true), self.advance())
             }
-            _ if self.match_token(TType::LeftParen) => self.grouping_or_closure()?,
+            _ if self.matches(TType::LeftParen) => self.grouping_or_closure()?,
             _ if self.check(TType::Identifier) => self.identifier()?,
             _ if self.check(TType::Int) => self.integer()?,
             _ if self.check(TType::Float) => self.float()?,
             _ if self.check(TType::String) => self.string(),
-            _ if self.match_token(TType::LeftBracket) => self.array()?,
+            _ if self.matches(TType::LeftBracket) => self.array()?,
             _ => {
                 self.error_at_current("Expected expression.");
                 None?
@@ -693,12 +694,12 @@ impl Parser {
     fn identifier(&mut self) -> Option<Expression> {
         let name = self.advance();
 
-        Some(if self.match_token(TType::ColonColon) {
+        Some(if self.matches(TType::ColonColon) {
             self.consume(TType::Less, "Expected '<' after '::'.")?;
             let mut generics = Vec::new();
             loop {
                 generics.push(self.type_("Expected generic type.")?);
-                if !self.match_token(TType::Comma) {
+                if !self.matches(TType::Comma) {
                     break;
                 }
             }
@@ -732,19 +733,19 @@ impl Parser {
         if !self.check(TType::RightParen) {
             loop {
                 let name = self.consume(TType::Identifier, "Expected parameter name.")?;
-                let type_ = if self.match_token(TType::Colon) {
+                let type_ = if self.matches(TType::Colon) {
                     Some(self.type_("Expected parameter type.")?)
                 } else {
                     None
                 };
                 parameters.push(ClosureParameter { type_, name });
-                if !self.match_token(TType::Comma) {
+                if !self.matches(TType::Comma) {
                     break;
                 }
             }
         }
         let tok = self.consume(TType::RightParen, "Expected ')' after parameters.")?;
-        let ret_ty = if self.match_token(TType::Colon) {
+        let ret_ty = if self.matches(TType::Colon) {
             Some(self.type_("Expected return type after ':'.")?)
         } else {
             None
@@ -820,11 +821,11 @@ impl Parser {
     fn generic_ident(&mut self) -> Option<(Token, Option<Vec<Token>>)> {
         let name = self.consume(TType::Identifier, "Expected a name.")?;
         let mut generics = None;
-        if self.match_token(TType::Less) {
+        if self.matches(TType::Less) {
             let mut generics_vec = Vec::with_capacity(1);
             while let Some(type_) = self.match_tokens(&[TType::Identifier]) {
                 generics_vec.push(type_);
-                self.match_token(TType::Comma);
+                self.matches(TType::Comma);
             }
             self.consume(TType::Greater, "Expected '>' after type parameters.")?;
             generics = Some(generics_vec)
@@ -879,15 +880,16 @@ impl Parser {
 
     /// Reads a type name.
     fn type_(&mut self, msg: &str) -> Option<Type> {
-        Some(match self.current.t_type {
+        let token = self.advance();
+        Some(match token.t_type {
             TType::Identifier => {
                 let token = self.advance();
 
-                if self.match_token(TType::Less) {
+                if self.matches(TType::Less) {
                     let mut types = Vec::new();
                     loop {
                         types.push(self.type_("Expected generic type.")?);
-                        if !self.match_token(TType::Comma) {
+                        if !self.matches(TType::Comma) {
                             break;
                         }
                     }
@@ -900,18 +902,16 @@ impl Parser {
             }
 
             TType::LeftBracket => {
-                self.advance(); // consume '['
                 let arr_type = self.type_("Expected type after '[' in array type.")?;
                 self.consume(TType::RightBracket, "Expected ']' after array type.")?;
                 Type::Array(Box::new(arr_type))
             }
 
             TType::LeftParen => {
-                self.advance(); // consume '('
                 let mut params = Vec::new();
                 loop {
                     params.push(self.type_("Expected closure parameter type.")?);
-                    if !self.match_token(TType::Comma) {
+                    if !self.matches(TType::Comma) {
                         break;
                     }
                 }
@@ -919,7 +919,7 @@ impl Parser {
                 let closing_paren =
                     self.consume(TType::RightParen, "Expected ')' after closure parameters.")?;
 
-                let ret_type = if self.match_token(TType::Colon) {
+                let ret_type = if self.matches(TType::Colon) {
                     Some(Box::new(self.type_("Expected return type after ':'.")?))
                 } else {
                     None
