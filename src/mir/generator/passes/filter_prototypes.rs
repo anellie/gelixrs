@@ -1,17 +1,20 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/24/19 3:47 PM.
+ * Last modified on 12/27/19 6:54 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 
-use crate::ast::Module;
-use crate::error::Errors;
-use crate::mir::generator::passes::PreMIRPass;
-use crate::mir::nodes::{ProtoAST, Prototype};
-use crate::mir::{MModule, MutRc};
-use std::cell::RefCell;
+use crate::{
+    ast::Module,
+    error::Errors,
+    mir::{
+        generator::passes::PreMIRPass,
+        nodes::{ProtoAST, Prototype},
+        MModule, MutRc,
+    },
+};
 
 /// This pass removes all types/functions with generic parameters
 /// from the AST list, since they are handled separately.

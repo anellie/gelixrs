@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/24/19 3:04 AM.
+ * Last modified on 12/27/19 6:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -10,14 +10,20 @@
 //! overloading interfaces into actually changing the behavior
 //! of the expression.
 
-use std::cell::{Ref, RefCell};
-use std::collections::HashMap;
-use std::rc::Rc;
+use std::{
+    cell::{Ref, RefCell},
+    collections::HashMap,
+    rc::Rc,
+};
 
-use crate::error::{Error, Res};
-use crate::lexer::token::{TType, Token};
-use crate::mir::nodes::{Prototype, Type, Variable};
-use crate::mir::MModule;
+use crate::{
+    error::{Error, Res},
+    lexer::token::{TType, Token},
+    mir::{
+        nodes::{Prototype, Type, Variable},
+        MModule,
+    },
+};
 
 thread_local! {
     pub static INTRINSICS: RefCell<Intrinsics> = RefCell::new(Intrinsics::default());

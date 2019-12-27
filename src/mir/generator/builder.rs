@@ -1,21 +1,22 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/26/19 7:52 PM.
+ * Last modified on 12/27/19 6:54 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::collections::HashMap;
-use std::rc::Rc;
+use std::{collections::HashMap, rc::Rc};
 
-use super::super::nodes::Type;
-use crate::ast::module::ModulePath;
-use crate::ast::Type as ASTType;
-use crate::error::Res;
-use crate::lexer::token::Token;
-use crate::mir::generator::intrinsics::INTRINSICS;
-use crate::mir::nodes::ClosureType;
-use crate::mir::result::ToMIRResult;
-use crate::mir::{MModule, MutRc};
+use crate::{
+    ast::{module::ModulePath, Type as ASTType},
+    error::Res,
+    lexer::token::Token,
+    mir::{
+        generator::intrinsics::INTRINSICS,
+        nodes::{ClosureType, Type},
+        result::ToMIRResult,
+        MModule, MutRc,
+    },
+};
 
 /// The MIR builder is used alongside the module after
 /// all types have been declared. It can be used for

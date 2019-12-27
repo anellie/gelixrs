@@ -1,17 +1,23 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 5:38 PM.
+ * Last modified on 12/27/19 6:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::rc::Rc;
 
-use crate::ast::Type as ASTType;
-use crate::error::Res;
-use crate::mir::generator::passes::{ModulePass, PassType};
-use crate::mir::generator::MIRGenerator;
-use crate::mir::nodes::{Class, ClassMember, Expr, Type, Variable};
-use crate::mir::MutRc;
+use crate::{
+    ast::Type as ASTType,
+    error::Res,
+    mir::{
+        generator::{
+            passes::{ModulePass, PassType},
+            MIRGenerator,
+        },
+        nodes::{Class, ClassMember, Expr, Type, Variable},
+        MutRc,
+    },
+};
 
 /// This pass fills all classes with their members
 /// and creates their internal init function.

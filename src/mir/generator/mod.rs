@@ -1,27 +1,35 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 2:02 AM.
+ * Last modified on 12/27/19 6:54 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::collections::{HashMap, HashSet};
-use std::rc::Rc;
+use std::{
+    collections::{HashMap, HashSet},
+    mem,
+    rc::Rc,
+};
 
 use either::Either;
 use indexmap::IndexMap;
 
-use crate::ast::declaration::{Class as ASTClass, Constructor, Function as ASTFunc};
-use crate::ast::expression::Expression as ASTExpr;
-use crate::error::Res;
-use crate::lexer::token::{TType, Token};
-use crate::mir::generator::builder::MIRBuilder;
-use crate::mir::generator::intrinsics::INTRINSICS;
-use crate::mir::nodes::{ClassMember, Expr, Function, Type, Variable};
-use crate::mir::result::ToMIRResult;
-use crate::mir::{get_iface_impls, MModule, MutRc, IFACE_IMPLS};
-use crate::Error;
+use crate::{
+    ast::{
+        declaration::{Class as ASTClass, Constructor, Function as ASTFunc},
+        expression::Expression as ASTExpr,
+    },
+    error::Res,
+    lexer::token::{TType, Token},
+    mir::{
+        generator::{builder::MIRBuilder, intrinsics::INTRINSICS},
+        get_iface_impls,
+        nodes::{ClassMember, Expr, Function, Type, Variable},
+        result::ToMIRResult,
+        MModule, MutRc, IFACE_IMPLS,
+    },
+    Error,
+};
 use either::Either::{Left, Right};
-use std::mem;
 
 pub mod builder;
 pub mod gen_expr;

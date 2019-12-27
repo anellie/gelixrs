@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 6:03 PM.
+ * Last modified on 12/27/19 6:51 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,22 +11,21 @@ use std::rc::Rc;
 
 use either::Either;
 
-use crate::ast::declaration::{
-    ClassMember, Constructor, ConstructorParam, IFaceImpl, Interface, Type, Visibility,
-};
-use crate::ast::module::{Import, ModulePath};
-use crate::Error;
-
-use super::super::{
+use crate::{
     ast::{
-        declaration::{Class, FuncSignature, Function, FunctionParam, Variable},
+        declaration::{
+            Class, ClassMember, Constructor, ConstructorParam, FuncSignature, Function,
+            FunctionParam, IFaceImpl, Interface, Type, Variable, Visibility,
+        },
         expression::Expression,
         literal::Literal,
-        module::Module,
+        module::{Import, Module, ModulePath},
     },
     lexer::token::{TType, Token},
+    parser::Parser,
+    Error,
 };
-use super::Parser;
+
 use crate::ast::literal::{Closure, ClosureParameter};
 
 // All expressions that require no semicolon when used as a higher expression.

@@ -1,19 +1,24 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 5:38 PM.
+ * Last modified on 12/27/19 6:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::fmt::{Display, Error, Formatter};
-use std::mem;
-use std::rc::Rc;
+use std::{
+    fmt::{Display, Error, Formatter},
+    mem,
+    rc::Rc,
+};
 
-use crate::ast::expression::LOGICAL_BINARY;
-use crate::ast::Literal;
-use crate::lexer::token::TType;
-use crate::mir::generator::intrinsics::INTRINSICS;
-use crate::mir::nodes::{ClassMember, Function, Interface, Type, Variable};
-use crate::mir::MutRc;
+use crate::{
+    ast::{expression::LOGICAL_BINARY, Literal},
+    lexer::token::TType,
+    mir::{
+        generator::intrinsics::INTRINSICS,
+        nodes::{ClassMember, Function, Interface, Type, Variable},
+        MutRc,
+    },
+};
 use either::Either::Right;
 
 /// All expressions in MIR. All of them produce a value.

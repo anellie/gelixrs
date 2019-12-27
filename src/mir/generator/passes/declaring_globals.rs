@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/26/19 3:23 AM.
+ * Last modified on 12/27/19 6:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -8,18 +8,23 @@ use std::rc::Rc;
 
 use either::Either;
 
-use crate::ast;
-use crate::ast::declaration::{FuncSignature, FunctionParam};
-use crate::ast::module::ModulePath;
-use crate::ast::Module;
-use crate::error::{Errors, Res};
-use crate::lexer::token::Token;
-use crate::mir::generator::builder::MIRBuilder;
-use crate::mir::generator::intrinsics::INTRINSICS;
-use crate::mir::generator::passes::PreMIRPass;
-use crate::mir::nodes::{Function, Type, Variable};
-use crate::mir::result::ToMIRResult;
-use crate::mir::{mutrc_new, MModule, MutRc};
+use crate::{
+    ast,
+    ast::{
+        declaration::{FuncSignature, FunctionParam},
+        module::ModulePath,
+        Module,
+    },
+    error::{Errors, Res},
+    lexer::token::Token,
+    mir::{
+        generator::{builder::MIRBuilder, intrinsics::INTRINSICS, passes::PreMIRPass},
+        mutrc_new,
+        nodes::{Function, Type, Variable},
+        result::ToMIRResult,
+        MModule, MutRc,
+    },
+};
 
 /// This pass defines all globals inside the module; currently only functions.
 /// It only creates a signature and inserts it into the module;

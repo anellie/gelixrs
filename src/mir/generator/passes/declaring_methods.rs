@@ -1,26 +1,31 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/25/19 4:59 PM.
+ * Last modified on 12/27/19 6:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::collections::HashSet;
-use std::rc::Rc;
+use std::{collections::HashSet, rc::Rc};
 
 use either::Either::Left;
 
-use crate::ast::declaration::{Constructor, FuncSignature, FunctionParam, Visibility};
-use crate::ast::Type as ASTType;
-use crate::ast::{Class as ASTClass, Expression};
-use crate::error::{Error, Res};
-use crate::lexer::token::{TType, Token};
-use crate::mir::generator::builder::MIRBuilder;
-use crate::mir::generator::passes::declaring_globals::create_function;
-use crate::mir::generator::passes::{ModulePass, PassType};
-use crate::mir::generator::MIRGenerator;
-use crate::mir::nodes::{Block, Class, Expr, IFaceMethod, Interface, Type, Variable};
-use crate::mir::result::ToMIRResult;
-use crate::mir::MutRc;
+use crate::{
+    ast::{
+        declaration::{Constructor, FuncSignature, FunctionParam, Visibility},
+        Class as ASTClass, Expression, Type as ASTType,
+    },
+    error::{Error, Res},
+    lexer::token::{TType, Token},
+    mir::{
+        generator::{
+            builder::MIRBuilder,
+            passes::{declaring_globals::create_function, ModulePass, PassType},
+            MIRGenerator,
+        },
+        nodes::{Block, Class, Expr, IFaceMethod, Interface, Type, Variable},
+        result::ToMIRResult,
+        MutRc,
+    },
+};
 
 /// This pass defines all methods on classes and interfaces.
 pub struct DeclareMethods();

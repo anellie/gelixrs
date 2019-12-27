@@ -1,16 +1,21 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 6:11 PM.
+ * Last modified on 12/27/19 6:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use crate::ir::IRGenerator;
-use crate::mir::nodes::{Class, ClosureType, Function, IFaceMethod, Interface, Type, Variable};
-use crate::mir::MutRc;
-use inkwell::types::{BasicType, BasicTypeEnum, FunctionType, PointerType, StructType};
-use inkwell::AddressSpace::Generic;
-use std::cell::Ref;
-use std::rc::Rc;
+use crate::{
+    ir::IRGenerator,
+    mir::{
+        nodes::{Class, ClosureType, Function, IFaceMethod, Interface, Type, Variable},
+        MutRc,
+    },
+};
+use inkwell::{
+    types::{BasicType, BasicTypeEnum, FunctionType, PointerType, StructType},
+    AddressSpace::Generic,
+};
+use std::{cell::Ref, rc::Rc};
 
 impl IRGenerator {
     /// Converts a MIRType to the corresponding LLVM type.

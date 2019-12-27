@@ -1,14 +1,18 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 12:58 AM.
+ * Last modified on 12/27/19 6:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::fmt::{Display, Error, Formatter};
-use std::rc::Rc;
+use std::{
+    fmt::{Display, Error, Formatter},
+    rc::Rc,
+};
 
-use crate::ast::declaration::{Class, Function, IFaceImpl, Interface};
-use crate::lexer::token::Token;
+use crate::{
+    ast::declaration::{Class, Function, IFaceImpl, Interface},
+    lexer::token::Token,
+};
 
 /// The path of the module. For example, the file 'std/collections/array.gel'
 /// would have ["std", "collections", "array"] here.

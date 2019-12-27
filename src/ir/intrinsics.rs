@@ -1,16 +1,18 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 4:40 PM.
+ * Last modified on 12/27/19 6:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use crate::ir::{IRGenerator, PtrEqRc};
-use crate::mir::nodes::Function;
-use crate::mir::{MModule, MutRc};
-use inkwell::types::BasicType;
-use inkwell::types::BasicTypeEnum;
-use inkwell::values::FunctionValue;
-use inkwell::AddressSpace::Generic;
+use crate::{
+    ir::{IRGenerator, PtrEqRc},
+    mir::{nodes::Function, MModule, MutRc},
+};
+use inkwell::{
+    types::{BasicType, BasicTypeEnum},
+    values::FunctionValue,
+    AddressSpace::Generic,
+};
 use std::cell::RefMut;
 
 impl IRGenerator {

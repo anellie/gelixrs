@@ -1,17 +1,21 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/17/19 10:42 PM.
+ * Last modified on 12/27/19 6:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::rc::Rc;
 
-use crate::ast::{Module, Type as ASTType};
-use crate::error::{Error, Errors, Res};
-use crate::lexer::token::Token;
-use crate::mir::generator::MIRGenerator;
-use crate::mir::nodes::{Type, Variable};
-use crate::mir::{MModule, MutRc};
+use crate::{
+    ast::{Module, Type as ASTType},
+    error::{Error, Errors, Res},
+    lexer::token::Token,
+    mir::{
+        generator::MIRGenerator,
+        nodes::{Type, Variable},
+        MModule, MutRc,
+    },
+};
 
 pub mod declaring_globals;
 pub mod declaring_iface_impls;

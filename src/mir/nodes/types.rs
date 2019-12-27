@@ -1,16 +1,20 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 1:59 AM.
+ * Last modified on 12/27/19 6:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::fmt::{Debug, Display, Error, Formatter};
-use std::hash::{Hash, Hasher};
-use std::rc::Rc;
+use std::{
+    fmt::{Debug, Display, Error, Formatter},
+    hash::{Hash, Hasher},
+    rc::Rc,
+};
 
-use crate::mir::generator::builder::Context;
-use crate::mir::nodes::{Class, Function, Interface, Variable};
-use crate::mir::MutRc;
+use crate::mir::{
+    generator::builder::Context,
+    nodes::{Class, Function, Interface, Variable},
+    MutRc,
+};
 
 /// All types in Gelix.
 /// For all types that can have generic parameters, these parameters

@@ -1,14 +1,14 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 5:16 PM.
+ * Last modified on 12/27/19 7:02 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::path::Path;
 use std::{
     cell::RefMut,
     collections::HashMap,
     hash::{Hash, Hasher},
+    path::Path,
     rc::Rc,
 };
 
@@ -21,8 +21,8 @@ use inkwell::{
     values::{BasicValueEnum, FunctionValue, PointerValue},
 };
 
-use super::mir::{
-    nodes::{Block, Function, Type, Variable},
+use crate::mir::{
+    nodes::{Expr, Function, Type, Variable},
     MModule, MutRc,
 };
 
@@ -189,7 +189,7 @@ impl IRGenerator {
         }
     }
 
-    fn fill_basic_block(&mut self, mir_bb: &Block) {
+    fn fill_basic_block(&mut self, mir_bb: &[Expr]) {
         for expression in mir_bb.iter() {
             self.expression(expression);
         }

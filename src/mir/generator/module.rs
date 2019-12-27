@@ -1,32 +1,38 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/23/19 12:25 AM.
+ * Last modified on 12/27/19 6:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 
-use crate::ast::module::Module;
-use crate::error::Errors;
-use crate::mir::generator::builder::MIRBuilder;
-use crate::mir::generator::intrinsics::INTRINSICS;
-use crate::mir::generator::passes::declaring_globals::DeclareGlobals;
-use crate::mir::generator::passes::declaring_iface_impls::DeclareIfaceImpls;
-use crate::mir::generator::passes::declaring_methods::DeclareMethods;
-use crate::mir::generator::passes::declaring_types::DeclareTypes;
-use crate::mir::generator::passes::fill_impls::FillIfaceImpls;
-use crate::mir::generator::passes::filter_prototypes::FilterPrototypes;
-use crate::mir::generator::passes::generate::Generate;
-use crate::mir::generator::passes::generate_impls::GenerateImpls;
-use crate::mir::generator::passes::imports::{ImportGlobals, ImportTypes};
-use crate::mir::generator::passes::insert_members::InsertClassMembers;
-use crate::mir::generator::passes::populate_intrinsics::PopulateIntrinsics;
-use crate::mir::generator::passes::validate::ValidateIntrinsics;
-use crate::mir::generator::passes::{ModulePass, PassType, PreMIRPass};
-use crate::mir::generator::MIRGenerator;
-use crate::mir::IFACE_IMPLS;
-use crate::mir::{mutrc_new, MModule, MutRc};
+use crate::{
+    ast::module::Module,
+    error::Errors,
+    mir::{
+        generator::{
+            builder::MIRBuilder,
+            intrinsics::INTRINSICS,
+            passes::{
+                declaring_globals::DeclareGlobals,
+                declaring_iface_impls::DeclareIfaceImpls,
+                declaring_methods::DeclareMethods,
+                declaring_types::DeclareTypes,
+                fill_impls::FillIfaceImpls,
+                filter_prototypes::FilterPrototypes,
+                generate::Generate,
+                generate_impls::GenerateImpls,
+                imports::{ImportGlobals, ImportTypes},
+                insert_members::InsertClassMembers,
+                populate_intrinsics::PopulateIntrinsics,
+                validate::ValidateIntrinsics,
+                ModulePass, PassType, PreMIRPass,
+            },
+            MIRGenerator,
+        },
+        mutrc_new, MModule, MutRc, IFACE_IMPLS,
+    },
+};
 
 thread_local! {
     /// A map containing passes that have run, and the currently running pass.

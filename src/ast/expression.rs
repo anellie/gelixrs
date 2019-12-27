@@ -1,14 +1,16 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/24/19 3:17 AM.
+ * Last modified on 12/27/19 6:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use crate::ast::Type;
 
-use super::super::lexer::token::{TType, Token};
-use super::declaration::Variable;
-use super::literal::Literal;
+use super::{
+    super::lexer::token::{TType, Token},
+    declaration::Variable,
+    literal::Literal,
+};
 
 /// All binary operand types that return a bool instead of the types of their values.
 pub static LOGICAL_BINARY: [TType; 6] = [

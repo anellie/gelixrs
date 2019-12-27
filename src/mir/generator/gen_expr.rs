@@ -1,25 +1,30 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 2:06 AM.
+ * Last modified on 12/27/19 7:05 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::rc::Rc;
 
-use crate::ast;
-use crate::ast::declaration::{FuncSignature, FunctionParam, Variable as ASTVar, Visibility};
-use crate::ast::literal::Closure;
-use crate::ast::Type as ASTType;
-use crate::ast::{Expression as ASTExpr, Literal};
-use crate::error::Res;
-use crate::lexer::token::{TType, Token};
-use crate::mir::generator::passes::declaring_globals::{
-    create_global, generate_mir_fn, insert_global_and_type,
+use crate::{
+    ast,
+    ast::{
+        declaration::{FuncSignature, FunctionParam, Variable as ASTVar, Visibility},
+        literal::Closure,
+        Expression as ASTExpr, Literal, Type as ASTType,
+    },
+    error::Res,
+    lexer::token::{TType, Token},
+    mir::{
+        generator::{
+            passes::declaring_globals::{create_global, generate_mir_fn, insert_global_and_type},
+            ForLoop, MIRGenerator,
+        },
+        nodes::{catch_up_passes, Class, Expr, Flow, Type, Variable},
+        result::ToMIRResult,
+        MutRc,
+    },
 };
-use crate::mir::generator::{ForLoop, MIRGenerator};
-use crate::mir::nodes::{catch_up_passes, Class, Expr, Flow, Type, Variable};
-use crate::mir::result::ToMIRResult;
-use crate::mir::MutRc;
 use either::Either::{Left, Right};
 
 /// This impl contains all code of the generator that directly
@@ -100,16 +105,18 @@ impl MIRGenerator {
         let value = self.expression(value)?;
         let val_ty = value.get_type();
 
-        match var.mutable {
-            true if val_ty == var.type_ => Ok(Expr::store(&var, value)),
-            false => Err(self.err(
-                &name,
-                &format!("Variable {} is not assignable (val)", name.lexeme),
-            )),
-            _ => Err(self.err(
+        if val_ty == var.type_ && var.mutable {
+            Ok(Expr::store(&var, value))
+        } else if !var.mutable {
+            Err(self.err(
                 &name,
                 &format!("Variable {} is a different type", name.lexeme),
-            )),
+            ))
+        } else {
+            Err(self.err(
+                &name,
+                &format!("Variable {} is not assignable (val)", name.lexeme),
+            ))
         }
     }
 
@@ -212,7 +219,6 @@ impl MIRGenerator {
         }
     }
 
-    /// TODO
     fn try_method_or_constructor(
         &mut self,
         callee: &ASTExpr,

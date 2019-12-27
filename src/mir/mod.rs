@@ -1,22 +1,22 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/22/19 9:14 PM.
+ * Last modified on 12/27/19 6:53 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
-use std::rc::Rc;
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    rc::Rc,
+};
 
-use nodes::Variable;
-
-use crate::ast::module::ModulePath;
-use crate::ast::{Import, Module};
-use crate::error::{Error, Res};
-use crate::lexer::token::Token;
-use crate::mir::nodes::{IFaceImpls, Prototype, Type};
-use std::fmt;
-use std::fmt::Display;
+use crate::{
+    ast::{module::ModulePath, Import, Module},
+    error::{Error, Res},
+    lexer::token::Token,
+    mir::nodes::{IFaceImpls, Prototype, Type, Variable},
+};
+use std::{fmt, fmt::Display};
 
 pub mod generator;
 pub mod nodes;

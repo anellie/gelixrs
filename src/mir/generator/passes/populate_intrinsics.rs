@@ -1,14 +1,17 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/22/19 12:52 AM.
+ * Last modified on 12/27/19 6:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use crate::ast::Module;
-use crate::error::Errors;
-use crate::mir::generator::intrinsics::INTRINSICS;
-use crate::mir::generator::passes::PreMIRPass;
-use crate::mir::{MModule, MutRc};
+use crate::{
+    ast::Module,
+    error::Errors,
+    mir::{
+        generator::{intrinsics::INTRINSICS, passes::PreMIRPass},
+        MModule, MutRc,
+    },
+};
 
 /// This pass populates the intrinsics struct.
 pub struct PopulateIntrinsics();

@@ -1,18 +1,21 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/26/19 2:47 AM.
+ * Last modified on 12/27/19 6:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::fmt::{Display, Error, Formatter};
-use std::rc::Rc;
+use std::{
+    fmt::{Display, Error, Formatter},
+    rc::Rc,
+};
 
 use either::Either;
 
-use crate::ast::expression::Expression;
-use crate::ast::Type;
-use crate::lexer::token::Token;
-use crate::mir::nodes::ArrayLiteral;
+use crate::{
+    ast::{expression::Expression, Type},
+    lexer::token::Token,
+    mir::nodes::ArrayLiteral,
+};
 
 /// An enum containing all literals possible in Gelix.
 #[derive(Debug, Clone)]

@@ -1,13 +1,17 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 5:20 PM.
+ * Last modified on 12/27/19 7:03 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use crate::ir::{IRGenerator, PtrEqRc};
-use crate::mir::nodes::Variable;
-use inkwell::types::{AnyTypeEnum, BasicTypeEnum};
-use inkwell::values::{BasicValueEnum, PointerValue};
+use crate::{
+    ir::{IRGenerator, PtrEqRc},
+    mir::nodes::Variable,
+};
+use inkwell::{
+    types::{AnyTypeEnum, BasicTypeEnum},
+    values::{BasicValueEnum, PointerValue},
+};
 use std::rc::Rc;
 
 impl IRGenerator {
@@ -74,7 +78,7 @@ impl IRGenerator {
     ) -> BasicValueEnum {
         assert!(ty.as_struct_type().count_fields() == values.size_hint().0 as u32);
         let alloca = self.create_alloca(ty);
-        for (i, value) in values.into_iter().enumerate() {
+        for (i, value) in values.enumerate() {
             let slot = self.struct_gep(alloca, i);
             self.builder.build_store(slot, *value);
         }

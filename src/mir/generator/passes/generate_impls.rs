@@ -1,17 +1,23 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/19/19 6:45 PM.
+ * Last modified on 12/27/19 6:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::rc::Rc;
 
-use crate::error::Errors;
-use crate::mir::generator::builder::MIRBuilder;
-use crate::mir::generator::passes::{ModulePass, PassType};
-use crate::mir::generator::MIRGenerator;
-use crate::mir::nodes::IFaceImpls;
-use crate::mir::{MModule, MutRc, IFACE_IMPLS};
+use crate::{
+    error::Errors,
+    mir::{
+        generator::{
+            builder::MIRBuilder,
+            passes::{ModulePass, PassType},
+            MIRGenerator,
+        },
+        nodes::IFaceImpls,
+        MModule, MutRc, IFACE_IMPLS,
+    },
+};
 
 /// This pass generates all functions inside iface impls.
 pub struct GenerateImpls();

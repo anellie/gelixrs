@@ -1,18 +1,18 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 2:27 AM.
+ * Last modified on 12/27/19 6:54 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::rc::Rc;
-use std::{iter::Peekable, mem};
+use std::{iter::Peekable, mem, rc::Rc};
 
-use crate::parser::parsing::MODIFIERS;
-use crate::{Error, ModulePath};
-
-use super::lexer::{
-    token::{TType, Token},
-    Lexer,
+use crate::{
+    lexer::{
+        token::{TType, Token},
+        Lexer,
+    },
+    parser::parsing::MODIFIERS,
+    Error, ModulePath,
 };
 
 mod parsing;

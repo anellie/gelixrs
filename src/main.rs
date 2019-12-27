@@ -1,14 +1,13 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 2:03 AM.
+ * Last modified on 12/27/19 6:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::{env, fs, path::PathBuf, process};
 
 use gelixrs::stem_to_rc_str;
-use inkwell::execution_engine::JitFunction;
-use inkwell::OptimizationLevel;
+use inkwell::{execution_engine::JitFunction, OptimizationLevel};
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug, Default)]
@@ -146,8 +145,7 @@ fn run(args: Opt) -> Result<(), &'static str> {
 #[cfg(test)]
 mod tests {
     use crate::{run, Opt};
-    use std::env;
-    use std::path::PathBuf;
+    use std::{env, path::PathBuf};
 
     fn get_test(name: &'static str) -> PathBuf {
         let mut test_path = env::current_dir().expect("Couldn't get current dir.");

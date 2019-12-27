@@ -1,18 +1,25 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 6:44 PM.
+ * Last modified on 12/27/19 6:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use crate::ast::Literal;
-use crate::ir::{IRGenerator, PtrEqRc};
-use crate::lexer::token::TType;
-use crate::mir::nodes::{Expr, Flow, Function, Type, Variable};
-use crate::mir::{get_iface_impls, MutRc};
-use inkwell::types::{AnyTypeEnum, BasicType, BasicTypeEnum, StructType};
-use inkwell::values::{BasicValue, BasicValueEnum, PointerValue};
-use inkwell::AddressSpace::Generic;
-use inkwell::{FloatPredicate, IntPredicate};
+use crate::{
+    ast::Literal,
+    ir::{IRGenerator, PtrEqRc},
+    lexer::token::TType,
+    mir::{
+        get_iface_impls,
+        nodes::{Expr, Flow, Function, Type, Variable},
+        MutRc,
+    },
+};
+use inkwell::{
+    types::{AnyTypeEnum, BasicType, BasicTypeEnum, StructType},
+    values::{BasicValue, BasicValueEnum, PointerValue},
+    AddressSpace::Generic,
+    FloatPredicate, IntPredicate,
+};
 use std::rc::Rc;
 
 impl IRGenerator {

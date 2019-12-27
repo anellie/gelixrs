@@ -1,25 +1,29 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/25/19 4:59 PM.
+ * Last modified on 12/27/19 6:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::mem;
-use std::rc::Rc;
+use std::{cell::RefCell, collections::HashMap, mem, rc::Rc};
 
 use either::Either::Left;
 
-use crate::ast::declaration::{Function, FunctionParam};
-use crate::error::{Error, Res};
-use crate::mir::generator::builder::MIRBuilder;
-use crate::mir::generator::passes::declaring_globals::create_function;
-use crate::mir::generator::passes::declaring_iface_impls::get_or_create_iface_impls;
-use crate::mir::generator::passes::{ModulePass, PassType};
-use crate::mir::generator::MIRGenerator;
-use crate::mir::nodes::{IFaceMethod, Type, Variable};
-use crate::mir::result::ToMIRResult;
+use crate::{
+    ast::declaration::{Function, FunctionParam},
+    error::{Error, Res},
+    mir::{
+        generator::{
+            builder::MIRBuilder,
+            passes::{
+                declaring_globals::create_function,
+                declaring_iface_impls::get_or_create_iface_impls, ModulePass, PassType,
+            },
+            MIRGenerator,
+        },
+        nodes::{IFaceMethod, Type, Variable},
+        result::ToMIRResult,
+    },
+};
 
 /// This pass defines all methods on interface impls.
 /// The boolean indicates if the pass has already been run at least once.

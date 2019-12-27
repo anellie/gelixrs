@@ -1,15 +1,21 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/19/19 3:40 PM.
+ * Last modified on 12/27/19 6:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::rc::Rc;
 
-use crate::error::Res;
-use crate::mir::generator::passes::{ModulePass, PassType};
-use crate::mir::generator::MIRGenerator;
-use crate::mir::nodes::Type;
+use crate::{
+    error::Res,
+    mir::{
+        generator::{
+            passes::{ModulePass, PassType},
+            MIRGenerator,
+        },
+        nodes::Type,
+    },
+};
 
 /// This pass generates the bodies of all functions and methods.
 pub struct Generate();

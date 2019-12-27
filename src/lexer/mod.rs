@@ -1,12 +1,10 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 1:32 AM.
+ * Last modified on 12/27/19 6:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::convert::TryInto;
-use std::iter::FromIterator;
-use std::rc::Rc;
+use std::{convert::TryInto, iter::FromIterator, rc::Rc};
 
 use token::{TType, Token};
 

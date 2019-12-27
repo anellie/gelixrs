@@ -1,15 +1,16 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 4:34 PM.
+ * Last modified on 12/27/19 6:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::rc::Rc;
 
-use crate::ast::module::ModulePath;
-use crate::ast::Type as ASTType;
-use crate::error::{Error, Res};
-use crate::lexer::token::Token;
+use crate::{
+    ast::{module::ModulePath, Type as ASTType},
+    error::{Error, Res},
+    lexer::token::Token,
+};
 
 pub trait ToMIRResult<T> {
     fn or_err(self, module: &Rc<ModulePath>, error_token: &Token, msg: &str) -> Res<T>;

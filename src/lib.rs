@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/22/19 8:51 PM.
+ * Last modified on 12/27/19 6:51 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,20 +12,15 @@ extern crate enum_methods;
 #[cfg(test)]
 extern crate lazy_static;
 
-use std::fs;
-use std::path::PathBuf;
-use std::rc::Rc;
+use std::{fs, path::PathBuf, rc::Rc};
 
-use ast::module::Module;
-use error::Error;
-use ir::IRGenerator;
-use mir::generator::module::PassRunner;
-use mir::MModule;
-
-use crate::ast::module::{Import, ModulePath};
-use crate::error::Errors;
-use crate::lexer::token::Token;
-use crate::mir::MutRc;
+use crate::{
+    ast::module::{Import, Module, ModulePath},
+    error::{Error, Errors},
+    ir::IRGenerator,
+    lexer::token::Token,
+    mir::{generator::module::PassRunner, MModule, MutRc},
+};
 
 pub mod ast;
 //#[cfg(test)]

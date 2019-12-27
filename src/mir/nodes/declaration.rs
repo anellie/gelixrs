@@ -1,20 +1,27 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 5:38 PM.
+ * Last modified on 12/27/19 6:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::collections::HashMap;
-use std::fmt::{Display, Error, Formatter};
-use std::hash::{Hash, Hasher};
-use std::rc::Rc;
+use std::{
+    collections::HashMap,
+    fmt::{Display, Error, Formatter},
+    hash::{Hash, Hasher},
+    rc::Rc,
+};
 
 use indexmap::IndexMap;
 
-use crate::ast;
-use crate::mir::generator::builder::Context;
-use crate::mir::nodes::{ClosureType, Expr, Prototype, Type};
-use crate::mir::{mutrc_new, MModule, MutRc};
+use crate::{
+    ast,
+    mir::{
+        generator::builder::Context,
+        mutrc_new,
+        nodes::{ClosureType, Expr, Prototype, Type},
+        MModule, MutRc,
+    },
+};
 
 /// A full class including all members and methods.
 /// Members are ordered, as the class is represented as a struct in IR;

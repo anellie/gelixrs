@@ -1,17 +1,20 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/26/19 3:29 AM.
+ * Last modified on 12/27/19 6:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::rc::Rc;
 
-use crate::ast::Module;
-use crate::error::Errors;
-use crate::mir::generator::builder::Context;
-use crate::mir::generator::passes::PreMIRPass;
-use crate::mir::nodes::{Class, Interface, Type};
-use crate::mir::{MModule, MutRc};
+use crate::{
+    ast::Module,
+    error::Errors,
+    mir::{
+        generator::{builder::Context, passes::PreMIRPass},
+        nodes::{Class, Interface, Type},
+        MModule, MutRc,
+    },
+};
 
 /// This pass defines all types inside the module; currently classes and interfaces.
 /// It only creates a stub MIR definition and inserts it as a type;

@@ -1,29 +1,34 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/26/19 3:31 AM.
+ * Last modified on 12/27/19 6:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::rc::Rc;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use crate::ast::Function as ASTFunc;
-use crate::ast::IFaceImpl as ASTImpl;
-use crate::ast::Interface as ASTIFace;
-use crate::ast::Type as ASTType;
-use crate::ast::{Class as ASTClass, IFaceImpl};
-use crate::error::{Error, Res};
-use crate::lexer::token::Token;
-use crate::mir::generator::builder::{Context, MIRBuilder};
-use crate::mir::generator::module::DONE_PASSES;
-use crate::mir::generator::passes::declaring_globals::{
-    create_global, generate_mir_fn, get_function_name, insert_global_and_type,
+use crate::{
+    ast::{
+        Class as ASTClass, Function as ASTFunc, IFaceImpl as ASTImpl, IFaceImpl,
+        Interface as ASTIFace, Type as ASTType,
+    },
+    error::{Error, Res},
+    lexer::token::Token,
+    mir::{
+        generator::{
+            builder::{Context, MIRBuilder},
+            module::DONE_PASSES,
+            passes::{
+                declaring_globals::{
+                    create_global, generate_mir_fn, get_function_name, insert_global_and_type,
+                },
+                declaring_iface_impls::declare_impl,
+            },
+            MIRGenerator,
+        },
+        nodes::{Class, Interface, Type},
+        MModule, MutRc,
+    },
 };
-use crate::mir::generator::passes::declaring_iface_impls::declare_impl;
-use crate::mir::generator::MIRGenerator;
-use crate::mir::nodes::{Class, Interface, Type};
-use crate::mir::{MModule, MutRc};
 use either::Either::Right;
 
 /// A prototype that classes can be instantiated from.

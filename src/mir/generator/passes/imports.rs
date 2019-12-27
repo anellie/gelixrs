@@ -1,18 +1,16 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/22/19 4:09 PM.
+ * Last modified on 12/27/19 6:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::cell::RefMut;
-use std::mem;
-use std::rc::Rc;
+use std::{cell::RefMut, mem, rc::Rc};
 
-use crate::ast::{Import, Module};
-use crate::error::{Error, Errors, Res};
-use crate::mir::generator::passes::PreMIRPass;
-use crate::mir::result::ToMIRResult;
-use crate::mir::{MModule, MutRc};
+use crate::{
+    ast::{Import, Module},
+    error::{Error, Errors, Res},
+    mir::{generator::passes::PreMIRPass, result::ToMIRResult, MModule, MutRc},
+};
 
 /// This pass imports all types.
 pub struct ImportTypes();
