@@ -1,0 +1,21 @@
+/*
+0
+0
+
+
+*/
+
+func main() {
+    var string = "i am a string"
+    var s = S(string)
+    string.clear()
+    print(string.len())
+    print(s.s.len())
+    print(string)
+    print(s.s)
+}
+
+class S {
+    val s: String
+    construct(s) {}
+}

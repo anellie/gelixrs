@@ -1,0 +1,41 @@
+/*
+*/
+
+func main() {
+    var super = Super()
+    var sub = Sub()
+    for (i from 0 to 1000000) {
+        super.s = sub
+    }
+}
+
+class Super {
+    var s = Sub()
+}
+
+class Sub {
+    val a = SubSub()
+    val b = SubSub()
+    val c = SubSub()
+    val d = SubSub()
+    val e = SubSub()
+    val f = SubSub()
+    val g = SubSub()
+}
+
+class SubSub {
+    val a = SubSubSub()
+    val b = SubSubSub()
+    val c = SubSubSub()
+    val d = SubSubSub()
+    val e = SubSubSub()
+    val f = SubSubSub()
+    val g = SubSubSub()
+}
+
+class SubSubSub {
+    val a = 5
+    val b = "I am a pointless waste of memory!"
+    val c = "Me too!"
+    val d = Array::<Array<i64>>(100)
+}

@@ -1,0 +1,27 @@
+/*
+I am still allocated!
+*/
+
+func main() {
+    print(a())
+}
+
+func a() -> String {
+    val a = b()
+    a.string
+}
+
+func b() -> A {
+    val string = "I am still allocated!"
+    val a = A(string)
+    c(a)
+}
+
+func c(a: A) -> A {
+    a
+}
+
+class A {
+    val string: String
+    construct(string) {}
+}

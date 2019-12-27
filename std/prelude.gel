@@ -103,4 +103,13 @@ class String {
         // Subtract the null terminator
         this.length - 1
     }
+
+    /// Clears the string, setting the len to 0
+    /// and writing a null terminator to the first
+    /// index of its pointer.
+    func clear() {
+        val null_char = this.ptr.element_at_index(this.length - 1).dereference()
+        this.ptr.set(null_char)
+        this.length = 1
+    }
 }

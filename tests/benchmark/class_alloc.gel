@@ -1,0 +1,15 @@
+/*
+*/
+
+func main() {
+    for (i from 0 to 100000) {
+        Test()
+    }
+}
+
+class Test {
+    val a = 5
+    val b = "I am a pointless waste of memory!"
+    val c = "Me too!"
+    val d = Array::<Array<i64>>(100)
+}

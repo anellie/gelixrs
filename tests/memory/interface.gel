@@ -1,0 +1,35 @@
+/*
+I am still allocated!
+*/
+
+func main() {
+    print(a())
+}
+
+func a() -> String {
+    val b = b()
+    b.s()
+}
+
+func b() -> B {
+    val string = "I am still allocated!"
+    val a = A(string)
+    c(a)
+}
+
+func c(a: A) -> B d(a)
+
+func d(b: B) -> B b
+
+class A {
+    val string: String
+    construct(string) {}
+}
+
+interface B {
+    func s() -> String
+}
+
+impl B for A {
+    func s() -> String this.string
+}
