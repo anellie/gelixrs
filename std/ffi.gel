@@ -1,4 +1,5 @@
 import std/intrinsics/+
+import std/memory/Free
 
 /// Returns the size of a type, in bytes. Equivalent to C's sizeof()
 public func size_of<T>() -> i64 {
@@ -11,15 +12,20 @@ public func size_of<T>() -> i64 {
 /// Should you misuse a pointer and try to dereference
 /// invalid memory, gelix will simply crash at runtime.
 ///
-/// To obtain a pointer, use `allocate`.
+/// To obtain a heap-allocated pointer, use `allocate`.
 public class Ptr<E> {
 
     /// The location of the pointer in memory.
     /// Converted to an actual pointer when required.
     private var pointer: i64
 
+    /// If this pointer points to the heap.
+    /// This is used to decide if the pointer
+    /// should be passed to free() on GC.
+    private val heap: bool
+
     /// Create a new pointer given the location in memory.
-    private construct(pointer) {}
+    private construct(pointer, heap) {}
 
     /// Returns the element at the given `index`.
     /// Similar to C array indexing - 0 is the
@@ -27,7 +33,7 @@ public class Ptr<E> {
     /// This returns a new pointer object, and does not modify the called one.
     public func element_at_index(index: i64) -> Ptr<E> {
         val index = this.pointer + (index * size_of::<E>())
-        Ptr::<E>(index)
+        Ptr::<E>(index, this.heap)
     }
 
     /// Dereferences the pointer to the raw type,
@@ -41,12 +47,20 @@ public class Ptr<E> {
     }
 }
 
+impl Free for Ptr<E> {
+    func free() {
+        if (this.heap) free(this.pointer)
+    }
+}
+
 /// Allocates on the heap, where the amount
 /// of bytes allocated is the size of the type parameter times `size`.
-/// The returned pointer is not memory-managed.
+/// The returned pointer is memory-managed, and the backing
+/// memory will be freed once the pointer gets picked up
+/// by the GC.
 public func allocate<T>(size: i64) -> Ptr<T> {
     var ptr = malloc(size_of::<T>() * size)
-    Ptr::<T>(ptr)
+    Ptr::<T>(ptr, true)
 }
 
 /// Copies elements in memory at `src` to `dst`,

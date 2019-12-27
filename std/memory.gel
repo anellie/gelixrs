@@ -1,0 +1,10 @@
+/// This interface allows implementing custom behavior
+/// when a value is freed.
+/// This can be used for multiple purposes like
+/// RAII locks or freeing memory not tracked by gelix.
+interface Free {
+    /// This method is called before a value is deallocated.
+    /// When implemented on aggregate value types like classes,
+    /// this method is called on the class first, then all fields.
+    func free()
+}

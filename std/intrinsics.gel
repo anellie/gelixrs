@@ -34,11 +34,14 @@ extern variadic func sprintf(s: i64, format: i64) -> i64
 /// on the heap and returning a pointer.
 extern func malloc(size: i64) -> i64
 
+/// libc free
+extern func free(ptr: i64)
+
 /// Build a string literal, given a i8* pointer and a
 /// length. Will copy the string at the pointer into
 /// a heap-allocated string.
 func build_string_literal(literal_ptr: i64, len: i64) -> String {
-    val literal_ptr = Ptr::<i8>(literal_ptr)
+    val literal_ptr = Ptr::<i8>(literal_ptr, false)
     val new_ptr = allocate::<i8>(len)
     copy_ptr::<i8>(literal_ptr, new_ptr, len)
     String(len, len, new_ptr)
