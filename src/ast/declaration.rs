@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/26/19 8:59 PM.
+ * Last modified on 12/27/19 12:58 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -111,6 +111,10 @@ impl FunctionParam {
         }
     }
 
+    /// This is used for the implicit parameter on closure functions.
+    /// Since this parameter is deconstructed into separate variables,
+    /// the user should not be able to access it, so it contains a '-'
+    /// to prevent the user from referencing it as a variable.
     pub fn captured_param() -> FunctionParam {
         FunctionParam {
             type_: Type::Ident(Token::generic_identifier("CLOSURE-CAPTURED".to_string())),
@@ -137,20 +141,22 @@ pub struct Variable {
 /// A type literal, like 'String' or '[i64]'
 #[derive(Clone, Debug, EnumAsGetters, EnumIsA)]
 pub enum Type {
+    /// Just an identifier, primitive type, class, or interface
     Ident(Token),
 
+    /// An array of a type, written [$type]
     Array(Box<Type>),
 
+    /// A closure signature, written (param1: $ty1, param2: $ty2): $ret_type
     Closure {
         params: Vec<Type>,
         ret_type: Option<Box<Type>>,
         closing_paren: Token,
     },
 
-    Generic {
-        token: Token,
-        types: Vec<Type>,
-    },
+    /// An identifier with additional generic parameters, a prototype
+    /// instantiation: Prototype<TypeA, TypeB>
+    Generic { token: Token, types: Vec<Type> },
 }
 
 impl Type {

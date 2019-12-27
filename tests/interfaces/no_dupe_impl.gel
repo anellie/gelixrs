@@ -12,8 +12,7 @@ impl Test for Implementor {
     func test() -> String this.a
 }
 impl Test for Implementor {
-    /// https://gita.angm.xyz/felix/gelixrs/issues/27
-    func          test() -> String this.a
+    func test() -> String this.a
 }
 
 func main() {

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 10:35 PM.
+ * Last modified on 12/27/19 12:58 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -10,6 +10,8 @@ use std::rc::Rc;
 use crate::ast::declaration::{Class, Function, IFaceImpl, Interface};
 use crate::lexer::token::Token;
 
+/// The path of the module. For example, the file 'std/collections/array.gel'
+/// would have ["std", "collections", "array"] here.
 #[derive(Clone, Debug, Default, PartialOrd, PartialEq, Eq, Hash)]
 pub struct ModulePath(pub Vec<Rc<String>>);
 
@@ -27,6 +29,8 @@ impl Display for ModulePath {
     }
 }
 
+/// A module, containing all code inside it.
+/// A module in AST is simply a file.
 #[derive(Debug, Default)]
 pub struct Module {
     pub path: Rc<ModulePath>,

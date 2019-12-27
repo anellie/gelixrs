@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/20/19 5:16 PM.
+ * Last modified on 12/27/19 1:05 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -228,6 +228,7 @@ impl Lexer {
             lexeme: Rc::new(self.chars[(self.start)..(self.current)].iter().collect()),
             index: self.line_index,
             line: self.line,
+            len: self.current - self.start
         }
     }
 
@@ -238,6 +239,7 @@ impl Lexer {
             lexeme: Rc::new(message.to_string()),
             index: self.line_index + message.len(),
             line: self.line,
+            len: message.len()
         }
     }
 

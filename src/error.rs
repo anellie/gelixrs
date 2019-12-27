@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/15/19 4:16 PM.
+ * Last modified on 12/27/19 1:02 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -41,15 +41,10 @@ impl Error {
         message: String,
         module: &Rc<ModulePath>,
     ) -> Error {
-        let start = if tok.index <= tok.lexeme.len() {
-            0
-        } else {
-            tok.index - tok.lexeme.len()
-        };
         Error {
             line: tok.line,
-            start,
-            len: tok.lexeme.len(),
+            start: tok.index - tok.len,
+            len: tok.len,
             producer,
             message,
             module: Rc::clone(module),
