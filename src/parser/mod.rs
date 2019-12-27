@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 2:04 AM.
+ * Last modified on 12/27/19 2:27 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -76,7 +76,7 @@ impl Parser {
     /// Also does not return a token, since newlines are not tokens.
     /// (This special function is needed because of this)
     fn consume_semi_or_nl(&mut self, message: &'static str) -> Option<()> {
-        if self.matches(TType::Semicolon) || self.previous_line == self.current.line {
+        if self.matches(TType::Semicolon) || self.previous_line != self.current.line {
             Some(())
         } else {
             self.error_at_current(message);

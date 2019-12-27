@@ -1,12 +1,12 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 2:10 AM.
+ * Last modified on 12/27/19 3:32 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use std::path::Path;
 use std::{
-    cell::{Ref, RefMut},
+    cell::RefMut,
     collections::HashMap,
     hash::{Hash, Hasher},
     rc::Rc,
@@ -26,15 +26,16 @@ use super::{
     ast::literal::Literal,
     lexer::token::TType,
     mir::{
-        nodes::{Block, Class, Expr, Flow, Function, Type, Variable},
+        nodes::{Block, Expr, Flow, Function, Type, Variable},
         MModule, MutRc,
     },
 };
 use crate::ir::intrinsics::fill_intrinsic_functions;
 use crate::mir::get_iface_impls;
-use crate::mir::nodes::{ClosureType, IFaceMethod, Interface};
 
 mod intrinsics;
+mod types;
+mod values;
 
 /// A generator that creates LLVM IR out of Gelix mid-level IR (MIR).
 ///
@@ -106,149 +107,12 @@ impl IRGenerator {
         self.module
     }
 
-    /// Generates a type, if it was not found in self.types.
-    fn build_type(&mut self, ty: &Type) -> BasicTypeEnum {
-        let ir_ty = match ty {
-            // Any is a special case - it is not in self.types
-            // as it is considered equal to all other types -
-            // this would break the hashmap and result in returning
-            // of Any when the type searched for is not Any.
-            Type::Any => return self.none_const.get_type(),
-
-            Type::Function(func) => self
-                .get_fn_type(&func.borrow())
-                .ptr_type(AddressSpace::Generic)
-                .into(),
-
-            Type::Closure(closure) => self.get_closure_type(closure),
-
-            Type::ClosureCaptured(captured) => self.get_captured_type(captured).into(),
-
-            Type::Class(class) => self.build_class(class).into(),
-
-            Type::Interface(iface) => self.build_iface_ptr_struct(Rc::clone(iface)).into(),
-
-            _ => panic!(format!("Unknown type '{}' to build", ty)),
-        };
-        self.types.insert(ty.clone(), ir_ty);
-        ir_ty
-    }
-
-    /// Generates a class struct and its body.
-    fn build_class(&mut self, class: &MutRc<Class>) -> StructType {
-        let struc_val = self.context.opaque_struct_type(&class.borrow().name);
-        let body: Vec<BasicTypeEnum> = class
-            .borrow()
-            .members
-            .iter()
-            .map(|(_, mem)| self.to_ir_type_no_ptr(&mem.type_))
-            .collect();
-        struc_val.set_body(body.as_slice(), false);
-        struc_val
-    }
-
-    fn get_closure_type(&mut self, closure: &ClosureType) -> BasicTypeEnum {
-        let func_ty = self
-            .fn_type_from_raw(
-                Some(Type::I64).iter().chain(closure.parameters.iter()),
-                &closure.ret_type,
-                false,
-            )
-            .ptr_type(AddressSpace::Generic)
-            .into();
-        let captured_ty = self.context.i64_type().into();
-
-        let ty = self.context.opaque_struct_type("closure");
-        ty.set_body(&[func_ty, captured_ty], false);
-        ty.into()
-    }
-
-    fn get_captured_type(&mut self, captured: &[Rc<Variable>]) -> StructType {
-        let struc_val = self.context.opaque_struct_type("closure-captured");
-        let body: Vec<BasicTypeEnum> = captured
-            .iter()
-            .map(|var| self.to_ir_type_no_ptr(&var.type_))
-            .collect();
-        struc_val.set_body(body.as_slice(), false);
-        struc_val
-    }
-
-    /// Generates the LLVM FunctionType of a MIR function.
-    fn get_fn_type(&mut self, func: &Ref<Function>) -> FunctionType {
-        let params = func.parameters.iter().map(|param| &param.type_);
-        let variadic = func.ast.as_ref().map(|a| a.sig.variadic).unwrap_or(false);
-        self.fn_type_from_raw(params, &func.ret_type, variadic)
-    }
-
-    fn fn_type_from_raw<'a, T: Iterator<Item = &'a Type>>(
-        &mut self,
-        params: T,
-        ret_type: &Type,
-        variadic: bool,
-    ) -> FunctionType {
-        let params: Vec<BasicTypeEnum> = params.map(|param| self.to_ir_type(param)).collect();
-
-        if ret_type == &Type::None {
-            self.context
-                .void_type()
-                .fn_type(params.as_slice(), variadic)
-        } else {
-            let ret_type = self.to_ir_type_no_ptr(ret_type);
-            ret_type.fn_type(params.as_slice(), variadic)
-        }
-    }
-
-    fn build_iface_ptr_struct(&mut self, iface: MutRc<Interface>) -> StructType {
-        let vtable: Vec<BasicTypeEnum> = iface
-            .borrow()
-            .methods
-            .iter()
-            .map(|(_, method)| self.get_iface_method_type(method))
-            .collect();
-        let vtable_struct = self.context.struct_type(&vtable, false);
-
-        let body = vec![
-            self.context
-                .i64_type()
-                .ptr_type(AddressSpace::Generic)
-                .into(),
-            vtable_struct.ptr_type(AddressSpace::Generic).into(),
-        ];
-        let struc_val = self.context.opaque_struct_type(&iface.borrow().name);
-        struc_val.set_body(&body, false);
-        struc_val
-    }
-
-    fn get_iface_method_type(&mut self, method: &IFaceMethod) -> BasicTypeEnum {
-        let mut params: Vec<BasicTypeEnum> = method
-            .parameters
-            .iter()
-            .map(|param| self.to_ir_type(&param))
-            .collect();
-        params.insert(
-            0,
-            self.context
-                .i64_type()
-                .ptr_type(AddressSpace::Generic)
-                .into(),
-        );
-
-        if method.ret_type == Type::None {
-            self.context.void_type().fn_type(params.as_slice(), false)
-        } else {
-            let ret_type = self.to_ir_type_no_ptr(&method.ret_type);
-            ret_type.fn_type(params.as_slice(), false)
-        }
-        .ptr_type(AddressSpace::Generic)
-        .into()
-    }
-
     /// Declares a function. All functions must be declared before generating
     /// code; as a reference to an undeclared function is otherwise possible
     /// (and leads to a panic)
     fn declare_function(&mut self, func: &Rc<Variable>) {
         let func_ty = func.type_.as_function();
-        let fn_ty = self.get_fn_type(&func_ty.borrow());
+        let fn_ty = self.build_fn_type(func_ty.borrow());
         let func_val = self
             .module
             .add_function(&func_ty.borrow().name, fn_ty, None);
@@ -277,7 +141,7 @@ impl IRGenerator {
         self.build_parameter_alloca(&func, func_val);
 
         for (name, var) in func.variables.iter() {
-            let alloca_ty = self.to_ir_type_no_ptr(&var.type_);
+            let alloca_ty = self.ir_ty(&var.type_);
             let alloca = self.builder.build_alloca(alloca_ty, &name);
             self.variables.insert(PtrEqRc::new(var), alloca);
         }
@@ -446,7 +310,7 @@ impl IRGenerator {
                     .build_call(ptr, arguments.as_slice(), "call")
                     .try_as_basic_value();
                 let ret = ret.left().unwrap_or(self.none_const);
-                self.create_tmp_store(ret)
+                self.build_local_store(ret)
             }
 
             Expr::CallDyn {
@@ -491,13 +355,13 @@ impl IRGenerator {
                     .build_call(method_ptr, arguments.as_slice(), "call")
                     .try_as_basic_value();
                 let ret = ret.left().unwrap_or(self.none_const);
-                self.create_tmp_store(ret)
+                self.build_local_store(ret)
             }
 
             Expr::CastToInterface { object, to } => {
                 let implementor = object.get_type();
                 let obj = self.generate_expression(object);
-                let iface_struct_ty: StructType = *self.to_ir_type_no_ptr(to).as_struct_type();
+                let iface_struct_ty: StructType = *self.ir_ty(to).as_struct_type();
                 let vtable_ty = *iface_struct_ty.get_field_types()[1]
                     .as_pointer_type()
                     .get_element_type()
@@ -505,7 +369,6 @@ impl IRGenerator {
 
                 let vtable = self.get_vtable(implementor, to, vtable_ty);
                 self.create_tmp_iface_struct(iface_struct_ty, obj, vtable)
-                    .into()
             }
 
             Expr::ConstructClosure {
@@ -525,25 +388,17 @@ impl IRGenerator {
                     "ccast",
                 );
 
-                let ty = self.to_ir_type_no_ptr(&function.borrow().to_closure_type());
-                let ptr = self.create_alloca(ty);
-                unsafe {
-                    let func_slot = self.builder.build_struct_gep(ptr, 0, "funcgep");
-                    self.builder.build_store(func_slot, func_ptr);
-                }
-
-                let captured_ty = self.get_captured_type(captured);
+                let captured_ty = self
+                    .ir_ty(&Type::ClosureCaptured(Rc::clone(captured)))
+                    .into_struct_type();
                 let captured_vals = self.create_captured_values(captured_ty, captured);
-                let captured_vals = self.builder.build_ptr_to_int(
-                    captured_vals,
-                    self.context.i64_type(),
-                    "captcast",
-                );
-                unsafe {
-                    let captured_slot = self.builder.build_struct_gep(ptr, 1, "captgep");
-                    self.builder.build_store(captured_slot, captured_vals);
-                }
-                ptr.into()
+                let captured_vals = self
+                    .builder
+                    .build_ptr_to_int(captured_vals, self.context.i64_type(), "captcast")
+                    .into();
+
+                let ty = self.ir_ty(&function.borrow().to_closure_type());
+                self.build_local_struct(ty, [func_ptr, captured_vals].iter())
             }
 
             Expr::Flow(flow) => {
@@ -662,7 +517,7 @@ impl IRGenerator {
                         .build_struct_gep(struc.into_pointer_value(), *index, "classgep")
                 };
                 let value = self.generate_expression(value);
-                self.builder.build_store(ptr, self.unwrap_value_ptr(value));
+                self.builder.build_store(ptr, self.unwrap_struct_ptr(value));
                 value
             }
 
@@ -716,7 +571,7 @@ impl IRGenerator {
                             .try_as_basic_value()
                             .left()
                             .unwrap();
-                        self.create_tmp_store(string)
+                        self.build_local_store(string)
                     }
                 }
 
@@ -750,7 +605,7 @@ impl IRGenerator {
                 let value = self.generate_expression(value);
 
                 self.builder
-                    .build_store(variable, self.unwrap_value_ptr(value));
+                    .build_store(variable, self.unwrap_struct_ptr(value));
                 value
             }
         }
@@ -761,16 +616,11 @@ impl IRGenerator {
         ty: StructType,
         implementor: BasicValueEnum,
         vtable: BasicValueEnum,
-    ) -> PointerValue {
-        let ptr = self.create_alloca(ty.into());
-        unsafe {
-            let implptr = self.builder.build_struct_gep(ptr, 0, "implgep");
-            self.builder
-                .build_store(implptr, self.coerce_to_i64_ptr(implementor));
-            let vtableptr = self.builder.build_struct_gep(ptr, 1, "vtablegep");
-            self.builder.build_store(vtableptr, vtable);
-        }
-        ptr
+    ) -> BasicValueEnum {
+        self.build_local_struct(
+            ty.into(),
+            [self.coerce_to_void_ptr(implementor), vtable].iter(),
+        )
     }
 
     fn create_captured_values(
@@ -782,69 +632,9 @@ impl IRGenerator {
         for (i, var) in captured.iter().enumerate() {
             let ptr = unsafe { self.builder.build_struct_gep(value, i as u32, "captgep") };
             let value = self.load_ptr(self.get_variable(var));
-            self.builder.build_store(ptr, self.unwrap_value_ptr(value));
+            self.builder.build_store(ptr, self.unwrap_struct_ptr(value));
         }
         value
-    }
-
-    /// Creates a new stack allocation instruction in the entry block of the function.
-    fn create_alloca(&self, ty: BasicTypeEnum) -> PointerValue {
-        let builder = self.context.create_builder();
-        let entry = self
-            .builder
-            .get_insert_block()
-            .unwrap()
-            .get_parent()
-            .unwrap()
-            .get_first_basic_block()
-            .unwrap();
-
-        match entry.get_first_instruction() {
-            Some(first_instr) => builder.position_before(&first_instr),
-            None => builder.position_at_end(&entry),
-        }
-
-        builder.build_alloca(ty, "tmpalloc")
-    }
-
-    fn create_tmp_store(&self, value: BasicValueEnum) -> BasicValueEnum {
-        let alloca = self.create_alloca(value.get_type());
-        self.builder
-            .build_store(alloca, self.unwrap_value_ptr(value));
-        self.load_ptr(alloca)
-    }
-
-    /// Force any type to be turned into an i64 pointer.
-    /// Used for the implementor of interface methods.
-    fn coerce_to_i64_ptr(&self, ty: BasicValueEnum) -> BasicValueEnum {
-        let target = self.context.i64_type().ptr_type(AddressSpace::Generic);
-        match ty {
-            BasicValueEnum::PointerValue(ptr) => self.builder.build_bitcast(ptr, target, "bc"),
-
-            BasicValueEnum::IntValue(int) => {
-                let num = self
-                    .builder
-                    .build_int_z_extend(int, self.context.i64_type(), "ext");
-                self.builder
-                    .build_int_to_ptr(num, target, "inttoptr")
-                    .into()
-            }
-
-            BasicValueEnum::FloatValue(flt) => {
-                let int = *self
-                    .builder
-                    .build_bitcast(flt, self.context.i64_type(), "flttoint")
-                    .as_int_value();
-                let num = self
-                    .builder
-                    .build_int_z_extend(int, self.context.i64_type(), "ext");
-                self.builder
-                    .build_int_to_ptr(num, target, "inttoptr")
-                    .into()
-            }
-
-            _ => panic!("Cannot coerce to i64 ptr"),
-        }
     }
 
     /// Returns the vtable of the interface implementor given.
@@ -873,47 +663,6 @@ impl IRGenerator {
         let global = self.module.add_global(vtable, None, "vtable");
         global.set_initializer(&vtable.const_named_struct(&methods));
         global.as_pointer_value().into()
-    }
-
-    /// Loads a pointer, turning it into a value.
-    /// Does not load structs or functions, since they are only ever used as pointers.
-    fn load_ptr(&self, ptr: PointerValue) -> BasicValueEnum {
-        match ptr.get_type().get_element_type() {
-            AnyTypeEnum::FunctionType(_) => BasicValueEnum::PointerValue(ptr),
-            AnyTypeEnum::StructType(_) => BasicValueEnum::PointerValue(ptr),
-            _ => self.builder.build_load(ptr, "var"),
-        }
-    }
-
-    /// If the parameter 'ptr' is a struct pointer, the struct itself is returned.
-    /// Otherwise, ptr is simply returned without modification.
-    fn unwrap_value_ptr(&self, val: BasicValueEnum) -> BasicValueEnum {
-        if let BasicValueEnum::PointerValue(ptr) = val {
-            if let AnyTypeEnum::StructType(_) = ptr.get_type().get_element_type() {
-                return self.builder.build_load(ptr, "ptr-load");
-            }
-        }
-        val
-    }
-
-    /// Converts a MIRType to the corresponding LLVM type.
-    /// Structs/Arrays are returned as PointerType<StructType/ArrayType>.
-    fn to_ir_type(&mut self, mir: &Type) -> BasicTypeEnum {
-        let ir = self.to_ir_type_no_ptr(mir);
-        match ir {
-            BasicTypeEnum::StructType(struc) if ir != self.none_const.get_type() => {
-                struc.ptr_type(AddressSpace::Generic).as_basic_type_enum()
-            }
-            _ => ir,
-        }
-    }
-
-    /// Converts a MIRType to the corresponding LLVM type. Structs are returned as StructType.
-    fn to_ir_type_no_ptr(&mut self, mir: &Type) -> BasicTypeEnum {
-        self.types
-            .get(mir)
-            .copied()
-            .unwrap_or_else(|| self.build_type(mir))
     }
 
     pub fn new() -> IRGenerator {

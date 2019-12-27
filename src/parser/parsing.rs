@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 1:57 AM.
+ * Last modified on 12/27/19 2:29 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -883,8 +883,6 @@ impl Parser {
         let token = self.advance();
         Some(match token.t_type {
             TType::Identifier => {
-                let token = self.advance();
-
                 if self.matches(TType::Less) {
                     let mut types = Vec::new();
                     loop {

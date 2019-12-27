@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/22/19 3:59 PM.
+ * Last modified on 12/27/19 2:36 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -50,9 +50,7 @@ fn fill_function(gen: &mut IRGenerator, func: RefMut<Function>, ir: FunctionValu
         "get_type_size" => {
             let i = gen.context.i64_type();
             let mir_ty = func.context.type_aliases.values().next().unwrap();
-            let typ = gen
-                .to_ir_type_no_ptr(&mir_ty)
-                .ptr_type(AddressSpace::Generic);
+            let typ = gen.ir_ty(&mir_ty).ptr_type(AddressSpace::Generic);
             let ptr_size = unsafe {
                 gen.builder
                     .build_gep(typ.const_null(), &[i.const_int(1, false)], "size")
