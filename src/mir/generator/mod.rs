@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 6:54 PM.
+ * Last modified on 12/27/19 8:14 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -194,7 +194,7 @@ impl MIRGenerator {
         self.set_pointer(Rc::clone(function), Rc::clone(&entry_block));
         self.begin_scope();
         for param in func.parameters.iter() {
-            self.insert_variable(Rc::clone(param), false, err_line)?;
+            self.insert_variable(&param, false, err_line)?;
         }
 
         Ok(())
@@ -203,21 +203,16 @@ impl MIRGenerator {
     /// Defines a new variable. It is put into the variable list in the current function
     /// and placed in the topmost scope.
     fn define_variable(&mut self, token: &Token, mutable: bool, ty: Type) -> Rc<Variable> {
-        let def = Rc::new(Variable {
-            mutable,
-            type_: ty,
-            name: Rc::clone(&token.lexeme),
-        });
-
+        let def = Variable::new(mutable, ty, &token.lexeme);
         self.add_function_variable(Rc::clone(&def));
-        self.insert_variable(Rc::clone(&def), true, token.line)
+        self.insert_variable(&def, true, token.line)
             .unwrap_or(());
         def
     }
 
     /// Inserts a variable into the topmost scope.
     /// Note that the variable does NOT get added to the function!
-    fn insert_variable(&mut self, var: Rc<Variable>, allow_redefine: bool, line: usize) -> Res<()> {
+    fn insert_variable(&mut self, var: &Rc<Variable>, allow_redefine: bool, line: usize) -> Res<()> {
         let cur_env = self.environments.last_mut().unwrap();
         let was_defined = cur_env
             .insert(Rc::clone(&var.name), Rc::clone(&var))
@@ -241,7 +236,7 @@ impl MIRGenerator {
     pub fn add_function_variable(&mut self, variable: Rc<Variable>) {
         self.cur_fn()
             .borrow_mut()
-            .insert_var(Rc::clone(&variable.name), Rc::clone(&variable));
+            .insert_var(Rc::clone(&variable.name), variable);
     }
 
     /// Searches all scopes for a variable, starting at the top.

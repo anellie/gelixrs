@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 6:50 PM.
+ * Last modified on 12/27/19 8:18 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -78,7 +78,7 @@ pub fn create_function(
     let (full_name, name) =
         get_and_reserve_func_name(&builder.module, name_token.clone(), &this_arg, is_external)?;
     let function = generate_mir_fn(builder, func, full_name, this_arg)?;
-    let global = create_global(&name, false, Type::Function(function));
+    let global = Variable::new(false, Type::Function(function), &name);
     insert_global_and_type(&builder.module, &global);
     maybe_set_main_fn(&builder.module.borrow().path, &global, name_token)?;
     Ok(global)
@@ -130,11 +130,7 @@ pub fn generate_mir_fn(
 
     let mut parameters = Vec::with_capacity(func_sig.parameters.len());
     for param in this_arg.iter().chain(func_sig.parameters.iter()) {
-        parameters.push(Rc::new(Variable {
-            mutable: false,
-            name: Rc::clone(&param.name.lexeme),
-            type_: builder.find_type(&param.type_)?,
-        }));
+        parameters.push(Variable::new(false, builder.find_type(&param.type_)?, &param.name.lexeme));
     }
 
     Ok(mutrc_new(Function {
@@ -146,14 +142,6 @@ pub fn generate_mir_fn(
         context: builder.context.clone(),
         ast: func.right().map(Rc::new),
     }))
-}
-
-pub fn create_global(name: &Rc<String>, mutable: bool, type_: Type) -> Rc<Variable> {
-    Rc::new(Variable {
-        name: Rc::clone(name),
-        type_,
-        mutable,
-    })
 }
 
 pub fn insert_global_and_type(module: &MutRc<MModule>, global: &Rc<Variable>) {

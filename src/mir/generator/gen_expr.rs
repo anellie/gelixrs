@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 7:57 PM.
+ * Last modified on 12/27/19 8:18 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -17,7 +17,7 @@ use crate::{
     lexer::token::{TType, Token},
     mir::{
         generator::{
-            passes::declaring_globals::{create_global, generate_mir_fn, insert_global_and_type},
+            passes::declaring_globals::{generate_mir_fn, insert_global_and_type},
             ForLoop, MIRGenerator,
         },
         nodes::{catch_up_passes, Class, Expr, Flow, Type, Variable},
@@ -357,11 +357,7 @@ impl MIRGenerator {
             Expr::call(Expr::load(&class.instantiator), vec![])
         };
 
-        let var = Rc::new(Variable {
-            mutable: true,
-            type_: Type::Class(class_ref),
-            name: Rc::new("tmp-constructor-var".to_string()),
-        });
+        let var = Variable::new(true, Type::Class(class_ref), &Rc::new("tmp-constructor-var".to_string()));
         self.add_function_variable(Rc::clone(&var));
         self.insert_at_ptr(Expr::store(&var, call));
 
@@ -630,18 +626,14 @@ impl MIRGenerator {
                 "i64".to_string(),
             ))),
         )?;
-        let global = create_global(&name.lexeme, false, Type::Function(Rc::clone(&function)));
+        let global = Variable::new(false, Type::Function(Rc::clone(&function)), &name.lexeme);
         insert_global_and_type(&gen.module, &global);
 
         catch_up_passes(&mut gen, &Type::Function(Rc::clone(&function)))?;
         let closure_data = gen.end_closure(self);
 
         let captured = Rc::new(closure_data.captured);
-        function.borrow_mut().parameters[0] = Rc::new(Variable {
-            mutable: false,
-            type_: Type::ClosureCaptured(Rc::clone(&captured)),
-            name: Rc::new("CLOSURE-CAPTURED".to_string()),
-        });
+        function.borrow_mut().parameters[0] = Variable::new(false, Type::ClosureCaptured(Rc::clone(&captured)), &Rc::new("CLOSURE-CAPTURED".to_string()));
 
         let expr = Expr::construct_closure(&global, captured);
         let var = self.define_variable(&Token::generic_identifier("closure-literal".to_string()), false, expr.get_type());

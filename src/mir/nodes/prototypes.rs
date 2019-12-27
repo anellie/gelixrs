@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 6:50 PM.
+ * Last modified on 12/27/19 8:19 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -19,7 +19,7 @@ use crate::{
             module::DONE_PASSES,
             passes::{
                 declaring_globals::{
-                    create_global, generate_mir_fn, get_function_name, insert_global_and_type,
+                    generate_mir_fn, get_function_name, insert_global_and_type,
                 },
                 declaring_iface_impls::declare_impl,
             },
@@ -30,6 +30,7 @@ use crate::{
     },
 };
 use either::Either::Right;
+use crate::mir::nodes::Variable;
 
 /// A prototype that classes can be instantiated from.
 /// This prototype is kept in AST form,
@@ -149,7 +150,7 @@ impl ProtoAST {
                     get_context(ast.sig.generics.as_ref().unwrap(), arguments),
                 );
                 let mir_fn = generate_mir_fn(&builder, Right(ast), String::clone(name), None)?;
-                let global = create_global(name, false, Type::Function(Rc::clone(&mir_fn)));
+                let global = Variable::new(false, Type::Function(Rc::clone(&mir_fn)), name);
                 insert_global_and_type(&builder.module, &global);
 
                 Type::Function(mir_fn)

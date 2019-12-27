@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 6:50 PM.
+ * Last modified on 12/27/19 8:17 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -50,15 +50,15 @@ fn build_class(gen: &mut MIRGenerator, class: &MutRc<Class>) -> Res<()> {
         gen.set_pointer(inst.clone(), func.append_block("entry", false));
     }
 
-    let class_variable = Rc::new(Variable {
-        mutable: true,
-        type_: gen
+    let class_variable = Variable::new(
+        true,
+        gen
             .builder
             .find_type(&ASTType::Ident(ast.name.clone()))
             .ok()
             .unwrap(),
-        name: Rc::new("this".to_string()),
-    });
+        &Rc::new("this".to_string())
+    );
     gen.add_function_variable(Rc::clone(&class_variable));
 
     let offset = class.borrow().members.len();
