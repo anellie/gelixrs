@@ -1,21 +1,21 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 4:54 PM.
+ * Last modified on 12/27/19 6:11 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
+use crate::ir::IRGenerator;
 use crate::mir::nodes::{Class, ClosureType, Function, IFaceMethod, Interface, Type, Variable};
 use crate::mir::MutRc;
 use inkwell::types::{BasicType, BasicTypeEnum, FunctionType, PointerType, StructType};
 use inkwell::AddressSpace::Generic;
 use std::cell::Ref;
 use std::rc::Rc;
-use crate::ir::IRGenerator;
 
 impl IRGenerator {
     /// Converts a MIRType to the corresponding LLVM type.
     /// Structs are returned as PointerType<StructType>.
-    pub(super) fn ir_ty_ptr(&mut self, mir: &Type) -> BasicTypeEnum {
+    pub fn ir_ty_ptr(&mut self, mir: &Type) -> BasicTypeEnum {
         let ir = self.ir_ty(mir);
         match ir {
             BasicTypeEnum::StructType(struc) => struc.ptr_type(Generic).into(),
@@ -24,7 +24,7 @@ impl IRGenerator {
     }
 
     /// Converts a MIRType to the corresponding LLVM type.
-    pub(super) fn ir_ty(&mut self, mir: &Type) -> BasicTypeEnum {
+    pub fn ir_ty(&mut self, mir: &Type) -> BasicTypeEnum {
         self.types
             .get(mir)
             .copied()
@@ -115,11 +115,9 @@ impl IRGenerator {
         let params: Vec<BasicTypeEnum> = params.map(|param| self.ir_ty_ptr(param)).collect();
 
         if *ret_type == Type::None {
-            self.context
-                .void_type()
-                .fn_type(params.as_slice(), variadic)
+            self.context.void_type().fn_type(&params, variadic)
         } else {
-            self.ir_ty(ret_type).fn_type(params.as_slice(), variadic)
+            self.ir_ty(ret_type).fn_type(&params, variadic)
         }
     }
 

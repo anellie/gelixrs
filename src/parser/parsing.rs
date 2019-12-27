@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 2:29 AM.
+ * Last modified on 12/27/19 6:03 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -907,10 +907,12 @@ impl Parser {
 
             TType::LeftParen => {
                 let mut params = Vec::new();
-                loop {
-                    params.push(self.type_("Expected closure parameter type.")?);
-                    if !self.matches(TType::Comma) {
-                        break;
+                if !self.check(TType::RightParen) {
+                    loop {
+                        params.push(self.type_("Expected closure parameter type.")?);
+                        if !self.matches(TType::Comma) {
+                            break;
+                        }
                     }
                 }
 

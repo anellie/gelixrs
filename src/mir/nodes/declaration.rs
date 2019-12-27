@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 2:06 AM.
+ * Last modified on 12/27/19 5:38 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -95,7 +95,7 @@ pub struct ClassMember {
     pub type_: Type,
     /// This is the index used for StructGet and StructSet
     /// expressions. This is needed due to the IR only using indices for members
-    pub index: u32,
+    pub index: usize,
     /// If this member has a default value set before constructors run.
     /// Used to determine if a constructor needs to initialize a member.
     pub has_default_value: bool,

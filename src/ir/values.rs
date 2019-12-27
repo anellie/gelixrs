@@ -1,14 +1,14 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 4:54 PM.
+ * Last modified on 12/27/19 5:20 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
+use crate::ir::{IRGenerator, PtrEqRc};
+use crate::mir::nodes::Variable;
 use inkwell::types::{AnyTypeEnum, BasicTypeEnum};
 use inkwell::values::{BasicValueEnum, PointerValue};
 use std::rc::Rc;
-use crate::mir::nodes::Variable;
-use crate::ir::{PtrEqRc, IRGenerator};
 
 impl IRGenerator {
     /// Force any type to be turned into a void pointer.
@@ -75,7 +75,7 @@ impl IRGenerator {
         assert!(ty.as_struct_type().count_fields() == values.size_hint().0 as u32);
         let alloca = self.create_alloca(ty);
         for (i, value) in values.into_iter().enumerate() {
-            let slot = unsafe { self.builder.build_struct_gep(alloca, i as u32, "gep") };
+            let slot = self.struct_gep(alloca, i);
             self.builder.build_store(slot, *value);
         }
         alloca.into()
@@ -100,6 +100,19 @@ impl IRGenerator {
             AnyTypeEnum::StructType(_) => BasicValueEnum::PointerValue(ptr),
             _ => self.builder.build_load(ptr, "var"),
         }
+    }
+
+    pub fn struct_gep(&self, ptr: PointerValue, index: usize) -> PointerValue {
+        let index = index as u32;
+        assert!(ptr.get_type().get_element_type().is_struct_type());
+        assert!(
+            ptr.get_type()
+                .get_element_type()
+                .as_struct_type()
+                .count_fields()
+                > index
+        );
+        unsafe { self.builder.build_struct_gep(ptr, index, "gep") }
     }
 
     /// Creates a new stack allocation instruction in the entry block of the function.

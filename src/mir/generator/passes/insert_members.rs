@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/16/19 9:25 PM.
+ * Last modified on 12/27/19 5:38 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -70,7 +70,7 @@ fn build_class(gen: &mut MIRGenerator, class: &MutRc<Class>) -> Res<()> {
         let member = Rc::new(ClassMember {
             mutable: field.mutable,
             type_,
-            index: (i + offset) as u32,
+            index: i + offset,
             has_default_value: field.initializer.is_some(),
         });
 

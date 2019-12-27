@@ -1,0 +1,14 @@
+/*
+hello there!
+hello there!
+*/
+
+func main() {
+    test()()
+}
+
+func test() -> () {
+    val fn = () -> print("hello there!")
+    fn()
+    fn
+}

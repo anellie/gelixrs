@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/26/19 7:57 PM.
+ * Last modified on 12/27/19 5:38 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -65,12 +65,12 @@ pub enum Expr {
     Phi(Vec<(Expr, Rc<String>)>),
 
     /// Gets a member of a class struct.
-    StructGet { object: Box<Expr>, index: u32 },
+    StructGet { object: Box<Expr>, index: usize },
 
     /// Sets a member of a class struct.
     StructSet {
         object: Box<Expr>,
-        index: u32,
+        index: usize,
         value: Box<Expr>,
     },
 
@@ -166,7 +166,7 @@ impl Expr {
     pub fn struct_set_index(object: Expr, index: usize, value: Expr) -> Expr {
         Expr::StructSet {
             object: Box::new(object),
-            index: index as u32,
+            index,
             value: Box::new(value),
         }
     }
@@ -277,7 +277,7 @@ impl Expr {
     }
 
     /// Returns the type of a struct member.
-    fn type_from_struct_get(object: &Expr, index: u32) -> Type {
+    fn type_from_struct_get(object: &Expr, index: usize) -> Type {
         let object = object.get_type();
         if let Type::Class(class) = object {
             class

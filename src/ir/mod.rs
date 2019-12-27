@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 4:57 PM.
+ * Last modified on 12/27/19 5:16 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -167,12 +167,8 @@ impl IRGenerator {
                 // so they can be used like regular variables.
                 let arg_val = *arg_val.as_pointer_value();
                 for (i, var) in captured.iter().enumerate() {
-                    unsafe {
-                        let field =
-                            self.builder
-                                .build_struct_gep(arg_val, i as u32, "capture-unwrap");
-                        self.variables.insert(PtrEqRc::new(var), field);
-                    }
+                    let field = self.struct_gep(arg_val, i);
+                    self.variables.insert(PtrEqRc::new(var), field);
                 }
             } else if let BasicValueEnum::PointerValue(ptr) = arg_val {
                 // If the type of the function parameter is a pointer (aka a struct or function),
