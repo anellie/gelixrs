@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 7:05 PM.
+ * Last modified on 12/27/19 7:57 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -642,7 +642,10 @@ impl MIRGenerator {
             type_: Type::ClosureCaptured(Rc::clone(&captured)),
             name: Rc::new("CLOSURE-CAPTURED".to_string()),
         });
-        Ok(Expr::construct_closure(&global, captured))
+
+        let expr = Expr::construct_closure(&global, captured);
+        let var = self.define_variable(&Token::generic_identifier("closure-literal".to_string()), false, expr.get_type());
+        Ok(Expr::store(&var, expr))
     }
 
     fn return_(&mut self, val: &Option<Box<ASTExpr>>, err_tok: &Token) -> Res<Expr> {
