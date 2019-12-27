@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 3:26 AM.
+ * Last modified on 12/27/19 4:54 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -10,8 +10,9 @@ use inkwell::types::{BasicType, BasicTypeEnum, FunctionType, PointerType, Struct
 use inkwell::AddressSpace::Generic;
 use std::cell::Ref;
 use std::rc::Rc;
+use crate::ir::IRGenerator;
 
-impl super::IRGenerator {
+impl IRGenerator {
     /// Converts a MIRType to the corresponding LLVM type.
     /// Structs are returned as PointerType<StructType>.
     pub(super) fn ir_ty_ptr(&mut self, mir: &Type) -> BasicTypeEnum {

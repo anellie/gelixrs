@@ -1,13 +1,16 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 3:32 AM.
+ * Last modified on 12/27/19 4:54 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use inkwell::types::{AnyTypeEnum, BasicTypeEnum};
 use inkwell::values::{BasicValueEnum, PointerValue};
+use std::rc::Rc;
+use crate::mir::nodes::Variable;
+use crate::ir::{PtrEqRc, IRGenerator};
 
-impl super::IRGenerator {
+impl IRGenerator {
     /// Force any type to be turned into a void pointer.
     pub fn coerce_to_void_ptr(&self, ty: BasicValueEnum) -> BasicValueEnum {
         let target = self.void_ptr();
@@ -31,6 +34,17 @@ impl super::IRGenerator {
 
             _ => panic!("Cannot coerce to void ptr: {:?}", ty),
         }
+    }
+
+    /// Returns the IR pointer of the variable.
+    /// Can also be used for globals, although variables are
+    /// searched for first.
+    pub fn get_variable(&self, var: &Rc<Variable>) -> PointerValue {
+        let wrap = PtrEqRc::new(var);
+        self.variables
+            .get(&wrap)
+            .cloned()
+            .unwrap_or_else(|| self.functions[&wrap].as_global_value().as_pointer_value())
     }
 
     /// Creates an alloca and stores the given value in it, returning
