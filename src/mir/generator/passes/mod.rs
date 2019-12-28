@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 6:50 PM.
+ * Last modified on 12/28/19 9:17 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -23,6 +23,7 @@ pub mod declaring_methods;
 pub mod declaring_types;
 pub mod fill_impls;
 pub mod filter_prototypes;
+pub mod gc_variable_escape;
 pub mod generate;
 pub mod generate_impls;
 pub mod imports;

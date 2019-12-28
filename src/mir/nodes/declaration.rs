@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/28/19 1:12 AM.
+ * Last modified on 12/28/19 10:28 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -22,6 +22,7 @@ use crate::{
         MModule, MutRc,
     },
 };
+use std::cell::Cell;
 
 /// A full class including all members and methods.
 /// Members are ordered, as the class is represented as a struct in IR;
@@ -261,6 +262,9 @@ pub struct Function {
     /// compiled from AST functions;
     /// things like methods have None here.
     pub ast: Option<Rc<ast::Function>>,
+    /// If this function has been looked at by the
+    /// GC, in particular if all escaping variables have been marked.
+    pub gc_inspected: bool,
 }
 
 impl Function {
@@ -310,22 +314,35 @@ impl Function {
         write!(f, "{}func {}(", space, self.name)?;
 
         let mut params = self.parameters.iter();
-        params
-            .next()
-            .map(|param| write!(f, "{}: {}", param.name, param.type_));
+        params.next().map(|param| {
+            write!(
+                f,
+                "{}: {} (esc: {})",
+                param.name,
+                param.type_,
+                param.escapes.get()
+            )
+        });
         for param in params {
-            write!(f, ", {}: {}", param.name, param.type_)?;
+            write!(
+                f,
+                ", {}: {}  (esc: {})",
+                param.name,
+                param.type_,
+                param.escapes.get()
+            )?;
         }
 
         writeln!(f, ") {{")?;
         for (name, var) in &self.variables {
             writeln!(
                 f,
-                "{}{} {}: {}",
+                "{}{} {}: {} (esc: {})",
                 space,
                 if var.mutable { "var" } else { "val" },
                 name,
-                var.type_
+                var.type_,
+                var.escapes.get()
             )?;
         }
         if !self.variables.is_empty() {
@@ -368,6 +385,7 @@ pub struct Variable {
     pub mutable: bool,
     pub type_: Type,
     pub name: Rc<String>,
+    pub escapes: Cell<bool>,
 }
 
 impl Variable {
@@ -376,6 +394,7 @@ impl Variable {
             mutable,
             type_,
             name: Rc::clone(name),
+            escapes: Cell::new(false),
         })
     }
 }

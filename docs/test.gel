@@ -1,0 +1,31 @@
+/*
+ok
+ok
+ok
+*/
+
+func main() {
+    if (true) print("ok")
+    if (false) print("bad")
+
+    var a = S()
+    var ba = false
+    var c = "hmn"
+    a.a = ba
+    ac(a)
+    //if (a == true) print("ok")
+
+    val d = (): String -> c
+
+    print(if(true) "ok" else "bad")
+}
+
+extern func b(b: S)
+
+func ac(ab: S) {
+    b(ab)
+}
+
+class S {
+    var a = true
+}

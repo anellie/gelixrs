@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/28/19 1:33 AM.
+ * Last modified on 12/28/19 10:08 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -115,7 +115,7 @@ impl Expr {
     pub fn alloc(type_: Type) -> Expr {
         Expr::Allocate {
             type_,
-            heap: Cell::new(true),
+            heap: Cell::new(false),
         }
     }
 
@@ -334,7 +334,7 @@ impl Expr {
 impl Display for Expr {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         match self {
-            Expr::Allocate { type_, .. } => write!(f, "alloc {}", type_),
+            Expr::Allocate { type_, heap } => write!(f, "alloc {} (heap: {})", type_, heap.get()),
 
             Expr::Binary {
                 left,

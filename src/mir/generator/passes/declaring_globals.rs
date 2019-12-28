@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/28/19 1:12 AM.
+ * Last modified on 12/28/19 10:20 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -145,6 +145,7 @@ pub fn generate_mir_fn(
         ret_type,
         context: builder.context.clone(),
         ast: func.right().map(Rc::new),
+        gc_inspected: false,
     }))
 }
 

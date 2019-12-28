@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 6:50 PM.
+ * Last modified on 12/28/19 10:20 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -20,6 +20,7 @@ use crate::{
                 declaring_types::DeclareTypes,
                 fill_impls::FillIfaceImpls,
                 filter_prototypes::FilterPrototypes,
+                gc_variable_escape::GCMarkEscapeVariables,
                 generate::Generate,
                 generate_impls::GenerateImpls,
                 imports::{ImportGlobals, ImportTypes},
@@ -83,6 +84,7 @@ impl PassRunner {
             Box::new(Generate()),
             Box::new(GenerateImpls()),
             Box::new(ValidateIntrinsics()),
+            Box::new(GCMarkEscapeVariables()),
         ];
         let mut generator = MIRGenerator::new(MIRBuilder::new(&self.modules[0]));
         for pass in passes.drain(..) {
