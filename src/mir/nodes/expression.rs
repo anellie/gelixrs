@@ -60,7 +60,12 @@ pub enum Expr {
 
     /// A cast, where a value is turned into a different type;
     /// casting to an interface implemented by the original type for example
-    CastToInterface { object: Box<Expr>, to: Type },
+    /// `store` is the place to store the resulting value in, usually Expr::Allocate.
+    CastToInterface {
+        object: Box<Expr>,
+        to: Type,
+        store: Box<Expr>,
+    },
 
     /// Construct a closure from the given function along with the captured
     /// variables. The function must have an additional first parameter
@@ -107,6 +112,13 @@ pub enum Expr {
 }
 
 impl Expr {
+    pub fn alloc(type_: Type) -> Expr {
+        Expr::Allocate {
+            type_,
+            heap: Cell::new(true),
+        }
+    }
+
     pub fn binary(left: Expr, operator: TType, right: Expr) -> Expr {
         Expr::Binary {
             left: Box::new(left),
@@ -119,6 +131,7 @@ impl Expr {
         Expr::CastToInterface {
             object: Box::new(obj),
             to: ty.clone(),
+            store: Box::new(Expr::alloc(ty.clone())),
         }
     }
 
@@ -354,7 +367,7 @@ impl Display for Expr {
                 Ok(())
             }
 
-            Expr::CastToInterface { object, to } => write!(f, "cast {} to {}", object, to),
+            Expr::CastToInterface { object, to, .. } => write!(f, "cast {} to {}", object, to),
 
             Expr::ConstructClosure {
                 global, captured, ..

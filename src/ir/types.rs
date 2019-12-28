@@ -21,6 +21,9 @@ impl IRGenerator {
     /// Converts a MIRType to the corresponding LLVM type.
     /// Structs are returned as PointerType<StructType>.
     pub fn ir_ty_ptr(&mut self, mir: &Type) -> BasicTypeEnum {
+        if mir == &Type::None {
+            return self.none_const.get_type();
+        };
         let ir = self.ir_ty(mir);
         match ir {
             BasicTypeEnum::StructType(struc) => struc.ptr_type(Generic).into(),
@@ -90,7 +93,10 @@ impl IRGenerator {
     ) -> StructType {
         let struc_val = self.context.opaque_struct_type(name);
         // Add the reference count field
-        let body: Vec<BasicTypeEnum> = Some(self.context.i32_type().into()).into_iter().chain(body).collect();
+        let body: Vec<BasicTypeEnum> = Some(self.context.i32_type().into())
+            .into_iter()
+            .chain(body)
+            .collect();
         struc_val.set_body(&body, false);
         struc_val
     }
@@ -108,7 +114,8 @@ impl IRGenerator {
             .into();
         let captured_ty = self.context.i64_type().into();
 
-        self.build_struct_ir("closure", vec![func_ty, captured_ty].into_iter()).into()
+        self.build_struct_ir("closure", vec![func_ty, captured_ty].into_iter())
+            .into()
     }
 
     /// Generates the LLVM FunctionType of a MIR function.

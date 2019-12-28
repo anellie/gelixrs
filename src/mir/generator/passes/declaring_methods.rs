@@ -47,16 +47,16 @@ impl ModulePass for DeclareMethods {
 
 fn declare_for_class(builder: &mut MIRBuilder, class: MutRc<Class>) -> Res<()> {
     let ast = Rc::clone(&class.borrow().ast);
-    let this_arg = FunctionParam::this_param(&ast.name);
+    let this_param = FunctionParam::this_param(&ast.name);
 
     // Do the instantiator
-    let init_fn_sig = get_instantiator_fn_sig(&ast);
+    let init_fn_sig = get_instantiator_fn_sig(&ast, this_param.clone());
     class.borrow_mut().instantiator = create_function(builder, Left(&init_fn_sig), false, None)?;
 
     // Do all user-defined methods
     for method in ast.methods.iter() {
         let mir_method =
-            create_function(builder, Left(&method.sig), false, Some(this_arg.clone()))?;
+            create_function(builder, Left(&method.sig), false, Some(this_param.clone()))?;
         class
             .borrow_mut()
             .methods
@@ -69,7 +69,7 @@ fn declare_for_class(builder: &mut MIRBuilder, class: MutRc<Class>) -> Res<()> {
     let default = maybe_default_constructor(&ast);
     let iter = ast.constructors.iter().chain(default.iter()).enumerate();
     for (i, constructor) in iter {
-        let sig = get_constructor_sig(builder, &ast, constructor, &this_arg, i)?;
+        let sig = get_constructor_sig(builder, &ast, constructor, &this_param, i)?;
         let mir_var = create_function(builder, Left(&sig), false, None)?;
         let mir_fn = mir_var.type_.as_function();
         let mut mir_fn = mir_fn.borrow_mut();
@@ -98,14 +98,14 @@ fn declare_for_class(builder: &mut MIRBuilder, class: MutRc<Class>) -> Res<()> {
 }
 
 /// Returns signature of the class instantiator.
-fn get_instantiator_fn_sig(class: &ASTClass) -> FuncSignature {
+fn get_instantiator_fn_sig(class: &ASTClass, this_param: FunctionParam) -> FuncSignature {
     let fn_name = Token::generic_identifier(format!("create-{}-instance", &class.name.lexeme));
     FuncSignature {
         name: fn_name,
         visibility: Visibility::Public,
         generics: None,
         return_type: Some(ASTType::Ident(class.name.clone())),
-        parameters: vec![],
+        parameters: vec![this_param],
         variadic: false,
     }
 }

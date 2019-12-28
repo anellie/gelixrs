@@ -27,12 +27,7 @@ impl IRGenerator {
         match expression {
             Expr::Allocate { type_, heap } => {
                 let ty = self.ir_ty(type_);
-                if heap.get() {
-                    self.builder.build_malloc(ty, "malloc")
-                } else {
-                    self.create_alloca(ty)
-                }
-                .into()
+                self.create_alloc(ty, heap.get()).into()
             }
 
             Expr::Binary {
@@ -55,7 +50,9 @@ impl IRGenerator {
                 index, arguments, ..
             } => self.call_dyn(*index, arguments),
 
-            Expr::CastToInterface { object, to } => self.cast_to_interface(object, to),
+            Expr::CastToInterface { object, to, store } => {
+                self.cast_to_interface(object, to, store)
+            }
 
             Expr::ConstructClosure {
                 function,
@@ -203,19 +200,21 @@ impl IRGenerator {
         ret.left().unwrap_or(self.none_const)
     }
 
-    fn cast_to_interface(&mut self, object: &Expr, to: &Type) -> BasicValueEnum {
+    fn cast_to_interface(&mut self, object: &Expr, to: &Type, store: &Expr) -> BasicValueEnum {
         let obj = self.expression(object);
         let iface_ty = self.ir_ty(to).into_struct_type();
-        let vtable_ty = iface_ty.get_field_types()[1]
+        let vtable_ty = iface_ty.get_field_types()[2]
             .as_pointer_type()
             .get_element_type()
             .into_struct_type();
 
         let vtable = self.get_vtable(object.get_type(), to, vtable_ty);
-        self.build_local_struct(
-            iface_ty.into(),
+        let store_location = self.expression(store);
+        self.write_struct(
+            store_location.into_pointer_value(),
             [self.coerce_to_void_ptr(obj), vtable].iter(),
-        )
+        );
+        store_location
     }
 
     /// Returns the vtable of the interface implementor given.
@@ -227,8 +226,10 @@ impl IRGenerator {
         vtable: StructType,
     ) -> BasicValueEnum {
         let field_tys = vtable.get_field_types();
-        let mut field_tys = field_tys.iter();
-        let methods = get_iface_impls(&implementor).unwrap().borrow().interfaces[iface]
+        let mut field_tys = field_tys.iter().skip(1);
+        let impls = get_iface_impls(&implementor).unwrap();
+        let impls = impls.borrow();
+        let methods_iter = impls.interfaces[iface]
             .methods
             .iter()
             .map(|(_, method)| self.functions[&PtrEqRc::new(method)])
@@ -238,7 +239,10 @@ impl IRGenerator {
                     *field_tys.next().unwrap().as_pointer_type(),
                     "funccast",
                 )
-            })
+            });
+        let methods = Some(self.context.i32_type().const_int(0, false).into())
+            .into_iter()
+            .chain(methods_iter)
             .collect::<Vec<BasicValueEnum>>();
         let global = self.module.add_global(vtable, None, "vtable");
         global.set_initializer(&vtable.const_named_struct(&methods));
@@ -284,7 +288,7 @@ impl IRGenerator {
         ty: BasicTypeEnum,
         captured: &[Rc<Variable>],
     ) -> PointerValue {
-        let alloc = self.builder.build_malloc(ty, "captmalloc");
+        let alloc = self.create_alloc(ty, true);
         for (i, var) in captured.iter().enumerate() {
             let value = self.load_ptr(self.get_variable(var));
             self.builder
@@ -434,8 +438,7 @@ impl IRGenerator {
                         .module
                         .get_function("std/intrinsics:build_string_literal")
                         .unwrap();
-                    self
-                        .builder
+                    self.builder
                         .build_call(
                             string_builder,
                             &[

@@ -96,7 +96,12 @@ fn run(args: Opt) -> Result<(), &'static str> {
     let module = gelixrs::compile_ir(mir);
 
     if args.ir {
-        module.print_to_stderr();
+        match args.output {
+            Some(file) => {
+                module.print_to_file(file).ok();
+            }
+            None => module.print_to_stderr(),
+        };
         return Ok(());
     }
 

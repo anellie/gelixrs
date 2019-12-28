@@ -9,8 +9,9 @@ use crate::{
     mir::nodes::Variable,
 };
 use inkwell::{
-    types::{AnyTypeEnum, BasicTypeEnum},
+    types::{AnyTypeEnum, BasicType, BasicTypeEnum},
     values::{BasicValueEnum, PointerValue},
+    AddressSpace::Generic,
 };
 use std::rc::Rc;
 
@@ -61,12 +62,29 @@ impl IRGenerator {
         values: T,
     ) -> BasicValueEnum {
         assert!(ty.as_struct_type().count_fields() == values.size_hint().0 as u32);
-        let alloca = self.create_alloca(ty);
+        let alloca = self.create_alloc(ty, false);
+        self.write_struct(alloca, values);
+        alloca.into()
+    }
+
+    pub fn write_struct<'a, T: Iterator<Item = &'a BasicValueEnum>>(
+        &self,
+        location: PointerValue,
+        values: T,
+    ) {
+        assert!(
+            location
+                .get_type()
+                .get_element_type()
+                .as_struct_type()
+                .count_fields()
+                - 1
+                == values.size_hint().0 as u32
+        );
         for (i, value) in values.enumerate() {
-            let slot = self.struct_gep(alloca, i);
+            let slot = self.struct_gep(location, i);
             self.builder.build_store(slot, *value);
         }
-        alloca.into()
     }
 
     /// If the parameter 'ptr' is a struct pointer, the struct itself is returned.
@@ -106,7 +124,7 @@ impl IRGenerator {
 
     /// Creates a new stack allocation instruction in the entry block of the function.
     /// The alloca is kept empty.
-    pub fn create_alloca(&self, ty: BasicTypeEnum) -> PointerValue {
+    pub fn create_alloc(&self, ty: BasicTypeEnum, heap: bool) -> PointerValue {
         let builder = self.context.create_builder();
         let entry = self
             .builder
@@ -122,6 +140,38 @@ impl IRGenerator {
             None => builder.position_at_end(&entry),
         }
 
-        builder.build_alloca(ty, "tmpalloc")
+        if heap {
+            let malloc = self
+                .module
+                .get_function("malloc")
+                .unwrap()
+                .as_global_value()
+                .as_pointer_value();
+            let malloc_ty = ty
+                .ptr_type(Generic)
+                .fn_type(&[self.context.i64_type().into()], false);
+            let malloc = builder
+                .build_bitcast(malloc, malloc_ty.ptr_type(Generic), "malloccast")
+                .into_pointer_value();
+
+            let i = self.context.i64_type();
+            let ty_size = unsafe {
+                self.builder.build_gep(
+                    ty.ptr_type(Generic).const_null(),
+                    &[i.const_int(1, false)],
+                    "size",
+                )
+            };
+            let ty_size = builder.build_ptr_to_int(ty_size, i, "sizeint").into();
+
+            builder
+                .build_call(malloc, &[ty_size], "malloc")
+                .try_as_basic_value()
+                .left()
+                .unwrap()
+                .into_pointer_value()
+        } else {
+            builder.build_alloca(ty, "tmpalloc")
+        }
     }
 }

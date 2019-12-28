@@ -353,8 +353,9 @@ impl MIRGenerator {
     /// The expression returned can be safely cloned to reuse the instance.
     fn build_class_inst(&mut self, class_ref: MutRc<Class>) -> Expr {
         let call = {
+            let alloc = Expr::alloc(Type::Class(Rc::clone(&class_ref)));
             let class = class_ref.borrow();
-            Expr::call(Expr::load(&class.instantiator), vec![])
+            Expr::call(Expr::load(&class.instantiator), vec![alloc])
         };
 
         let var = Variable::new(

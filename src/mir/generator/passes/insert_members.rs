@@ -7,14 +7,13 @@
 use std::rc::Rc;
 
 use crate::{
-    ast::Type as ASTType,
     error::Res,
     mir::{
         generator::{
             passes::{ModulePass, PassType},
             MIRGenerator,
         },
-        nodes::{Class, ClassMember, Expr, Type, Variable},
+        nodes::{Class, ClassMember, Expr, Type},
         MutRc,
     },
 };
@@ -44,21 +43,12 @@ fn fill_class(gen: &mut MIRGenerator, class: MutRc<Class>) -> Res<()> {
 /// This function will fill the class with its members while also generating the init method.
 fn build_class(gen: &mut MIRGenerator, class: &MutRc<Class>) -> Res<()> {
     let ast = Rc::clone(&class.borrow().ast);
-    {
+    let class_variable = {
         let inst = class.borrow().instantiator.type_.as_function().clone();
         let mut func = inst.borrow_mut();
         gen.set_pointer(inst.clone(), func.append_block("entry", false));
-    }
-
-    let class_variable = Variable::new(
-        true,
-        gen.builder
-            .find_type(&ASTType::Ident(ast.name.clone()))
-            .ok()
-            .unwrap(),
-        &Rc::new("this".to_string()),
-    );
-    gen.add_function_variable(Rc::clone(&class_variable));
+        Rc::clone(&func.parameters[0])
+    };
 
     let offset = class.borrow().members.len();
     for (i, field) in ast.variables.iter().enumerate() {
