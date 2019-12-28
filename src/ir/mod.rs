@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 8:23 PM.
+ * Last modified on 12/27/19 10:11 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -124,13 +124,9 @@ impl IRGenerator {
         self.prepare_function(&func, func_val);
 
         for (name, var) in func.variables.iter() {
-            let alloc_ty = self.ir_ty(&var.type_);
-            let alloc = if var.heap.get() {
-                self.builder.build_malloc(alloc_ty, &name)
-            } else {
-                self.builder.build_alloca(alloc_ty, &name)
-            };
-            self.variables.insert(PtrEqRc::new(var), alloc);
+            let alloc_ty = self.ir_ty_ptr(&var.type_);
+            let alloca = self.builder.build_alloca(alloc_ty, &name);
+            self.variables.insert(PtrEqRc::new(var), alloca);
         }
 
         // Fill in all blocks first before generating any actual code;
@@ -179,11 +175,7 @@ impl IRGenerator {
                 // creating an alloca isn't needed; the pointer can be used directly.
                 self.variables.insert(PtrEqRc::new(arg), ptr);
             } else {
-                let alloc = if arg.heap.get() {
-                    self.builder.build_malloc(arg_val.get_type(), &arg.name)
-                } else {
-                    self.builder.build_alloca(arg_val.get_type(), &arg.name)
-                };
+                let alloc = self.builder.build_alloca(arg_val.get_type(), &arg.name);
                 self.builder.build_store(alloc, arg_val);
                 self.variables.insert(PtrEqRc::new(arg), alloc);
             }

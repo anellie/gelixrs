@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 8:18 PM.
+ * Last modified on 12/28/19 1:12 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -130,7 +130,11 @@ pub fn generate_mir_fn(
 
     let mut parameters = Vec::with_capacity(func_sig.parameters.len());
     for param in this_arg.iter().chain(func_sig.parameters.iter()) {
-        parameters.push(Variable::new(false, builder.find_type(&param.type_)?, &param.name.lexeme));
+        parameters.push(Variable::new(
+            false,
+            builder.find_type(&param.type_)?,
+            &param.name.lexeme,
+        ));
     }
 
     Ok(mutrc_new(Function {

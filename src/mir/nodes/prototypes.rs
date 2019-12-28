@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 8:19 PM.
+ * Last modified on 12/28/19 1:12 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -18,19 +18,16 @@ use crate::{
             builder::{Context, MIRBuilder},
             module::DONE_PASSES,
             passes::{
-                declaring_globals::{
-                    generate_mir_fn, get_function_name, insert_global_and_type,
-                },
+                declaring_globals::{generate_mir_fn, get_function_name, insert_global_and_type},
                 declaring_iface_impls::declare_impl,
             },
             MIRGenerator,
         },
-        nodes::{Class, Interface, Type},
+        nodes::{Class, Interface, Type, Variable},
         MModule, MutRc,
     },
 };
 use either::Either::Right;
-use crate::mir::nodes::Variable;
 
 /// A prototype that classes can be instantiated from.
 /// This prototype is kept in AST form,

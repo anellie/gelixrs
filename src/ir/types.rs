@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 6:50 PM.
+ * Last modified on 12/28/19 2:35 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -79,8 +79,18 @@ impl IRGenerator {
         name: &str,
         body: T,
     ) -> StructType {
+        let body: Vec<_> = body.map(|var| self.ir_ty_ptr(&var)).collect();
+        self.build_struct_ir(name, body.into_iter())
+    }
+
+    fn build_struct_ir<T: Iterator<Item = BasicTypeEnum>>(
+        &self,
+        name: &str,
+        body: T,
+    ) -> StructType {
         let struc_val = self.context.opaque_struct_type(name);
-        let body: Vec<BasicTypeEnum> = body.map(|var| self.ir_ty(&var)).collect();
+        // Add the reference count field
+        let body: Vec<BasicTypeEnum> = Some(self.context.i32_type().into()).into_iter().chain(body).collect();
         struc_val.set_body(&body, false);
         struc_val
     }
@@ -98,9 +108,7 @@ impl IRGenerator {
             .into();
         let captured_ty = self.context.i64_type().into();
 
-        let ty = self.context.opaque_struct_type("closure");
-        ty.set_body(&[func_ty, captured_ty], false);
-        ty.into()
+        self.build_struct_ir("closure", vec![func_ty, captured_ty].into_iter()).into()
     }
 
     /// Generates the LLVM FunctionType of a MIR function.
@@ -122,7 +130,7 @@ impl IRGenerator {
         if *ret_type == Type::None {
             self.context.void_type().fn_type(&params, variadic)
         } else {
-            self.ir_ty(ret_type).fn_type(&params, variadic)
+            self.ir_ty_ptr(ret_type).fn_type(&params, variadic)
         }
     }
 
@@ -134,17 +142,16 @@ impl IRGenerator {
             .iter()
             .map(|(_, method)| self.build_iface_method_type(method))
             .collect();
-        let vtable_struct = self.context.struct_type(&vtable, false);
+        let vtable_struct = self.build_struct_ir("vtable", vtable.into_iter());
 
-        let struc_val = self.context.opaque_struct_type(&iface.name);
-        struc_val.set_body(
-            &[
+        self.build_struct_ir(
+            &iface.name,
+            vec![
                 self.context.i64_type().ptr_type(Generic).into(),
                 vtable_struct.ptr_type(Generic).into(),
-            ],
-            false,
-        );
-        struc_val
+            ]
+            .into_iter(),
+        )
     }
 
     fn build_iface_method_type(&mut self, method: &IFaceMethod) -> BasicTypeEnum {
@@ -156,7 +163,7 @@ impl IRGenerator {
         if method.ret_type == Type::None {
             self.context.void_type().fn_type(params.as_slice(), false)
         } else {
-            let ret_type = self.ir_ty(&method.ret_type);
+            let ret_type = self.ir_ty_ptr(&method.ret_type);
             ret_type.fn_type(params.as_slice(), false)
         }
         .ptr_type(Generic)

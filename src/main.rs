@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 6:50 PM.
+ * Last modified on 12/27/19 9:33 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -129,7 +129,7 @@ fn run(args: Opt) -> Result<(), &'static str> {
         .arg("-o")
         .arg(&args.output.ok_or("Output location required.")?)
         .arg(module_file)
-        .arg("-O3")
+        .arg("-O0")
         .output()
         .expect("Evoking clang failed.")
         .status;

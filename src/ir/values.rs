@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 7:03 PM.
+ * Last modified on 12/28/19 2:02 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -51,22 +51,6 @@ impl IRGenerator {
             .unwrap_or_else(|| self.functions[&wrap].as_global_value().as_pointer_value())
     }
 
-    /// Creates an alloca and stores the given value in it, returning
-    /// a reference to this new store.
-    /// Note that this is only done for struct types; all other types are
-    /// simply returned without modification.
-    pub fn build_local_store(&self, value: BasicValueEnum) -> BasicValueEnum {
-        // Don't bother allocating a type that does not need it
-        if !value.get_type().is_struct_type() {
-            return value;
-        }
-
-        let alloca = self.create_alloca(value.get_type());
-        self.builder
-            .build_store(alloca, self.unwrap_struct_ptr(value));
-        self.load_ptr(alloca)
-    }
-
     /// Similar to the function above; creates a local alloca.
     /// Instead of taking the value itself, the type given must be a struct,
     /// with `values` being an iterator of things to fill the struct with.
@@ -107,7 +91,8 @@ impl IRGenerator {
     }
 
     pub fn struct_gep(&self, ptr: PointerValue, index: usize) -> PointerValue {
-        let index = index as u32;
+        // Account for the reference count field
+        let index = index as u32 + 1;
         assert!(ptr.get_type().get_element_type().is_struct_type());
         assert!(
             ptr.get_type()
@@ -121,7 +106,7 @@ impl IRGenerator {
 
     /// Creates a new stack allocation instruction in the entry block of the function.
     /// The alloca is kept empty.
-    fn create_alloca(&self, ty: BasicTypeEnum) -> PointerValue {
+    pub fn create_alloca(&self, ty: BasicTypeEnum) -> PointerValue {
         let builder = self.context.create_builder();
         let entry = self
             .builder

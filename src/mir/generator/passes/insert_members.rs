@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 8:17 PM.
+ * Last modified on 12/28/19 1:12 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -52,12 +52,11 @@ fn build_class(gen: &mut MIRGenerator, class: &MutRc<Class>) -> Res<()> {
 
     let class_variable = Variable::new(
         true,
-        gen
-            .builder
+        gen.builder
             .find_type(&ASTType::Ident(ast.name.clone()))
             .ok()
             .unwrap(),
-        &Rc::new("this".to_string())
+        &Rc::new("this".to_string()),
     );
     gen.add_function_variable(Rc::clone(&class_variable));
 

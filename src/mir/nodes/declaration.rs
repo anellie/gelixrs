@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 8:12 PM.
+ * Last modified on 12/28/19 1:12 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -22,7 +22,6 @@ use crate::{
         MModule, MutRc,
     },
 };
-use std::cell::Cell;
 
 /// A full class including all members and methods.
 /// Members are ordered, as the class is represented as a struct in IR;
@@ -369,7 +368,6 @@ pub struct Variable {
     pub mutable: bool,
     pub type_: Type,
     pub name: Rc<String>,
-    pub heap: Cell<bool>
 }
 
 impl Variable {
@@ -378,7 +376,6 @@ impl Variable {
             mutable,
             type_,
             name: Rc::clone(name),
-            heap: Cell::new(false)
         })
     }
 }

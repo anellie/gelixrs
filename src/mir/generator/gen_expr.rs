@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 8:18 PM.
+ * Last modified on 12/28/19 1:12 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -357,7 +357,11 @@ impl MIRGenerator {
             Expr::call(Expr::load(&class.instantiator), vec![])
         };
 
-        let var = Variable::new(true, Type::Class(class_ref), &Rc::new("tmp-constructor-var".to_string()));
+        let var = Variable::new(
+            true,
+            Type::Class(class_ref),
+            &Rc::new("tmp-constructor-var".to_string()),
+        );
         self.add_function_variable(Rc::clone(&var));
         self.insert_at_ptr(Expr::store(&var, call));
 
@@ -633,10 +637,18 @@ impl MIRGenerator {
         let closure_data = gen.end_closure(self);
 
         let captured = Rc::new(closure_data.captured);
-        function.borrow_mut().parameters[0] = Variable::new(false, Type::ClosureCaptured(Rc::clone(&captured)), &Rc::new("CLOSURE-CAPTURED".to_string()));
+        function.borrow_mut().parameters[0] = Variable::new(
+            false,
+            Type::ClosureCaptured(Rc::clone(&captured)),
+            &Rc::new("CLOSURE-CAPTURED".to_string()),
+        );
 
         let expr = Expr::construct_closure(&global, captured);
-        let var = self.define_variable(&Token::generic_identifier("closure-literal".to_string()), false, expr.get_type());
+        let var = self.define_variable(
+            &Token::generic_identifier("closure-literal".to_string()),
+            false,
+            expr.get_type(),
+        );
         Ok(Expr::store(&var, expr))
     }
 

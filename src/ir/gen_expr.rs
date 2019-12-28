@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 6:50 PM.
+ * Last modified on 12/28/19 2:35 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -25,6 +25,16 @@ use std::rc::Rc;
 impl IRGenerator {
     pub fn expression(&mut self, expression: &Expr) -> BasicValueEnum {
         match expression {
+            Expr::Allocate { type_, heap } => {
+                let ty = self.ir_ty(type_);
+                if heap.get() {
+                    self.builder.build_malloc(ty, "malloc")
+                } else {
+                    self.create_alloca(ty)
+                }
+                .into()
+            }
+
             Expr::Binary {
                 left,
                 operator,
@@ -55,6 +65,8 @@ impl IRGenerator {
 
             Expr::Flow(flow) => self.flow(flow),
 
+            Expr::ModifyRefCount { object, count } => self.modify_ref_count(object, *count),
+
             Expr::Phi(branches) => self.phi(branches),
 
             Expr::StructGet { object, index } => {
@@ -71,7 +83,7 @@ impl IRGenerator {
                 let struc = self.expression(object);
                 let ptr = self.struct_gep(struc.into_pointer_value(), *index);
                 let value = self.expression(value);
-                self.builder.build_store(ptr, self.unwrap_struct_ptr(value));
+                self.builder.build_store(ptr, value);
                 value
             }
 
@@ -85,7 +97,7 @@ impl IRGenerator {
                 let var = self.get_variable(var);
                 let val = self.expression(value);
 
-                self.builder.build_store(var, self.unwrap_struct_ptr(val));
+                self.builder.build_store(var, val);
                 val
             }
         }
@@ -188,8 +200,7 @@ impl IRGenerator {
             .builder
             .build_call(ptr, &arguments, "call")
             .try_as_basic_value();
-        let ret = ret.left().unwrap_or(self.none_const);
-        self.build_local_store(ret)
+        ret.left().unwrap_or(self.none_const)
     }
 
     fn cast_to_interface(&mut self, object: &Expr, to: &Type) -> BasicValueEnum {
@@ -329,9 +340,6 @@ impl IRGenerator {
                 let value = self.expression(value);
                 if value.get_type() == self.none_const.get_type() {
                     self.builder.build_return(None)
-                } else if let BasicValueEnum::PointerValue(ptr) = value {
-                    self.builder
-                        .build_return(Some(&self.builder.build_load(ptr, "retload")))
                 } else {
                     self.builder.build_return(Some(&value))
                 }
@@ -339,6 +347,25 @@ impl IRGenerator {
         };
         self.builder.clear_insertion_position();
         self.none_const
+    }
+
+    fn modify_ref_count(&mut self, object: &Expr, count: u64) -> BasicValueEnum {
+        let object = self.expression(object);
+        // IRGenerator::struct_gep can't be used here as it
+        // only allows indexing past the refcount field.
+        let int = unsafe {
+            self.builder
+                .build_struct_gep(object.into_pointer_value(), 0, "rcgep")
+        };
+
+        let new = self.builder.build_int_add(
+            self.load_ptr(int).into_int_value(),
+            self.context.i32_type().const_int(count, false).into(),
+            "rcadd",
+        );
+
+        self.builder.build_store(int, new);
+        object
     }
 
     fn phi(&mut self, branches: &[(Expr, Rc<String>)]) -> BasicValueEnum {
@@ -407,7 +434,7 @@ impl IRGenerator {
                         .module
                         .get_function("std/intrinsics:build_string_literal")
                         .unwrap();
-                    let string = self
+                    self
                         .builder
                         .build_call(
                             string_builder,
@@ -422,8 +449,7 @@ impl IRGenerator {
                         )
                         .try_as_basic_value()
                         .left()
-                        .unwrap();
-                    self.build_local_store(string)
+                        .unwrap()
                 }
             }
 

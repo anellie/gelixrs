@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 6:50 PM.
+ * Last modified on 12/28/19 1:33 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -20,11 +20,20 @@ use crate::{
     },
 };
 use either::Either::Right;
+use std::cell::Cell;
 
 /// All expressions in MIR. All of them produce a value.
 /// Expressions are in blocks in functions. Gelix does not have statements.
 #[derive(Debug, Clone)]
 pub enum Expr {
+    /// Allocate space for a given type, either
+    /// on the stack as an alloca or on the heap.
+    /// Exact location is decided after MIR generation
+    /// by inspecting the code, and figuring out if
+    /// the value leaves the function it was defined in -
+    /// if it does, it will be allocated on the heap.
+    Allocate { type_: Type, heap: Cell<bool> },
+
     /// Simply a binary operation between numbers.
     Binary {
         left: Box<Expr>,
@@ -64,6 +73,11 @@ pub enum Expr {
 
     /// A 'flow' expression, which changes control flow. See [Flow] enum
     Flow(Box<Flow>),
+
+    /// Modifies the refcount on a value by adding `count` to it.
+    /// Other than this, behaves exactly like `object` -
+    /// it essentially wraps it
+    ModifyRefCount { object: Box<Expr>, count: u64 },
 
     /// A Phi node. Returns a different value based on
     /// which block the current block was reached from.
@@ -216,6 +230,8 @@ impl Expr {
     /// on malformed expressions is undefined behavior that can lead to panics.
     pub fn get_type(&self) -> Type {
         match self {
+            Expr::Allocate { type_, .. } => type_.clone(),
+
             Expr::Binary { left, operator, .. } => {
                 if LOGICAL_BINARY.contains(&operator) {
                     Type::Bool
@@ -244,6 +260,8 @@ impl Expr {
             Expr::ConstructClosure { function, .. } => function.borrow().to_closure_type(),
 
             Expr::Flow(_) => Type::None,
+
+            Expr::ModifyRefCount { object, .. } => object.get_type(),
 
             Expr::Phi(branches) => branches.first().unwrap().0.get_type(),
 
@@ -303,6 +321,8 @@ impl Expr {
 impl Display for Expr {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         match self {
+            Expr::Allocate { type_, .. } => write!(f, "alloc {}", type_),
+
             Expr::Binary {
                 left,
                 operator,
@@ -347,6 +367,8 @@ impl Display for Expr {
             }
 
             Expr::Flow(flow) => write!(f, "{}", flow),
+
+            Expr::ModifyRefCount { object, count } => write!(f, "rc+{} on {}", count, object),
 
             Expr::Phi(nodes) => {
                 write!(f, "phi {{ ")?;
@@ -427,6 +449,20 @@ impl Display for Flow {
             }
         }
     }
+}
+
+/// Expressions that are not generated from user code,
+/// but are instead related to the refcounting GC.
+pub enum RefCountOp {
+    /// Decrement the reference count for a value.
+    /// This is only needed on values that are allocated on
+    /// the heap, as stack values are reclaimed on their own.
+    DecRefCount(Expr),
+
+    /// Increment the reference count for a value.
+    /// This is only needed on values that are allocated on
+    /// the heap, as stack values are reclaimed on their own.
+    IncRefCount(Expr),
 }
 
 /// An array literal in MIR. See ast/literal.rs for usage.
