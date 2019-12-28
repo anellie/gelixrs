@@ -4,7 +4,7 @@
 func main() {
     var super = Super()
     var sub = Sub()
-    for (i from 0 to 1000000) {
+    for (i from 0 to 10000000) {
         super.s = sub
     }
 }

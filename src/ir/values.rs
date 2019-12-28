@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/28/19 2:02 AM.
+ * Last modified on 12/28/19 8:57 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -50,21 +50,6 @@ impl IRGenerator {
             .get(&wrap)
             .cloned()
             .unwrap_or_else(|| self.functions[&wrap].as_global_value().as_pointer_value())
-    }
-
-    /// Similar to the function above; creates a local alloca.
-    /// Instead of taking the value itself, the type given must be a struct,
-    /// with `values` being an iterator of things to fill the struct with.
-    /// Note that stored values are taken as-is, no type checking is done.
-    pub fn build_local_struct<'a, T: Iterator<Item = &'a BasicValueEnum>>(
-        &self,
-        ty: BasicTypeEnum,
-        values: T,
-    ) -> BasicValueEnum {
-        assert!(ty.as_struct_type().count_fields() == values.size_hint().0 as u32);
-        let alloca = self.create_alloc(ty, false);
-        self.write_struct(alloca, values);
-        alloca.into()
     }
 
     pub fn write_struct<'a, T: Iterator<Item = &'a BasicValueEnum>>(

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/28/19 2:35 AM.
+ * Last modified on 12/28/19 9:01 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -265,7 +265,9 @@ impl IRGenerator {
             .into();
 
         let ty = self.ir_ty(&function.borrow().to_closure_type());
-        self.build_local_struct(ty, [func_ptr, captured_vals].iter())
+        let alloc = self.create_alloc(ty, true);
+        self.write_struct(alloc, [func_ptr, captured_vals].iter());
+        alloc.into()
     }
 
     /// Takes a PointerValue<FunctionValue> and casts its type
@@ -291,8 +293,7 @@ impl IRGenerator {
         let alloc = self.create_alloc(ty, true);
         for (i, var) in captured.iter().enumerate() {
             let value = self.load_ptr(self.get_variable(var));
-            self.builder
-                .build_store(self.struct_gep(alloc, i), self.unwrap_struct_ptr(value));
+            self.builder.build_store(self.struct_gep(alloc, i), value);
         }
         alloc
     }
