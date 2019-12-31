@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/28/19 8:57 PM.
+ * Last modified on 12/31/19 9:15 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -125,7 +125,7 @@ impl IRGenerator {
             None => builder.position_at_end(&entry),
         }
 
-        if heap {
+        let ptr = if heap {
             let malloc = self
                 .module
                 .get_function("malloc")
@@ -157,6 +157,11 @@ impl IRGenerator {
                 .into_pointer_value()
         } else {
             builder.build_alloca(ty, "tmpalloc")
-        }
+        };
+
+        // Initialize the refcount to 0
+        let rc = unsafe { builder.build_struct_gep(ptr, 0, "rcinit") };
+        builder.build_store(rc, self.context.i32_type().const_int(0, false));
+        ptr
     }
 }

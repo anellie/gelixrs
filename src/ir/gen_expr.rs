@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/28/19 9:01 PM.
+ * Last modified on 12/31/19 9:15 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -79,7 +79,9 @@ impl IRGenerator {
             } => {
                 let struc = self.expression(object);
                 let ptr = self.struct_gep(struc.into_pointer_value(), *index);
+                self.decrement_refcount(ptr.into());
                 let value = self.expression(value);
+                self.increment_refcount(value);
                 self.builder.build_store(ptr, value);
                 value
             }
@@ -92,7 +94,9 @@ impl IRGenerator {
 
             Expr::VarStore { var, value } => {
                 let var = self.get_variable(var);
+                self.decrement_refcount(var.into());
                 let val = self.expression(value);
+                self.increment_refcount(val);
 
                 self.builder.build_store(var, val);
                 val
