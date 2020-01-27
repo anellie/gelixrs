@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/28/19 1:12 AM.
+ * Last modified on 1/26/20 10:42 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -364,7 +364,7 @@ impl MIRGenerator {
             &Rc::new("tmp-constructor-var".to_string()),
         );
         self.add_function_variable(Rc::clone(&var));
-        self.insert_at_ptr(Expr::store(&var, call));
+        self.insert_at_ptr(Expr::store_init(&var, call));
 
         Expr::load(&var)
     }
@@ -682,8 +682,8 @@ impl MIRGenerator {
             return Err(self.err(name, "Cannot set immutable class member"));
         }
 
-        self.uninitialized_this_members.remove(&field);
-        Ok(Expr::struct_set(object, field, value))
+        let first_set = self.uninitialized_this_members.remove(&field);
+        Ok(Expr::struct_set_init(object, field, value, first_set))
     }
 
     fn unary(&mut self, operator: &Token, right: &ASTExpr) -> Res<Expr> {
@@ -793,6 +793,6 @@ impl MIRGenerator {
         let init = self.expression(&var.initializer)?;
         let _type = init.get_type();
         let var = self.define_variable(&var.name, var.mutable, _type);
-        Ok(Expr::store(&var, init))
+        Ok(Expr::store_init(&var, init))
     }
 }

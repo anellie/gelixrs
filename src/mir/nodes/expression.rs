@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/28/19 10:08 PM.
+ * Last modified on 1/26/20 10:42 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -96,6 +96,7 @@ pub enum Expr {
         object: Box<Expr>,
         index: usize,
         value: Box<Expr>,
+        first_set: bool
     },
 
     /// Simply produces the literal as value.
@@ -108,7 +109,7 @@ pub enum Expr {
     VarGet(Rc<Variable>),
 
     /// Stores a value inside a variable.
-    VarStore { var: Rc<Variable>, value: Box<Expr> },
+    VarStore { var: Rc<Variable>, value: Box<Expr>, first_store: bool },
 }
 
 impl Expr {
@@ -192,6 +193,16 @@ impl Expr {
             object: Box::new(object),
             index: field.index,
             value: Box::new(value),
+            first_set: false
+        }
+    }
+
+    pub fn struct_set_init(object: Expr, field: Rc<ClassMember>, value: Expr, first_set: bool) -> Expr {
+        Expr::StructSet {
+            object: Box::new(object),
+            index: field.index,
+            value: Box::new(value),
+            first_set
         }
     }
 
@@ -200,6 +211,7 @@ impl Expr {
             object: Box::new(object),
             index,
             value: Box::new(value),
+            first_set: true
         }
     }
 
@@ -207,6 +219,15 @@ impl Expr {
         Expr::VarStore {
             var: Rc::clone(var),
             value: Box::new(value),
+            first_store: false
+        }
+    }
+
+    pub fn store_init(var: &Rc<Variable>, value: Expr) -> Expr {
+        Expr::VarStore {
+            var: Rc::clone(var),
+            value: Box::new(value),
+            first_store: true
         }
     }
 
@@ -396,7 +417,7 @@ impl Display for Expr {
             Expr::StructSet {
                 object,
                 index,
-                value,
+                value, ..
             } => write!(f, "set {} of ({}) to ({})", index, object, value),
 
             Expr::Literal(literal) => write!(f, "{}", literal),
@@ -405,7 +426,7 @@ impl Display for Expr {
 
             Expr::VarGet(var) => write!(f, "{}", var.name),
 
-            Expr::VarStore { var, value } => write!(f, "store ({}) in {}", value, var.name),
+            Expr::VarStore { var, value, .. } => write!(f, "store ({}) in {}", value, var.name),
         }
     }
 }

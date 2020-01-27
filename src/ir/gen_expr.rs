@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/31/19 9:15 PM.
+ * Last modified on 1/27/20 7:21 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -75,11 +75,15 @@ impl IRGenerator {
             Expr::StructSet {
                 object,
                 index,
-                value,
+                value, first_set,
             } => {
                 let struc = self.expression(object);
                 let ptr = self.struct_gep(struc.into_pointer_value(), *index);
-                self.decrement_refcount(ptr.into());
+
+                if !first_set {
+                    self.decrement_refcount(ptr.into());
+                }
+
                 let value = self.expression(value);
                 self.increment_refcount(value);
                 self.builder.build_store(ptr, value);
@@ -92,9 +96,11 @@ impl IRGenerator {
 
             Expr::VarGet(var) => self.load_ptr(self.get_variable(var)),
 
-            Expr::VarStore { var, value } => {
+            Expr::VarStore { var, value, first_store } => {
                 let var = self.get_variable(var);
-                self.decrement_refcount(var.into());
+                if !first_store {
+                    self.decrement_refcount(var.into());
+                }
                 let val = self.expression(value);
                 self.increment_refcount(val);
 
@@ -197,6 +203,11 @@ impl IRGenerator {
             .into_iter()
             .chain(arguments.map(|a| self.expression(a)))
             .collect();
+
+        for arg in &arguments {
+            self.increment_refcount(*arg);
+        }
+
         let ret = self
             .builder
             .build_call(ptr, &arguments, "call")
@@ -312,7 +323,10 @@ impl IRGenerator {
         }
 
         match flow {
-            Flow::None => self.builder.build_return(None),
+            Flow::None => {
+                self.decrement_all_locals();
+                self.builder.build_return(None)
+            },
 
             Flow::Jump(block) => self.builder.build_unconditional_branch(&self.blocks[block]),
 
@@ -347,6 +361,7 @@ impl IRGenerator {
 
             Flow::Return(value) => {
                 let value = self.expression(value);
+                self.decrement_all_locals();
                 if value.get_type() == self.none_const.get_type() {
                     self.builder.build_return(None)
                 } else {
@@ -356,6 +371,12 @@ impl IRGenerator {
         };
         self.builder.clear_insertion_position();
         self.none_const
+    }
+
+    fn decrement_all_locals(&mut self) {
+        for local in self.variables.values() {
+            self.decrement_refcount(local.as_basic_value_enum())
+        }
     }
 
     fn modify_ref_count(&mut self, object: &Expr, count: u64) -> BasicValueEnum {
@@ -402,7 +423,10 @@ impl IRGenerator {
             .map(|(expr, br)| (expr as &dyn BasicValue, br))
             .collect();
 
-        self.builder.position_at_end(&cur_block);
+        match cur_block.get_first_instruction() {
+            Some(inst) => self.builder.position_before(&inst),
+            None => self.builder.position_at_end(&cur_block),
+        }
         let phi = self.builder.build_phi(type_, "phi");
         phi.add_incoming(&branches_ref);
         phi.as_basic_value()

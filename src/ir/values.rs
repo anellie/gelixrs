@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/31/19 9:15 PM.
+ * Last modified on 1/27/20 7:21 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -134,12 +134,12 @@ impl IRGenerator {
                 .as_pointer_value();
             let malloc_ty = ty
                 .ptr_type(Generic)
-                .fn_type(&[self.context.i64_type().into()], false);
+                .fn_type(&[self.context.i32_type().into()], false);
             let malloc = builder
                 .build_bitcast(malloc, malloc_ty.ptr_type(Generic), "malloccast")
                 .into_pointer_value();
 
-            let i = self.context.i64_type();
+            let i = self.context.i32_type();
             let ty_size = unsafe {
                 self.builder.build_gep(
                     ty.ptr_type(Generic).const_null(),
@@ -159,9 +159,12 @@ impl IRGenerator {
             builder.build_alloca(ty, "tmpalloc")
         };
 
-        // Initialize the refcount to 0
-        let rc = unsafe { builder.build_struct_gep(ptr, 0, "rcinit") };
-        builder.build_store(rc, self.context.i32_type().const_int(0, false));
+        if ty.is_struct_type() {
+            // Initialize the refcount to 0
+            let rc = unsafe { builder.build_struct_gep(ptr, 0, "rcinit") };
+            let value = if heap { 0 } else { 2147483648 /* first bit 1, rest 0; used to differentiate heap/stack vars */ };
+            builder.build_store(rc, self.context.i32_type().const_int(value, false));
+        }
         ptr
     }
 }

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/28/19 10:28 PM.
+ * Last modified on 1/27/20 6:15 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -386,6 +386,7 @@ pub struct Variable {
     pub type_: Type,
     pub name: Rc<String>,
     pub escapes: Cell<bool>,
+    pub ir_initialized: Cell<bool>
 }
 
 impl Variable {
@@ -395,6 +396,7 @@ impl Variable {
             type_,
             name: Rc::clone(name),
             escapes: Cell::new(false),
+            ir_initialized: Cell::new(false)
         })
     }
 }

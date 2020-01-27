@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/30/19 8:18 PM.
+ * Last modified on 1/27/20 7:17 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -44,7 +44,7 @@ pub struct IRGenerator {
     /// All variables, the currently compiled function.
     /// Note that not all variables are valid - they are kept after going out of scope.
     /// This is not an issue since the MIR generator checked against this already.
-    variables: HashMap<PtrEqRc<Variable>, PointerValue>,
+    variables: HashMap<PtrEqRc<Variable>, (PointerValue, bool)>,
     /// All blocks in the current function.
     blocks: HashMap<Rc<String>, BasicBlock>,
 
@@ -127,7 +127,7 @@ impl IRGenerator {
         for (name, var) in func.variables.iter() {
             let alloc_ty = self.ir_ty_ptr(&var.type_);
             let alloca = self.builder.build_alloca(alloc_ty, &name);
-            self.variables.insert(PtrEqRc::new(var), alloca);
+            self.variables.insert(PtrEqRc::new(var), (alloca, false));
         }
 
         // Fill in all blocks first before generating any actual code;
@@ -145,6 +145,8 @@ impl IRGenerator {
             self.position_at_block(bb);
             self.fill_basic_block(block)
         }
+
+        self.variables.clear();
     }
 
     /// Given a function, will do steps needed to allow code generation, starting
@@ -169,16 +171,18 @@ impl IRGenerator {
                 let arg_val = *arg_val.as_pointer_value();
                 for (i, var) in captured.iter().enumerate() {
                     let field = self.struct_gep(arg_val, i);
-                    self.variables.insert(PtrEqRc::new(var), field);
+                    self.variables.insert(PtrEqRc::new(var), (field, true));
                 }
             } else if let BasicValueEnum::PointerValue(ptr) = arg_val {
                 // If the type of the function parameter is a pointer (aka a struct or function),
                 // creating an alloca isn't needed; the pointer can be used directly.
-                self.variables.insert(PtrEqRc::new(arg), ptr);
+                self.variables.insert(PtrEqRc::new(arg), (ptr, true));
+                self.increment_refcount(ptr.into());
             } else {
                 let alloc = self.builder.build_alloca(arg_val.get_type(), &arg.name);
                 self.builder.build_store(alloc, arg_val);
-                self.variables.insert(PtrEqRc::new(arg), alloc);
+                self.variables.insert(PtrEqRc::new(arg), (alloc, true));
+                self.increment_refcount(alloc.into());
             }
         }
     }

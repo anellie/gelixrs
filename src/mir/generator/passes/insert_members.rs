@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/28/19 1:12 AM.
+ * Last modified on 1/26/20 10:42 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -78,7 +78,12 @@ fn build_class(gen: &mut MIRGenerator, class: &MutRc<Class>) -> Res<()> {
         }
 
         if let Some(value) = value {
-            gen.insert_at_ptr(Expr::struct_set(Expr::load(&class_variable), member, value));
+            gen.insert_at_ptr(Expr::StructSet {
+                object: Box::new(Expr::load(&class_variable)),
+                index: member.index,
+                value: Box::new(value),
+                first_set: true
+            });
         }
     }
 

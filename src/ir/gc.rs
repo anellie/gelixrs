@@ -1,41 +1,35 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/31/19 9:15 PM.
+ * Last modified on 1/27/20 6:22 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
 use crate::ir::IRGenerator;
 use inkwell::{
-    types::BasicTypeEnum,
-    values::{BasicValueEnum, PointerValue, StructValue},
+    values::{BasicValueEnum, PointerValue},
 };
 use inkwell::types::{AnyTypeEnum, BasicType};
 use inkwell::AddressSpace::Generic;
 
 impl IRGenerator {
-    pub fn increment_refcount(&mut self, value: BasicValueEnum) {
+    pub fn increment_refcount(&self, value: BasicValueEnum) {
         if value.get_type() == self.none_const.get_type().ptr_type(Generic).into() { return }
         if let Some(ptr) = self.get_struct_ptr(value) {
             self.mod_refcount(ptr, false, false)
         }
     }
 
-    pub fn decrement_refcount(&mut self, value: BasicValueEnum) {
+    pub fn decrement_refcount(&self, value: BasicValueEnum) {
         if value.get_type() == self.none_const.get_type().ptr_type(Generic).into() { return }
         if let Some(ptr) = self.get_struct_ptr(value) {
-            // FIXME: For some reason, the refcount immediately
-            // gets decremented after a value is allocated, leading
-            // to a SIGILL.
-            // self.mod_refcount(ptr, true, false)
+            self.mod_refcount(ptr, true, true)
         }
     }
 
-    fn get_struct_ptr(&mut self, value: BasicValueEnum) -> Option<PointerValue> {
+    fn get_struct_ptr(&self, value: BasicValueEnum) -> Option<PointerValue> {
         match value {
             BasicValueEnum::PointerValue(ptr) => match ptr.get_type().get_element_type() {
-                AnyTypeEnum::PointerType(_) => {
-                    self.get_struct_ptr(self.builder.build_load(ptr, "sload"))
-                }
+                AnyTypeEnum::PointerType(_) => Some(self.load_ptr(ptr).into_pointer_value()),
                 AnyTypeEnum::StructType(_) => Some(ptr),
                 _ => None,
             },
@@ -44,7 +38,7 @@ impl IRGenerator {
         }
     }
 
-    fn mod_refcount(&mut self, ptr: PointerValue, decrement: bool, maybe_dealloc: bool) {
+    fn mod_refcount(&self, ptr: PointerValue, decrement: bool, maybe_dealloc: bool) {
         let gep = unsafe { self.builder.build_struct_gep(ptr, 0, "rcgep") };
         let rc = self.builder.build_load(gep, "rcload").into_int_value();
         let added = self.context.i32_type().const_int(1, false).into();

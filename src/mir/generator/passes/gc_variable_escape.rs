@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/28/19 10:28 PM.
+ * Last modified on 1/26/20 10:42 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -158,7 +158,7 @@ fn mark_escaping_vars_expr(expr: &Expr, mut escaped: bool) -> bool {
             var.escapes.set(escaped)
         }
 
-        Expr::VarStore { var, value } => {
+        Expr::VarStore { var, value, .. } => {
             escaped = escaped || var.escapes.get();
             var.escapes.set(escaped);
             mark_escaping_vars_expr(value, escaped);
