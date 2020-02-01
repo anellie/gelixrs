@@ -25,6 +25,7 @@ use crate::mir::{
     nodes::{Expr, Function, Type, Variable},
     MModule, MutRc,
 };
+use inkwell::passes::PassManager;
 
 mod gc;
 mod gen_expr;
@@ -40,11 +41,17 @@ pub struct IRGenerator {
     context: Context,
     builder: Builder,
     module: Module,
+    mpm: PassManager<Module>,
 
     /// All variables, the currently compiled function.
     /// Note that not all variables are valid - they are kept after going out of scope.
     /// This is not an issue since the MIR generator checked against this already.
-    variables: HashMap<PtrEqRc<Variable>, (PointerValue, bool)>,
+    variables: HashMap<PtrEqRc<Variable>, PointerValue>,
+    /// All local stores in this function that need their refcount
+    /// to be decremented when the function returns.
+    /// This also includes locally declared variables.
+    locals: Vec<PointerValue>,
+    unchecked_locals: Vec<PointerValue>,
     /// All blocks in the current function.
     blocks: HashMap<Rc<String>, BasicBlock>,
 
@@ -52,6 +59,8 @@ pub struct IRGenerator {
     functions: HashMap<PtrEqRc<Variable>, FunctionValue>,
     /// All types (classes/interfaces/structs) that are available.
     types: HashMap<Type, BasicTypeEnum>,
+    /// A map of types based on their names in IR to allow for backwards lookup.
+    types_bw: HashMap<String, Type>,
 
     /// A constant that is used for expressions that don't produce a value but are required to,
     /// like return or break expressions.
@@ -92,6 +101,7 @@ impl IRGenerator {
                 std::process::exit(1);
             })
             .unwrap();
+        self.mpm.run_on(&self.module);
         self.module
     }
 
@@ -127,7 +137,8 @@ impl IRGenerator {
         for (name, var) in func.variables.iter() {
             let alloc_ty = self.ir_ty_ptr(&var.type_);
             let alloca = self.builder.build_alloca(alloc_ty, &name);
-            self.variables.insert(PtrEqRc::new(var), (alloca, false));
+            self.variables.insert(PtrEqRc::new(var), alloca);
+            self.locals.push(alloca);
         }
 
         // Fill in all blocks first before generating any actual code;
@@ -157,6 +168,9 @@ impl IRGenerator {
     fn prepare_function(&mut self, func: &RefMut<Function>, func_val: FunctionValue) {
         self.blocks.clear();
         self.variables.clear();
+        self.locals.clear();
+        self.unchecked_locals.clear();
+
         let entry_bb = self.context.append_basic_block(&func_val, "entry");
         self.builder.position_at_end(&entry_bb);
         self.build_parameter_alloca(&func, func_val);
@@ -171,18 +185,16 @@ impl IRGenerator {
                 let arg_val = *arg_val.as_pointer_value();
                 for (i, var) in captured.iter().enumerate() {
                     let field = self.struct_gep(arg_val, i);
-                    self.variables.insert(PtrEqRc::new(var), (field, true));
+                    self.variables.insert(PtrEqRc::new(var), field);
                 }
             } else if let BasicValueEnum::PointerValue(ptr) = arg_val {
                 // If the type of the function parameter is a pointer (aka a struct or function),
                 // creating an alloca isn't needed; the pointer can be used directly.
-                self.variables.insert(PtrEqRc::new(arg), (ptr, true));
-                self.increment_refcount(ptr.into());
+                self.variables.insert(PtrEqRc::new(arg), ptr);
             } else {
                 let alloc = self.builder.build_alloca(arg_val.get_type(), &arg.name);
                 self.builder.build_store(alloc, arg_val);
-                self.variables.insert(PtrEqRc::new(arg), (alloc, true));
-                self.increment_refcount(alloc.into());
+                self.variables.insert(PtrEqRc::new(arg), alloc);
             }
         }
     }
@@ -202,6 +214,7 @@ impl IRGenerator {
         // Blocks that return from a None-type function do not have a MIR terminator,
         // so we create a void return (The insert block would be unset had there been a return)
         if self.builder.get_insert_block().is_some() {
+            self.decrement_all_locals();
             self.builder.build_return(None);
         }
     }
@@ -211,13 +224,21 @@ impl IRGenerator {
         let module = context.create_module("main");
         let builder = context.create_builder();
 
+        let mpm = PassManager::create(());
+        mpm.add_instruction_combining_pass();
+        mpm.add_reassociate_pass();
+        mpm.add_cfg_simplification_pass();
+        mpm.add_basic_alias_analysis_pass();
+        mpm.add_instruction_combining_pass();
+        mpm.add_reassociate_pass();
+
         let none_const = context
             .struct_type(&[BasicTypeEnum::IntType(context.bool_type())], true)
             .const_named_struct(&[BasicValueEnum::IntValue(
                 context.bool_type().const_int(0, false),
             )]);
 
-        let mut types = HashMap::with_capacity(20);
+        let mut types = HashMap::with_capacity(50);
         types.insert(Type::None, none_const.get_type().into());
         types.insert(Type::Bool, context.bool_type().into());
 
@@ -233,11 +254,15 @@ impl IRGenerator {
             context,
             module,
             builder,
+            mpm,
 
             variables: HashMap::with_capacity(10),
+            locals: Vec::with_capacity(20),
+            unchecked_locals: Vec::with_capacity(10),
             blocks: HashMap::with_capacity(10),
 
             types,
+            types_bw: HashMap::with_capacity(50),
             functions: HashMap::with_capacity(10),
 
             none_const: none_const.into(),
@@ -247,6 +272,7 @@ impl IRGenerator {
 
 /// A Rc that can be compared by checking for pointer equality.
 /// Used as a HashMap key to allow unique keys with the same data.
+#[derive(Debug)]
 pub struct PtrEqRc<T: Hash>(Rc<T>);
 
 impl<T: Hash> PtrEqRc<T> {

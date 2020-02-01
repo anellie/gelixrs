@@ -33,6 +33,10 @@ impl PreMIRPass for PopulateIntrinsics {
                 i.borrow_mut().array_proto = module.find_prototype(&"Array".to_string());
                 i.borrow_mut().string_type = module.find_type(&"String".to_string());
             })
+        } else if **module.path.0[0] == *"std" && **module.path.0[1] == *"memory" {
+            INTRINSICS.with(|i| {
+                i.borrow_mut().free_iface = module.find_type(&"Free".to_string());
+            })
         }
         Ok(())
     }

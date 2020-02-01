@@ -15,7 +15,7 @@ use crate::{
     lexer::token::TType,
     mir::{
         generator::intrinsics::INTRINSICS,
-        nodes::{ClassMember, Function, Interface, Type, Variable},
+        nodes::{Class, ClassMember, Function, Interface, Type, Variable},
         MutRc,
     },
 };
@@ -26,13 +26,18 @@ use std::cell::Cell;
 /// Expressions are in blocks in functions. Gelix does not have statements.
 #[derive(Debug, Clone)]
 pub enum Expr {
-    /// Allocate space for a given type, either
-    /// on the stack as an alloca or on the heap.
-    /// Exact location is decided after MIR generation
-    /// by inspecting the code, and figuring out if
-    /// the value leaves the function it was defined in -
-    /// if it does, it will be allocated on the heap.
-    Allocate { type_: Type, heap: Cell<bool> },
+    /// Create a class instance.
+    /// This will perform the following steps in IR:
+    /// - Allocate either an alloca or on the heap with malloc
+    /// - Call the class instantiator with this new allocation
+    /// - Call the given constructor with the allocation
+    /// - Return the now initialized object as the value of this Expr
+    AllocClassInst {
+        class: MutRc<Class>,
+        constructor: Rc<Variable>,
+        constructor_args: Vec<Expr>,
+        heap: Cell<bool>,
+    },
 
     /// Simply a binary operation between numbers.
     Binary {
@@ -60,12 +65,7 @@ pub enum Expr {
 
     /// A cast, where a value is turned into a different type;
     /// casting to an interface implemented by the original type for example
-    /// `store` is the place to store the resulting value in, usually Expr::Allocate.
-    CastToInterface {
-        object: Box<Expr>,
-        to: Type,
-        store: Box<Expr>,
-    },
+    CastToInterface { object: Box<Expr>, to: Type },
 
     /// Construct a closure from the given function along with the captured
     /// variables. The function must have an additional first parameter
@@ -79,10 +79,13 @@ pub enum Expr {
     /// A 'flow' expression, which changes control flow. See [Flow] enum
     Flow(Box<Flow>),
 
-    /// Modifies the refcount on a value by adding `count` to it.
-    /// Other than this, behaves exactly like `object` -
-    /// it essentially wraps it
-    ModifyRefCount { object: Box<Expr>, count: u64 },
+    /// Will call libc free on the inner expression.
+    Free(Box<Expr>),
+
+    /// Modifies the refcount on a value, either
+    /// incrementing or decrementing it.
+    /// It returns the value - it essentially wraps it
+    ModifyRefCount { object: Box<Expr>, dec: bool },
 
     /// A Phi node. Returns a different value based on
     /// which block the current block was reached from.
@@ -96,7 +99,7 @@ pub enum Expr {
         object: Box<Expr>,
         index: usize,
         value: Box<Expr>,
-        first_set: bool
+        first_set: bool,
     },
 
     /// Simply produces the literal as value.
@@ -109,13 +112,23 @@ pub enum Expr {
     VarGet(Rc<Variable>),
 
     /// Stores a value inside a variable.
-    VarStore { var: Rc<Variable>, value: Box<Expr>, first_store: bool },
+    VarStore {
+        var: Rc<Variable>,
+        value: Box<Expr>,
+        first_store: bool,
+    },
 }
 
 impl Expr {
-    pub fn alloc(type_: Type) -> Expr {
-        Expr::Allocate {
-            type_,
+    pub fn alloc_class(
+        class: &MutRc<Class>,
+        constructor: &Rc<Variable>,
+        constructor_args: Vec<Expr>,
+    ) -> Expr {
+        Expr::AllocClassInst {
+            class: Rc::clone(&class),
+            constructor: Rc::clone(&constructor),
+            constructor_args,
             heap: Cell::new(false),
         }
     }
@@ -132,7 +145,6 @@ impl Expr {
         Expr::CastToInterface {
             object: Box::new(obj),
             to: ty.clone(),
-            store: Box::new(Expr::alloc(ty.clone())),
         }
     }
 
@@ -193,16 +205,21 @@ impl Expr {
             object: Box::new(object),
             index: field.index,
             value: Box::new(value),
-            first_set: false
+            first_set: false,
         }
     }
 
-    pub fn struct_set_init(object: Expr, field: Rc<ClassMember>, value: Expr, first_set: bool) -> Expr {
+    pub fn struct_set_init(
+        object: Expr,
+        field: Rc<ClassMember>,
+        value: Expr,
+        first_set: bool,
+    ) -> Expr {
         Expr::StructSet {
             object: Box::new(object),
             index: field.index,
             value: Box::new(value),
-            first_set
+            first_set,
         }
     }
 
@@ -211,7 +228,7 @@ impl Expr {
             object: Box::new(object),
             index,
             value: Box::new(value),
-            first_set: true
+            first_set: true,
         }
     }
 
@@ -219,7 +236,7 @@ impl Expr {
         Expr::VarStore {
             var: Rc::clone(var),
             value: Box::new(value),
-            first_store: false
+            first_store: false,
         }
     }
 
@@ -227,7 +244,7 @@ impl Expr {
         Expr::VarStore {
             var: Rc::clone(var),
             value: Box::new(value),
-            first_store: true
+            first_store: true,
         }
     }
 
@@ -251,6 +268,13 @@ impl Expr {
         Expr::Flow(Box::new(Flow::Return(val)))
     }
 
+    pub fn mod_rc(val: Expr, dec: bool) -> Expr {
+        Expr::ModifyRefCount {
+            object: Box::new(val),
+            dec,
+        }
+    }
+
     pub fn any_const() -> Expr {
         Expr::Literal(Literal::Any)
     }
@@ -264,7 +288,7 @@ impl Expr {
     /// on malformed expressions is undefined behavior that can lead to panics.
     pub fn get_type(&self) -> Type {
         match self {
-            Expr::Allocate { type_, .. } => type_.clone(),
+            Expr::AllocClassInst { class, .. } => Type::Class(Rc::clone(class)),
 
             Expr::Binary { left, operator, .. } => {
                 if LOGICAL_BINARY.contains(&operator) {
@@ -294,6 +318,8 @@ impl Expr {
             Expr::ConstructClosure { function, .. } => function.borrow().to_closure_type(),
 
             Expr::Flow(_) => Type::None,
+
+            Expr::Free(_) => Type::None,
 
             Expr::ModifyRefCount { object, .. } => object.get_type(),
 
@@ -355,7 +381,9 @@ impl Expr {
 impl Display for Expr {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         match self {
-            Expr::Allocate { type_, heap } => write!(f, "alloc {} (heap: {})", type_, heap.get()),
+            Expr::AllocClassInst { class, heap, .. } => {
+                write!(f, "alloc {} (heap: {})", class.borrow().name, heap.get())
+            }
 
             Expr::Binary {
                 left,
@@ -402,7 +430,9 @@ impl Display for Expr {
 
             Expr::Flow(flow) => write!(f, "{}", flow),
 
-            Expr::ModifyRefCount { object, count } => write!(f, "rc+{} on {}", count, object),
+            Expr::Free(expr) => write!(f, "free({})", expr),
+
+            Expr::ModifyRefCount { object, dec } => write!(f, "rc+{} on {}", !dec, object),
 
             Expr::Phi(nodes) => {
                 write!(f, "phi {{ ")?;
@@ -417,7 +447,8 @@ impl Display for Expr {
             Expr::StructSet {
                 object,
                 index,
-                value, ..
+                value,
+                ..
             } => write!(f, "set {} of ({}) to ({})", index, object, value),
 
             Expr::Literal(literal) => write!(f, "{}", literal),

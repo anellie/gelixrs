@@ -44,6 +44,10 @@ pub struct Class {
     /// with special constraints to enforce safety.
     /// Only call on instances produced by the instantiator function.
     pub constructors: Vec<Rc<Variable>>,
+    /// Another internal function that is called once an object is no longer
+    /// reachable and needs to be deallocated. It will first decrement all class
+    /// members first, then call free().
+    pub destructor: Rc<Variable>,
     /// The context to be used inside this declaration.
     pub context: Context,
     /// The AST this was compiled from.
@@ -58,6 +62,7 @@ impl Class {
             methods: HashMap::with_capacity(ast.methods.len()),
             instantiator: Rc::new(Default::default()),
             constructors: Vec::with_capacity(ast.constructors.len()),
+            destructor: Rc::new(Default::default()),
             context,
             ast: Rc::new(ast),
         })
@@ -386,7 +391,7 @@ pub struct Variable {
     pub type_: Type,
     pub name: Rc<String>,
     pub escapes: Cell<bool>,
-    pub ir_initialized: Cell<bool>
+    pub ir_initialized: Cell<bool>,
 }
 
 impl Variable {
@@ -396,7 +401,7 @@ impl Variable {
             type_,
             name: Rc::clone(name),
             escapes: Cell::new(false),
-            ir_initialized: Cell::new(false)
+            ir_initialized: Cell::new(false),
         })
     }
 }

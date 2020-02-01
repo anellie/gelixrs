@@ -16,7 +16,7 @@ use crate::{
 };
 use inkwell::{
     types::{AnyTypeEnum, BasicType, BasicTypeEnum, StructType},
-    values::{BasicValue, BasicValueEnum, PointerValue},
+    values::{BasicValue, BasicValueEnum, FunctionValue, PointerValue},
     AddressSpace::Generic,
     FloatPredicate, IntPredicate,
 };
@@ -25,9 +25,20 @@ use std::rc::Rc;
 impl IRGenerator {
     pub fn expression(&mut self, expression: &Expr) -> BasicValueEnum {
         match expression {
-            Expr::Allocate { type_, heap } => {
-                let ty = self.ir_ty(type_);
-                self.create_alloc(ty, heap.get()).into()
+            Expr::AllocClassInst {
+                class,
+                constructor,
+                constructor_args,
+                heap,
+            } => {
+                let ty = self.ir_ty(&Type::Class(Rc::clone(class)));
+                let alloc = self.create_alloc(ty, heap.get());
+                self.init_class_inst(
+                    alloc,
+                    self.get_variable(&class.borrow().instantiator),
+                    self.get_variable(&constructor),
+                    constructor_args,
+                )
             }
 
             Expr::Binary {
@@ -50,9 +61,7 @@ impl IRGenerator {
                 index, arguments, ..
             } => self.call_dyn(*index, arguments),
 
-            Expr::CastToInterface { object, to, store } => {
-                self.cast_to_interface(object, to, store)
-            }
+            Expr::CastToInterface { object, to } => self.cast_to_interface(object, to),
 
             Expr::ConstructClosure {
                 function,
@@ -62,7 +71,13 @@ impl IRGenerator {
 
             Expr::Flow(flow) => self.flow(flow),
 
-            Expr::ModifyRefCount { object, count } => self.modify_ref_count(object, *count),
+            Expr::Free(expr) => {
+                let ptr = self.expression(expr).into_pointer_value();
+                self.builder.build_free(ptr);
+                self.none_const
+            }
+
+            Expr::ModifyRefCount { object, dec } => self.modify_ref_count(object, *dec),
 
             Expr::Phi(branches) => self.phi(branches),
 
@@ -75,18 +90,13 @@ impl IRGenerator {
             Expr::StructSet {
                 object,
                 index,
-                value, first_set,
+                value,
+                first_set,
             } => {
                 let struc = self.expression(object);
                 let ptr = self.struct_gep(struc.into_pointer_value(), *index);
-
-                if !first_set {
-                    self.decrement_refcount(ptr.into());
-                }
-
                 let value = self.expression(value);
-                self.increment_refcount(value);
-                self.builder.build_store(ptr, value);
+                self.build_store(ptr, value, *first_set);
                 value
             }
 
@@ -96,18 +106,44 @@ impl IRGenerator {
 
             Expr::VarGet(var) => self.load_ptr(self.get_variable(var)),
 
-            Expr::VarStore { var, value, first_store } => {
+            Expr::VarStore {
+                var,
+                value,
+                first_store,
+            } => {
                 let var = self.get_variable(var);
-                if !first_store {
-                    self.decrement_refcount(var.into());
-                }
                 let val = self.expression(value);
-                self.increment_refcount(val);
-
-                self.builder.build_store(var, val);
+                self.build_store(var, val, *first_store);
                 val
             }
         }
+    }
+
+    fn init_class_inst(
+        &mut self,
+        alloc: PointerValue,
+        instantiator: PointerValue,
+        constructor: PointerValue,
+        constructor_args: &[Expr],
+    ) -> BasicValueEnum {
+        self.builder
+            .build_call(instantiator, &[alloc.into()], "inst");
+
+        let mut arguments: Vec<BasicValueEnum> = constructor_args
+            .iter()
+            .map(|a| self.expression(a))
+            .collect();
+        for arg in &arguments {
+            self.increment_refcount(*arg);
+        }
+        arguments.insert(0, alloc.into());
+        self.builder.build_call(constructor, &arguments, "constr");
+        for arg in arguments.iter().skip(1) {
+            self.decrement_refcount(*arg);
+        }
+
+        self.unchecked_locals.push(alloc);
+        alloc.into()
     }
 
     fn binary(
@@ -178,17 +214,22 @@ impl IRGenerator {
         let mut arguments = arguments.iter();
 
         let iface_struct = self.expression(arguments.next().unwrap());
-        let iface_ptr = iface_struct.into_pointer_value();
-
         let vtable_ptr = self
-            .load_ptr(self.struct_gep(iface_ptr, 1))
+            .builder
+            .build_extract_value(iface_struct.into_struct_value(), 1, "vtable")
+            .unwrap()
             .into_pointer_value();
+
+        // The '+1' is required to account for the 'free' method that is
+        // added to all vtables in IR.
         let method_ptr = self
-            .load_ptr(self.struct_gep(vtable_ptr, index))
+            .load_ptr(self.struct_gep(vtable_ptr, index + 1))
             .into_pointer_value();
 
         let implementor_ptr = self
-            .load_ptr(self.struct_gep(iface_ptr, 0))
+            .builder
+            .build_extract_value(iface_struct.into_struct_value(), 0, "impl")
+            .unwrap()
             .into_pointer_value();
         self.build_call(method_ptr, arguments, Some(implementor_ptr.into()))
     }
@@ -212,24 +253,33 @@ impl IRGenerator {
             .builder
             .build_call(ptr, &arguments, "call")
             .try_as_basic_value();
-        ret.left().unwrap_or(self.none_const)
+        let ret = ret.left().unwrap_or(self.none_const);
+
+        if let BasicValueEnum::PointerValue(ptr) = ret {
+            // If the return value is a pointer, it might be refcounted -
+            // returned refcounted values need to be cleaned up by the caller.
+            self.locals.push(ptr)
+        }
+
+        for arg in &arguments {
+            self.decrement_refcount(*arg);
+        }
+
+        ret
     }
 
-    fn cast_to_interface(&mut self, object: &Expr, to: &Type, store: &Expr) -> BasicValueEnum {
+    fn cast_to_interface(&mut self, object: &Expr, to: &Type) -> BasicValueEnum {
         let obj = self.expression(object);
         let iface_ty = self.ir_ty(to).into_struct_type();
-        let vtable_ty = iface_ty.get_field_types()[2]
+        let vtable_ty = iface_ty.get_field_types()[1]
             .as_pointer_type()
             .get_element_type()
             .into_struct_type();
 
         let vtable = self.get_vtable(object.get_type(), to, vtable_ty);
-        let store_location = self.expression(store);
-        self.write_struct(
-            store_location.into_pointer_value(),
-            [self.coerce_to_void_ptr(obj), vtable].iter(),
-        );
-        store_location
+        let store = self.create_alloc(iface_ty.into(), false);
+        self.write_struct(store, [self.coerce_to_void_ptr(obj), vtable].iter());
+        self.builder.build_load(store, "ifaceload")
     }
 
     /// Returns the vtable of the interface implementor given.
@@ -241,13 +291,18 @@ impl IRGenerator {
         vtable: StructType,
     ) -> BasicValueEnum {
         let field_tys = vtable.get_field_types();
-        let mut field_tys = field_tys.iter().skip(1);
+        let mut field_tys = field_tys.iter();
         let impls = get_iface_impls(&implementor).unwrap();
         let impls = impls.borrow();
-        let methods_iter = impls.interfaces[iface]
-            .methods
-            .iter()
-            .map(|(_, method)| self.functions[&PtrEqRc::new(method)])
+        let methods_iter = self
+            .get_free_function(&implementor)
+            .into_iter()
+            .chain(
+                impls.interfaces[iface]
+                    .methods
+                    .iter()
+                    .map(|(_, method)| self.functions[&PtrEqRc::new(method)]),
+            )
             .map(|func| {
                 self.builder.build_bitcast(
                     func.as_global_value().as_pointer_value(),
@@ -255,13 +310,21 @@ impl IRGenerator {
                     "funccast",
                 )
             });
-        let methods = Some(self.context.i32_type().const_int(0, false).into())
-            .into_iter()
-            .chain(methods_iter)
-            .collect::<Vec<BasicValueEnum>>();
+        let methods = methods_iter.collect::<Vec<_>>();
         let global = self.module.add_global(vtable, None, "vtable");
         global.set_initializer(&vtable.const_named_struct(&methods));
         global.as_pointer_value().into()
+    }
+
+    fn get_free_function(&self, ty: &Type) -> Option<FunctionValue> {
+        Some(match ty {
+            Type::Class(class) => self.functions[&PtrEqRc::new(&class.borrow().destructor)],
+            Type::Interface(_) => unimplemented!("Interfaces implementing interfaces"),
+            _ => self
+                .module
+                .get_function("std/intrinsics:do_nothing")
+                .unwrap(),
+        })
     }
 
     fn construct_closure(
@@ -308,7 +371,7 @@ impl IRGenerator {
         let alloc = self.create_alloc(ty, true);
         for (i, var) in captured.iter().enumerate() {
             let value = self.load_ptr(self.get_variable(var));
-            self.builder.build_store(self.struct_gep(alloc, i), value);
+            self.build_store(self.struct_gep(alloc, i), value, true);
         }
         alloc
     }
@@ -326,7 +389,7 @@ impl IRGenerator {
             Flow::None => {
                 self.decrement_all_locals();
                 self.builder.build_return(None)
-            },
+            }
 
             Flow::Jump(block) => self.builder.build_unconditional_branch(&self.blocks[block]),
 
@@ -361,6 +424,7 @@ impl IRGenerator {
 
             Flow::Return(value) => {
                 let value = self.expression(value);
+                self.increment_refcount(value);
                 self.decrement_all_locals();
                 if value.get_type() == self.none_const.get_type() {
                     self.builder.build_return(None)
@@ -373,28 +437,24 @@ impl IRGenerator {
         self.none_const
     }
 
-    fn decrement_all_locals(&mut self) {
-        for local in self.variables.values() {
+    pub fn decrement_all_locals(&mut self) {
+        for local in &self.locals {
             self.decrement_refcount(local.as_basic_value_enum())
+        }
+        for local in &self.unchecked_locals {
+            if local.get_first_use().is_none() {
+                self.decrement_refcount(local.as_basic_value_enum())
+            }
         }
     }
 
-    fn modify_ref_count(&mut self, object: &Expr, count: u64) -> BasicValueEnum {
+    fn modify_ref_count(&mut self, object: &Expr, dec: bool) -> BasicValueEnum {
         let object = self.expression(object);
-        // IRGenerator::struct_gep can't be used here as it
-        // only allows indexing past the refcount field.
-        let int = unsafe {
-            self.builder
-                .build_struct_gep(object.into_pointer_value(), 0, "rcgep")
-        };
-
-        let new = self.builder.build_int_add(
-            self.load_ptr(int).into_int_value(),
-            self.context.i32_type().const_int(count, false).into(),
-            "rcadd",
-        );
-
-        self.builder.build_store(int, new);
+        if dec {
+            self.decrement_refcount(object);
+        } else {
+            self.increment_refcount(object);
+        }
         object
     }
 
@@ -467,7 +527,8 @@ impl IRGenerator {
                         .module
                         .get_function("std/intrinsics:build_string_literal")
                         .unwrap();
-                    self.builder
+                    let st = self
+                        .builder
                         .build_call(
                             string_builder,
                             &[
@@ -481,7 +542,9 @@ impl IRGenerator {
                         )
                         .try_as_basic_value()
                         .left()
-                        .unwrap()
+                        .unwrap();
+                    self.locals.push(st.into_pointer_value());
+                    st
                 }
             }
 

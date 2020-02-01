@@ -142,11 +142,7 @@ impl Display for MModule {
             writeln!(f, "{} ", name)?;
         }
         writeln!(f, "\n\n")?;
-        for ty in self
-            .types
-            .values()
-            .filter(|t| !(t.is_function() && t.as_function().borrow().name.contains('-')))
-        {
+        for ty in self.types.values() {
             ty.display_full(f)?;
             writeln!(f)?;
         }

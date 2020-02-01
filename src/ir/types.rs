@@ -26,7 +26,14 @@ impl IRGenerator {
         };
         let ir = self.ir_ty(mir);
         match ir {
-            BasicTypeEnum::StructType(struc) => struc.ptr_type(Generic).into(),
+            // If the first field is NOT i32, then this struct type is not refcounted -
+            // all non-refcounted structs are passed by value, and do not need to be
+            // turned into a pointer (currently, only interface fat pointers are like this)
+            BasicTypeEnum::StructType(struc)
+                if struc.get_field_type_at_index(0) == Some(self.context.i32_type().into()) =>
+            {
+                struc.ptr_type(Generic).into()
+            }
             _ => ir,
         }
     }
@@ -62,6 +69,12 @@ impl IRGenerator {
         };
 
         self.types.insert(ty.clone(), ir_ty);
+        if let BasicTypeEnum::StructType(struc) = ir_ty {
+            self.types_bw.insert(
+                struc.get_name().unwrap().to_str().unwrap().to_string(),
+                ty.clone(),
+            );
+        }
         ir_ty
     }
 
@@ -83,20 +96,23 @@ impl IRGenerator {
         body: T,
     ) -> StructType {
         let body: Vec<_> = body.map(|var| self.ir_ty_ptr(&var)).collect();
-        self.build_struct_ir(name, body.into_iter())
+        self.build_struct_ir(name, body.into_iter(), true)
     }
 
     fn build_struct_ir<T: Iterator<Item = BasicTypeEnum>>(
         &self,
         name: &str,
         body: T,
+        refcount: bool,
     ) -> StructType {
+        let first_field = if refcount {
+            Some(self.context.i32_type().into())
+        } else {
+            None
+        };
+
         let struc_val = self.context.opaque_struct_type(name);
-        // Add the reference count field
-        let body: Vec<BasicTypeEnum> = Some(self.context.i32_type().into())
-            .into_iter()
-            .chain(body)
-            .collect();
+        let body: Vec<_> = first_field.into_iter().chain(body).collect();
         struc_val.set_body(&body, false);
         struc_val
     }
@@ -114,7 +130,7 @@ impl IRGenerator {
             .into();
         let captured_ty = self.context.i64_type().into();
 
-        self.build_struct_ir("closure", vec![func_ty, captured_ty].into_iter())
+        self.build_struct_ir("closure", vec![func_ty, captured_ty].into_iter(), true)
             .into()
     }
 
@@ -133,7 +149,6 @@ impl IRGenerator {
         variadic: bool,
     ) -> FunctionType {
         let params: Vec<BasicTypeEnum> = params.map(|param| self.ir_ty_ptr(param)).collect();
-
         if *ret_type == Type::None {
             self.context.void_type().fn_type(&params, variadic)
         } else {
@@ -144,12 +159,23 @@ impl IRGenerator {
     /// Generate the type of an interface when used as a standalone type,
     /// which is a struct with 2 pointers (vtable + implementor).
     fn build_iface_type(&mut self, iface: Ref<Interface>) -> StructType {
-        let vtable: Vec<BasicTypeEnum> = iface
-            .methods
-            .iter()
-            .map(|(_, method)| self.build_iface_method_type(method))
+        let free_method_sig = Some(
+            self.context
+                .void_type()
+                .fn_type(&[self.void_ptr().into()], false)
+                .ptr_type(Generic)
+                .into(),
+        );
+        let vtable: Vec<BasicTypeEnum> = free_method_sig
+            .into_iter()
+            .chain(
+                iface
+                    .methods
+                    .iter()
+                    .map(|(_, method)| self.build_iface_method_type(method)),
+            )
             .collect();
-        let vtable_struct = self.build_struct_ir("vtable", vtable.into_iter());
+        let vtable_struct = self.build_struct_ir("vtable", vtable.into_iter(), false);
 
         self.build_struct_ir(
             &iface.name,
@@ -158,6 +184,7 @@ impl IRGenerator {
                 vtable_struct.ptr_type(Generic).into(),
             ]
             .into_iter(),
+            false,
         )
     }
 

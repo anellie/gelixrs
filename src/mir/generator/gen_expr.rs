@@ -315,23 +315,21 @@ impl MIRGenerator {
         args: &[ASTExpr],
         err_tok: &Token,
     ) -> Res<Expr> {
-        let mut args = args
+        let args = args
             .iter()
             .map(|arg| self.expression(arg))
             .collect::<Res<Vec<Expr>>>()?;
-        let inst = self.build_class_inst(Rc::clone(&class));
-        args.insert(0, inst.clone());
 
-        let class = class.borrow();
-        let constructor: &Rc<Variable> = class
+        let cls = class.borrow();
+        let constructor: &Rc<Variable> = cls
             .constructors
             .iter()
             .find(|constructor| {
                 let constructor = constructor.type_.as_function().borrow();
-                if constructor.parameters.len() != args.len() {
+                if constructor.parameters.len() - 1 != args.len() {
                     return false;
                 }
-                for (param, arg) in constructor.parameters.iter().zip(args.iter()) {
+                for (param, arg) in constructor.parameters.iter().skip(1).zip(args.iter()) {
                     if param.type_ != arg.get_type() {
                         return false;
                     }
@@ -344,29 +342,7 @@ impl MIRGenerator {
                 "No matching constructor found for arguments.",
             )?;
 
-        let call = Expr::call(Expr::load(constructor), args);
-        self.insert_at_ptr(call);
-        Ok(inst)
-    }
-
-    /// Builds a class instance and returns an expression that loads the instance.
-    /// The expression returned can be safely cloned to reuse the instance.
-    fn build_class_inst(&mut self, class_ref: MutRc<Class>) -> Expr {
-        let call = {
-            let alloc = Expr::alloc(Type::Class(Rc::clone(&class_ref)));
-            let class = class_ref.borrow();
-            Expr::call(Expr::load(&class.instantiator), vec![alloc])
-        };
-
-        let var = Variable::new(
-            true,
-            Type::Class(class_ref),
-            &Rc::new("tmp-constructor-var".to_string()),
-        );
-        self.add_function_variable(Rc::clone(&var));
-        self.insert_at_ptr(Expr::store_init(&var, call));
-
-        Expr::load(&var)
+        Ok(Expr::alloc_class(&class, constructor, args))
     }
 
     fn for_(

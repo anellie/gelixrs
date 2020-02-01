@@ -49,9 +49,11 @@ fn declare_for_class(builder: &mut MIRBuilder, class: MutRc<Class>) -> Res<()> {
     let ast = Rc::clone(&class.borrow().ast);
     let this_param = FunctionParam::this_param(&ast.name);
 
-    // Do the instantiator
+    // Do the instantiator & destructor
     let init_fn_sig = get_instantiator_fn_sig(&ast, this_param.clone());
     class.borrow_mut().instantiator = create_function(builder, Left(&init_fn_sig), false, None)?;
+    let free_fn_sig = get_destructor_fn_sig(&ast, this_param.clone());
+    class.borrow_mut().destructor = create_function(builder, Left(&free_fn_sig), false, None)?;
 
     // Do all user-defined methods
     for method in ast.methods.iter() {
@@ -104,7 +106,20 @@ fn get_instantiator_fn_sig(class: &ASTClass, this_param: FunctionParam) -> FuncS
         name: fn_name,
         visibility: Visibility::Public,
         generics: None,
-        return_type: Some(ASTType::Ident(class.name.clone())),
+        return_type: None,
+        parameters: vec![this_param],
+        variadic: false,
+    }
+}
+
+/// Returns signature of the class instantiator.
+fn get_destructor_fn_sig(class: &ASTClass, this_param: FunctionParam) -> FuncSignature {
+    let fn_name = Token::generic_identifier(format!("free-{}-instance", &class.name.lexeme));
+    FuncSignature {
+        name: fn_name,
+        visibility: Visibility::Public,
+        generics: None,
+        return_type: None,
         parameters: vec![this_param],
         variadic: false,
     }

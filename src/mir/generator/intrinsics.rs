@@ -39,6 +39,7 @@ pub struct Intrinsics {
     ops: HashMap<TType, Rc<Prototype>>,
     pub array_proto: Option<Rc<Prototype>>,
     pub string_type: Option<Type>,
+    pub free_iface: Option<Type>,
     pub main_fn: Option<Rc<Variable>>,
 }
 

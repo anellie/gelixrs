@@ -57,18 +57,9 @@ impl IRGenerator {
         location: PointerValue,
         values: T,
     ) {
-        assert!(
-            location
-                .get_type()
-                .get_element_type()
-                .as_struct_type()
-                .count_fields()
-                - 1
-                == values.size_hint().0 as u32
-        );
         for (i, value) in values.enumerate() {
             let slot = self.struct_gep(location, i);
-            self.builder.build_store(slot, *value);
+            self.build_store(slot, *value, true);
         }
     }
 
@@ -88,15 +79,31 @@ impl IRGenerator {
     pub fn load_ptr(&self, ptr: PointerValue) -> BasicValueEnum {
         match ptr.get_type().get_element_type() {
             AnyTypeEnum::FunctionType(_) => BasicValueEnum::PointerValue(ptr),
-            AnyTypeEnum::StructType(_) => BasicValueEnum::PointerValue(ptr),
+            AnyTypeEnum::StructType(str)
+                if str.get_field_type_at_index(0) == Some(self.context.i32_type().into()) =>
+            {
+                BasicValueEnum::PointerValue(ptr)
+            }
             _ => self.builder.build_load(ptr, "var"),
         }
     }
 
     pub fn struct_gep(&self, ptr: PointerValue, index: usize) -> PointerValue {
-        // Account for the reference count field
-        let index = index as u32 + 1;
         assert!(ptr.get_type().get_element_type().is_struct_type());
+
+        // Account for the reference count field, should it be present
+        let index = if ptr
+            .get_type()
+            .get_element_type()
+            .as_struct_type()
+            .get_field_type_at_index(0)
+            == Some(self.context.i32_type().into())
+        {
+            index as u32 + 1
+        } else {
+            index as u32
+        };
+
         assert!(
             ptr.get_type()
                 .get_element_type()
@@ -104,6 +111,7 @@ impl IRGenerator {
                 .count_fields()
                 > index
         );
+
         unsafe { self.builder.build_struct_gep(ptr, index, "gep") }
     }
 
@@ -159,10 +167,17 @@ impl IRGenerator {
             builder.build_alloca(ty, "tmpalloc")
         };
 
-        if ty.is_struct_type() {
+        if ty.is_struct_type()
+            && ty.as_struct_type().get_field_type_at_index(0)
+                == Some(self.context.i32_type().into())
+        {
             // Initialize the refcount to 0
             let rc = unsafe { builder.build_struct_gep(ptr, 0, "rcinit") };
-            let value = if heap { 0 } else { 2147483648 /* first bit 1, rest 0; used to differentiate heap/stack vars */ };
+            let value = if heap {
+                0
+            } else {
+                2147483648 /* first bit 1, rest 0; used to differentiate heap/stack vars */
+            };
             builder.build_store(rc, self.context.i32_type().const_int(value, false));
         }
         ptr

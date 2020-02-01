@@ -8,7 +8,12 @@ use crate::{
     ir::{IRGenerator, PtrEqRc},
     mir::{nodes::Function, MModule, MutRc},
 };
-use inkwell::{types::{BasicType, BasicTypeEnum}, values::FunctionValue, AddressSpace::Generic, IntPredicate};
+use inkwell::{
+    types::{BasicType, BasicTypeEnum},
+    values::FunctionValue,
+    AddressSpace::Generic,
+    IntPredicate,
+};
 use std::cell::RefMut;
 
 impl IRGenerator {
@@ -85,52 +90,13 @@ impl IRGenerator {
                     let value = self
                         .builder
                         .build_load(value.into_pointer_value(), "load-value");
-                    self.builder.build_store(ptr, value);
+                    self.build_store(ptr, value, false); // TODO: Is false correct here?
                 } else {
                     let ptr = self
                         .builder
                         .build_int_to_ptr(int, ty.ptr_type(Generic), "ptr");
-                    self.builder.build_store(ptr, value);
+                    self.build_store(ptr, value, false);
                 }
-                self.builder.build_return(None);
-            }
-
-            // Will deallocate a struct pointer using free(), if the pointer's
-            // refcount field (index 0) is 0.
-            // See docs in the gelix code for more info.
-            "check_dealloc" => {
-                let params = ir.get_params();
-                let struct_int = params[0];
-                let should_drop = params[1];
-                let drop_ptr = params[2];
-
-                let ptr_ty = self.context.struct_type(&[self.context.i32_type().into()], false).ptr_type(Generic);
-                let struct_ptr = self.builder.build_int_to_ptr(struct_int.into_int_value(), ptr_ty, "toptr");
-
-                let is_dead_bb = self.context.append_basic_block(&ir, "isdead");
-                let drop_bb = self.context.append_basic_block(&ir, "drop");
-                let cont_bb = self.context.append_basic_block(&ir, "cont");
-                let end_bb = self.context.append_basic_block(&ir, "end");
-
-                let value = unsafe { self.builder.build_struct_gep(struct_ptr, 0, "rcgep") };
-                let value = self.builder.build_load(value, "rcload");
-                let value_is_0 = self.builder.build_int_compare(IntPredicate::EQ, value.into_int_value(), self.context.i32_type().const_int(0, false),
-                                                                "rccond");
-                self.builder.build_conditional_branch(value_is_0, &is_dead_bb, &end_bb);
-
-                self.builder.position_at_end(&is_dead_bb);
-                self.builder.build_conditional_branch(should_drop.into_int_value(), &drop_bb, &cont_bb);
-                self.builder.position_at_end(&drop_bb);
-                let ptr_ty = self.context.void_type().fn_type(&[self.context.i64_type().into()], false).ptr_type(Generic);
-                let drop_ptr = self.builder.build_int_to_ptr(drop_ptr.into_int_value(), ptr_ty, "dropptr");
-                self.builder.build_call(drop_ptr, &[struct_int], "dropcall");
-                self.builder.build_unconditional_branch(&cont_bb);
-
-                self.builder.position_at_end(&cont_bb);
-                self.builder.build_free(struct_ptr);
-                self.builder.build_unconditional_branch(&end_bb);
-
-                self.builder.position_at_end(&end_bb);
                 self.builder.build_return(None);
             }
 

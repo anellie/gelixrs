@@ -58,7 +58,7 @@ fn mark_escaping_vars(function: &MutRc<Function>) {
 
 fn mark_escaping_vars_expr(expr: &Expr, mut escaped: bool) -> bool {
     match expr {
-        Expr::Allocate { heap, .. } => {
+        Expr::AllocClassInst { heap, .. } => {
             // TODO: Should an allocation really pass on its allocation
             // status in `escaped`? Or is this not needed?
             escaped = heap.get() || escaped;
@@ -106,13 +106,8 @@ fn mark_escaping_vars_expr(expr: &Expr, mut escaped: bool) -> bool {
             }
         }
 
-        Expr::CastToInterface {
-            object,
-            to: _,
-            store,
-        } => {
+        Expr::CastToInterface { object, .. } => {
             mark_escaping_vars_expr(object, escaped);
-            mark_escaping_vars_expr(store, escaped);
         }
 
         Expr::ConstructClosure { captured, .. } => {
@@ -147,8 +142,6 @@ fn mark_escaping_vars_expr(expr: &Expr, mut escaped: bool) -> bool {
             mark_escaping_vars_expr(value, escaped);
         }
 
-        Expr::Literal(_) => (),
-
         Expr::Unary { right, .. } => {
             mark_escaping_vars_expr(right, escaped);
         }
@@ -163,6 +156,8 @@ fn mark_escaping_vars_expr(expr: &Expr, mut escaped: bool) -> bool {
             var.escapes.set(escaped);
             mark_escaping_vars_expr(value, escaped);
         }
+
+        Expr::Literal(_) | Expr::Free(_) => (),
     }
     escaped
 }

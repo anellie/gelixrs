@@ -10,9 +10,11 @@ use crate::{
     error::Res,
     mir::{
         generator::{
+            intrinsics::INTRINSICS,
             passes::{ModulePass, PassType},
             MIRGenerator,
         },
+        get_iface_impls,
         nodes::{Class, ClassMember, Expr, Type},
         MutRc,
     },
@@ -37,6 +39,7 @@ impl ModulePass for InsertClassMembers {
 
 fn fill_class(gen: &mut MIRGenerator, class: MutRc<Class>) -> Res<()> {
     build_class(gen, &class)?;
+    build_destructor(gen, &class);
     check_duplicate(gen, &class)
 }
 
@@ -82,13 +85,49 @@ fn build_class(gen: &mut MIRGenerator, class: &MutRc<Class>) -> Res<()> {
                 object: Box::new(Expr::load(&class_variable)),
                 index: member.index,
                 value: Box::new(value),
-                first_set: true
+                first_set: true,
             });
         }
     }
 
-    gen.insert_at_ptr(Expr::ret(Expr::load(&class_variable)));
     Ok(())
+}
+
+fn build_destructor(gen: &mut MIRGenerator, class: &MutRc<Class>) {
+    let class_variable = {
+        let dest = class.borrow().destructor.type_.as_function().clone();
+        let mut func = dest.borrow_mut();
+        gen.set_pointer(dest.clone(), func.append_block("entry", false));
+        Rc::clone(&func.parameters[0])
+    };
+
+    gen.insert_at_ptr(Expr::mod_rc(Expr::load(&class_variable), false));
+
+    let free_iface = INTRINSICS.with(|i| i.borrow().free_iface.clone()).unwrap();
+    let free_method = get_iface_impls(&Type::Class(Rc::clone(class)))
+        .map(|impls| {
+            impls
+                .borrow()
+                .interfaces
+                .get(&free_iface)
+                .map(|iface| Rc::clone(iface.methods.get_index(0).unwrap().1))
+        })
+        .flatten();
+    if let Some(method) = free_method {
+        gen.insert_at_ptr(Expr::call(
+            Expr::load(&method),
+            vec![Expr::load(&class_variable)],
+        ));
+    }
+
+    let class = class.borrow();
+    for field in class.members.values() {
+        gen.insert_at_ptr(Expr::mod_rc(
+            Expr::struct_get(Expr::load(&class_variable), field),
+            true,
+        ));
+    }
+    gen.insert_at_ptr(Expr::Free(Box::new(Expr::load(&class_variable))))
 }
 
 fn check_duplicate(gen: &mut MIRGenerator, class: &MutRc<Class>) -> Res<()> {

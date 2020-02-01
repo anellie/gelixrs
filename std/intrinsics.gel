@@ -51,3 +51,7 @@ func build_string_literal(literal_ptr: i64, len: i64) -> String {
     copy_ptr::<i8>(literal_ptr, new_ptr, len)
     String(len, len, new_ptr)
 }
+
+/// As the name already says, this function simply does nothing.
+/// Used as `free` function on interface implementations of primitives.
+func do_nothing() {}

@@ -31,19 +31,14 @@ public class Ptr<E> {
     /// Similar to C array indexing - 0 is the
     /// pointer itself, 1 is (ptr + (1 * sizeof(T))) and so on.
     /// This returns a new pointer object, and does not modify the called one.
-    public func element_at_index(index: i64) -> Ptr<E> {
+    public func element_at_index(index: i64) -> E {
         val index = this.pointer + (index * size_of::<E>())
-        Ptr::<E>(index, this.heap)
+        gelixrs_deref_ptr::<E>(index)
     }
 
-    /// Dereferences the pointer to the raw type,
-    /// crashing should the pointer be pointed at unallocated data.
-    public func dereference() -> E {
-        gelixrs_deref_ptr::<E>(this.pointer)
-    }
-
-    public func set(data: E) {
-        gelixrs_set_ptr::<E>(this.pointer, data)
+    public func set(index: i64, data: E) {
+        val index = this.pointer + (index * size_of::<E>())
+        gelixrs_set_ptr::<E>(index, data)
     }
 }
 
@@ -68,7 +63,6 @@ public func allocate<T>(size: i64) -> Ptr<T> {
 /// Does not do any memory safety checks.
 public func copy_ptr<T>(src: Ptr<T>, dst: Ptr<T>, len: i64) {
     for (i from 0 to len) {
-        val elem = src.element_at_index(i).dereference()
-        dst.element_at_index(i).set(elem)
+        dst.set(i, src.element_at_index(i))
     }
 }

@@ -108,8 +108,8 @@ class String {
     /// and writing a null terminator to the first
     /// index of its pointer.
     func clear() {
-        val null_char = this.ptr.element_at_index(this.length - 1).dereference()
-        this.ptr.set(null_char)
+        val null_char = this.ptr.element_at_index(this.length - 1)
+        this.ptr.set(0, null_char)
         this.length = 1
     }
 }
