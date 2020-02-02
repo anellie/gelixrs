@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 2/2/20 5:19 PM.
+ * Last modified on 2/2/20 6:49 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -87,6 +87,17 @@ impl IRGenerator {
                 self.none_const
             }
 
+            Expr::PopLocalsWithReturn(expr) => {
+                let expr = self.expression(expr);
+
+                self.increment_refcount(expr);
+                let index = self.locals.len() - 2;
+                self.locals[index].push(expr);
+
+                self.expression(&Expr::PopLocals);
+                expr
+            }
+
             Expr::PushLocals => {
                 self.locals.push(Vec::with_capacity(3));
                 self.none_const
@@ -154,7 +165,7 @@ impl IRGenerator {
             self.decrement_refcount(*arg);
         }
 
-        self.locals().push(alloc);
+        self.locals().push(alloc.into());
         alloc.into()
     }
 
@@ -270,7 +281,7 @@ impl IRGenerator {
         if let BasicValueEnum::PointerValue(ptr) = ret {
             // If the return value is a pointer, it might be refcounted -
             // returned refcounted values need to be cleaned up by the caller.
-            self.locals().push(ptr)
+            self.locals().push(ptr.into())
         }
 
         for arg in &arguments {
@@ -455,9 +466,11 @@ impl IRGenerator {
         }
     }
 
-    fn decrement_locals(&self, locals: &Vec<PointerValue>) {
-        for local in locals {
-            self.decrement_refcount(local.as_basic_value_enum());
+    fn decrement_locals(&self, locals: &Vec<BasicValueEnum>) {
+        if self.builder.get_insert_block().is_some() {
+            for local in locals {
+                self.decrement_refcount(*local);
+            }
         }
     }
 
@@ -493,7 +506,7 @@ impl IRGenerator {
                     // If the last local is the value used for the phi node,
                     // then it needs to be removed to prevent decrementing
                     // the value (it'll be decremented as the phi later)
-                    if BasicValueEnum::PointerValue(last) != expr {
+                    if last != expr {
                         self.locals().push(last)
                     }
                 }
@@ -515,9 +528,7 @@ impl IRGenerator {
         }
         let phi = self.builder.build_phi(type_, "phi");
         phi.add_incoming(&branches_ref);
-        if let BasicValueEnum::PointerValue(var) = phi.as_basic_value() {
-            self.locals().push(var);
-        }
+        self.locals().push(phi.as_basic_value());
         self.builder.position_at_end(&cur_block);
         phi.as_basic_value()
     }
@@ -573,7 +584,7 @@ impl IRGenerator {
                         .try_as_basic_value()
                         .left()
                         .unwrap();
-                    self.locals().push(st.into_pointer_value());
+                    self.locals().push(st);
                     st
                 }
             }

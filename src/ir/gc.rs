@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 2/2/20 5:46 PM.
+ * Last modified on 2/2/20 6:23 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -17,8 +17,8 @@ impl IRGenerator {
         if !is_null {
             self.decrement_refcount(ptr.into());
         }
-        self.increment_refcount(value);
         self.builder.build_store(ptr, value);
+        self.increment_refcount(ptr.into());
     }
 
     pub fn increment_refcount(&self, value: BasicValueEnum) {

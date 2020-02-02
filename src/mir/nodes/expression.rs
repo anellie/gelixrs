@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 1/26/20 10:42 PM.
+ * Last modified on 2/2/20 6:59 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -97,7 +97,18 @@ pub enum Expr {
     /// which block the current block was reached from.
     Phi(Vec<(Expr, Rc<String>)>),
 
+    /// Pop all current locals off the stack.
+    /// See comments on the IR generator for more info.
     PopLocals,
+
+    /// Same as PopLocals, but will evalutate the given expression
+    /// beforehand and 'lift' the expression in the outer local
+    /// vector. (See ir/gen_expr.rs for the actual code, which
+    /// should be enough to explain this.)
+    PopLocalsWithReturn(Box<Expr>),
+
+    /// Push a new empty vector onto the locals stack.
+    /// See comments on the IR generator for more info.
     PushLocals,
 
     /// Gets a member of a class struct.
@@ -336,6 +347,8 @@ impl Expr {
 
             Expr::Phi(branches) => branches.first().unwrap().0.get_type(),
 
+            Expr::PopLocalsWithReturn(expr) => expr.get_type(),
+
             Expr::StructGet { object, index } => Self::type_from_struct_get(object, *index),
 
             Expr::StructSet { object, index, .. } => Self::type_from_struct_get(object, *index),
@@ -456,6 +469,8 @@ impl Display for Expr {
             }
 
             Expr::PopLocals => write!(f, "pop context"),
+
+            Expr::PopLocalsWithReturn(expr) => write!(f, "pop context with ({})", expr),
 
             Expr::PushLocals => write!(f, "push context"),
 

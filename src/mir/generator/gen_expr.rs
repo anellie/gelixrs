@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 1/26/20 10:42 PM.
+ * Last modified on 2/2/20 6:50 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -163,8 +163,7 @@ impl MIRGenerator {
         let last = self.expression(expressions.last().unwrap())?;
 
         self.end_scope();
-        self.insert_at_ptr(Expr::PopLocals);
-        Ok(last)
+        Ok(Expr::PopLocalsWithReturn(Box::new(last)))
     }
 
     fn break_(&mut self, expr: &Option<Box<ASTExpr>>, err_tok: &Token) -> Res<Expr> {
@@ -367,6 +366,7 @@ impl MIRGenerator {
         self.insert_at_ptr(Expr::branch(cond.clone(), &loop_block, &else_block));
 
         self.set_block(&loop_block);
+        self.insert_at_ptr(Expr::PushLocals);
         let body = self.expression(body)?;
         let body_type = body.get_type();
 
@@ -374,13 +374,16 @@ impl MIRGenerator {
         let body_alloca = self.get_or_create_loop_var(&body_type)?;
 
         self.insert_at_ptr(Expr::store(&body_alloca, body));
+        self.insert_at_ptr(Expr::PopLocals);
         self.insert_at_ptr(Expr::branch(cond, &loop_block, &cont_block));
 
         let mut ret = Expr::none_const();
         if let Some(else_b) = else_b {
             self.set_block(&else_block);
+            self.insert_at_ptr(Expr::PushLocals);
             let else_val = self.expression(&**else_b)?;
             else_block = self.cur_block_name();
+            self.insert_at_ptr(Expr::PopLocals);
 
             if else_val.get_type() == body_type {
                 self.set_block(&cont_block);

@@ -8,4 +8,3 @@ func main() {
     arr.get(0).push(13)
     print(arr.get(0).get(0))
 }
-class S {}

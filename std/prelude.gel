@@ -42,18 +42,21 @@ class Array<E> {
     }
 
     func get(index: i64) -> E {
-        this.ptr.element_at_index(index).dereference()
+        this.ptr.element_at_index(index)
     }
 
     func set(index: i64, element: E) -> E {
         val old_elem = this.get(index)
-        this.ptr.element_at_index(index).set(element)
+        this.ptr.set(index, element)
         old_elem
     }
 
     func push(elem: E) {
         this.maybe_extend()
-        this.set(this.len, elem)
+        // This sets the pointer directly, as Array.set will
+        // return the old element - which would be unallocated memory,
+        // resulting in a segfault.
+        this.ptr.set(this.len, elem)
         this.len = this.len + 1
     }
 

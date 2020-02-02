@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 1/27/20 7:17 PM.
+ * Last modified on 2/2/20 6:58 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -52,8 +52,8 @@ pub struct IRGenerator {
     /// This also includes locally declared variables.
     /// This is a vector to account for local variables that are not available
     /// during all parts of the function - locals declared inside of an if clause for example.
-    /// TODO: Better document Expr::PushLocals | Expr::PopLocals
-    locals: Vec<Vec<PointerValue>>,
+    /// Pushing/Popping local vectors from this stack is done using mir::Expr.
+    locals: Vec<Vec<BasicValueEnum>>,
     /// All blocks in the current function.
     blocks: HashMap<Rc<String>, BasicBlock>,
 
@@ -139,7 +139,7 @@ impl IRGenerator {
             let alloc_ty = self.ir_ty_ptr(&var.type_);
             let alloca = self.builder.build_alloca(alloc_ty, &name);
             self.variables.insert(PtrEqRc::new(var), alloca);
-            self.locals().push(alloca);
+            self.locals().push(alloca.into());
         }
 
         // Fill in all blocks first before generating any actual code;
@@ -223,7 +223,7 @@ impl IRGenerator {
         }
     }
 
-    pub fn locals(&mut self) -> &mut Vec<PointerValue> {
+    pub fn locals(&mut self) -> &mut Vec<BasicValueEnum> {
         self.locals.last_mut().unwrap()
     }
 

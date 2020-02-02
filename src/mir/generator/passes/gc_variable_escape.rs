@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 1/26/20 10:42 PM.
+ * Last modified on 2/2/20 6:37 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -131,6 +131,10 @@ fn mark_escaping_vars_expr(expr: &Expr, mut escaped: bool) -> bool {
             for (expr, _) in branches.iter() {
                 mark_escaping_vars_expr(expr, escaped);
             }
+        }
+
+        Expr::PopLocalsWithReturn(expr) => {
+            mark_escaping_vars_expr(expr, escaped);
         }
 
         Expr::StructGet { object, .. } => {
