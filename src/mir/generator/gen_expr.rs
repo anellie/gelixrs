@@ -155,6 +155,7 @@ impl MIRGenerator {
         }
 
         self.begin_scope();
+        self.insert_at_ptr(Expr::PushLocals);
         for expression in expressions.iter().take(expressions.len() - 1) {
             let expression = self.expression(&expression)?;
             self.insert_at_ptr(expression);
@@ -162,6 +163,7 @@ impl MIRGenerator {
         let last = self.expression(expressions.last().unwrap())?;
 
         self.end_scope();
+        self.insert_at_ptr(Expr::PopLocals);
         Ok(last)
     }
 
@@ -435,17 +437,21 @@ impl MIRGenerator {
         self.insert_at_ptr(Expr::branch(cond, &then_block, &else_block));
 
         self.set_block(&then_block);
+        self.insert_at_ptr(Expr::PushLocals);
         let then_val = self.expression(then_branch)?;
         then_block = self.cur_block_name();
 
         self.set_block(&else_block);
         if let Some(else_branch) = else_branch {
+            self.insert_at_ptr(Expr::PushLocals);
             let else_val = self.expression(&**else_branch)?;
             else_block = self.cur_block_name();
 
             if then_val.get_type() == else_val.get_type() {
+                self.insert_at_ptr(Expr::PopLocals);
                 self.insert_at_ptr(Expr::jump(&cont_block));
                 self.set_block(&then_block);
+                self.insert_at_ptr(Expr::PopLocals);
                 self.insert_at_ptr(Expr::jump(&cont_block));
 
                 self.set_block(&cont_block);
@@ -455,6 +461,7 @@ impl MIRGenerator {
                 ]));
             } else {
                 self.insert_at_ptr(else_val);
+                self.insert_at_ptr(Expr::PopLocals);
                 self.insert_at_ptr(Expr::jump(&cont_block));
             }
         } else {
@@ -464,6 +471,7 @@ impl MIRGenerator {
 
         self.set_block(&then_block);
         self.insert_at_ptr(then_val);
+        self.insert_at_ptr(Expr::PopLocals);
         self.insert_at_ptr(Expr::jump(&cont_block));
 
         self.set_block(&cont_block);
@@ -717,8 +725,10 @@ impl MIRGenerator {
         let cont_b = self.append_block("when-cont");
 
         self.set_block(&else_b);
+        self.insert_at_ptr(Expr::PushLocals);
         let else_val = self.expression(else_branch)?;
         let branch_type = else_val.get_type();
+        self.insert_at_ptr(Expr::PopLocals);
         self.insert_at_ptr(Expr::jump(&cont_b));
 
         let mut cases = Vec::with_capacity(branches.len());
@@ -742,10 +752,12 @@ impl MIRGenerator {
 
             let branch_b = self.append_block("when-br");
             self.set_block(&branch_b);
+            self.insert_at_ptr(Expr::PushLocals);
             let branch_val = self.expression(branch)?;
             if branch_val.get_type() != branch_type {
                 return Err(self.err(branch.get_token(), "Branch results must be of same type."));
             }
+            self.insert_at_ptr(Expr::PopLocals);
             self.insert_at_ptr(Expr::jump(&cont_b));
 
             let branch_b = self.cur_block_name();

@@ -119,21 +119,8 @@ impl IRGenerator {
     /// The alloca is kept empty.
     pub fn create_alloc(&self, ty: BasicTypeEnum, heap: bool) -> PointerValue {
         let builder = self.context.create_builder();
-        let entry = self
-            .builder
-            .get_insert_block()
-            .unwrap()
-            .get_parent()
-            .unwrap()
-            .get_first_basic_block()
-            .unwrap();
 
-        match entry.get_first_instruction() {
-            Some(first_instr) => builder.position_before(&first_instr),
-            None => builder.position_at_end(&entry),
-        }
-
-        let ptr = if heap {
+        let (builder, ptr) = if heap {
             let malloc = self
                 .module
                 .get_function("malloc")
@@ -143,7 +130,8 @@ impl IRGenerator {
             let malloc_ty = ty
                 .ptr_type(Generic)
                 .fn_type(&[self.context.i32_type().into()], false);
-            let malloc = builder
+            let malloc = self
+                .builder
                 .build_bitcast(malloc, malloc_ty.ptr_type(Generic), "malloccast")
                 .into_pointer_value();
 
@@ -155,16 +143,33 @@ impl IRGenerator {
                     "size",
                 )
             };
-            let ty_size = builder.build_ptr_to_int(ty_size, i, "sizeint").into();
+            let ty_size = self.builder.build_ptr_to_int(ty_size, i, "sizeint").into();
 
-            builder
-                .build_call(malloc, &[ty_size], "malloc")
-                .try_as_basic_value()
-                .left()
-                .unwrap()
-                .into_pointer_value()
+            (
+                &self.builder,
+                self.builder
+                    .build_call(malloc, &[ty_size], "malloc")
+                    .try_as_basic_value()
+                    .left()
+                    .unwrap()
+                    .into_pointer_value(),
+            )
         } else {
-            builder.build_alloca(ty, "tmpalloc")
+            let entry = self
+                .builder
+                .get_insert_block()
+                .unwrap()
+                .get_parent()
+                .unwrap()
+                .get_first_basic_block()
+                .unwrap();
+
+            match entry.get_first_instruction() {
+                Some(first_instr) => builder.position_before(&first_instr),
+                None => builder.position_at_end(&entry),
+            }
+
+            (&builder, builder.build_alloca(ty, "tmpalloc"))
         };
 
         if ty.is_struct_type()

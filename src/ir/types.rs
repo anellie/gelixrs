@@ -162,7 +162,10 @@ impl IRGenerator {
         let free_method_sig = Some(
             self.context
                 .void_type()
-                .fn_type(&[self.void_ptr().into()], false)
+                .fn_type(
+                    &[self.void_ptr().into(), self.context.bool_type().into()],
+                    false,
+                )
                 .ptr_type(Generic)
                 .into(),
         );

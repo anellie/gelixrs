@@ -24,11 +24,6 @@ extern func gelixrs_deref_ptr<T>(ptr: i64) -> T
 /// and stores `data` at its location.
 extern func gelixrs_set_ptr<T>(ptr: i64, data: T)
 
-/// Deallocates the given pointer, should its internal refcount be < 1.
-/// To allow running the Drop impl if there is one, if `drop_impl` is true,
-/// `impl_ptr` will be called with the pointer before deallocating.
-extern func gelixrs_check_dealloc(ptr: i64, drop_impl: bool, impl_ptr: i64)
-
 /// libc puts
 extern func puts(s: i64)
 

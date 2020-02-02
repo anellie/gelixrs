@@ -77,8 +77,9 @@ impl IRGenerator {
         let refcount = unsafe { self.builder.build_struct_gep(ptr, 0, "rcgep") };
         let refcount = self.write_new_refcount(refcount, decrement);
         if decrement {
-            self.build_maybe_free(refcount, &mut |this| {
-                this.builder.build_call(func, &[ptr.into()], "free");
+            self.build_maybe_free(refcount, &mut |this, pred| {
+                this.builder
+                    .build_call(func, &[ptr.into(), pred.into()], "free");
             })
         }
     }
@@ -93,7 +94,7 @@ impl IRGenerator {
         let refcount = self.write_new_refcount(impl_ptr.into_pointer_value(), decrement);
 
         if decrement {
-            self.build_maybe_free(refcount, &mut |this| {
+            self.build_maybe_free(refcount, &mut |this, pred| {
                 let vtable_ptr = this
                     .builder
                     .build_extract_value(struc, 1, "vtable")
@@ -110,7 +111,8 @@ impl IRGenerator {
                     .unwrap()
                     .into_pointer_value();
 
-                this.builder.build_call(func, &[implementor.into()], "free");
+                this.builder
+                    .build_call(func, &[implementor.into(), pred.into()], "free");
             })
         }
     }
@@ -130,30 +132,17 @@ impl IRGenerator {
     /// Will insert a free check at the current insert position.
     /// free_closure should generate the code that runs when the value
     /// is to be freed.
-    fn build_maybe_free(&self, refcount: IntValue, free_closure: &mut dyn FnMut(&IRGenerator)) {
-        let func = self
-            .builder
-            .get_insert_block()
-            .unwrap()
-            .get_parent()
-            .unwrap();
-
-        let clean_bb = self.context.append_basic_block(&func, "clean-obj");
-        let end_bb = self.context.append_basic_block(&func, "after-clean");
-
+    fn build_maybe_free(
+        &self,
+        refcount: IntValue,
+        free_closure: &mut dyn FnMut(&IRGenerator, IntValue),
+    ) {
         let value_is_0 = self.builder.build_int_compare(
             IntPredicate::EQ,
             refcount,
             self.context.i32_type().const_int(0, false),
             "rccond",
         );
-        self.builder
-            .build_conditional_branch(value_is_0, &clean_bb, &end_bb);
-
-        self.builder.position_at_end(&clean_bb);
-        free_closure(self);
-        self.builder.build_unconditional_branch(&end_bb);
-
-        self.builder.position_at_end(&end_bb);
+        free_closure(self, value_is_0);
     }
 }

@@ -25,6 +25,10 @@ struct Opt {
     #[structopt(long)]
     mir: bool,
 
+    /// Compile to MIR, print including all libs, and exit
+    #[structopt(long)]
+    mir_all: bool,
+
     /// Compile to LLVM IR, print, and exit
     #[structopt(long)]
     ir: bool,
@@ -82,11 +86,11 @@ fn run(args: Opt) -> Result<(), &'static str> {
         Err("MIR generator encountered errors. Exiting.")
     })?;
 
-    if args.mir {
+    if args.mir || args.mir_all {
         let stem = stem_to_rc_str(&args.file);
         for module in mir
             .iter()
-            .filter(|m| m.borrow().path.0.first().unwrap() == &stem)
+            .filter(|m| ((m.borrow().path.0.first().unwrap() == &stem) && args.mir) || args.mir_all)
         {
             println!("{}", module.borrow())
         }

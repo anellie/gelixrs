@@ -94,13 +94,22 @@ fn build_class(gen: &mut MIRGenerator, class: &MutRc<Class>) -> Res<()> {
 }
 
 fn build_destructor(gen: &mut MIRGenerator, class: &MutRc<Class>) {
-    let class_variable = {
+    let (class_variable, dealloc_var, dealloc_bb, end_bb) = {
         let dest = class.borrow().destructor.type_.as_function().clone();
         let mut func = dest.borrow_mut();
         gen.set_pointer(dest.clone(), func.append_block("entry", false));
-        Rc::clone(&func.parameters[0])
+        (
+            Rc::clone(&func.parameters[0]),
+            Rc::clone(&func.parameters[1]),
+            func.append_block("dealloc", false),
+            func.append_block("end", false),
+        )
     };
+    let func = class.borrow().destructor.type_.as_function().clone();
 
+    gen.insert_at_ptr(Expr::branch(Expr::load(&dealloc_var), &dealloc_bb, &end_bb));
+
+    gen.set_pointer(Rc::clone(&func), dealloc_bb);
     gen.insert_at_ptr(Expr::mod_rc(Expr::load(&class_variable), false));
 
     let free_iface = INTRINSICS.with(|i| i.borrow().free_iface.clone()).unwrap();
@@ -127,7 +136,8 @@ fn build_destructor(gen: &mut MIRGenerator, class: &MutRc<Class>) {
             true,
         ));
     }
-    gen.insert_at_ptr(Expr::Free(Box::new(Expr::load(&class_variable))))
+    gen.insert_at_ptr(Expr::Free(Box::new(Expr::load(&class_variable))));
+    gen.insert_at_ptr(Expr::jump(&end_bb));
 }
 
 fn check_duplicate(gen: &mut MIRGenerator, class: &MutRc<Class>) -> Res<()> {

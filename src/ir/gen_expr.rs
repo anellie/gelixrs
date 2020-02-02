@@ -81,6 +81,17 @@ impl IRGenerator {
 
             Expr::Phi(branches) => self.phi(branches),
 
+            Expr::PopLocals => {
+                let locals = self.locals.pop().unwrap();
+                self.decrement_locals(&locals);
+                self.none_const
+            }
+
+            Expr::PushLocals => {
+                self.locals.push(Vec::with_capacity(3));
+                self.none_const
+            }
+
             Expr::StructGet { object, index } => {
                 let struc = self.expression(object);
                 let ptr = self.struct_gep(struc.into_pointer_value(), *index);
@@ -126,6 +137,7 @@ impl IRGenerator {
         constructor: PointerValue,
         constructor_args: &[Expr],
     ) -> BasicValueEnum {
+        self.increment_refcount(alloc.into());
         self.builder
             .build_call(instantiator, &[alloc.into()], "inst");
 
@@ -142,7 +154,7 @@ impl IRGenerator {
             self.decrement_refcount(*arg);
         }
 
-        self.unchecked_locals.push(alloc);
+        self.locals().push(alloc);
         alloc.into()
     }
 
@@ -258,7 +270,7 @@ impl IRGenerator {
         if let BasicValueEnum::PointerValue(ptr) = ret {
             // If the return value is a pointer, it might be refcounted -
             // returned refcounted values need to be cleaned up by the caller.
-            self.locals.push(ptr)
+            self.locals().push(ptr)
         }
 
         for arg in &arguments {
@@ -437,14 +449,15 @@ impl IRGenerator {
         self.none_const
     }
 
-    pub fn decrement_all_locals(&mut self) {
-        for local in &self.locals {
-            self.decrement_refcount(local.as_basic_value_enum())
+    pub fn decrement_all_locals(&self) {
+        for locals in &self.locals {
+            self.decrement_locals(locals);
         }
-        for local in &self.unchecked_locals {
-            if local.get_first_use().is_none() {
-                self.decrement_refcount(local.as_basic_value_enum())
-            }
+    }
+
+    fn decrement_locals(&self, locals: &Vec<PointerValue>) {
+        for local in locals {
+            self.decrement_refcount(local.as_basic_value_enum());
         }
     }
 
@@ -473,7 +486,20 @@ impl IRGenerator {
                     Some(inst) => self.builder.position_before(&inst),
                     None => self.builder.position_at_end(&block),
                 }
-                (self.expression(expr), block)
+
+                self.expression(&Expr::PushLocals);
+                let expr = self.expression(expr);
+                if let Some(last) = self.locals().pop() {
+                    // If the last local is the value used for the phi node,
+                    // then it needs to be removed to prevent decrementing
+                    // the value (it'll be decremented as the phi later)
+                    if BasicValueEnum::PointerValue(last) != expr {
+                        self.locals().push(last)
+                    }
+                }
+
+                self.expression(&Expr::PopLocals);
+                (expr, block)
             })
             .collect();
         let type_ = branches[0].0.get_type();
@@ -489,6 +515,10 @@ impl IRGenerator {
         }
         let phi = self.builder.build_phi(type_, "phi");
         phi.add_incoming(&branches_ref);
+        if let BasicValueEnum::PointerValue(var) = phi.as_basic_value() {
+            self.locals().push(var);
+        }
+        self.builder.position_at_end(&cur_block);
         phi.as_basic_value()
     }
 
@@ -543,7 +573,7 @@ impl IRGenerator {
                         .try_as_basic_value()
                         .left()
                         .unwrap();
-                    self.locals.push(st.into_pointer_value());
+                    self.locals().push(st.into_pointer_value());
                     st
                 }
             }

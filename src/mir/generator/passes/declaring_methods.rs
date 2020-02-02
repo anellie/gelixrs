@@ -120,7 +120,13 @@ fn get_destructor_fn_sig(class: &ASTClass, this_param: FunctionParam) -> FuncSig
         visibility: Visibility::Public,
         generics: None,
         return_type: None,
-        parameters: vec![this_param],
+        parameters: vec![
+            this_param,
+            FunctionParam {
+                type_: ASTType::Ident(Token::generic_identifier("bool".to_string())),
+                name: Token::generic_identifier("refcount_is_0".to_string()),
+            },
+        ],
         variadic: false,
     }
 }

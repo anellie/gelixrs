@@ -50,8 +50,10 @@ pub struct IRGenerator {
     /// All local stores in this function that need their refcount
     /// to be decremented when the function returns.
     /// This also includes locally declared variables.
-    locals: Vec<PointerValue>,
-    unchecked_locals: Vec<PointerValue>,
+    /// This is a vector to account for local variables that are not available
+    /// during all parts of the function - locals declared inside of an if clause for example.
+    /// TODO: Better document Expr::PushLocals | Expr::PopLocals
+    locals: Vec<Vec<PointerValue>>,
     /// All blocks in the current function.
     blocks: HashMap<Rc<String>, BasicBlock>,
 
@@ -128,30 +130,30 @@ impl IRGenerator {
     }
 
     /// Generates a function's body.
-    fn function_body(&mut self, mut func: RefMut<Function>, func_val: FunctionValue) {
+    fn function_body(&mut self, func: RefMut<Function>, func_val: FunctionValue) {
         self.blocks.clear();
 
-        let entry_b = func.blocks.remove_entry(&"entry".to_string()).unwrap();
         self.prepare_function(&func, func_val);
 
         for (name, var) in func.variables.iter() {
             let alloc_ty = self.ir_ty_ptr(&var.type_);
             let alloca = self.builder.build_alloca(alloc_ty, &name);
             self.variables.insert(PtrEqRc::new(var), alloca);
-            self.locals.push(alloca);
+            self.locals().push(alloca);
         }
 
         // Fill in all blocks first before generating any actual code;
         // otherwise referencing a block yet to be built would result in a panic
-        for (name, _block) in func.blocks.iter() {
+        for (name, _block) in func.blocks.iter().skip(1) {
             let bb = self.context.append_basic_block(&func_val, name);
             self.blocks.insert(Rc::clone(name), bb);
         }
 
-        self.fill_basic_block(&entry_b.1);
+        let mut blocks = func.blocks.iter();
+        self.fill_basic_block(blocks.next().unwrap().1);
 
         // Fill all blocks
-        for (name, block) in func.blocks.iter() {
+        for (name, block) in blocks {
             let bb = self.blocks[name];
             self.position_at_block(bb);
             self.fill_basic_block(block)
@@ -169,9 +171,11 @@ impl IRGenerator {
         self.blocks.clear();
         self.variables.clear();
         self.locals.clear();
-        self.unchecked_locals.clear();
+        self.locals.push(Vec::with_capacity(3));
 
         let entry_bb = self.context.append_basic_block(&func_val, "entry");
+        self.blocks.insert(Rc::new(String::from("entry")), entry_bb);
+
         self.builder.position_at_end(&entry_bb);
         self.build_parameter_alloca(&func, func_val);
     }
@@ -219,6 +223,10 @@ impl IRGenerator {
         }
     }
 
+    pub fn locals(&mut self) -> &mut Vec<PointerValue> {
+        self.locals.last_mut().unwrap()
+    }
+
     pub fn new() -> IRGenerator {
         let context = Context::create();
         let module = context.create_module("main");
@@ -257,8 +265,7 @@ impl IRGenerator {
             mpm,
 
             variables: HashMap::with_capacity(10),
-            locals: Vec::with_capacity(20),
-            unchecked_locals: Vec::with_capacity(10),
+            locals: Vec::with_capacity(10),
             blocks: HashMap::with_capacity(10),
 
             types,

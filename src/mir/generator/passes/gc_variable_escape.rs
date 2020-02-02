@@ -157,7 +157,7 @@ fn mark_escaping_vars_expr(expr: &Expr, mut escaped: bool) -> bool {
             mark_escaping_vars_expr(value, escaped);
         }
 
-        Expr::Literal(_) | Expr::Free(_) => (),
+        Expr::Literal(_) | Expr::Free(_) | Expr::PopLocals | Expr::PushLocals => (),
     }
     escaped
 }

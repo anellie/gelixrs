@@ -65,7 +65,10 @@ pub enum Expr {
 
     /// A cast, where a value is turned into a different type;
     /// casting to an interface implemented by the original type for example
-    CastToInterface { object: Box<Expr>, to: Type },
+    CastToInterface {
+        object: Box<Expr>,
+        to: Type,
+    },
 
     /// Construct a closure from the given function along with the captured
     /// variables. The function must have an additional first parameter
@@ -85,14 +88,23 @@ pub enum Expr {
     /// Modifies the refcount on a value, either
     /// incrementing or decrementing it.
     /// It returns the value - it essentially wraps it
-    ModifyRefCount { object: Box<Expr>, dec: bool },
+    ModifyRefCount {
+        object: Box<Expr>,
+        dec: bool,
+    },
 
     /// A Phi node. Returns a different value based on
     /// which block the current block was reached from.
     Phi(Vec<(Expr, Rc<String>)>),
 
+    PopLocals,
+    PushLocals,
+
     /// Gets a member of a class struct.
-    StructGet { object: Box<Expr>, index: usize },
+    StructGet {
+        object: Box<Expr>,
+        index: usize,
+    },
 
     /// Sets a member of a class struct.
     StructSet {
@@ -106,7 +118,10 @@ pub enum Expr {
     Literal(Literal),
 
     /// A unary expression on numbers.
-    Unary { operator: TType, right: Box<Expr> },
+    Unary {
+        operator: TType,
+        right: Box<Expr>,
+    },
 
     /// Returns a variable.
     VarGet(Rc<Variable>),
@@ -129,7 +144,7 @@ impl Expr {
             class: Rc::clone(&class),
             constructor: Rc::clone(&constructor),
             constructor_args,
-            heap: Cell::new(false),
+            heap: Cell::new(true),
         }
     }
 
@@ -317,10 +332,6 @@ impl Expr {
 
             Expr::ConstructClosure { function, .. } => function.borrow().to_closure_type(),
 
-            Expr::Flow(_) => Type::None,
-
-            Expr::Free(_) => Type::None,
-
             Expr::ModifyRefCount { object, .. } => object.get_type(),
 
             Expr::Phi(branches) => branches.first().unwrap().0.get_type(),
@@ -356,6 +367,8 @@ impl Expr {
             Expr::VarGet(var) => var.type_.clone(),
 
             Expr::VarStore { var, .. } => var.type_.clone(),
+
+            Expr::Flow(_) | Expr::PushLocals | Expr::PopLocals | Expr::Free(_) => Type::None,
         }
     }
 
@@ -441,6 +454,10 @@ impl Display for Expr {
                 }
                 write!(f, "}}")
             }
+
+            Expr::PopLocals => write!(f, "pop context"),
+
+            Expr::PushLocals => write!(f, "push context"),
 
             Expr::StructGet { object, index } => write!(f, "get {} from ({})", index, object),
 

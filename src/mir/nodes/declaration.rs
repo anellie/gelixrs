@@ -44,9 +44,10 @@ pub struct Class {
     /// with special constraints to enforce safety.
     /// Only call on instances produced by the instantiator function.
     pub constructors: Vec<Rc<Variable>>,
-    /// Another internal function that is called once an object is no longer
-    /// reachable and needs to be deallocated. It will first decrement all class
-    /// members first, then call free().
+    /// Another internal function that is called when the refcount is decremented.
+    /// The only other parameter is a boolean indicating if the object is no longer
+    /// reachable and needs to be deallocated. If it is true, it will first decrement all class
+    /// members first, then call free(). If not, it'll do nothing.
     pub destructor: Rc<Variable>,
     /// The context to be used inside this declaration.
     pub context: Context,
@@ -255,7 +256,7 @@ pub struct Function {
     /// All parameters needed to call this function.
     pub parameters: Vec<Rc<Variable>>,
     /// All blocks of this function, which contain the expressions making up the func.
-    pub blocks: HashMap<Rc<String>, Block>,
+    pub blocks: IndexMap<Rc<String>, Block>,
     /// All variables declared inside that need alloca in IR.
     pub variables: HashMap<Rc<String>, Rc<Variable>>,
     /// The return type of the function; Type::None if omitted.

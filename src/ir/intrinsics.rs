@@ -12,7 +12,6 @@ use inkwell::{
     types::{BasicType, BasicTypeEnum},
     values::FunctionValue,
     AddressSpace::Generic,
-    IntPredicate,
 };
 use std::cell::RefMut;
 
