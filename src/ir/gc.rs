@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 1/27/20 6:22 PM.
+ * Last modified on 2/2/20 5:46 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -85,36 +85,32 @@ impl IRGenerator {
     }
 
     fn mod_refcount_iface(&self, struc: StructValue, decrement: bool) {
-        let impl_ptr = self.builder.build_extract_value(struc, 0, "rcext").unwrap();
-        let impl_ptr = self.builder.build_bitcast(
-            impl_ptr,
-            self.context.i32_type().ptr_type(Generic),
-            "rccst",
-        );
-        let refcount = self.write_new_refcount(impl_ptr.into_pointer_value(), decrement);
-
-        if decrement {
-            self.build_maybe_free(refcount, &mut |this, pred| {
-                let vtable_ptr = this
-                    .builder
-                    .build_extract_value(struc, 1, "vtable")
-                    .unwrap()
-                    .into_pointer_value();
-
-                let func = this
-                    .load_ptr(this.struct_gep(vtable_ptr, 0))
-                    .into_pointer_value();
-
-                let implementor = this
-                    .builder
-                    .build_extract_value(struc, 0, "impl")
-                    .unwrap()
-                    .into_pointer_value();
-
-                this.builder
-                    .build_call(func, &[implementor.into(), pred.into()], "free");
-            })
+        let func = if decrement {
+            self.module.get_function("gelixrs_dec_ref_iface")
+        } else {
+            self.module.get_function("gelixrs_inc_ref_iface")
         }
+        .unwrap();
+
+        let int_ty = self.context.i64_type();
+        let first = self
+            .builder
+            .build_extract_value(struc, 0, "extr")
+            .unwrap()
+            .into_pointer_value();
+        let second = self
+            .builder
+            .build_extract_value(struc, 1, "extr")
+            .unwrap()
+            .into_pointer_value();
+        self.builder.build_call(
+            func,
+            &[
+                self.builder.build_ptr_to_int(first, int_ty, "cast").into(),
+                self.builder.build_ptr_to_int(second, int_ty, "cast").into(),
+            ],
+            "rc",
+        );
     }
 
     fn write_new_refcount(&self, refcount: PointerValue, decrement: bool) -> IntValue {

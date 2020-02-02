@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 1/27/20 7:21 PM.
+ * Last modified on 2/2/20 5:19 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -16,7 +16,7 @@ use crate::{
 };
 use inkwell::{
     types::{AnyTypeEnum, BasicType, BasicTypeEnum, StructType},
-    values::{BasicValue, BasicValueEnum, FunctionValue, PointerValue},
+    values::{BasicValue, BasicValueEnum, PointerValue},
     AddressSpace::Generic,
     FloatPredicate, IntPredicate,
 };
@@ -313,11 +313,12 @@ impl IRGenerator {
                 impls.interfaces[iface]
                     .methods
                     .iter()
-                    .map(|(_, method)| self.functions[&PtrEqRc::new(method)]),
+                    .map(|(_, method)| self.functions[&PtrEqRc::new(method)])
+                    .map(|f| f.as_global_value().as_pointer_value()),
             )
             .map(|func| {
                 self.builder.build_bitcast(
-                    func.as_global_value().as_pointer_value(),
+                    func,
                     *field_tys.next().unwrap().as_pointer_type(),
                     "funccast",
                 )
@@ -328,14 +329,13 @@ impl IRGenerator {
         global.as_pointer_value().into()
     }
 
-    fn get_free_function(&self, ty: &Type) -> Option<FunctionValue> {
+    fn get_free_function(&self, ty: &Type) -> Option<PointerValue> {
         Some(match ty {
-            Type::Class(class) => self.functions[&PtrEqRc::new(&class.borrow().destructor)],
+            Type::Class(class) => self.functions[&PtrEqRc::new(&class.borrow().destructor)]
+                .as_global_value()
+                .as_pointer_value(),
             Type::Interface(_) => unimplemented!("Interfaces implementing interfaces"),
-            _ => self
-                .module
-                .get_function("std/intrinsics:do_nothing")
-                .unwrap(),
+            _ => self.void_ptr().const_zero(),
         })
     }
 

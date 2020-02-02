@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/31/19 8:38 PM.
+ * Last modified on 2/2/20 5:49 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -12,6 +12,7 @@ use inkwell::{
     types::{BasicType, BasicTypeEnum},
     values::FunctionValue,
     AddressSpace::Generic,
+    IntPredicate,
 };
 use std::cell::RefMut;
 
@@ -96,6 +97,136 @@ impl IRGenerator {
                         .build_int_to_ptr(int, ty.ptr_type(Generic), "ptr");
                     self.build_store(ptr, value, false);
                 }
+                self.builder.build_return(None);
+            }
+
+            "inc_ref_iface" => {
+                let vtable_ptr = self.builder.build_int_to_ptr(
+                    ir.get_last_param().unwrap().into_int_value(),
+                    self.context.struct_type(
+                        &[self
+                            .context
+                            .void_type()
+                            .fn_type(&[self.context.i64_type().ptr_type(Generic).into(), self.context.bool_type().into()], false)
+                            .ptr_type(Generic)
+                            .into()],
+                        false,
+                    ).ptr_type(Generic),
+                    "cast",
+                );
+
+                let func = self
+                    .load_ptr(self.struct_gep(vtable_ptr, 0))
+                    .into_pointer_value();
+
+                let func_as_i64 =
+                    self.builder
+                        .build_ptr_to_int(func, self.context.i64_type(), "free_to_int");
+                let impl_is_primitive = self.builder.build_int_compare(
+                    IntPredicate::EQ,
+                    func_as_i64,
+                    self.context.i64_type().const_int(0, false),
+                    "impl_is_primitve",
+                );
+
+                let cont_bb = ir.append_basic_block("do");
+                let end_bb = ir.append_basic_block("end");
+                self.builder
+                    .build_conditional_branch(impl_is_primitive, &end_bb, &cont_bb);
+
+                self.builder.position_at_end(&cont_bb);
+                let impl_ptr_i64 = self
+                    .builder
+                    .build_int_to_ptr(
+                        ir.get_first_param().unwrap().into_int_value(),
+                        self.context.i64_type().ptr_type(Generic),
+                        "impl",
+                    );
+                let impl_ptr = self
+                    .builder
+                    .build_bitcast(
+                        impl_ptr_i64,
+                        self.context.i32_type().ptr_type(Generic),
+                        "impl_to_i32ptr",
+                    )
+                    .into_pointer_value();
+
+                let rc = self.builder.build_load(impl_ptr, "rcload").into_int_value();
+                let added = self.context.i32_type().const_int(1, false).into();
+                let new_rc = self.builder.build_int_add(rc, added, "rcinc");
+                self.builder.build_store(impl_ptr, new_rc);
+                self.builder.build_unconditional_branch(&end_bb);
+
+                self.builder.position_at_end(&end_bb);
+                self.builder.build_return(None);
+            }
+
+            "dec_ref_iface" => {
+                let vtable_ptr = self.builder.build_int_to_ptr(
+                    ir.get_last_param().unwrap().into_int_value(),
+                    self.context.struct_type(
+                        &[self
+                            .context
+                            .void_type()
+                            .fn_type(&[self.context.i64_type().ptr_type(Generic).into(), self.context.bool_type().into()], false)
+                            .ptr_type(Generic)
+                            .into()],
+                        false,
+                    ).ptr_type(Generic),
+                    "cast",
+                );
+
+                let func = self
+                    .load_ptr(self.struct_gep(vtable_ptr, 0))
+                    .into_pointer_value();
+
+                let func_as_i64 =
+                    self.builder
+                        .build_ptr_to_int(func, self.context.i64_type(), "free_to_int");
+                let impl_is_primitive = self.builder.build_int_compare(
+                    IntPredicate::EQ,
+                    func_as_i64,
+                    self.context.i64_type().const_int(0, false),
+                    "impl_is_primitve",
+                );
+
+                let cont_bb = ir.append_basic_block("do");
+                let end_bb = ir.append_basic_block("end");
+                self.builder
+                    .build_conditional_branch(impl_is_primitive, &end_bb, &cont_bb);
+
+                self.builder.position_at_end(&cont_bb);
+                let impl_ptr_i64 = self
+                    .builder
+                    .build_int_to_ptr(
+                        ir.get_first_param().unwrap().into_int_value(),
+                        self.context.i64_type().ptr_type(Generic),
+                        "impl",
+                    );
+                let impl_ptr = self
+                    .builder
+                    .build_bitcast(
+                        impl_ptr_i64,
+                        self.context.i32_type().ptr_type(Generic),
+                        "impl_to_i32ptr",
+                    )
+                    .into_pointer_value();
+
+                let rc = self.builder.build_load(impl_ptr, "rcload").into_int_value();
+                let added = self.context.i32_type().const_int(1, false).into();
+                let new_rc = self.builder.build_int_sub(rc, added, "rcdec");
+                self.builder.build_store(impl_ptr, new_rc);
+                let rc_is_0 = self.builder.build_int_compare(
+                    IntPredicate::EQ,
+                    new_rc,
+                    self.context.i32_type().const_int(0, false),
+                    "rc_is_0",
+                );
+                self.builder
+                    .build_call(func, &[impl_ptr_i64.into(), rc_is_0.into()], "free_call");
+                self.builder.build_unconditional_branch(&end_bb);
+
+                self.builder.position_at_end(&end_bb);
                 self.builder.build_return(None);
             }
 
