@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 2/2/20 6:49 PM.
+ * Last modified on 2/2/20 7:35 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -277,12 +277,7 @@ impl IRGenerator {
             .build_call(ptr, &arguments, "call")
             .try_as_basic_value();
         let ret = ret.left().unwrap_or(self.none_const);
-
-        if let BasicValueEnum::PointerValue(ptr) = ret {
-            // If the return value is a pointer, it might be refcounted -
-            // returned refcounted values need to be cleaned up by the caller.
-            self.locals().push(ptr.into())
-        }
+        self.locals().push(ret);
 
         for arg in &arguments {
             self.decrement_refcount(*arg);

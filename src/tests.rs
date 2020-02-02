@@ -1,10 +1,10 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/25/19 1:52 AM.
+ * Last modified on 2/2/20 7:12 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::{env, ffi::CStr, fs::read_to_string, os::raw::c_char, panic, path::PathBuf, sync::Mutex};
+use std::{env, ffi::CStr, fs::read_to_string, os::raw::c_char, panic, path::PathBuf, sync::Mutex, collections::HashSet};
 
 use inkwell::{execution_engine::JitFunction, OptimizationLevel};
 
@@ -17,6 +17,7 @@ lazy_static! {
         std_mod.push("std");
         Mutex::new(std_mod)
     };
+    static ref MALLOC_LIST: Mutex<HashSet<i64>> = Mutex::new(HashSet::with_capacity(50));
 }
 
 /// All possible ways the compiler can fail compilation.
@@ -26,6 +27,7 @@ enum Failure {
     Compile,
     IR(String),
     Panic,
+    Leak(usize)
 }
 
 #[no_mangle]
@@ -35,6 +37,22 @@ extern "C" fn test_puts(string: *const c_char) {
         .lock()
         .unwrap()
         .push_str(&format!("{}\n", string.to_str().unwrap_or("INVALID_UTF8")));
+}
+
+extern "C" {
+    fn malloc(x: i64) -> i64;
+    fn free(x: i64);
+}
+
+extern "C" fn test_malloc(size: i64) -> i64 {
+    let ptr = unsafe { malloc(size) };
+    MALLOC_LIST.lock().unwrap().insert(ptr);
+    ptr
+}
+
+extern "C" fn test_free(ptr: i64) {
+    MALLOC_LIST.lock().unwrap().remove(&ptr);
+    unsafe { free(ptr) }
 }
 
 #[test]
@@ -81,6 +99,7 @@ fn run_test(path: PathBuf, total: &mut usize, failed: &mut usize) {
 }
 
 fn exec_jit(path: PathBuf) -> Result<String, Failure> {
+    MALLOC_LIST.lock().unwrap().clear();
     let mut code = super::parse_source(vec![path, STD_LIB.lock().unwrap().clone()])
         .map_err(|_| Failure::Parse)?;
     super::auto_import_prelude(&mut code);
@@ -93,12 +112,23 @@ fn exec_jit(path: PathBuf) -> Result<String, Failure> {
     if let Some(fun) = &module.get_function("puts") {
         engine.add_global_mapping(fun, test_puts as usize);
     }
+    if let Some(fun) = &module.get_function("malloc") {
+        engine.add_global_mapping(fun, test_malloc as usize);
+    }
+    if let Some(fun) = &module.get_function("free") {
+        engine.add_global_mapping(fun, test_free as usize);
+    }
 
     unsafe {
         let main_fn: JitFunction<MainFn> = engine
             .get_function("main")
             .map_err(|_| Failure::IR("No main fn".to_string()))?;
         main_fn.call();
+    }
+
+    let leaked = MALLOC_LIST.lock().unwrap().len();
+    if leaked > 0 {
+        return Err(Failure::Leak(leaked))
     }
 
     let mut result = RESULT.lock().unwrap();
