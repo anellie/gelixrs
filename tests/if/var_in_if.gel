@@ -1,0 +1,12 @@
+/*
+ok
+*/
+
+func main() {
+    if (true) {
+        val str = "ok"
+        print(str)
+    } else {
+        val str = "ok"
+    }
+}

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 1/27/20 7:21 PM.
+ * Last modified on 2/3/20 3:28 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -52,6 +52,7 @@ impl IRGenerator {
             .unwrap_or_else(|| self.functions[&wrap].as_global_value().as_pointer_value())
     }
 
+    /// Write a set of values to a given struct.
     pub fn write_struct<'a, T: Iterator<Item = &'a BasicValueEnum>>(
         &self,
         location: PointerValue,
@@ -88,6 +89,9 @@ impl IRGenerator {
         }
     }
 
+    /// Perform a struct GEP with some additional safety checks.
+    /// The index will be offset by one should the struct contain a refcount field,
+    /// so callers do not need to account for this.
     pub fn struct_gep(&self, ptr: PointerValue, index: usize) -> PointerValue {
         assert!(ptr.get_type().get_element_type().is_struct_type());
 

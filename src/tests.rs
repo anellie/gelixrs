@@ -1,10 +1,13 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 2/3/20 1:14 AM.
+ * Last modified on 2/3/20 2:47 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::{env, ffi::CStr, fs::read_to_string, os::raw::c_char, panic, path::PathBuf, sync::Mutex, collections::HashSet};
+use std::{
+    collections::HashSet, env, ffi::CStr, fs::read_to_string, os::raw::c_char, panic,
+    path::PathBuf, sync::Mutex,
+};
 
 use inkwell::{execution_engine::JitFunction, OptimizationLevel};
 
@@ -27,7 +30,7 @@ enum Failure {
     Compile,
     IR(String),
     Panic,
-    Leak(usize)
+    Leak(usize),
 }
 
 #[no_mangle]
@@ -112,12 +115,8 @@ fn exec_jit(path: PathBuf) -> Result<String, Failure> {
     if let Some(fun) = &module.get_function("puts") {
         engine.add_global_mapping(fun, test_puts as usize);
     }
-    if let Some(fun) = &module.get_function("malloc") {
-        engine.add_global_mapping(fun, test_malloc as usize);
-    }
-    if let Some(fun) = &module.get_function("free") {
-        engine.add_global_mapping(fun, test_free as usize);
-    }
+    engine.add_global_mapping(&module.get_function("malloc").unwrap(), test_malloc as usize);
+    engine.add_global_mapping(&module.get_function("free").unwrap(), test_free as usize);
 
     unsafe {
         let main_fn: JitFunction<MainFn> = engine
@@ -132,7 +131,7 @@ fn exec_jit(path: PathBuf) -> Result<String, Failure> {
 
     let leaked = MALLOC_LIST.lock().unwrap().len();
     if leaked > 0 {
-        return Err(Failure::Leak(leaked))
+        return Err(Failure::Leak(leaked));
     }
     Ok(result_copy)
 }

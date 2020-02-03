@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 2/3/20 12:50 AM.
+ * Last modified on 2/3/20 1:58 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -132,7 +132,12 @@ impl IRGenerator {
         let captured_ty = self.context.i64_type().into();
 
         let struc_val = self.context.opaque_struct_type("closure");
-        let free_ty = self.context.void_type().fn_type(&[struc_val.ptr_type(Generic).into()], false).ptr_type(Generic).into();
+        let free_ty = self
+            .context
+            .void_type()
+            .fn_type(&[struc_val.ptr_type(Generic).into()], false)
+            .ptr_type(Generic)
+            .into();
         struc_val.set_body(&[refcount, func_ty, free_ty, captured_ty], false);
         struc_val.into()
     }

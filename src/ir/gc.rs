@@ -1,20 +1,25 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 2/3/20 12:12 AM.
+ * Last modified on 2/3/20 3:26 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use crate::ir::IRGenerator;
+use crate::{
+    ir::IRGenerator,
+    mir::{
+        nodes::{Class, Type},
+        MutRc,
+    },
+};
 use inkwell::{
     types::{AnyTypeEnum, BasicType, StructType},
     values::{BasicValueEnum, IntValue, PointerValue, StructValue},
     AddressSpace::Generic,
     IntPredicate,
 };
-use crate::mir::nodes::{Type, Class};
-use crate::mir::MutRc;
 
 impl IRGenerator {
+    /// Build a store; will do required refcount modification.
     pub fn build_store(&self, ptr: PointerValue, value: BasicValueEnum, is_null: bool) {
         if !is_null {
             self.decrement_refcount(ptr.into());
@@ -23,18 +28,22 @@ impl IRGenerator {
         self.increment_refcount(ptr.into());
     }
 
+    /// Increment the refcount of a value
     pub fn increment_refcount(&self, value: BasicValueEnum) {
         if let Some(val) = self.get_rc_value(value) {
             self.mod_refcount(val, false)
         }
     }
 
+    /// Decrement the refcount of a value, and check if it needs to be freed
     pub fn decrement_refcount(&self, value: BasicValueEnum) {
         if let Some(val) = self.get_rc_value(value) {
             self.mod_refcount(val, true)
         }
     }
 
+    /// Returns a modified version of the value ready for modifying the refcount,
+    /// should the value be refcounted.
     fn get_rc_value(&self, value: BasicValueEnum) -> Option<BasicValueEnum> {
         if value.get_type() == self.none_const.get_type().ptr_type(Generic).into() {
             return None;
@@ -53,6 +62,7 @@ impl IRGenerator {
         }
     }
 
+    /// Checks if a given struct needs to be GC'd.
     fn needs_gc(struc: StructType) -> bool {
         !struc
             .get_name()
@@ -65,12 +75,16 @@ impl IRGenerator {
             BasicValueEnum::StructValue(struc) => self.mod_refcount_iface(struc, decrement),
             BasicValueEnum::PointerValue(ptr) => {
                 let ty = ptr.get_type().get_element_type().into_struct_type();
-                match &self.types_bw.get(ty.get_name().unwrap().to_str().unwrap()).unwrap() {
+                match &self
+                    .types_bw
+                    .get(ty.get_name().unwrap().to_str().unwrap())
+                    .unwrap()
+                {
                     Type::Class(class) => self.mod_refcount_class(ptr, class, decrement),
                     Type::Closure(_) => self.mod_refcount_closure(ptr, decrement),
                     _ => panic!("Cannot mod refcount on this"),
                 }
-            },
+            }
             _ => panic!("Cannot mod refcount on this"),
         }
     }
@@ -122,7 +136,8 @@ impl IRGenerator {
         if decrement {
             let free_fn = self.struct_gep(ptr, 1);
             let free_fn = self.load_ptr(free_fn);
-            self.builder.build_call(free_fn.into_pointer_value(), &[ptr.into()], "rccheck");
+            self.builder
+                .build_call(free_fn.into_pointer_value(), &[ptr.into()], "rccheck");
         }
     }
 

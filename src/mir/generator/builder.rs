@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 6:54 PM.
+ * Last modified on 2/3/20 2:44 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -134,6 +134,7 @@ impl MIRBuilder {
 ///
 /// Note that a context is cheap to clone.
 #[derive(Debug, Clone, Default)]
+#[repr(transparent)]
 pub struct Context {
     /// A map of type aliases, where the key
     /// will be translated to the value when encountered

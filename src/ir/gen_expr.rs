@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 2/3/20 1:09 AM.
+ * Last modified on 2/3/20 3:28 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -15,13 +15,12 @@ use crate::{
     },
 };
 use inkwell::{
-    types::{AnyTypeEnum, BasicType, BasicTypeEnum, StructType},
+    types::{AnyTypeEnum, BasicType, BasicTypeEnum, PointerType, StructType},
     values::{BasicValue, BasicValueEnum, PointerValue},
     AddressSpace::Generic,
     FloatPredicate, IntPredicate,
 };
 use std::rc::Rc;
-use inkwell::types::PointerType;
 
 impl IRGenerator {
     pub fn expression(&mut self, expression: &Expr) -> BasicValueEnum {
@@ -362,7 +361,8 @@ impl IRGenerator {
             .into();
 
         let ty = self.ir_ty(&function.borrow().to_closure_type());
-        let free_ptr = self.create_closure_free(ty.ptr_type(Generic), captured_ty.ptr_type(Generic));
+        let free_ptr =
+            self.create_closure_free(ty.ptr_type(Generic), captured_ty.ptr_type(Generic));
 
         let alloc = self.create_alloc(ty, true);
         self.write_struct(alloc, [func_ptr, free_ptr.into(), captured_vals].iter());
@@ -397,8 +397,19 @@ impl IRGenerator {
         alloc
     }
 
-    fn create_closure_free(&mut self, closure_ty: PointerType, captured_ty: PointerType) -> PointerValue {
-        let func = self.module.add_function("free-closure", self.context.void_type().fn_type(&[closure_ty.into()], false), None);
+    /// Builds the free function of a given closure.
+    fn create_closure_free(
+        &mut self,
+        closure_ty: PointerType,
+        captured_ty: PointerType,
+    ) -> PointerValue {
+        let func = self.module.add_function(
+            "free-closure",
+            self.context
+                .void_type()
+                .fn_type(&[closure_ty.into()], false),
+            None,
+        );
         let closure = func.get_first_param().unwrap().into_pointer_value();
         let old_builder = std::mem::replace(&mut self.builder, self.context.create_builder());
 
@@ -415,13 +426,25 @@ impl IRGenerator {
             self.context.i32_type().const_int(0, false),
             "rc_is_0",
         );
-        self.builder.build_conditional_branch(rc_is_0, &dealloc_bb, &end_bb);
+        self.builder
+            .build_conditional_branch(rc_is_0, &dealloc_bb, &end_bb);
 
         self.builder.position_at_end(&dealloc_bb);
         let captured = unsafe { self.builder.build_struct_gep(closure, 3, "captgep") };
-        let captured_int = self.builder.build_load(captured, "captload").into_int_value();
-        let captured = self.builder.build_int_to_ptr(captured_int, captured_ty, "captcast");
-        for (i, _) in captured_ty.get_element_type().into_struct_type().get_field_types().iter().enumerate() {
+        let captured_int = self
+            .builder
+            .build_load(captured, "captload")
+            .into_int_value();
+        let captured = self
+            .builder
+            .build_int_to_ptr(captured_int, captured_ty, "captcast");
+        for (i, _) in captured_ty
+            .get_element_type()
+            .into_struct_type()
+            .get_field_types()
+            .iter()
+            .enumerate()
+        {
             let val = unsafe { self.builder.build_struct_gep(captured, i as u32, "Cgep") };
             self.decrement_refcount(self.load_ptr(val))
         }

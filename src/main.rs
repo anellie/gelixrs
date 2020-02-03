@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/28/19 9:07 PM.
+ * Last modified on 2/3/20 2:26 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -90,7 +90,7 @@ fn run(args: Opt) -> Result<(), &'static str> {
         let stem = stem_to_rc_str(&args.file);
         for module in mir
             .iter()
-            .filter(|m| ((m.borrow().path.0.first().unwrap() == &stem) && args.mir) || args.mir_all)
+            .filter(|m| (m.borrow().path.0.first().unwrap() == &stem) || args.mir_all)
         {
             println!("{}", module.borrow())
         }

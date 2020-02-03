@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 2/2/20 6:59 PM.
+ * Last modified on 2/3/20 3:01 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -24,6 +24,10 @@ use std::cell::Cell;
 
 /// All expressions in MIR. All of them produce a value.
 /// Expressions are in blocks in functions. Gelix does not have statements.
+///
+/// When compiling MIR expressions into IR, they are not checked for
+/// validity. Invalid/Illegal expressions will most likely result in a
+/// crash or broken IR code.
 #[derive(Debug, Clone)]
 pub enum Expr {
     /// Create a class instance.
@@ -63,12 +67,9 @@ pub enum Expr {
         arguments: Vec<Expr>,
     },
 
-    /// A cast, where a value is turned into a different type;
-    /// casting to an interface implemented by the original type for example
-    CastToInterface {
-        object: Box<Expr>,
-        to: Type,
-    },
+    /// A cast to an interface.
+    /// Will create a temp alloca in IR to hold the interface struct.
+    CastToInterface { object: Box<Expr>, to: Type },
 
     /// Construct a closure from the given function along with the captured
     /// variables. The function must have an additional first parameter
@@ -88,10 +89,7 @@ pub enum Expr {
     /// Modifies the refcount on a value, either
     /// incrementing or decrementing it.
     /// It returns the value - it essentially wraps it
-    ModifyRefCount {
-        object: Box<Expr>,
-        dec: bool,
-    },
+    ModifyRefCount { object: Box<Expr>, dec: bool },
 
     /// A Phi node. Returns a different value based on
     /// which block the current block was reached from.
@@ -102,8 +100,8 @@ pub enum Expr {
     PopLocals,
 
     /// Same as PopLocals, but will evalutate the given expression
-    /// beforehand and 'lift' the expression in the outer local
-    /// vector. (See ir/gen_expr.rs for the actual code, which
+    /// beforehand and 'lift' the expression into the outer locals
+    /// (See ir/gen_expr.rs for the actual code, which
     /// should be enough to explain this.)
     PopLocalsWithReturn(Box<Expr>),
 
@@ -112,10 +110,7 @@ pub enum Expr {
     PushLocals,
 
     /// Gets a member of a class struct.
-    StructGet {
-        object: Box<Expr>,
-        index: usize,
-    },
+    StructGet { object: Box<Expr>, index: usize },
 
     /// Sets a member of a class struct.
     StructSet {
@@ -129,10 +124,7 @@ pub enum Expr {
     Literal(Literal),
 
     /// A unary expression on numbers.
-    Unary {
-        operator: TType,
-        right: Box<Expr>,
-    },
+    Unary { operator: TType, right: Box<Expr> },
 
     /// Returns a variable.
     VarGet(Rc<Variable>),
@@ -316,11 +308,11 @@ impl Expr {
         match self {
             Expr::AllocClassInst { class, .. } => Type::Class(Rc::clone(class)),
 
-            Expr::Binary { left, operator, .. } => {
+            Expr::Binary { right, operator, .. } | Expr::Unary { operator, right } => {
                 if LOGICAL_BINARY.contains(&operator) {
                     Type::Bool
                 } else {
-                    left.get_type()
+                    right.get_type()
                 }
             }
 
@@ -349,9 +341,22 @@ impl Expr {
 
             Expr::PopLocalsWithReturn(expr) => expr.get_type(),
 
-            Expr::StructGet { object, index } => Self::type_from_struct_get(object, *index),
-
-            Expr::StructSet { object, index, .. } => Self::type_from_struct_get(object, *index),
+            Expr::StructGet { object, index } | Expr::StructSet { object, index, .. } => {
+                let object = object.get_type();
+                if let Type::Class(class) = object {
+                    class
+                        .borrow()
+                        .members
+                        .iter()
+                        .find(|(_, mem)| mem.index == *index)
+                        .unwrap()
+                        .1
+                        .type_
+                        .clone()
+                } else {
+                    panic!("non-class struct get")
+                }
+            },
 
             Expr::Literal(literal) => match literal {
                 Literal::Any => Type::Any,
@@ -371,35 +376,9 @@ impl Expr {
                 _ => panic!("unknown literal"),
             },
 
-            Expr::Unary { operator, right } => match operator {
-                TType::Bang => Type::Bool,
-                TType::Minus => right.get_type(),
-                _ => panic!("invalid unary"),
-            },
-
-            Expr::VarGet(var) => var.type_.clone(),
-
-            Expr::VarStore { var, .. } => var.type_.clone(),
+            Expr::VarGet(var) | Expr::VarStore { var, .. } => var.type_.clone(),
 
             Expr::Flow(_) | Expr::PushLocals | Expr::PopLocals | Expr::Free(_) => Type::None,
-        }
-    }
-
-    /// Returns the type of a struct member.
-    fn type_from_struct_get(object: &Expr, index: usize) -> Type {
-        let object = object.get_type();
-        if let Type::Class(class) = object {
-            class
-                .borrow()
-                .members
-                .iter()
-                .find(|(_, mem)| mem.index == index)
-                .unwrap()
-                .1
-                .type_
-                .clone()
-        } else {
-            panic!("non-class struct get")
         }
     }
 }
@@ -546,20 +525,6 @@ impl Display for Flow {
             }
         }
     }
-}
-
-/// Expressions that are not generated from user code,
-/// but are instead related to the refcounting GC.
-pub enum RefCountOp {
-    /// Decrement the reference count for a value.
-    /// This is only needed on values that are allocated on
-    /// the heap, as stack values are reclaimed on their own.
-    DecRefCount(Expr),
-
-    /// Increment the reference count for a value.
-    /// This is only needed on values that are allocated on
-    /// the heap, as stack values are reclaimed on their own.
-    IncRefCount(Expr),
 }
 
 /// An array literal in MIR. See ast/literal.rs for usage.

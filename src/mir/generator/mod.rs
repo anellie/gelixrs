@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 2/3/20 1:28 AM.
+ * Last modified on 2/3/20 3:18 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -127,6 +127,8 @@ impl MIRGenerator {
         Ok(())
     }
 
+    /// Generate all constructors of the given class.
+    /// Class should already be defined in MIR.
     pub fn generate_constructors(&mut self, class: &ASTClass) -> Res<()> {
         let class_rc = self
             .module
@@ -187,6 +189,8 @@ impl MIRGenerator {
         }
     }
 
+    /// Will append an 'entry' block to the fn and set the pointer at
+    /// that location, then insert all parameters as variables.
     fn prepare_function(&mut self, function: &MutRc<Function>, err_line: usize) -> Res<()> {
         let mut func = function.borrow_mut();
         let entry_block = func.append_block("entry", false);
@@ -236,7 +240,7 @@ impl MIRGenerator {
         Ok(())
     }
 
-    /// Will create the variable in the current function.
+    /// Will insert the variable into the current function.
     pub fn add_function_variable(&mut self, variable: Rc<Variable>) {
         self.cur_fn()
             .borrow_mut()
@@ -267,7 +271,8 @@ impl MIRGenerator {
         )
     }
 
-    /// Returns the variable of the current loop or creates it if it does not exist yet
+    /// Returns the variable of the current loop or creates it if it does not exist yet.
+    /// This variable stores the value of the last loop iteration.
     fn get_or_create_loop_var(&mut self, type_: &Type) -> Res<Rc<Variable>> {
         let var = self.cur_loop().result_var.clone().unwrap_or_else(|| {
             self.define_variable(
@@ -290,6 +295,8 @@ impl MIRGenerator {
         }
     }
 
+    /// Returns a field of the given expression/object,
+    /// where a field can be either a class member or an associated method.
     fn get_field(
         &mut self,
         object: &ASTExpr,
@@ -311,6 +318,10 @@ impl MIRGenerator {
             .or_err(&self.builder.path, name, "Unknown field or method.")
     }
 
+    /// Takes a list of arguments and compiles them into MIR,
+    /// performing all needed safety checks.
+    /// first_arg allows an additional already-compiled first arg;
+    /// this is usually used for a receiver like on class methods.
     fn generate_func_args<'a, T: Iterator<Item = &'a Type>>(
         &mut self,
         mut parameters: T,
@@ -457,6 +468,7 @@ impl MIRGenerator {
         self.cur_fn().borrow_mut().append_block(name, true)
     }
 
+    /// Inserts the given expression at the current insertion pointer.
     pub fn insert_at_ptr(&mut self, expr: Expr) {
         let func = self.cur_fn();
         let mut func = func.borrow_mut();
@@ -466,20 +478,25 @@ impl MIRGenerator {
             .push(expr)
     }
 
+    /// Sets the insertion pointer.
+    /// Insertion is always at the end of a block.
     pub fn set_pointer(&mut self, function: MutRc<Function>, block: Rc<String>) {
         self.position = Some(Pointer { function, block })
     }
 
+    /// Same as set_pointer; function stays unchanged however.
     pub fn set_block(&mut self, block: &Rc<String>) {
         if let Some(pos) = self.position.as_mut() {
             pos.block = Rc::clone(block)
         }
     }
 
+    /// Returns the function of the insertion pointer.
     pub fn cur_fn(&self) -> MutRc<Function> {
         self.position.as_ref().unwrap().function.clone()
     }
 
+    /// Returns the block currently inserting into.
     pub fn cur_block_name(&self) -> Rc<String> {
         Rc::clone(&self.position.as_ref().unwrap().block)
     }
@@ -491,7 +508,6 @@ impl MIRGenerator {
         self.module = Rc::clone(module);
         self.builder.switch_module(&module);
         self.position = None;
-        self.environments.clear();
         self.environments.clear();
         self.current_loop = None;
         self.uninitialized_this_members.clear();
@@ -517,6 +533,11 @@ impl MIRGenerator {
         }
     }
 
+    /// Produces a MIRGenerator usable for generating a closure literal,
+    /// temporarily making the outer generator unusable.
+    /// It takes the outer environments to allow for capturing variables,
+    /// and also records some other required closure data.
+    /// This data is then retried with self.end_closure.
     pub fn for_closure(outer: &mut MIRGenerator) -> Self {
         MIRGenerator {
             module: Rc::clone(&outer.module),
@@ -532,6 +553,8 @@ impl MIRGenerator {
         }
     }
 
+    /// Ends closure compilation and restores the outer generator,
+    /// returning recorded info about the compiled closure.
     pub fn end_closure(self, outer: &mut MIRGenerator) -> ClosureData {
         let mut closure_data = self.closure_data.unwrap();
         outer.environments = mem::replace(&mut closure_data.outer_env, vec![]);
@@ -556,8 +579,10 @@ struct ForLoop {
     /// The phi nodes of the loop (loops are expressions).
     phi_nodes: Vec<(Expr, Rc<String>)>,
     /// All variables that were newly created inside the loop.
-    /// This is used to decrement their refcount at the end of the loop.
-    variables: Vec<Rc<Variable>>
+    /// This is used to decrement their refcount at the end of the loop,
+    /// which is required - simply decrementing them once at the end of the
+    /// function like usual would be incorrect behaviour causing leaks.
+    variables: Vec<Rc<Variable>>,
 }
 
 impl ForLoop {
@@ -566,7 +591,7 @@ impl ForLoop {
             result_var: None,
             cont_block: Rc::clone(cont_block),
             phi_nodes: vec![],
-            variables: vec![]
+            variables: vec![],
         }
     }
 }
@@ -574,7 +599,12 @@ impl ForLoop {
 pub type Callable = Either<Rc<Variable>, IFaceFuncIndex>;
 pub type IFaceFuncIndex = usize;
 
+/// Data required for closure compilation.
 pub struct ClosureData {
+    /// All environments in the function that the closure literal
+    /// is being compiled in.
     pub outer_env: Vec<HashMap<Rc<String>, Rc<Variable>>>,
+    /// All variables inside the outer environments that are used
+    /// inside the closure and therefore 'captured'
     pub captured: Vec<Rc<Variable>>,
 }

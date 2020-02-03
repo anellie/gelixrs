@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/28/19 10:20 PM.
+ * Last modified on 2/3/20 3:23 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -38,8 +38,6 @@ use crate::{
 thread_local! {
     /// A map containing passes that have run, and the currently running pass.
     /// This is global state since it is shared across modules.
-    /// TODO: This would be better implemented as a lazy_static,
-    /// but the compiler does not currently support multithreading.
     pub static DONE_PASSES: RefCell<Vec<Box<dyn ModulePass>>> = RefCell::new(Vec::new());
 }
 

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 2/3/20 1:42 AM.
+ * Last modified on 2/3/20 1:58 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -139,7 +139,9 @@ impl IRGenerator {
             let alloc_ty = self.ir_ty_ptr(&var.type_);
             let alloca = self.builder.build_alloca(alloc_ty, &name);
             self.variables.insert(PtrEqRc::new(var), alloca);
-            if var.as_local.get() { self.locals().push(alloca.into()); }
+            if var.as_local.get() {
+                self.locals().push(alloca.into());
+            }
         }
 
         // Fill in all blocks first before generating any actual code;

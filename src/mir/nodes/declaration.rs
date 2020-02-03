@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 2/3/20 1:45 AM.
+ * Last modified on 2/3/20 2:53 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -177,7 +177,9 @@ impl Display for Interface {
 pub struct IFaceImpl {
     pub implementor: Type,
     pub iface: MutRc<Interface>,
+    /// Note: These methods are the same order as the ones on the interface.
     pub methods: IndexMap<Rc<String>, Rc<Variable>>,
+    /// Note: This is the module that the impl block is in.
     pub module: MutRc<MModule>,
     pub ast: Rc<ast::IFaceImpl>,
 }
@@ -256,6 +258,7 @@ pub struct Function {
     /// All parameters needed to call this function.
     pub parameters: Vec<Rc<Variable>>,
     /// All blocks of this function, which contain the expressions making up the func.
+    /// Needs to be indexed so the IR will generate them in the right order.
     pub blocks: IndexMap<Rc<String>, Block>,
     /// All variables declared inside that need alloca in IR.
     pub variables: HashMap<Rc<String>, Rc<Variable>>,
@@ -389,11 +392,19 @@ pub type Block = Vec<Expr>;
 /// A variable. Used for function variables as well as for referencing functions.
 #[derive(Debug, Default, Clone)]
 pub struct Variable {
+    /// If the variable can be mutated after inital set.
     pub mutable: bool,
+    /// The type stored by the variable.
     pub type_: Type,
+    /// The user-chosen name of the variable.
     pub name: Rc<String>,
+    /// If the variable leaves the function and 'escapes' -
+    /// if so, all values need to be heap-allocated.
     pub escapes: Cell<bool>,
-    pub ir_initialized: Cell<bool>,
+    /// If this variable should be considered a local inside IR.
+    /// If true, it will have it's refcounter decreased once
+    /// its surrounding scope exits. True for all variables
+    /// except those created in loops, which require special handling.
     pub as_local: Cell<bool>,
 }
 
@@ -404,8 +415,7 @@ impl Variable {
             type_,
             name: Rc::clone(name),
             escapes: Cell::new(false),
-            ir_initialized: Cell::new(false),
-            as_local: Cell::new(true)
+            as_local: Cell::new(true),
         })
     }
 }

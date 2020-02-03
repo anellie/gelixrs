@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 6:50 PM.
+ * Last modified on 2/3/20 3:04 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -19,7 +19,7 @@ use crate::mir::{
 /// All types in Gelix.
 /// For all types that can have generic parameters, these parameters
 /// are not part of the type. They are erased when the type
-/// is first created from the prototype.
+/// is first created from the prototype (see prototypes.rs).
 #[derive(Debug, Clone, EnumAsGetters, EnumIsA)]
 pub enum Type {
     /// The Any type is considered equal to all other types.
@@ -29,6 +29,8 @@ pub enum Type {
     /// Simply an empty struct in IR.
     Any,
     /// Same behavior as Any, but is equal to no type.
+    /// Used for expressions that cannot return any reasonable value,
+    /// like an empty block or if without else.
     None,
     /// Simply a boolean type (i1; bit). Required mainly by
     /// if and for expressions.

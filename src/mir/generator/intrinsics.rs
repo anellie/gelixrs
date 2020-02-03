@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 6:50 PM.
+ * Last modified on 2/3/20 3:23 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -37,24 +37,33 @@ pub struct Intrinsics {
     /// For IndexGet, its LeftBracket.
     /// For IndexSet, its RightBracket.
     ops: HashMap<TType, Rc<Prototype>>,
+    /// Prototype of the Array<T> class, used for array type aliases like [i8]
     pub array_proto: Option<Rc<Prototype>>,
+    /// String type, used for string literals.
     pub string_type: Option<Type>,
+    /// The Free interface, used while compiling a class destructor.
     pub free_iface: Option<Type>,
+    /// The entry point of the program - more than one function
+    /// named main is a compile error
     pub main_fn: Option<Rc<Variable>>,
 }
 
 impl Intrinsics {
+    /// Returns the interface corresponding with this binary operator
     pub fn get_op_iface(&self, ty: TType) -> Rc<Prototype> {
         Rc::clone(&self.ops[&ty])
     }
 
+    /// Returns the array type for a given array literal,
+    /// building the type if needed
     pub fn get_array_type(&self, ty: Type, tok: Option<Token>) -> Res<Type> {
         let proto = self.array_proto.as_ref().cloned().unwrap();
         let err_tok = tok.unwrap_or_else(|| Token::generic_token(TType::Identifier));
         proto.build(vec![ty], &err_tok, Rc::clone(&proto))
     }
 
-    // Only call this with the std/ops module, containing all operator interfaces
+    /// Only call this with the std/ops module, containing all operator interfaces;
+    /// fills self.ops
     pub fn fill_ops_table(&mut self, module: Ref<MModule>) {
         for (name, iface) in module.protos.iter() {
             let iface = Rc::clone(iface);
@@ -74,6 +83,8 @@ impl Intrinsics {
         }
     }
 
+    /// Sets the main fn. Returns success, None indicates that
+    /// a main function already existed
     pub fn set_main_fn(&mut self, func: &Rc<Variable>) -> Option<()> {
         match self.main_fn {
             Some(_) => None,

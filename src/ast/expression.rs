@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 6:50 PM.
+ * Last modified on 2/3/20 2:57 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -13,13 +13,14 @@ use super::{
 };
 
 /// All binary operand types that return a bool instead of the types of their values.
-pub static LOGICAL_BINARY: [TType; 6] = [
+pub static LOGICAL_BINARY: [TType; 7] = [
     TType::Greater,
     TType::Less,
     TType::GreaterEqual,
     TType::LessEqual,
     TType::EqualEqual,
     TType::BangEqual,
+    TType::Bang
 ];
 
 /// An enum with all expression types in Gelix.

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 2/2/20 5:49 PM.
+ * Last modified on 2/3/20 1:58 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -103,15 +103,23 @@ impl IRGenerator {
             "inc_ref_iface" => {
                 let vtable_ptr = self.builder.build_int_to_ptr(
                     ir.get_last_param().unwrap().into_int_value(),
-                    self.context.struct_type(
-                        &[self
-                            .context
-                            .void_type()
-                            .fn_type(&[self.context.i64_type().ptr_type(Generic).into(), self.context.bool_type().into()], false)
-                            .ptr_type(Generic)
-                            .into()],
-                        false,
-                    ).ptr_type(Generic),
+                    self.context
+                        .struct_type(
+                            &[self
+                                .context
+                                .void_type()
+                                .fn_type(
+                                    &[
+                                        self.context.i64_type().ptr_type(Generic).into(),
+                                        self.context.bool_type().into(),
+                                    ],
+                                    false,
+                                )
+                                .ptr_type(Generic)
+                                .into()],
+                            false,
+                        )
+                        .ptr_type(Generic),
                     "cast",
                 );
 
@@ -135,13 +143,11 @@ impl IRGenerator {
                     .build_conditional_branch(impl_is_primitive, &end_bb, &cont_bb);
 
                 self.builder.position_at_end(&cont_bb);
-                let impl_ptr_i64 = self
-                    .builder
-                    .build_int_to_ptr(
-                        ir.get_first_param().unwrap().into_int_value(),
-                        self.context.i64_type().ptr_type(Generic),
-                        "impl",
-                    );
+                let impl_ptr_i64 = self.builder.build_int_to_ptr(
+                    ir.get_first_param().unwrap().into_int_value(),
+                    self.context.i64_type().ptr_type(Generic),
+                    "impl",
+                );
                 let impl_ptr = self
                     .builder
                     .build_bitcast(
@@ -164,15 +170,23 @@ impl IRGenerator {
             "dec_ref_iface" => {
                 let vtable_ptr = self.builder.build_int_to_ptr(
                     ir.get_last_param().unwrap().into_int_value(),
-                    self.context.struct_type(
-                        &[self
-                            .context
-                            .void_type()
-                            .fn_type(&[self.context.i64_type().ptr_type(Generic).into(), self.context.bool_type().into()], false)
-                            .ptr_type(Generic)
-                            .into()],
-                        false,
-                    ).ptr_type(Generic),
+                    self.context
+                        .struct_type(
+                            &[self
+                                .context
+                                .void_type()
+                                .fn_type(
+                                    &[
+                                        self.context.i64_type().ptr_type(Generic).into(),
+                                        self.context.bool_type().into(),
+                                    ],
+                                    false,
+                                )
+                                .ptr_type(Generic)
+                                .into()],
+                            false,
+                        )
+                        .ptr_type(Generic),
                     "cast",
                 );
 
@@ -196,13 +210,11 @@ impl IRGenerator {
                     .build_conditional_branch(impl_is_primitive, &end_bb, &cont_bb);
 
                 self.builder.position_at_end(&cont_bb);
-                let impl_ptr_i64 = self
-                    .builder
-                    .build_int_to_ptr(
-                        ir.get_first_param().unwrap().into_int_value(),
-                        self.context.i64_type().ptr_type(Generic),
-                        "impl",
-                    );
+                let impl_ptr_i64 = self.builder.build_int_to_ptr(
+                    ir.get_first_param().unwrap().into_int_value(),
+                    self.context.i64_type().ptr_type(Generic),
+                    "impl",
+                );
                 let impl_ptr = self
                     .builder
                     .build_bitcast(
