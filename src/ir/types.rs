@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/28/19 2:35 AM.
+ * Last modified on 2/3/20 12:50 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -120,6 +120,7 @@ impl IRGenerator {
     /// Generates the struct for a closure, containing a function pointer
     /// and a pointer to captured variables.
     fn build_closure_type(&mut self, closure: &ClosureType) -> BasicTypeEnum {
+        let refcount = self.context.i32_type().into();
         let func_ty = self
             .fn_type_from_raw(
                 Some(Type::I64).iter().chain(closure.parameters.iter()),
@@ -130,8 +131,10 @@ impl IRGenerator {
             .into();
         let captured_ty = self.context.i64_type().into();
 
-        self.build_struct_ir("closure", vec![func_ty, captured_ty].into_iter(), true)
-            .into()
+        let struc_val = self.context.opaque_struct_type("closure");
+        let free_ty = self.context.void_type().fn_type(&[struc_val.ptr_type(Generic).into()], false).ptr_type(Generic).into();
+        struc_val.set_body(&[refcount, func_ty, free_ty, captured_ty], false);
+        struc_val.into()
     }
 
     /// Generates the LLVM FunctionType of a MIR function.

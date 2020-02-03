@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 2/2/20 6:23 PM.
+ * Last modified on 2/3/20 12:12 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,6 +11,8 @@ use inkwell::{
     AddressSpace::Generic,
     IntPredicate,
 };
+use crate::mir::nodes::{Type, Class};
+use crate::mir::MutRc;
 
 impl IRGenerator {
     pub fn build_store(&self, ptr: PointerValue, value: BasicValueEnum, is_null: bool) {
@@ -61,19 +63,20 @@ impl IRGenerator {
     fn mod_refcount(&self, value: BasicValueEnum, decrement: bool) {
         match value {
             BasicValueEnum::StructValue(struc) => self.mod_refcount_iface(struc, decrement),
-            BasicValueEnum::PointerValue(ptr) => self.mod_refcount_class(ptr, decrement),
+            BasicValueEnum::PointerValue(ptr) => {
+                let ty = ptr.get_type().get_element_type().into_struct_type();
+                match &self.types_bw.get(ty.get_name().unwrap().to_str().unwrap()).unwrap() {
+                    Type::Class(class) => self.mod_refcount_class(ptr, class, decrement),
+                    Type::Closure(_) => self.mod_refcount_closure(ptr, decrement),
+                    _ => panic!("Cannot mod refcount on this"),
+                }
+            },
             _ => panic!("Cannot mod refcount on this"),
         }
     }
 
-    fn mod_refcount_class(&self, ptr: PointerValue, decrement: bool) {
-        let ty = ptr.get_type().get_element_type().into_struct_type();
-        let ty = self
-            .types_bw
-            .get(ty.get_name().unwrap().to_str().unwrap())
-            .unwrap();
-        let func = self.get_variable(&ty.as_class().borrow().destructor);
-
+    fn mod_refcount_class(&self, ptr: PointerValue, class: &MutRc<Class>, decrement: bool) {
+        let func = self.get_variable(&class.borrow().destructor);
         let refcount = unsafe { self.builder.build_struct_gep(ptr, 0, "rcgep") };
         let refcount = self.write_new_refcount(refcount, decrement);
         if decrement {
@@ -111,6 +114,16 @@ impl IRGenerator {
             ],
             "rc",
         );
+    }
+
+    fn mod_refcount_closure(&self, ptr: PointerValue, decrement: bool) {
+        let refcount = unsafe { self.builder.build_struct_gep(ptr, 0, "rcgep") };
+        self.write_new_refcount(refcount, decrement);
+        if decrement {
+            let free_fn = self.struct_gep(ptr, 1);
+            let free_fn = self.load_ptr(free_fn);
+            self.builder.build_call(free_fn.into_pointer_value(), &[ptr.into()], "rccheck");
+        }
     }
 
     fn write_new_refcount(&self, refcount: PointerValue, decrement: bool) -> IntValue {

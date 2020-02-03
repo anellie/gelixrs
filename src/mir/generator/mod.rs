@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/28/19 1:12 AM.
+ * Last modified on 2/3/20 1:28 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -555,6 +555,9 @@ struct ForLoop {
     cont_block: Rc<String>,
     /// The phi nodes of the loop (loops are expressions).
     phi_nodes: Vec<(Expr, Rc<String>)>,
+    /// All variables that were newly created inside the loop.
+    /// This is used to decrement their refcount at the end of the loop.
+    variables: Vec<Rc<Variable>>
 }
 
 impl ForLoop {
@@ -563,6 +566,7 @@ impl ForLoop {
             result_var: None,
             cont_block: Rc::clone(cont_block),
             phi_nodes: vec![],
+            variables: vec![]
         }
     }
 }

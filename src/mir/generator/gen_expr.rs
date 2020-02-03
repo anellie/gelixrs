@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 2/2/20 6:50 PM.
+ * Last modified on 2/3/20 1:50 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -375,6 +375,10 @@ impl MIRGenerator {
 
         self.insert_at_ptr(Expr::store(&body_alloca, body));
         self.insert_at_ptr(Expr::PopLocals);
+        let vars = self.current_loop.as_ref().unwrap().variables.clone();
+        for var in vars {
+            self.insert_at_ptr(Expr::mod_rc(Expr::load(&var), true))
+        }
         self.insert_at_ptr(Expr::branch(cond, &loop_block, &cont_block));
 
         let mut ret = Expr::none_const();
@@ -637,7 +641,11 @@ impl MIRGenerator {
             false,
             expr.get_type(),
         );
-        Ok(Expr::store(&var, expr))
+        if let Some(loopdat) = &mut self.current_loop {
+            loopdat.variables.push(Rc::clone(&var));
+            var.as_local.set(false);
+        }
+        Ok(Expr::store_init(&var, expr))
     }
 
     fn return_(&mut self, val: &Option<Box<ASTExpr>>, err_tok: &Token) -> Res<Expr> {
@@ -784,6 +792,10 @@ impl MIRGenerator {
         let init = self.expression(&var.initializer)?;
         let _type = init.get_type();
         let var = self.define_variable(&var.name, var.mutable, _type);
+        if let Some(loopdat) = &mut self.current_loop {
+            loopdat.variables.push(Rc::clone(&var));
+            var.as_local.set(false);
+        }
         Ok(Expr::store_init(&var, init))
     }
 }

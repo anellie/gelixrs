@@ -1,0 +1,18 @@
+/*
+Hi!
+Hi!
+Hi!
+*/
+
+func main() {
+    val c = test(5)
+    print(c(1))
+    print(c(2))
+    print(c(3))
+}
+
+func test(a: i64) -> (i64): String {
+    val s = "Hi!"; // FIXME: This ; is required for some reason, parser issue
+
+    (b: i64): String -> s
+}

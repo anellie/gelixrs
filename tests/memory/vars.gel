@@ -1,0 +1,17 @@
+/*
+hm
+hm
+a
+*/
+
+func main() {
+    val c = test()
+    print(test())
+}
+
+func test() -> String {
+    var a = "hm"
+    print(a)
+    val b = "a"
+    b
+}

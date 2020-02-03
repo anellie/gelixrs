@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 1/27/20 6:15 PM.
+ * Last modified on 2/3/20 1:45 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -343,12 +343,13 @@ impl Function {
         for (name, var) in &self.variables {
             writeln!(
                 f,
-                "{}{} {}: {} (esc: {})",
+                "{}{} {}: {} (esc: {}) (local: {})",
                 space,
                 if var.mutable { "var" } else { "val" },
                 name,
                 var.type_,
-                var.escapes.get()
+                var.escapes.get(),
+                var.as_local.get()
             )?;
         }
         if !self.variables.is_empty() {
@@ -393,6 +394,7 @@ pub struct Variable {
     pub name: Rc<String>,
     pub escapes: Cell<bool>,
     pub ir_initialized: Cell<bool>,
+    pub as_local: Cell<bool>,
 }
 
 impl Variable {
@@ -403,6 +405,7 @@ impl Variable {
             name: Rc::clone(name),
             escapes: Cell::new(false),
             ir_initialized: Cell::new(false),
+            as_local: Cell::new(true)
         })
     }
 }

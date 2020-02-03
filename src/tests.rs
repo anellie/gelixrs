@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 2/2/20 7:12 PM.
+ * Last modified on 2/3/20 1:14 AM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -126,14 +126,14 @@ fn exec_jit(path: PathBuf) -> Result<String, Failure> {
         main_fn.call();
     }
 
+    let mut result = RESULT.lock().unwrap();
+    let result_copy = result.clone();
+    result.clear();
+
     let leaked = MALLOC_LIST.lock().unwrap().len();
     if leaked > 0 {
         return Err(Failure::Leak(leaked))
     }
-
-    let mut result = RESULT.lock().unwrap();
-    let result_copy = result.clone();
-    result.clear();
     Ok(result_copy)
 }
 
