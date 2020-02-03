@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 6:51 PM.
+ * Last modified on 2/3/20 9:12 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -31,8 +31,8 @@ use crate::ast::literal::{Closure, ClosureParameter};
 // All expressions that require no semicolon when used as a higher expression.
 static NO_SEMICOLON: [TType; 3] = [TType::If, TType::LeftBrace, TType::When];
 
-// All tokens that indicate that an interface function does not have a body (bodies are optional).
-static IFACE_END_OF_FUNCTION: [TType; 2] = [TType::Func, TType::RightBrace];
+// All tokens that indicate that a function has a body (bodies are optional in enum and interface definitions).
+static START_OF_FN_BODY: [TType; 2] = [TType::LeftBrace, TType::Equal];
 
 // All tokens that can be modifiers at all.
 pub static MODIFIERS: [TType; 4] = [
@@ -253,7 +253,15 @@ impl Parser {
         }
         self.consume(TType::RightParen, "Expected ')' after parameters.")?;
 
-        let body = self.expression()?;
+        let body = if START_OF_FN_BODY.contains(&self.current.t_type) {
+            if !self.check(TType::LeftBrace) {
+                self.consume(TType::Equal, "Expected start of block or '='.");
+            }
+            Some(self.expression()?)
+        } else {
+            None
+        };
+
         Some(Constructor {
             visibility,
             parameters,
@@ -294,7 +302,10 @@ impl Parser {
             match self.advance().t_type {
                 TType::Func => {
                     let sig = self.func_signature()?;
-                    let body = if !IFACE_END_OF_FUNCTION.contains(&self.current.t_type) {
+                    let body = if START_OF_FN_BODY.contains(&self.current.t_type) {
+                        if !self.check(TType::LeftBrace) {
+                            self.consume(TType::Equal, "Expected start of block or '='.");
+                        }
                         Some(self.expression()?)
                     } else {
                         None
@@ -342,6 +353,10 @@ impl Parser {
         let body = if self.modifiers.iter().any(|t| t.t_type == TType::Extern) {
             None
         } else {
+            if !self.check(TType::LeftBrace) {
+                self.consume(TType::Equal, "Expected start of block or '='.");
+            }
+
             Some(self.expression()?)
         };
 

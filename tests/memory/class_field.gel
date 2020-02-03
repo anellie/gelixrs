@@ -23,5 +23,5 @@ func c(a: A) -> A {
 
 class A {
     val string: String
-    construct(string) {}
+    construct(string)
 }

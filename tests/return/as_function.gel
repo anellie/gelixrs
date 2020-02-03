@@ -1,7 +1,7 @@
 /*
 */
 
-func test() return
+func test() = return
 
 func main() {
     test()

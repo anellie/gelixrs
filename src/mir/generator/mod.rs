@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 2/3/20 3:18 AM.
+ * Last modified on 2/3/20 7:26 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -150,8 +150,10 @@ impl MIRGenerator {
                 constructor.parameters.get(0).map(|l| l.0.line).unwrap_or(0),
             )?;
             self.set_uninitialized_members(constructor, &class_rc.borrow().members);
-            let body = self.expression(&constructor.body)?;
-            self.insert_at_ptr(body);
+            if let Some(body) = &constructor.body {
+                let body = self.expression(body)?;
+                self.insert_at_ptr(body);
+            }
             self.end_scope();
             self.check_no_uninitialized(&class.name)?;
         }

@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 6:50 PM.
+ * Last modified on 2/3/20 7:27 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -11,10 +11,10 @@ use either::Either::Left;
 use crate::{
     ast::{
         declaration::{Constructor, FuncSignature, FunctionParam, Visibility},
-        Class as ASTClass, Expression, Type as ASTType,
+        Class as ASTClass, Type as ASTType,
     },
     error::{Error, Res},
-    lexer::token::{TType, Token},
+    lexer::token::Token,
     mir::{
         generator::{
             builder::MIRBuilder,
@@ -217,7 +217,7 @@ fn maybe_default_constructor(class: &ASTClass) -> Option<Constructor> {
         Some(Constructor {
             parameters: vec![],
             visibility: Visibility::Public,
-            body: Expression::Block(vec![], Token::generic_token(TType::RightBrace)),
+            body: None,
         })
     } else {
         None

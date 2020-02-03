@@ -18,7 +18,7 @@ impl ToString for bool {
 }
 
 impl ToString for String {
-    func to_string() -> String this
+    func to_string() -> String = this
 }
 
 impl ToString for i64 {

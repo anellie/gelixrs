@@ -9,7 +9,7 @@ class Implementor {
 }
 
 impl Test for Implementor {
-    func test() -> i64 this.a
+    func test() -> i64 = this.a
 }
 
 func main() {

@@ -8,7 +8,7 @@ class Test {
 
     val a: String
 
-    construct() {}
+    construct()
 
     func simple() {
         print(this.a)

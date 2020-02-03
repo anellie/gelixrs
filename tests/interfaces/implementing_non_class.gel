@@ -7,7 +7,7 @@ interface Test {
 }
 
 impl Test for i64 {
-    func test() -> String "ok"
+    func test() -> String = "ok"
 }
 
 func main() {

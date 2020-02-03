@@ -25,7 +25,7 @@ public class Ptr<E> {
     private val heap: bool
 
     /// Create a new pointer given the location in memory.
-    private construct(pointer, heap) {}
+    private construct(pointer, heap)
 
     /// Returns the element at the given `index`.
     /// Similar to C array indexing - 0 is the

@@ -17,13 +17,13 @@ func b() -> B {
     c(a)
 }
 
-func c(a: A) -> B d(a)
+func c(a: A) -> B = d(a)
 
-func d(b: B) -> B b
+func d(b: B) -> B = b
 
 class A {
     val string: String
-    construct(string) {}
+    construct(string)
 }
 
 interface B {
@@ -31,5 +31,5 @@ interface B {
 }
 
 impl B for A {
-    func s() -> String this.string
+    func s() -> String = this.string
 }

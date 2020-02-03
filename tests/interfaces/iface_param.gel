@@ -12,7 +12,7 @@ class A {
 }
 
 impl Test for A {
-    func test() -> String this.a
+    func test() -> String = this.a
 }
 
 class B {
@@ -20,7 +20,7 @@ class B {
 }
 
 impl Test for B {
-    func test() -> String this.b
+    func test() -> String = this.b
 }
 
 func main() {

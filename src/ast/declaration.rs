@@ -1,6 +1,6 @@
 /*
  * Developed by Felix Ang. (felix.ang@pm.me).
- * Last modified on 12/27/19 6:50 PM.
+ * Last modified on 2/3/20 7:25 PM.
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
@@ -32,11 +32,14 @@ pub struct Class {
 }
 
 /// A constructor in a class.
+/// The body can be empty if the constructor
+/// only requires parameter setters and would
+/// simply have a pointless empty body otherwise.
 #[derive(Debug, Clone)]
 pub struct Constructor {
     pub visibility: Visibility,
     pub parameters: Vec<ConstructorParam>,
-    pub body: Expression,
+    pub body: Option<Expression>,
 }
 
 pub type ConstructorParam = (Token, Option<Type>);

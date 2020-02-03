@@ -9,11 +9,11 @@ interface Test<A> {
 
 class Implementor<A> {
     val a: A
-    construct(a) {}
+    construct(a)
 }
 
 impl Test<A> for Implementor<A> {
-    func test() -> A this.a
+    func test() -> A = this.a
 }
 
 func main() {

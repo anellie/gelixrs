@@ -23,20 +23,20 @@ func c(a: A) -> D {
 
 class A {
     val string: String
-    construct(string) {}
+    construct(string)
 }
 
 class B {
     val a: A
-    construct(a) {}
+    construct(a)
 }
 
 class C {
     val b: B
-    construct(b) {}
+    construct(b)
 }
 
 class D {
     val c: C
-    construct(c) {}
+    construct(c)
 }

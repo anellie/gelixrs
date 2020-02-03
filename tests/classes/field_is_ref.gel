@@ -17,5 +17,5 @@ func main() {
 
 class S {
     val s: String
-    construct(s) {}
+    construct(s)
 }

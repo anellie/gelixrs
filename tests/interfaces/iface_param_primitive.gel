@@ -8,11 +8,11 @@ interface Test {
 }
 
 impl Test for bool {
-    func test() -> String "ok: A"
+    func test() -> String = "ok: A"
 }
 
 impl Test for f64 {
-    func test() -> String "ok: B"
+    func test() -> String = "ok: B"
 }
 
 func main() {

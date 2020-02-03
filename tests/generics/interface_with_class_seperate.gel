@@ -8,11 +8,11 @@ interface Test<A> {
 
 class Implementor<A> {
     val a: A
-    construct(a) {}
+    construct(a)
 }
 
 impl Test<String> for Implementor<i64> {
-    func test() -> String "ok"
+    func test() -> String = "ok"
 }
 
 func main() {

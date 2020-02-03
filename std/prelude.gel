@@ -2,9 +2,7 @@ import std/intrinsics/+
 import std/ffi/+
 import std/string/ToString
 
-func print(a: ToString) {
-    puts(a.to_string().ptr.pointer)
-}
+func print(a: ToString) = puts(a.to_string().ptr.pointer)
 
 // A simple, fixed-size array type.
 // E is the type of values it can hold.

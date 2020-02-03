@@ -9,13 +9,13 @@ class Implementor {
 }
 
 impl Test<String, i64> for Implementor {
-    func test() -> T this.a
+    func test() -> T = this.a
 }
 
 class OtherImpl { }
 
 impl Test<i64> for OtherImpl {
-    func test() -> T 123
+    func test() -> T = 123
 }
 
 func main() {

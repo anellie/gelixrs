@@ -8,5 +8,5 @@ class Test {
 
     val a: i64
 
-    construct(a) {}
+    construct(a)
 }

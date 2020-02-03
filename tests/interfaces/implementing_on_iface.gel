@@ -8,7 +8,7 @@ interface Test {
 }
 
 impl Test for i64 {
-    func test() -> String "ok"
+    func test() -> String = "ok"
 }
 
 interface Lower {
@@ -16,7 +16,7 @@ interface Lower {
 }
 
 impl Lower for Test {
-    func lower() -> i64 42
+    func lower() -> i64 = 42
 }
 
 func main() {

@@ -5,4 +5,4 @@ func main() {
     who()
 }
 
-func ok() -> String "ok"
+func ok() -> String = "ok"

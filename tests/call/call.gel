@@ -4,7 +4,7 @@ ok
 */
 
 class Testing {
-    func test() -> i64 1
+    func test() -> i64 = 1
 }
 
 func main() {
@@ -12,4 +12,4 @@ func main() {
     print(Testing().test())
 }
 
-func ok() -> String "ok"
+func ok() -> String = "ok"

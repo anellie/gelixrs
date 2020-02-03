@@ -13,23 +13,23 @@ class IntBox {
 }
 
 impl Add<IntBox, i64> for IntBox {
-    func add(other: IntBox) -> i64 this.int + other.int
+    func add(other: IntBox) -> i64 = this.int + other.int
 }
 
 impl Sub<IntBox, i64> for IntBox {
-    func sub(other: IntBox) -> i64 this.int - other.int
+    func sub(other: IntBox) -> i64 = this.int - other.int
 }
 
 impl Mul<IntBox, i64> for IntBox {
-    func mul(other: IntBox) -> i64 this.int * other.int
+    func mul(other: IntBox) -> i64 = this.int * other.int
 }
 
 impl Div<IntBox, i64> for IntBox {
-    func div(other: IntBox) -> i64 this.int / other.int
+    func div(other: IntBox) -> i64 = this.int / other.int
 }
 
 impl Equal<IntBox> for IntBox {
-    func equal(other: IntBox) -> bool this.int == other.int
+    func equal(other: IntBox) -> bool = this.int == other.int
 }
 
 func main() {
