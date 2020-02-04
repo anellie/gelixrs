@@ -6,11 +6,11 @@
 
 use crate::{
     ast::Literal,
-    ir::{IRGenerator, PtrEqRc},
+    ir::{IRGenerator, LoopData, PtrEqRc},
     lexer::token::TType,
     mir::{
         get_iface_impls,
-        nodes::{Expr, Flow, Function, Type, Variable},
+        nodes::{Expr, Function, Type, Variable},
         MutRc,
     },
 };
@@ -19,6 +19,7 @@ use inkwell::{
     values::{BasicValue, BasicValueEnum, PointerValue},
     AddressSpace::Generic,
     FloatPredicate, IntPredicate,
+    basic_block::BasicBlock
 };
 use std::rc::Rc;
 
@@ -51,6 +52,29 @@ impl IRGenerator {
                 self.binary(left, *operator, right)
             }
 
+            Expr::Block(exprs) => {
+                self.push_locals();
+
+                let mut val = self.none_const;
+                for expr in exprs {
+                    val = self.expression(expr);
+                }
+
+                self.pop_locals_lift(val);
+                val
+            }
+
+            Expr::Break(value) => {
+                if self.loop_data.as_ref().unwrap().phi_nodes.is_some() {
+                    let node = (self.last_block(), self.expression(value));
+                    self.loop_data.as_mut().unwrap().phi_nodes.as_mut().unwrap().push(node);
+                }
+                self.builder
+                    .build_unconditional_branch(&self.loop_data.as_ref().unwrap().end_block);
+                self.builder.clear_insertion_position();
+                self.none_const
+            }
+
             Expr::Call { callee, arguments } => {
                 let callee = self.expression(callee);
                 let (ptr, first_arg) = self.function_from_callee(callee);
@@ -69,37 +93,43 @@ impl IRGenerator {
                 captured,
             } => self.construct_closure(function, global, captured),
 
-            Expr::Flow(flow) => self.flow(flow),
-
             Expr::Free(expr) => {
                 let ptr = self.expression(expr).into_pointer_value();
                 self.builder.build_free(ptr);
                 self.none_const
             }
 
+            Expr::If {
+                condition,
+                then,
+                else_,
+                phi,
+            } => self.if_(condition, then, else_, *phi),
+
+            Expr::Literal(literal) => self.literal(literal),
+
+            Expr::Loop {
+                condition,
+                body,
+                else_,
+                variables,
+                result_store,
+            } => self.loop_(condition, body, else_, variables, result_store),
+
             Expr::ModifyRefCount { object, dec } => self.modify_ref_count(object, *dec),
 
-            Expr::Phi(branches) => self.phi(branches),
+            Expr::Return(value) => {
+                let value = self.expression(value);
+                self.increment_refcount(value);
+                self.decrement_all_locals();
 
-            Expr::PopLocals => {
-                let locals = self.locals.pop().unwrap();
-                self.decrement_locals(&locals);
-                self.none_const
-            }
+                if value.get_type() == self.none_const.get_type() {
+                    self.builder.build_return(None);
+                } else {
+                    self.builder.build_return(Some(&value));
+                }
 
-            Expr::PopLocalsWithReturn(expr) => {
-                let expr = self.expression(expr);
-
-                self.increment_refcount(expr);
-                let index = self.locals.len() - 2;
-                self.locals[index].push(expr);
-
-                self.expression(&Expr::PopLocals);
-                expr
-            }
-
-            Expr::PushLocals => {
-                self.locals.push(Vec::with_capacity(3));
+                self.builder.clear_insertion_position();
                 self.none_const
             }
 
@@ -121,8 +151,6 @@ impl IRGenerator {
                 self.build_store(ptr, value, *first_set);
                 value
             }
-
-            Expr::Literal(literal) => self.literal(literal),
 
             Expr::Unary { right, operator } => self.unary(right, *operator),
 
@@ -459,78 +487,108 @@ impl IRGenerator {
         func.as_global_value().as_pointer_value()
     }
 
-    fn flow(&mut self, flow: &Flow) -> BasicValueEnum {
-        // If still inserting, set insertion position to the end of the block.
-        // It might not be at the end if a Phi node in another block was compiled first,
-        // in which case the insertion position is before that phi expression.
-        match self.builder.get_insert_block() {
-            Some(b) => self.builder.position_at_end(&b),
-            None => return self.none_const,
+    fn if_(&mut self, cond: &Expr, then: &Expr, else_: &Expr, phi: bool) -> BasicValueEnum {
+        let cond = self.expression(cond);
+        let then_bb = self.append_block("then");
+        let else_bb = self.append_block("else");
+        let cont_bb = self.append_block("cont");
+
+        self.builder
+            .build_conditional_branch(cond.into_int_value(), &then_bb, &else_bb);
+
+        self.position_at_block(then_bb);
+        self.push_locals();
+        let then_val = self.expression(then);
+        let then_bb = self.last_block();
+        if phi {
+            self.pop_locals_remove(then_val);
+        } else {
+            self.pop_dec_locals()
         }
+        self.builder.build_unconditional_branch(&cont_bb);
 
-        match flow {
-            Flow::None => {
-                self.decrement_all_locals();
-                self.builder.build_return(None)
-            }
+        self.position_at_block(else_bb);
+        self.push_locals();
+        let else_val = self.expression(else_);
+        let else_bb = self.last_block();
+        if phi {
+            self.pop_locals_remove(else_val);
+        } else {
+            self.pop_dec_locals()
+        }
+        self.builder.build_unconditional_branch(&cont_bb);
 
-            Flow::Jump(block) => self.builder.build_unconditional_branch(&self.blocks[block]),
+        self.position_at_block(cont_bb);
+        if phi {
+            self.build_phi(&[(then_val, then_bb), (else_val, else_bb)])
+        } else {
+            self.none_const
+        }
+    }
 
-            Flow::Branch {
-                condition,
-                then_b,
-                else_b,
-            } => {
-                let condition = self.expression(condition);
-                self.builder.build_conditional_branch(
-                    *condition.as_int_value(),
-                    &self.blocks[then_b],
-                    &self.blocks[else_b],
-                )
-            }
+    fn loop_(
+        &mut self,
+        condition: &Expr,
+        body: &Expr,
+        else_: &Expr,
+        variables: &[Rc<Variable>],
+        result_store: &Option<Rc<Variable>>,
+    ) -> BasicValueEnum {
+        let loop_bb = self.append_block("for-loop");
+        let else_bb = self.append_block("for-else");
+        let cont_bb = self.append_block("for-cont");
 
-            Flow::Switch { cases, default } => {
-                let cases: Vec<_> = cases
-                    .iter()
-                    .map(|(expr, block)| {
-                        (self.expression(expr).into_int_value(), self.blocks[block])
-                    })
-                    .collect();
-                let cases: Vec<_> = cases.iter().map(|(expr, block)| (*expr, block)).collect();
+        let prev_loop = std::mem::replace(
+            &mut self.loop_data,
+            Some(LoopData {
+                end_block: cont_bb,
+                phi_nodes: if result_store.is_some() { Some(vec![]) } else { None },
+            }),
+        );
 
-                self.builder.build_switch(
-                    self.context.bool_type().const_int(1, false),
-                    &self.blocks[default],
-                    &cases,
-                )
-            }
+        let cond = self.expression(condition).into_int_value();
+        self.builder
+            .build_conditional_branch(cond, &loop_bb, &else_bb);
 
-            Flow::Return(value) => {
-                let value = self.expression(value);
-                self.increment_refcount(value);
-                self.decrement_all_locals();
-                if value.get_type() == self.none_const.get_type() {
-                    self.builder.build_return(None)
-                } else {
-                    self.builder.build_return(Some(&value))
-                }
-            }
+        self.position_at_block(loop_bb);
+        self.push_locals();
+        let body = self.expression(body);
+        let loop_end_bb = self.last_block();
+        if let Some(result_store) = result_store {
+            self.build_store(self.get_variable(result_store), body, false);
+        }
+        self.pop_dec_locals();
+        for var in variables {
+            let expr = self.expression(&Expr::load(var));
+            self.decrement_refcount(expr)
+        }
+        let cond = self.expression(condition).into_int_value();
+        let phi_node = if let Some(result_store) = result_store {
+            Some(self.load_ptr(self.get_variable(result_store)))
+        } else {
+            None
         };
-        self.builder.clear_insertion_position();
-        self.none_const
-    }
+        self.builder
+            .build_conditional_branch(cond, &loop_bb, &cont_bb);
 
-    pub fn decrement_all_locals(&self) {
-        for locals in &self.locals {
-            self.decrement_locals(locals);
-        }
-    }
+        self.position_at_block(else_bb);
+        self.push_locals();
+        let else_val = self.expression(else_);
+        let else_bb = self.last_block();
+        self.pop_dec_locals();
+        self.builder.build_unconditional_branch(&cont_bb);
 
-    fn decrement_locals(&self, locals: &Vec<BasicValueEnum>) {
-        if self.builder.get_insert_block().is_some() {
-            for local in locals {
-                self.decrement_refcount(*local);
-            }
+        self.position_at_block(cont_bb);
+        let mut loop_data = std::mem::replace(&mut self.loop_data, prev_loop).unwrap();
+        if let Some(result_store) = result_store {
+            // TODO: This is terribly inefficient
+            let mut phi_nodes = loop_data.phi_nodes.unwrap();
+            phi_nodes.push((loop_end_bb, phi_node.unwrap()));
+            phi_nodes.push((else_bb, else_val));
+            let phi_nodes = phi_nodes.into_iter().map(|(a, b)| (b, a)).collect::<Vec<_>>();
+            self.build_phi(&phi_nodes)
+        } else {
+            self.none_const
         }
     }
 
@@ -542,55 +600,6 @@ impl IRGenerator {
             self.increment_refcount(object);
         }
         object
-    }
-
-    fn phi(&mut self, branches: &[(Expr, Rc<String>)]) -> BasicValueEnum {
-        // Block inserting into might be None if block return was hit
-        let cur_block = match self.builder.get_insert_block() {
-            Some(b) => b,
-            None => return self.none_const,
-        };
-
-        let branches: Vec<_> = branches
-            .iter()
-            .map(|(expr, br)| {
-                let block = self.blocks[br];
-                match block.get_terminator() {
-                    Some(inst) => self.builder.position_before(&inst),
-                    None => self.builder.position_at_end(&block),
-                }
-
-                self.expression(&Expr::PushLocals);
-                let expr = self.expression(expr);
-                if let Some(last) = self.locals().pop() {
-                    // If the last local is the value used for the phi node,
-                    // then it needs to be removed to prevent decrementing
-                    // the value (it'll be decremented as the phi later)
-                    if last != expr {
-                        self.locals().push(last)
-                    }
-                }
-
-                self.expression(&Expr::PopLocals);
-                (expr, block)
-            })
-            .collect();
-        let type_ = branches[0].0.get_type();
-
-        let branches_ref: Vec<_> = branches
-            .iter()
-            .map(|(expr, br)| (expr as &dyn BasicValue, br))
-            .collect();
-
-        match cur_block.get_first_instruction() {
-            Some(inst) => self.builder.position_before(&inst),
-            None => self.builder.position_at_end(&cur_block),
-        }
-        let phi = self.builder.build_phi(type_, "phi");
-        phi.add_incoming(&branches_ref);
-        self.locals().push(phi.as_basic_value());
-        self.builder.position_at_end(&cur_block);
-        phi.as_basic_value()
     }
 
     fn literal(&mut self, literal: &Literal) -> BasicValueEnum {

@@ -20,7 +20,7 @@ pub static LOGICAL_BINARY: [TType; 7] = [
     TType::LessEqual,
     TType::EqualEqual,
     TType::BangEqual,
-    TType::Bang
+    TType::Bang,
 ];
 
 /// An enum with all expression types in Gelix.

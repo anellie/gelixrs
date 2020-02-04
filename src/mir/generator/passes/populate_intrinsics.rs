@@ -41,3 +41,23 @@ impl PreMIRPass for PopulateIntrinsics {
         Ok(())
     }
 }
+
+/// This pass populates the intrinsics struct functions.
+pub struct PopulateIntrinsicsFunctions();
+
+impl PreMIRPass for PopulateIntrinsicsFunctions {
+    fn run(
+        &mut self,
+        _ast: &mut Module,
+        module: MutRc<MModule>,
+        _modules: &[MutRc<MModule>],
+    ) -> Result<(), Errors> {
+        let module = module.borrow();
+        if **module.path.0[0] == *"std" && **module.path.0[1] == *"intrinsics" {
+            INTRINSICS.with(|i| {
+                i.borrow_mut().libc_free = module.find_global(&"free".to_string());
+            })
+        }
+        Ok(())
+    }
+}

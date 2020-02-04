@@ -257,9 +257,8 @@ pub struct Function {
     pub name: String,
     /// All parameters needed to call this function.
     pub parameters: Vec<Rc<Variable>>,
-    /// All blocks of this function, which contain the expressions making up the func.
-    /// Needs to be indexed so the IR will generate them in the right order.
-    pub blocks: IndexMap<Rc<String>, Block>,
+    /// A list of expressions that make up the func, executed in order.
+    pub exprs: Vec<Expr>,
     /// All variables declared inside that need alloca in IR.
     pub variables: HashMap<Rc<String>, Rc<Variable>>,
     /// The return type of the function; Type::None if omitted.
@@ -277,23 +276,6 @@ pub struct Function {
 }
 
 impl Function {
-    /// Either appends a new block or returns the one already present with the given name.
-    /// When force_new is true, a new block is always created.
-    /// Because of this, the name can be different than the given one when it was already in use.
-    pub fn append_block(&mut self, name: &str, force_new: bool) -> Rc<String> {
-        let mut name = name.to_string();
-        if self.blocks.contains_key(&name) {
-            if force_new {
-                name = format!("{}-{}", name, self.blocks.len());
-            } else {
-                return Rc::new(name);
-            }
-        }
-        let rc = Rc::new(name);
-        self.blocks.insert(Rc::clone(&rc), Vec::with_capacity(5));
-        rc
-    }
-
     /// Inserts a variable into the functions allocation table.
     /// Returns the name of it (should be used since a change can be needed due to colliding names).
     pub fn insert_var(&mut self, mut name: Rc<String>, var: Rc<Variable>) -> Rc<String> {
@@ -358,11 +340,8 @@ impl Function {
         if !self.variables.is_empty() {
             writeln!(f)?;
         }
-        for (name, block) in self.blocks.iter() {
-            writeln!(f, "{}{}:", space, name)?;
-            for inst in block.iter() {
-                writeln!(f, "{}    {}", space, inst)?;
-            }
+        for expr in &self.exprs {
+            writeln!(f, "{}    {}", space, expr)?;
         }
         writeln!(f, "{}}}", space)
     }
@@ -385,9 +364,6 @@ impl Display for Function {
         self.display(f, "")
     }
 }
-
-/// A block inside a function.
-pub type Block = Vec<Expr>;
 
 /// A variable. Used for function variables as well as for referencing functions.
 #[derive(Debug, Default, Clone)]

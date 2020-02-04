@@ -195,9 +195,8 @@ impl MIRGenerator {
     /// that location, then insert all parameters as variables.
     fn prepare_function(&mut self, function: &MutRc<Function>, err_line: usize) -> Res<()> {
         let mut func = function.borrow_mut();
-        let entry_block = func.append_block("entry", false);
 
-        self.set_pointer(Rc::clone(function), Rc::clone(&entry_block));
+        self.set_pointer(Rc::clone(function));
         self.begin_scope();
         for param in func.parameters.iter() {
             self.insert_variable(&param, false, err_line)?;
@@ -439,7 +438,7 @@ impl MIRGenerator {
             .get(ty)
             .is_some()
         {
-            Some(Expr::cast(arg, ty))
+            Some(Expr::iface_cast(arg, ty))
         } else {
             None
         }
@@ -465,42 +464,22 @@ impl MIRGenerator {
         self.environments.pop();
     }
 
-    /// Will append a block to the given function, always creating a new one.
-    pub fn append_block(&mut self, name: &str) -> Rc<String> {
-        self.cur_fn().borrow_mut().append_block(name, true)
-    }
-
     /// Inserts the given expression at the current insertion pointer.
     pub fn insert_at_ptr(&mut self, expr: Expr) {
         let func = self.cur_fn();
         let mut func = func.borrow_mut();
-        func.blocks
-            .get_mut(&self.position.as_ref().unwrap().block)
-            .unwrap()
-            .push(expr)
+        func.exprs.push(expr)
     }
 
     /// Sets the insertion pointer.
-    /// Insertion is always at the end of a block.
-    pub fn set_pointer(&mut self, function: MutRc<Function>, block: Rc<String>) {
-        self.position = Some(Pointer { function, block })
-    }
-
-    /// Same as set_pointer; function stays unchanged however.
-    pub fn set_block(&mut self, block: &Rc<String>) {
-        if let Some(pos) = self.position.as_mut() {
-            pos.block = Rc::clone(block)
-        }
+    /// Insertion is always at the end of a function.
+    pub fn set_pointer(&mut self, function: MutRc<Function>) {
+        self.position = Some(Pointer { function })
     }
 
     /// Returns the function of the insertion pointer.
     pub fn cur_fn(&self) -> MutRc<Function> {
         self.position.as_ref().unwrap().function.clone()
-    }
-
-    /// Returns the block currently inserting into.
-    pub fn cur_block_name(&self) -> Rc<String> {
-        Rc::clone(&self.position.as_ref().unwrap().block)
     }
 
     /// Switch the module this generator is operating on.
@@ -568,34 +547,18 @@ impl MIRGenerator {
 pub struct Pointer {
     /// The function inserting into
     pub function: MutRc<Function>,
-    /// The name of the block appending to
-    block: Rc<String>,
 }
 
 /// All data of a loop.
+#[derive(Default)]
 struct ForLoop {
     /// The alloca of the for loop result. Can be None for loops that return None type.
     result_var: Option<Rc<Variable>>,
-    /// The block to jump to when the current loop finishes.
-    cont_block: Rc<String>,
-    /// The phi nodes of the loop (loops are expressions).
-    phi_nodes: Vec<(Expr, Rc<String>)>,
     /// All variables that were newly created inside the loop.
     /// This is used to decrement their refcount at the end of the loop,
     /// which is required - simply decrementing them once at the end of the
     /// function like usual would be incorrect behaviour causing leaks.
     variables: Vec<Rc<Variable>>,
-}
-
-impl ForLoop {
-    fn new(cont_block: &Rc<String>) -> ForLoop {
-        ForLoop {
-            result_var: None,
-            cont_block: Rc::clone(cont_block),
-            phi_nodes: vec![],
-            variables: vec![],
-        }
-    }
 }
 
 pub type Callable = Either<Rc<Variable>, IFaceFuncIndex>;

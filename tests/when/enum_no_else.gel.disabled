@@ -1,0 +1,15 @@
+/*
+ok
+*/
+
+func main() {
+    when (A::A) {
+        A::A -> print("ok")
+        A::B -> print("bad")
+    }
+}
+
+enum A {
+    case A
+    case B
+}

@@ -25,6 +25,7 @@ use crate::mir::{
     nodes::{Expr, Function, Type, Variable},
     MModule, MutRc,
 };
+use indexmap::map::IndexMap;
 use inkwell::passes::PassManager;
 
 mod gc;
@@ -43,7 +44,10 @@ pub struct IRGenerator {
     module: Module,
     mpm: PassManager<Module>,
 
-    /// All variables, the currently compiled function.
+    /// The currently compiled function.
+    function: Option<FunctionValue>,
+
+    /// All variables in the currently compiled function.
     /// Note that not all variables are valid - they are kept after going out of scope.
     /// This is not an issue since the MIR generator checked against this already.
     variables: HashMap<PtrEqRc<Variable>, PointerValue>,
@@ -55,7 +59,8 @@ pub struct IRGenerator {
     /// Pushing/Popping local vectors from this stack is done using mir::Expr.
     locals: Vec<Vec<BasicValueEnum>>,
     /// All blocks in the current function.
-    blocks: HashMap<Rc<String>, BasicBlock>,
+    blocks: Vec<BasicBlock>,
+    last_block: Option<BasicBlock>,
 
     /// All functions.
     functions: HashMap<PtrEqRc<Variable>, FunctionValue>,
@@ -67,6 +72,9 @@ pub struct IRGenerator {
     /// A constant that is used for expressions that don't produce a value but are required to,
     /// like return or break expressions.
     none_const: BasicValueEnum,
+
+    /// Needed state about the current loop, if compiling one.
+    loop_data: Option<LoopData>,
 }
 
 impl IRGenerator {
@@ -123,7 +131,7 @@ impl IRGenerator {
     fn function(&mut self, func_var: Rc<Variable>) {
         let func_ty = func_var.type_.as_function();
         let func = func_ty.borrow_mut();
-        if !func.blocks.is_empty() {
+        if !func.exprs.is_empty() {
             let func_val = self.functions[&PtrEqRc::new(&func_var)];
             self.function_body(func, func_val);
         }
@@ -131,6 +139,7 @@ impl IRGenerator {
 
     /// Generates a function's body.
     fn function_body(&mut self, func: RefMut<Function>, func_val: FunctionValue) {
+        self.function = Some(func_val);
         self.blocks.clear();
 
         self.prepare_function(&func, func_val);
@@ -144,21 +153,15 @@ impl IRGenerator {
             }
         }
 
-        // Fill in all blocks first before generating any actual code;
-        // otherwise referencing a block yet to be built would result in a panic
-        for (name, _block) in func.blocks.iter().skip(1) {
-            let bb = self.context.append_basic_block(&func_val, name);
-            self.blocks.insert(Rc::clone(name), bb);
+        let mut last = self.none_const;
+        for expr in &func.exprs {
+            last = self.expression(expr);
         }
 
-        let mut blocks = func.blocks.iter();
-        self.fill_basic_block(blocks.next().unwrap().1);
-
-        // Fill all blocks
-        for (name, block) in blocks {
-            let bb = self.blocks[name];
-            self.position_at_block(bb);
-            self.fill_basic_block(block)
+        // Build a return if the end of the function is an implicit return
+        if self.builder.get_insert_block().is_some() {
+            self.decrement_all_locals();
+            self.builder.build_return(None);
         }
 
         self.variables.clear();
@@ -176,9 +179,9 @@ impl IRGenerator {
         self.locals.push(Vec::with_capacity(3));
 
         let entry_bb = self.context.append_basic_block(&func_val, "entry");
-        self.blocks.insert(Rc::new(String::from("entry")), entry_bb);
+        self.blocks.push(entry_bb);
 
-        self.builder.position_at_end(&entry_bb);
+        self.position_at_block(entry_bb);
         self.build_parameter_alloca(&func, func_val);
     }
 
@@ -206,27 +209,26 @@ impl IRGenerator {
     }
 
     fn position_at_block(&mut self, block: BasicBlock) {
-        match block.get_first_instruction() {
-            Some(inst) => self.builder.position_before(&inst),
-            None => self.builder.position_at_end(&block),
-        }
+        self.last_block = Some(block);
+        self.builder.position_at_end(&block)
     }
 
-    fn fill_basic_block(&mut self, mir_bb: &[Expr]) {
-        for expression in mir_bb.iter() {
-            self.expression(expression);
-        }
-
-        // Blocks that return from a None-type function do not have a MIR terminator,
-        // so we create a void return (The insert block would be unset had there been a return)
-        if self.builder.get_insert_block().is_some() {
-            self.decrement_all_locals();
-            self.builder.build_return(None);
-        }
+    pub fn append_block(&mut self, name: &'static str) -> BasicBlock {
+        let bb = self
+            .context
+            .append_basic_block(&self.function.unwrap(), name);
+        self.blocks.push(bb);
+        bb
     }
 
-    pub fn locals(&mut self) -> &mut Vec<BasicValueEnum> {
-        self.locals.last_mut().unwrap()
+    pub fn append_and_pos_bb(&mut self, name: &'static str) -> BasicBlock {
+        let bb = self.append_block(name);
+        self.position_at_block(bb);
+        bb
+    }
+
+    pub fn last_block(&self) -> BasicBlock {
+        self.last_block.unwrap()
     }
 
     pub fn new() -> IRGenerator {
@@ -265,18 +267,28 @@ impl IRGenerator {
             module,
             builder,
             mpm,
+            function: None,
 
             variables: HashMap::with_capacity(10),
             locals: Vec::with_capacity(10),
-            blocks: HashMap::with_capacity(10),
+            blocks: Vec::with_capacity(10),
+            last_block: None,
 
             types,
             types_bw: HashMap::with_capacity(50),
             functions: HashMap::with_capacity(10),
 
             none_const: none_const.into(),
+            loop_data: None,
         }
     }
+}
+
+pub struct LoopData {
+    /// The block to jump to using break expressions;
+    /// the block at the end of the loop.
+    pub end_block: BasicBlock,
+    pub phi_nodes: Option<Vec<(BasicBlock, BasicValueEnum)>>,
 }
 
 /// A Rc that can be compared by checking for pointer equality.

@@ -10,8 +10,9 @@ use crate::{
 };
 use inkwell::{
     types::{AnyTypeEnum, BasicType, BasicTypeEnum},
-    values::{BasicValueEnum, PointerValue},
+    values::{BasicValue, BasicValueEnum, PointerValue},
     AddressSpace::Generic,
+    basic_block::BasicBlock
 };
 use std::rc::Rc;
 
@@ -185,10 +186,79 @@ impl IRGenerator {
             let value = if heap {
                 0
             } else {
-                2147483648 /* first bit 1, rest 0; used to differentiate heap/stack vars */
+                2_147_483_648 /* first bit 1, rest 0; used to differentiate heap/stack vars */
             };
             builder.build_store(rc, self.context.i32_type().const_int(value, false));
         }
         ptr
+    }
+
+    pub fn locals(&mut self) -> &mut Vec<BasicValueEnum> {
+        self.locals.last_mut().unwrap()
+    }
+
+    pub fn push_locals(&mut self) {
+        self.locals.push(Vec::with_capacity(5))
+    }
+
+    pub fn pop_dec_locals(&mut self) {
+        let locals = self.locals.pop().unwrap();
+        self.decrement_locals(&locals)
+    }
+
+    pub fn pop_locals_lift(&mut self, lift: BasicValueEnum) {
+        let mut locals = self.locals.pop().unwrap();
+
+        if let Some(val) = locals.pop() {
+            if val == lift {
+                self.locals().push(lift)
+            } else {
+                locals.push(val)
+            }
+        }
+
+        self.decrement_locals(&locals);
+    }
+
+    pub fn pop_locals_remove(&mut self, lift: BasicValueEnum) {
+        let mut locals = self.locals.pop().unwrap();
+
+        if let Some(val) = locals.pop() {
+            if val != lift {
+                locals.push(val)
+            }
+        }
+
+        self.decrement_locals(&locals);
+    }
+
+    pub fn decrement_all_locals(&self) {
+        for locals in &self.locals {
+            self.decrement_locals(locals);
+        }
+    }
+
+    fn decrement_locals(&self, locals: &Vec<BasicValueEnum>) {
+        if self.builder.get_insert_block().is_some() {
+            for local in locals {
+                self.decrement_refcount(*local);
+            }
+        }
+    }
+
+    pub fn build_phi(&mut self, nodes: &[(BasicValueEnum, BasicBlock)]) -> BasicValueEnum {
+        // TODO: Comically inefficient
+        let nodes = nodes.iter().filter(|(v, _)| v.get_type() != self.none_const.get_type()).collect::<Vec<_>>();
+
+        if nodes.len() == 1 {
+            nodes[0].0
+        } else {
+            let ty = nodes[0].0.get_type();
+            let nodes = nodes.iter().map(|(v, b)| (v as &dyn BasicValue, b)).collect::<Vec<_>>();
+            let phi = self.builder.build_phi(ty, "phi");
+            phi.add_incoming(&nodes);
+            self.locals().push(phi.as_basic_value());
+            phi.as_basic_value()
+        }
     }
 }

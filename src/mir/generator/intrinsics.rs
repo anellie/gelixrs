@@ -43,6 +43,8 @@ pub struct Intrinsics {
     pub string_type: Option<Type>,
     /// The Free interface, used while compiling a class destructor.
     pub free_iface: Option<Type>,
+    /// libc free.
+    pub libc_free: Option<Rc<Variable>>,
     /// The entry point of the program - more than one function
     /// named main is a compile error
     pub main_fn: Option<Rc<Variable>>,

@@ -6,7 +6,6 @@
 
 use std::{
     fmt::{Display, Error, Formatter},
-    mem,
     rc::Rc,
 };
 
@@ -50,6 +49,13 @@ pub enum Expr {
         right: Box<Expr>,
     },
 
+    /// A break expression inside a loop.
+    Break(Box<Expr>),
+
+    /// A freestanding block.
+    /// Cannot be simplified since IR GC needs to be aware of blocks.
+    Block(Vec<Expr>),
+
     /// A static function call.
     /// callee can be both a function or a closure.
     Call {
@@ -80,34 +86,30 @@ pub enum Expr {
         captured: Rc<Vec<Rc<Variable>>>,
     },
 
-    /// A 'flow' expression, which changes control flow. See [Flow] enum
-    Flow(Box<Flow>),
-
-    /// Will call libc free on the inner expression.
     Free(Box<Expr>),
+
+    If {
+        condition: Box<Expr>,
+        then: Box<Expr>,
+        else_: Box<Expr>,
+        phi: bool,
+    },
+
+    /// Simply produces the literal as value.
+    Literal(Literal),
+
+    Loop {
+        condition: Box<Expr>,
+        body: Box<Expr>,
+        else_: Box<Expr>,
+        variables: Vec<Rc<Variable>>,
+        result_store: Option<Rc<Variable>>,
+    },
 
     /// Modifies the refcount on a value, either
     /// incrementing or decrementing it.
     /// It returns the value - it essentially wraps it
     ModifyRefCount { object: Box<Expr>, dec: bool },
-
-    /// A Phi node. Returns a different value based on
-    /// which block the current block was reached from.
-    Phi(Vec<(Expr, Rc<String>)>),
-
-    /// Pop all current locals off the stack.
-    /// See comments on the IR generator for more info.
-    PopLocals,
-
-    /// Same as PopLocals, but will evalutate the given expression
-    /// beforehand and 'lift' the expression into the outer locals
-    /// (See ir/gen_expr.rs for the actual code, which
-    /// should be enough to explain this.)
-    PopLocalsWithReturn(Box<Expr>),
-
-    /// Push a new empty vector onto the locals stack.
-    /// See comments on the IR generator for more info.
-    PushLocals,
 
     /// Gets a member of a class struct.
     StructGet { object: Box<Expr>, index: usize },
@@ -120,8 +122,9 @@ pub enum Expr {
         first_set: bool,
     },
 
-    /// Simply produces the literal as value.
-    Literal(Literal),
+    /// Return from the function with the given value.
+    /// Return without expression will use Literal::None.
+    Return(Box<Expr>),
 
     /// A unary expression on numbers.
     Unary { operator: TType, right: Box<Expr> },
@@ -159,7 +162,11 @@ impl Expr {
         }
     }
 
-    pub fn cast(obj: Expr, ty: &Type) -> Expr {
+    pub fn break_(expr: Option<Expr>) -> Expr {
+        Expr::Break(Box::new(expr.unwrap_or(Expr::Literal(Literal::None))))
+    }
+
+    pub fn iface_cast(obj: Expr, ty: &Type) -> Expr {
         Expr::CastToInterface {
             object: Box::new(obj),
             to: ty.clone(),
@@ -171,13 +178,6 @@ impl Expr {
             function: Rc::clone(global.type_.as_function()),
             global: Rc::clone(global),
             captured,
-        }
-    }
-
-    pub fn unary(right: Expr, op: TType) -> Expr {
-        Expr::Unary {
-            operator: op,
-            right: Box::new(right),
         }
     }
 
@@ -196,19 +196,36 @@ impl Expr {
         }
     }
 
-    pub fn phi(nodes: Vec<(Expr, Rc<String>)>) -> Expr {
-        // Filter all nodes that return Any.
-        // A node might return Any if it does not produce a value;
-        // but instead branches away from the phi.
-        let filtered_nodes = nodes
-            .into_iter()
-            .filter(|node| {
-                let type_ = node.0.get_type();
-                mem::discriminant(&Type::Any) != mem::discriminant(&type_)
-            })
-            .collect();
+    pub fn if_(cond: Expr, then: Expr, else_: Expr, phi: bool) -> Expr {
+        Expr::If {
+            condition: Box::new(cond),
+            then: Box::new(then),
+            else_: Box::new(else_),
+            phi,
+        }
+    }
 
-        Expr::Phi(filtered_nodes)
+    pub fn loop_(
+        cond: Expr,
+        body: Expr,
+        else_: Option<Expr>,
+        variables: Vec<Rc<Variable>>,
+        store: Option<Rc<Variable>>,
+    ) -> Expr {
+        Expr::Loop {
+            condition: Box::new(cond),
+            body: Box::new(body),
+            else_: Box::new(else_.unwrap_or(Expr::Literal(Literal::None))),
+            variables,
+            result_store: store,
+        }
+    }
+
+    pub fn mod_rc(val: Expr, dec: bool) -> Expr {
+        Expr::ModifyRefCount {
+            object: Box::new(val),
+            dec,
+        }
     }
 
     pub fn struct_get(object: Expr, field: &Rc<ClassMember>) -> Expr {
@@ -218,79 +235,36 @@ impl Expr {
         }
     }
 
-    pub fn struct_set(object: Expr, field: Rc<ClassMember>, value: Expr) -> Expr {
+    pub fn struct_set(object: Expr, index: usize, value: Expr, first_set: bool) -> Expr {
         Expr::StructSet {
             object: Box::new(object),
-            index: field.index,
-            value: Box::new(value),
-            first_set: false,
-        }
-    }
-
-    pub fn struct_set_init(
-        object: Expr,
-        field: Rc<ClassMember>,
-        value: Expr,
-        first_set: bool,
-    ) -> Expr {
-        Expr::StructSet {
-            object: Box::new(object),
-            index: field.index,
+            index,
             value: Box::new(value),
             first_set,
         }
     }
 
-    pub fn struct_set_index(object: Expr, index: usize, value: Expr) -> Expr {
-        Expr::StructSet {
-            object: Box::new(object),
-            index,
-            value: Box::new(value),
-            first_set: true,
+    pub fn ret(expr: Expr) -> Expr {
+        Expr::Return(Box::new(expr))
+    }
+
+    pub fn unary(right: Expr, op: TType) -> Expr {
+        Expr::Unary {
+            operator: op,
+            right: Box::new(right),
         }
     }
 
-    pub fn store(var: &Rc<Variable>, value: Expr) -> Expr {
+    pub fn store(var: &Rc<Variable>, value: Expr, first_store: bool) -> Expr {
         Expr::VarStore {
             var: Rc::clone(var),
             value: Box::new(value),
-            first_store: false,
-        }
-    }
-
-    pub fn store_init(var: &Rc<Variable>, value: Expr) -> Expr {
-        Expr::VarStore {
-            var: Rc::clone(var),
-            value: Box::new(value),
-            first_store: true,
+            first_store,
         }
     }
 
     pub fn load(var: &Rc<Variable>) -> Expr {
         Expr::VarGet(Rc::clone(var))
-    }
-
-    pub fn branch(cond: Expr, then: &Rc<String>, else_: &Rc<String>) -> Expr {
-        Expr::Flow(Box::new(Flow::Branch {
-            condition: cond,
-            then_b: Rc::clone(&then),
-            else_b: Rc::clone(&else_),
-        }))
-    }
-
-    pub fn jump(to: &Rc<String>) -> Expr {
-        Expr::Flow(Box::new(Flow::Jump(Rc::clone(to))))
-    }
-
-    pub fn ret(val: Expr) -> Expr {
-        Expr::Flow(Box::new(Flow::Return(val)))
-    }
-
-    pub fn mod_rc(val: Expr, dec: bool) -> Expr {
-        Expr::ModifyRefCount {
-            object: Box::new(val),
-            dec,
-        }
     }
 
     pub fn any_const() -> Expr {
@@ -308,13 +282,20 @@ impl Expr {
         match self {
             Expr::AllocClassInst { class, .. } => Type::Class(Rc::clone(class)),
 
-            Expr::Binary { right, operator, .. } | Expr::Unary { operator, right } => {
+            Expr::Binary {
+                right, operator, ..
+            }
+            | Expr::Unary { operator, right } => {
                 if LOGICAL_BINARY.contains(&operator) {
                     Type::Bool
                 } else {
                     right.get_type()
                 }
             }
+
+            Expr::Break(_) | Expr::Return(_) | Expr::Free(_) => Type::Any,
+
+            Expr::Block(exprs) => exprs.last().map_or(Type::None, |l| l.get_type()),
 
             Expr::Call { callee, .. } => match callee.get_type() {
                 Type::Function(func) => func.borrow().ret_type.clone(),
@@ -335,28 +316,22 @@ impl Expr {
 
             Expr::ConstructClosure { function, .. } => function.borrow().to_closure_type(),
 
-            Expr::ModifyRefCount { object, .. } => object.get_type(),
-
-            Expr::Phi(branches) => branches.first().unwrap().0.get_type(),
-
-            Expr::PopLocalsWithReturn(expr) => expr.get_type(),
-
-            Expr::StructGet { object, index } | Expr::StructSet { object, index, .. } => {
-                let object = object.get_type();
-                if let Type::Class(class) = object {
-                    class
-                        .borrow()
-                        .members
-                        .iter()
-                        .find(|(_, mem)| mem.index == *index)
-                        .unwrap()
-                        .1
-                        .type_
-                        .clone()
+            Expr::If { then, else_, phi, .. } => {
+                if *phi {
+                    let then_ty = then.get_type();
+                    if then_ty != Type::Any { then_ty } else { else_.get_type() }
                 } else {
-                    panic!("non-class struct get")
+                    Type::None
                 }
-            },
+            }
+
+            Expr::Loop { result_store, .. } => {
+                if let Some(store) = result_store {
+                    store.type_.clone()
+                } else {
+                    Type::None
+                }
+            }
 
             Expr::Literal(literal) => match literal {
                 Literal::Any => Type::Any,
@@ -376,9 +351,26 @@ impl Expr {
                 _ => panic!("unknown literal"),
             },
 
-            Expr::VarGet(var) | Expr::VarStore { var, .. } => var.type_.clone(),
+            Expr::ModifyRefCount { object, .. } => object.get_type(),
 
-            Expr::Flow(_) | Expr::PushLocals | Expr::PopLocals | Expr::Free(_) => Type::None,
+            Expr::StructGet { object, index } | Expr::StructSet { object, index, .. } => {
+                let object = object.get_type();
+                if let Type::Class(class) = object {
+                    class
+                        .borrow()
+                        .members
+                        .iter()
+                        .find(|(_, mem)| mem.index == *index)
+                        .unwrap()
+                        .1
+                        .type_
+                        .clone()
+                } else {
+                    panic!("non-class struct get")
+                }
+            }
+
+            Expr::VarGet(var) | Expr::VarStore { var, .. } => var.type_.clone(),
         }
     }
 }
@@ -433,25 +425,9 @@ impl Display for Expr {
                 Ok(())
             }
 
-            Expr::Flow(flow) => write!(f, "{}", flow),
-
             Expr::Free(expr) => write!(f, "free({})", expr),
 
             Expr::ModifyRefCount { object, dec } => write!(f, "rc+{} on {}", !dec, object),
-
-            Expr::Phi(nodes) => {
-                write!(f, "phi {{ ")?;
-                for (expr, block) in nodes.iter() {
-                    write!(f, "{}: ({}), ", block, expr)?;
-                }
-                write!(f, "}}")
-            }
-
-            Expr::PopLocals => write!(f, "pop context"),
-
-            Expr::PopLocalsWithReturn(expr) => write!(f, "pop context with ({})", expr),
-
-            Expr::PushLocals => write!(f, "push context"),
 
             Expr::StructGet { object, index } => write!(f, "get {} from ({})", index, object),
 
@@ -469,60 +445,32 @@ impl Display for Expr {
             Expr::VarGet(var) => write!(f, "{}", var.name),
 
             Expr::VarStore { var, value, .. } => write!(f, "store ({}) in {}", value, var.name),
-        }
-    }
-}
 
-/// An 'expression' that always yields None, and changes control flow.
-#[derive(Clone, Debug)]
-pub enum Flow {
-    /// Return void from function
-    None,
+            Expr::Break(expr) => write!(f, "break {}", expr),
 
-    /// Return a value from function
-    Return(Expr),
-
-    /// Jump to another block
-    Jump(Rc<String>),
-
-    /// Jump to another block conditionally
-    Branch {
-        condition: Expr,
-        then_b: Rc<String>,
-        else_b: Rc<String>,
-    },
-
-    /// Same as branch, but with a list of conditions.
-    /// Jumps to the first that matches.
-    Switch {
-        cases: Vec<(Expr, Rc<String>)>,
-        default: Rc<String>,
-    },
-}
-
-impl Display for Flow {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-        match self {
-            Flow::None => write!(f, "return"),
-
-            Flow::Return(expr) => write!(f, "return ({})", expr),
-
-            Flow::Jump(goal) => write!(f, "jump {}", goal),
-
-            Flow::Branch {
-                condition,
-                then_b,
-                else_b,
-            } => write!(f, "jump {} if ({}) else {}", then_b, condition, else_b),
-
-            Flow::Switch { cases, default } => {
-                write!(f, "switch {{ ")?;
-                for (expr, block) in cases.iter() {
-                    write!(f, "{}: ({}), ", block, expr)?;
+            Expr::Block(exprs) => {
+                writeln!(f, "{{")?;
+                for expr in exprs.iter() {
+                    writeln!(f, "    {}", expr)?;
                 }
-                write!(f, "else {}", default)?;
-                write!(f, "}}")
+                writeln!(f, "}}")
             }
+
+            Expr::If {
+                condition,
+                then,
+                else_,
+                phi,
+            } => write!(f, "if (phi {}) ({}) {} else {}", phi, condition, then, else_),
+
+            Expr::Loop {
+                condition,
+                body,
+                else_,
+                ..
+            } => write!(f, "loop ({}) {} else {}", condition, body, else_),
+
+            Expr::Return(expr) => write!(f, "return {}", expr),
         }
     }
 }

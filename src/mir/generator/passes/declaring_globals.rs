@@ -140,7 +140,7 @@ pub fn generate_mir_fn(
     Ok(mutrc_new(Function {
         name,
         parameters,
-        blocks: Default::default(),
+        exprs: Vec::with_capacity(4),
         variables: Default::default(),
         ret_type,
         context: builder.context.clone(),

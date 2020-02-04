@@ -20,12 +20,11 @@ use crate::{
                 declaring_types::DeclareTypes,
                 fill_impls::FillIfaceImpls,
                 filter_prototypes::FilterPrototypes,
-                gc_variable_escape::GCMarkEscapeVariables,
                 generate::Generate,
                 generate_impls::GenerateImpls,
                 imports::{ImportGlobals, ImportTypes},
                 insert_members::InsertClassMembers,
-                populate_intrinsics::PopulateIntrinsics,
+                populate_intrinsics::{PopulateIntrinsics, PopulateIntrinsicsFunctions},
                 validate::ValidateIntrinsics,
                 ModulePass, PassType, PreMIRPass,
             },
@@ -59,6 +58,7 @@ impl PassRunner {
             Box::new(PopulateIntrinsics()),
             Box::new(ImportTypes()),
             Box::new(DeclareGlobals()),
+            Box::new(PopulateIntrinsicsFunctions()),
             Box::new(ImportGlobals()),
             Box::new(DeclareIfaceImpls()),
         ];
@@ -82,7 +82,7 @@ impl PassRunner {
             Box::new(Generate()),
             Box::new(GenerateImpls()),
             Box::new(ValidateIntrinsics()),
-            Box::new(GCMarkEscapeVariables()),
+            // Box::new(GCMarkEscapeVariables()),
         ];
         let mut generator = MIRGenerator::new(MIRBuilder::new(&self.modules[0]));
         for pass in passes.drain(..) {

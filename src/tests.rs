@@ -115,7 +115,10 @@ fn exec_jit(path: PathBuf) -> Result<String, Failure> {
     if let Some(fun) = &module.get_function("puts") {
         engine.add_global_mapping(fun, test_puts as usize);
     }
-    engine.add_global_mapping(&module.get_function("malloc").unwrap(), test_malloc as usize);
+    engine.add_global_mapping(
+        &module.get_function("malloc").unwrap(),
+        test_malloc as usize,
+    );
     engine.add_global_mapping(&module.get_function("free").unwrap(), test_free as usize);
 
     unsafe {

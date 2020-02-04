@@ -47,9 +47,10 @@ fn fill_class(gen: &mut MIRGenerator, class: MutRc<Class>) -> Res<()> {
 fn build_class(gen: &mut MIRGenerator, class: &MutRc<Class>) -> Res<()> {
     let ast = Rc::clone(&class.borrow().ast);
     let class_variable = {
+        // TODO  ??
         let inst = class.borrow().instantiator.type_.as_function().clone();
         let mut func = inst.borrow_mut();
-        gen.set_pointer(inst.clone(), func.append_block("entry", false));
+        gen.set_pointer(inst.clone());
         Rc::clone(&func.parameters[0])
     };
 
@@ -90,27 +91,28 @@ fn build_class(gen: &mut MIRGenerator, class: &MutRc<Class>) -> Res<()> {
         }
     }
 
+    // Insert at the end of the instanciator to prevent
+    // an edge case of an empty instanciator, which IR would interpret
+    // incorrectly as an external function
+    gen.insert_at_ptr(Expr::none_const());
+
     Ok(())
 }
 
 fn build_destructor(gen: &mut MIRGenerator, class: &MutRc<Class>) {
-    let (class_variable, dealloc_var, dealloc_bb, end_bb) = {
+    let (class_variable, dealloc_var) = {
         let dest = class.borrow().destructor.type_.as_function().clone();
         let mut func = dest.borrow_mut();
-        gen.set_pointer(dest.clone(), func.append_block("entry", false));
+        gen.set_pointer(dest.clone());
         (
             Rc::clone(&func.parameters[0]),
             Rc::clone(&func.parameters[1]),
-            func.append_block("dealloc", false),
-            func.append_block("end", false),
         )
     };
     let func = class.borrow().destructor.type_.as_function().clone();
 
-    gen.insert_at_ptr(Expr::branch(Expr::load(&dealloc_var), &dealloc_bb, &end_bb));
-
-    gen.set_pointer(Rc::clone(&func), dealloc_bb);
-    gen.insert_at_ptr(Expr::mod_rc(Expr::load(&class_variable), false));
+    let mut if_free_exprs = Vec::with_capacity(class.borrow().members.len() + 3);
+    if_free_exprs.push(Expr::mod_rc(Expr::load(&class_variable), false));
 
     let free_iface = INTRINSICS.with(|i| i.borrow().free_iface.clone()).unwrap();
     let free_method = get_iface_impls(&Type::Class(Rc::clone(class)))
@@ -123,7 +125,7 @@ fn build_destructor(gen: &mut MIRGenerator, class: &MutRc<Class>) {
         })
         .flatten();
     if let Some(method) = free_method {
-        gen.insert_at_ptr(Expr::call(
+        if_free_exprs.push(Expr::call(
             Expr::load(&method),
             vec![Expr::load(&class_variable)],
         ));
@@ -131,13 +133,20 @@ fn build_destructor(gen: &mut MIRGenerator, class: &MutRc<Class>) {
 
     let class = class.borrow();
     for field in class.members.values() {
-        gen.insert_at_ptr(Expr::mod_rc(
+        if_free_exprs.push(Expr::mod_rc(
             Expr::struct_get(Expr::load(&class_variable), field),
             true,
         ));
     }
-    gen.insert_at_ptr(Expr::Free(Box::new(Expr::load(&class_variable))));
-    gen.insert_at_ptr(Expr::jump(&end_bb));
+    let free_fn = INTRINSICS.with(|i| Rc::clone(&i.borrow().libc_free.as_ref().unwrap()));
+    if_free_exprs.push(Expr::Free(Box::new(Expr::load(&class_variable))));
+
+    gen.insert_at_ptr(Expr::if_(
+        Expr::load(&dealloc_var),
+        Expr::Block(if_free_exprs),
+        Expr::none_const(),
+        false,
+    ));
 }
 
 fn check_duplicate(gen: &mut MIRGenerator, class: &MutRc<Class>) -> Res<()> {

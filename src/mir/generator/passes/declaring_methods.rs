@@ -21,7 +21,7 @@ use crate::{
             passes::{declaring_globals::create_function, ModulePass, PassType},
             MIRGenerator,
         },
-        nodes::{Block, Class, Expr, IFaceMethod, Interface, Type, Variable},
+        nodes::{Class, Expr, IFaceMethod, Interface, Type, Variable},
         result::ToMIRResult,
         MutRc,
     },
@@ -75,8 +75,7 @@ fn declare_for_class(builder: &mut MIRBuilder, class: MutRc<Class>) -> Res<()> {
         let mir_var = create_function(builder, Left(&sig), false, None)?;
         let mir_fn = mir_var.type_.as_function();
         let mut mir_fn = mir_fn.borrow_mut();
-        let block = insert_constructor_setters(builder, &ast, constructor, &mir_fn.parameters)?;
-        mir_fn.blocks.insert(Rc::new("entry".to_string()), block);
+        mir_fn.exprs = insert_constructor_setters(builder, &ast, constructor, &mir_fn.parameters)?;
         class.borrow_mut().constructors.push(Rc::clone(&mir_var));
 
         let params = mir_fn
@@ -189,7 +188,7 @@ fn insert_constructor_setters(
     class: &ASTClass,
     constructor: &Constructor,
     mir_fn_params: &[Rc<Variable>],
-) -> Res<Block> {
+) -> Res<Vec<Expr>> {
     let mut block = Vec::new();
     for (index, (param, _)) in constructor
         .parameters
@@ -199,12 +198,14 @@ fn insert_constructor_setters(
     {
         let (field_index, _) =
             get_field_by_name(class, param).or_err(&builder.path, param, "Unknown class field.")?;
-        block.push(Expr::struct_set_index(
+        block.push(Expr::struct_set(
             Expr::load(&mir_fn_params[0]),
             field_index,
             Expr::load(&mir_fn_params[index + 1]),
+            true,
         ))
     }
+    block.push(Expr::none_const());
     Ok(block)
 }
 

@@ -23,7 +23,6 @@ pub mod declaring_methods;
 pub mod declaring_types;
 pub mod fill_impls;
 pub mod filter_prototypes;
-pub mod gc_variable_escape;
 pub mod generate;
 pub mod generate_impls;
 pub mod imports;

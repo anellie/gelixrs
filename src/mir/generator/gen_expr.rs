@@ -20,7 +20,7 @@ use crate::{
             passes::declaring_globals::{generate_mir_fn, insert_global_and_type},
             ForLoop, MIRGenerator,
         },
-        nodes::{catch_up_passes, Class, Expr, Flow, Type, Variable},
+        nodes::{catch_up_passes, Class, Expr, Type, Variable},
         result::ToMIRResult,
         MutRc,
     },
@@ -106,7 +106,7 @@ impl MIRGenerator {
         let val_ty = value.get_type();
 
         if val_ty == var.type_ && var.mutable {
-            Ok(Expr::store(&var, value))
+            Ok(Expr::store(&var, value, false))
         } else if !var.mutable {
             Err(self.err(
                 &name,
@@ -155,15 +155,10 @@ impl MIRGenerator {
         }
 
         self.begin_scope();
-        self.insert_at_ptr(Expr::PushLocals);
-        for expression in expressions.iter().take(expressions.len() - 1) {
-            let expression = self.expression(&expression)?;
-            self.insert_at_ptr(expression);
-        }
-        let last = self.expression(expressions.last().unwrap())?;
-
+        let exprs = expressions.iter().map(|e| self.expression(e)).collect::<Res<_>>()?;
         self.end_scope();
-        Ok(Expr::PopLocalsWithReturn(Box::new(last)))
+
+        Ok(Expr::Block(exprs))
     }
 
     fn break_(&mut self, expr: &Option<Box<ASTExpr>>, err_tok: &Token) -> Res<Expr> {
@@ -171,16 +166,13 @@ impl MIRGenerator {
             return Err(self.err(err_tok, "Break is only allowed in loops."));
         }
 
-        if let Some(expression) = expr {
-            let expression = self.expression(&**expression)?;
+        let expr = expr.as_ref().map(|expr| {
+            let expression = self.expression(&expr)?;
             self.get_or_create_loop_var(&expression.get_type())?;
-            let cur_block = self.cur_block_name();
-            self.cur_loop().phi_nodes.push((expression, cur_block));
-        }
+            Ok(expression)
+        }).transpose()?;
 
-        let jmp = Expr::jump(&self.cur_loop().cont_block);
-        self.insert_at_ptr(jmp);
-        Ok(Expr::any_const())
+        Ok(Expr::break_(expr))
     }
 
     fn call(&mut self, callee: &ASTExpr, arguments: &[ASTExpr]) -> Res<Expr> {
@@ -352,64 +344,30 @@ impl MIRGenerator {
         body: &ASTExpr,
         else_b: &Option<Box<ASTExpr>>,
     ) -> Res<Expr> {
-        let loop_block = self.append_block("for-loop");
-        let mut else_block = self.append_block("for-else");
-        let cont_block = self.append_block("for-cont");
-
-        let prev_loop = std::mem::replace(&mut self.current_loop, Some(ForLoop::new(&cont_block)));
+        let prev_loop = std::mem::replace(&mut self.current_loop, Some(ForLoop::default()));
 
         let cond = self.expression(condition)?;
         if cond.get_type() != Type::Bool {
             return Err(self.err(condition.get_token(), "For condition must be a boolean."));
         }
 
-        self.insert_at_ptr(Expr::branch(cond.clone(), &loop_block, &else_block));
-
-        self.set_block(&loop_block);
-        self.insert_at_ptr(Expr::PushLocals);
         let body = self.expression(body)?;
         let body_type = body.get_type();
-
-        let loop_end_block = self.cur_block_name();
         let body_alloca = self.get_or_create_loop_var(&body_type)?;
 
-        self.insert_at_ptr(Expr::store(&body_alloca, body));
-        self.insert_at_ptr(Expr::PopLocals);
-        let vars = self.current_loop.as_ref().unwrap().variables.clone();
-        for var in vars {
-            self.insert_at_ptr(Expr::mod_rc(Expr::load(&var), true))
-        }
-        self.insert_at_ptr(Expr::branch(cond, &loop_block, &cont_block));
-
-        let mut ret = Expr::none_const();
-        if let Some(else_b) = else_b {
-            self.set_block(&else_block);
-            self.insert_at_ptr(Expr::PushLocals);
-            let else_val = self.expression(&**else_b)?;
-            else_block = self.cur_block_name();
-            self.insert_at_ptr(Expr::PopLocals);
-
+        let (else_, result_store) = if let Some(else_b) = else_b {
+            let else_val = self.expression(&else_b)?;
             if else_val.get_type() == body_type {
-                self.set_block(&cont_block);
-
-                let load = Expr::load(&body_alloca);
-                self.cur_loop()
-                    .phi_nodes
-                    .push((load, Rc::clone(&loop_end_block)));
-                self.cur_loop()
-                    .phi_nodes
-                    .push((else_val, Rc::clone(&else_block)));
-
-                ret = Expr::phi(self.current_loop.take().unwrap().phi_nodes)
+                (Some(else_val), Some(self.get_or_create_loop_var(&body_type)?))
+            } else {
+                (Some(else_val), None)
             }
-        }
+        } else {
+            (None, None)
+        };
 
-        self.set_block(&else_block);
-        self.insert_at_ptr(Expr::jump(&cont_block));
-        self.set_block(&cont_block);
-        self.current_loop = prev_loop;
-
-        Ok(ret)
+        let loop_data = std::mem::replace(&mut self.current_loop, prev_loop).unwrap();
+        Ok(Expr::loop_(cond, body, else_, loop_data.variables, result_store))
     }
 
     fn get(&mut self, object: &ASTExpr, name: &Token) -> Res<Expr> {
@@ -432,57 +390,22 @@ impl MIRGenerator {
         then_branch: &ASTExpr,
         else_branch: &Option<Box<ASTExpr>>,
     ) -> Res<Expr> {
+        let mut phi = false;
         let cond = self.expression(condition)?;
         if cond.get_type() != Type::Bool {
             return Err(self.err(condition.get_token(), "If condition must be a boolean"));
         }
 
-        let mut then_block = self.append_block("then");
-        let mut else_block = self.append_block("else");
-        let cont_block = self.append_block("cont");
-
-        self.insert_at_ptr(Expr::branch(cond, &then_block, &else_block));
-
-        self.set_block(&then_block);
-        self.insert_at_ptr(Expr::PushLocals);
         let then_val = self.expression(then_branch)?;
-        then_block = self.cur_block_name();
+        let else_val = else_branch.as_ref()
+            .map(|else_branch| self.expression(&else_branch))
+            .unwrap_or(Ok(Expr::none_const()))?;
+        let then_ty = then_val.get_type();
+        let else_ty = else_val.get_type();
+        let phi =
+            then_ty == else_val.get_type() && (then_ty != Type::None || else_ty != Type::None);
 
-        self.set_block(&else_block);
-        if let Some(else_branch) = else_branch {
-            self.insert_at_ptr(Expr::PushLocals);
-            let else_val = self.expression(&**else_branch)?;
-            else_block = self.cur_block_name();
-
-            if then_val.get_type() == else_val.get_type() {
-                self.insert_at_ptr(Expr::PopLocals);
-                self.insert_at_ptr(Expr::jump(&cont_block));
-                self.set_block(&then_block);
-                self.insert_at_ptr(Expr::PopLocals);
-                self.insert_at_ptr(Expr::jump(&cont_block));
-
-                self.set_block(&cont_block);
-                return Ok(Expr::phi(vec![
-                    (then_val, then_block),
-                    (else_val, else_block),
-                ]));
-            } else {
-                self.insert_at_ptr(else_val);
-                self.insert_at_ptr(Expr::PopLocals);
-                self.insert_at_ptr(Expr::jump(&cont_block));
-            }
-        } else {
-            self.set_block(&else_block);
-            self.insert_at_ptr(Expr::jump(&cont_block));
-        }
-
-        self.set_block(&then_block);
-        self.insert_at_ptr(then_val);
-        self.insert_at_ptr(Expr::PopLocals);
-        self.insert_at_ptr(Expr::jump(&cont_block));
-
-        self.set_block(&cont_block);
-        Ok(Expr::none_const())
+        Ok(Expr::if_(cond, then_val, else_val, phi))
     }
 
     fn index_get(&mut self, indexed: &ASTExpr, index: &ASTExpr, bracket: &Token) -> Res<Expr> {
@@ -645,7 +568,7 @@ impl MIRGenerator {
             loopdat.variables.push(Rc::clone(&var));
             var.as_local.set(false);
         }
-        Ok(Expr::store_init(&var, expr))
+        Ok(Expr::store(&var, expr, true))
     }
 
     fn return_(&mut self, val: &Option<Box<ASTExpr>>, err_tok: &Token) -> Res<Expr> {
@@ -659,8 +582,7 @@ impl MIRGenerator {
             return Err(self.err(err_tok, "Return expression in function has wrong type"));
         }
 
-        self.insert_at_ptr(Expr::ret(value));
-        Ok(Expr::any_const())
+        Ok(Expr::ret(value))
     }
 
     fn set(&mut self, object: &ASTExpr, name: &Token, value: &ASTExpr) -> Res<Expr> {
@@ -678,7 +600,7 @@ impl MIRGenerator {
         }
 
         let first_set = self.uninitialized_this_members.remove(&field);
-        Ok(Expr::struct_set_init(object, field, value, first_set))
+        Ok(Expr::struct_set(object, field.index, value, first_set))
     }
 
     fn unary(&mut self, operator: &Token, right: &ASTExpr) -> Res<Expr> {
@@ -727,65 +649,7 @@ impl MIRGenerator {
         branches: &[(ASTExpr, ASTExpr)],
         else_branch: &ASTExpr,
     ) -> Res<Expr> {
-        let start_b = self.cur_block_name();
-
-        let value = self.expression(value)?;
-        let val_type = value.get_type();
-
-        let else_b = self.append_block("when-else");
-        let cont_b = self.append_block("when-cont");
-
-        self.set_block(&else_b);
-        self.insert_at_ptr(Expr::PushLocals);
-        let else_val = self.expression(else_branch)?;
-        let branch_type = else_val.get_type();
-        self.insert_at_ptr(Expr::PopLocals);
-        self.insert_at_ptr(Expr::jump(&cont_b));
-
-        let mut cases = Vec::with_capacity(branches.len());
-        let mut phi_nodes = Vec::with_capacity(branches.len());
-        for (b_val, branch) in branches.iter() {
-            self.set_block(&start_b);
-            let val = self.expression(b_val)?;
-            if val.get_type() != val_type {
-                return Err(self.err(
-                    b_val.get_token(),
-                    "Branches of when must be of same type as the value compared.",
-                ));
-            }
-
-            // Small hack to get a token that gives the user
-            // a useful error without having to add complexity
-            // to binary_mir()
-            let mut optok = b_val.get_token().clone();
-            optok.t_type = TType::EqualEqual;
-            let val = self.binary_mir(val, &optok, value.clone())?;
-
-            let branch_b = self.append_block("when-br");
-            self.set_block(&branch_b);
-            self.insert_at_ptr(Expr::PushLocals);
-            let branch_val = self.expression(branch)?;
-            if branch_val.get_type() != branch_type {
-                return Err(self.err(branch.get_token(), "Branch results must be of same type."));
-            }
-            self.insert_at_ptr(Expr::PopLocals);
-            self.insert_at_ptr(Expr::jump(&cont_b));
-
-            let branch_b = self.cur_block_name();
-            cases.push((val, Rc::clone(&branch_b)));
-            phi_nodes.push((branch_val, branch_b))
-        }
-
-        phi_nodes.push((else_val, Rc::clone(&else_b)));
-
-        self.set_block(&start_b);
-        self.insert_at_ptr(Expr::Flow(Box::new(Flow::Switch {
-            cases,
-            default: else_b,
-        })));
-
-        self.set_block(&cont_b);
-        Ok(Expr::phi(phi_nodes))
+        unimplemented!()
     }
 
     fn var_def(&mut self, var: &ASTVar) -> Res<Expr> {
@@ -796,6 +660,6 @@ impl MIRGenerator {
             loopdat.variables.push(Rc::clone(&var));
             var.as_local.set(false);
         }
-        Ok(Expr::store_init(&var, init))
+        Ok(Expr::store(&var, init, true))
     }
 }
