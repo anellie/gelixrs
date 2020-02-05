@@ -22,10 +22,9 @@ use inkwell::{
 };
 
 use crate::mir::{
-    nodes::{Expr, Function, Type, Variable},
+    nodes::{Function, Type, Variable},
     MModule, MutRc,
 };
-use indexmap::map::IndexMap;
 use inkwell::passes::PassManager;
 
 mod gc;
@@ -153,9 +152,8 @@ impl IRGenerator {
             }
         }
 
-        let mut last = self.none_const;
         for expr in &func.exprs {
-            last = self.expression(expr);
+            self.expression(expr);
         }
 
         // Build a return if the end of the function is an implicit return
@@ -221,12 +219,6 @@ impl IRGenerator {
         bb
     }
 
-    pub fn append_and_pos_bb(&mut self, name: &'static str) -> BasicBlock {
-        let bb = self.append_block(name);
-        self.position_at_block(bb);
-        bb
-    }
-
     pub fn last_block(&self) -> BasicBlock {
         self.last_block.unwrap()
     }
@@ -288,7 +280,7 @@ pub struct LoopData {
     /// The block to jump to using break expressions;
     /// the block at the end of the loop.
     pub end_block: BasicBlock,
-    pub phi_nodes: Option<Vec<(BasicBlock, BasicValueEnum)>>,
+    pub phi_nodes: Option<Vec<(BasicValueEnum, BasicBlock)>>,
 }
 
 /// A Rc that can be compared by checking for pointer equality.

@@ -70,12 +70,6 @@ impl Class {
     }
 }
 
-impl PartialEq for Class {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
-    }
-}
-
 impl Display for Class {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         writeln!(f, "class {} {{\n", self.name)?;
@@ -93,12 +87,6 @@ impl Display for Class {
             func.type_.as_function().borrow().display(f, "    ")?;
         }
         writeln!(f, "}}")
-    }
-}
-
-impl Hash for Class {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.name.hash(state)
     }
 }
 
@@ -150,18 +138,6 @@ impl Interface {
     }
 }
 
-impl Hash for Interface {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.name.hash(state)
-    }
-}
-
-impl PartialEq for Interface {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
-    }
-}
-
 impl Display for Interface {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         writeln!(f, "interface {} {{\n", self.name)?;
@@ -184,20 +160,6 @@ pub struct IFaceImpl {
     pub ast: Rc<ast::IFaceImpl>,
 }
 
-impl PartialEq for IFaceImpl {
-    fn eq(&self, other: &Self) -> bool {
-        self.implementor == other.implementor && Rc::ptr_eq(&self.iface, &other.iface)
-    }
-}
-
-impl Eq for IFaceImpl {}
-
-impl Hash for IFaceImpl {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.iface.borrow().hash(state)
-    }
-}
-
 /// A struct representing all interfaces implemented by a type.
 /// A simple map of interfaces is not enough, as it does not
 /// prevent naming collisions.
@@ -209,18 +171,6 @@ pub struct IFaceImpls {
     /// Hash and Eq traits that only [Type] implements.
     pub interfaces: HashMap<Type, IFaceImpl>,
     pub methods: HashMap<Rc<String>, Rc<Variable>>,
-}
-
-impl PartialEq for IFaceImpls {
-    fn eq(&self, other: &Self) -> bool {
-        self.implementor == other.implementor
-    }
-}
-
-impl Hash for IFaceImpls {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.implementor.hash(state)
-    }
 }
 
 /// A method inside an interface.

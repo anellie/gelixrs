@@ -25,8 +25,6 @@ pub mod result;
 thread_local! {
     /// A map containing all interface implementations.
     /// This is global state since it is shared across modules.
-    /// TODO: This would be better implemented as a lazy_static,
-    /// but the compiler does not currently support multithreading.
     static IFACE_IMPLS: RefCell<HashMap<Type, MutRc<IFaceImpls>>> = RefCell::new(HashMap::with_capacity(20));
 }
 

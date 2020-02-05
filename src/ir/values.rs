@@ -65,17 +65,6 @@ impl IRGenerator {
         }
     }
 
-    /// If the parameter 'ptr' is a struct pointer, the struct itself is returned.
-    /// Otherwise, ptr is simply returned without modification.
-    pub fn unwrap_struct_ptr(&self, val: BasicValueEnum) -> BasicValueEnum {
-        if let BasicValueEnum::PointerValue(ptr) = val {
-            if let AnyTypeEnum::StructType(_) = ptr.get_type().get_element_type() {
-                return self.builder.build_load(ptr, "ptr-load");
-            }
-        }
-        val
-    }
-
     /// Loads a pointer, turning it into a value.
     /// Does not load structs or functions, since they are only ever used as pointers.
     pub fn load_ptr(&self, ptr: PointerValue) -> BasicValueEnum {
@@ -238,7 +227,7 @@ impl IRGenerator {
         }
     }
 
-    fn decrement_locals(&self, locals: &Vec<BasicValueEnum>) {
+    fn decrement_locals(&self, locals: &[BasicValueEnum]) {
         if self.builder.get_insert_block().is_some() {
             for local in locals {
                 self.decrement_refcount(*local);
@@ -247,7 +236,6 @@ impl IRGenerator {
     }
 
     pub fn build_phi(&mut self, nodes: &[(BasicValueEnum, BasicBlock)]) -> BasicValueEnum {
-        // TODO: Comically inefficient
         let nodes = nodes.iter().filter(|(v, _)| v.get_type() != self.none_const.get_type()).collect::<Vec<_>>();
 
         match nodes.len() {

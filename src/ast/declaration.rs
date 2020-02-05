@@ -112,17 +112,6 @@ impl FunctionParam {
             type_: ty.clone(),
         }
     }
-
-    /// This is used for the implicit parameter on closure functions.
-    /// Since this parameter is deconstructed into separate variables,
-    /// the user should not be able to access it, so it contains a '-'
-    /// to prevent the user from referencing it as a variable.
-    pub fn captured_param() -> FunctionParam {
-        FunctionParam {
-            type_: Type::Ident(Token::generic_identifier("CLOSURE-CAPTURED".to_string())),
-            name: Token::generic_identifier("captured-vars".to_string()),
-        }
-    }
 }
 
 /// A function definition.

@@ -16,10 +16,9 @@ use crate::{
 };
 use inkwell::{
     types::{AnyTypeEnum, BasicType, BasicTypeEnum, PointerType, StructType},
-    values::{BasicValue, BasicValueEnum, PointerValue},
+    values::{BasicValueEnum, PointerValue},
     AddressSpace::Generic,
     FloatPredicate, IntPredicate,
-    basic_block::BasicBlock
 };
 use std::rc::Rc;
 
@@ -66,7 +65,7 @@ impl IRGenerator {
 
             Expr::Break(value) => {
                 if self.loop_data.as_ref().unwrap().phi_nodes.is_some() {
-                    let node = (self.last_block(), self.expression(value));
+                    let node = (self.expression(value), self.last_block());
                     self.loop_data.as_mut().unwrap().phi_nodes.as_mut().unwrap().push(node);
                 }
                 self.builder
@@ -581,13 +580,11 @@ impl IRGenerator {
         self.builder.build_unconditional_branch(&cont_bb);
 
         self.position_at_block(cont_bb);
-        let mut loop_data = std::mem::replace(&mut self.loop_data, prev_loop).unwrap();
-        if let Some(result_store) = result_store {
-            // TODO: This is terribly inefficient
+        let loop_data = std::mem::replace(&mut self.loop_data, prev_loop).unwrap();
+        if result_store.is_some() {
             let mut phi_nodes = loop_data.phi_nodes.unwrap();
-            phi_nodes.push((loop_end_bb, phi_node.unwrap()));
-            phi_nodes.push((else_bb, else_val));
-            let phi_nodes = phi_nodes.into_iter().map(|(a, b)| (b, a)).collect::<Vec<_>>();
+            phi_nodes.push((phi_node.unwrap(), loop_end_bb));
+            phi_nodes.push((else_val, else_bb));
             self.build_phi(&phi_nodes)
         } else {
             self.none_const

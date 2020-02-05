@@ -194,7 +194,7 @@ impl MIRGenerator {
     /// Will append an 'entry' block to the fn and set the pointer at
     /// that location, then insert all parameters as variables.
     fn prepare_function(&mut self, function: &MutRc<Function>, err_line: usize) -> Res<()> {
-        let mut func = function.borrow_mut();
+        let func = function.borrow();
 
         self.set_pointer(Rc::clone(function));
         self.begin_scope();

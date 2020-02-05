@@ -47,11 +47,10 @@ fn fill_class(gen: &mut MIRGenerator, class: MutRc<Class>) -> Res<()> {
 fn build_class(gen: &mut MIRGenerator, class: &MutRc<Class>) -> Res<()> {
     let ast = Rc::clone(&class.borrow().ast);
     let class_variable = {
-        // TODO  ??
         let inst = class.borrow().instantiator.type_.as_function().clone();
-        let mut func = inst.borrow_mut();
         gen.set_pointer(inst.clone());
-        Rc::clone(&func.parameters[0])
+        let inst = inst.borrow();
+        Rc::clone(&inst.parameters[0])
     };
 
     let offset = class.borrow().members.len();
@@ -102,14 +101,13 @@ fn build_class(gen: &mut MIRGenerator, class: &MutRc<Class>) -> Res<()> {
 fn build_destructor(gen: &mut MIRGenerator, class: &MutRc<Class>) {
     let (class_variable, dealloc_var) = {
         let dest = class.borrow().destructor.type_.as_function().clone();
-        let mut func = dest.borrow_mut();
+        let func = dest.borrow();
         gen.set_pointer(dest.clone());
         (
             Rc::clone(&func.parameters[0]),
             Rc::clone(&func.parameters[1]),
         )
     };
-    let func = class.borrow().destructor.type_.as_function().clone();
 
     let mut if_free_exprs = Vec::with_capacity(class.borrow().members.len() + 3);
     if_free_exprs.push(Expr::mod_rc(Expr::load(&class_variable), false));
@@ -138,7 +136,6 @@ fn build_destructor(gen: &mut MIRGenerator, class: &MutRc<Class>) {
             true,
         ));
     }
-    let free_fn = INTRINSICS.with(|i| Rc::clone(&i.borrow().libc_free.as_ref().unwrap()));
     if_free_exprs.push(Expr::Free(Box::new(Expr::load(&class_variable))));
 
     gen.insert_at_ptr(Expr::if_(

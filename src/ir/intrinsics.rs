@@ -158,7 +158,7 @@ impl IRGenerator {
                     .into_pointer_value();
 
                 let rc = self.builder.build_load(impl_ptr, "rcload").into_int_value();
-                let added = self.context.i32_type().const_int(1, false).into();
+                let added = self.context.i32_type().const_int(1, false);
                 let new_rc = self.builder.build_int_add(rc, added, "rcinc");
                 self.builder.build_store(impl_ptr, new_rc);
                 self.builder.build_unconditional_branch(&end_bb);
@@ -225,7 +225,7 @@ impl IRGenerator {
                     .into_pointer_value();
 
                 let rc = self.builder.build_load(impl_ptr, "rcload").into_int_value();
-                let added = self.context.i32_type().const_int(1, false).into();
+                let added = self.context.i32_type().const_int(1, false);
                 let new_rc = self.builder.build_int_sub(rc, added, "rcdec");
                 self.builder.build_store(impl_ptr, new_rc);
                 let rc_is_0 = self.builder.build_int_compare(

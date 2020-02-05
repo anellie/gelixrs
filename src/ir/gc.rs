@@ -143,7 +143,7 @@ impl IRGenerator {
 
     fn write_new_refcount(&self, refcount: PointerValue, decrement: bool) -> IntValue {
         let rc = self.builder.build_load(refcount, "rcload").into_int_value();
-        let added = self.context.i32_type().const_int(1, false).into();
+        let added = self.context.i32_type().const_int(1, false);
         let new_rc = if decrement {
             self.builder.build_int_sub(rc, added, "rcdec")
         } else {

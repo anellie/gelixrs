@@ -283,10 +283,6 @@ impl Expr {
         }
     }
 
-    pub fn any_const() -> Expr {
-        Expr::Literal(Literal::Any)
-    }
-
     pub fn none_const() -> Expr {
         Expr::Literal(Literal::None)
     }
@@ -491,7 +487,7 @@ impl Display for Expr {
             Expr::Return(expr) => write!(f, "return {}", expr),
 
             // TODO: Not be lazy
-            Expr::When { cases, else_, phi } => write!(f, "when (ty: {})", phi.is_some()),
+            Expr::When { phi, .. } => write!(f, "when (ty: {})", phi.is_some()),
         }
     }
 }

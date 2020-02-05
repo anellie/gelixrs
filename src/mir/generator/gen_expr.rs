@@ -353,7 +353,7 @@ impl MIRGenerator {
 
         let body = self.expression(body)?;
         let body_type = body.get_type();
-        let body_alloca = self.get_or_create_loop_var(&body_type)?;
+        self.get_or_create_loop_var(&body_type)?;
 
         let (else_, result_store) = if let Some(else_b) = else_b {
             let else_val = self.expression(&else_b)?;
@@ -390,7 +390,6 @@ impl MIRGenerator {
         then_branch: &ASTExpr,
         else_branch: &Option<Box<ASTExpr>>,
     ) -> Res<Expr> {
-        let mut phi = false;
         let cond = self.expression(condition)?;
         if cond.get_type() != Type::Bool {
             return Err(self.err(condition.get_token(), "If condition must be a boolean"));
