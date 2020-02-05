@@ -166,6 +166,8 @@ impl IRGenerator {
                 self.build_store(var, val, *first_store);
                 val
             }
+
+            Expr::When { cases, else_, phi } => self.when(cases, else_, phi.is_some()),
         }
     }
 
@@ -677,6 +679,50 @@ impl IRGenerator {
             }
 
             _ => panic!("Invalid unary operator"),
+        }
+    }
+
+    fn when(&mut self, cases: &[(Expr, Expr)], else_: &Expr, phi: bool) -> BasicValueEnum {
+        let cond = self.context.bool_type().const_int(1, false);
+        let end_bb = self.append_block("when-end");
+
+        let mut phi_nodes = Vec::with_capacity(cases.len());
+        let mut next_bb = self.append_block("when-case-false");
+        for (br_cond, branch) in cases {
+            let case_bb = self.append_block("when-case");
+
+            self.push_locals();
+            let br_cond = self.expression(br_cond).into_int_value();
+            self.pop_dec_locals();
+            let cmp = self.builder.build_int_compare(IntPredicate::EQ, cond, br_cond, "when-cmp");
+            self.builder.build_conditional_branch(cmp, &case_bb, &next_bb);
+
+            self.position_at_block(case_bb);
+            self.push_locals();
+            let value = self.expression(branch);
+            if phi { self.pop_locals_remove(value) } else { self.pop_dec_locals() };
+            phi_nodes.push((value, self.last_block()));
+            self.builder.build_unconditional_branch(&end_bb);
+
+            self.position_at_block(next_bb);
+            next_bb = self.append_block("when-case-false");
+        }
+        // Next case is 'else', this BB is not needed
+        next_bb.remove_from_function().unwrap();
+
+        // If the last case falls though, do the else case
+        self.push_locals();
+        let else_val = self.expression(else_);
+        if phi { self.pop_locals_remove(else_val) } else { self.pop_dec_locals() };
+        let else_end_bb = self.last_block();
+        self.builder.build_unconditional_branch(&end_bb);
+        phi_nodes.push((else_val, else_end_bb));
+
+        self.position_at_block(end_bb);
+        if phi {
+            self.build_phi(&phi_nodes)
+        } else {
+            self.none_const
         }
     }
 }

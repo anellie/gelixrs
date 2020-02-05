@@ -250,15 +250,17 @@ impl IRGenerator {
         // TODO: Comically inefficient
         let nodes = nodes.iter().filter(|(v, _)| v.get_type() != self.none_const.get_type()).collect::<Vec<_>>();
 
-        if nodes.len() == 1 {
-            nodes[0].0
-        } else {
-            let ty = nodes[0].0.get_type();
-            let nodes = nodes.iter().map(|(v, b)| (v as &dyn BasicValue, b)).collect::<Vec<_>>();
-            let phi = self.builder.build_phi(ty, "phi");
-            phi.add_incoming(&nodes);
-            self.locals().push(phi.as_basic_value());
-            phi.as_basic_value()
+        match nodes.len() {
+            0 => self.none_const,
+            1 => nodes[0].0,
+            _ => {
+                let ty = nodes[0].0.get_type();
+                let nodes = nodes.iter().map(|(v, b)| (v as &dyn BasicValue, b)).collect::<Vec<_>>();
+                let phi = self.builder.build_phi(ty, "phi");
+                phi.add_incoming(&nodes);
+                self.locals().push(phi.as_basic_value());
+                phi.as_basic_value()
+            }
         }
     }
 }

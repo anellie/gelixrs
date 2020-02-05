@@ -649,7 +649,38 @@ impl MIRGenerator {
         branches: &[(ASTExpr, ASTExpr)],
         else_branch: &ASTExpr,
     ) -> Res<Expr> {
-        unimplemented!()
+        let value = self.expression(value)?;
+        let cond_type = value.get_type();
+
+        let else_val = self.expression(else_branch)?;
+        let branch_type = else_val.get_type();
+
+        let mut cases = Vec::with_capacity(branches.len());
+        for (br_cond_ast, branch) in branches.iter() {
+            let br_cond = self.expression(br_cond_ast)?;
+            if br_cond.get_type() != cond_type {
+                return Err(self.err(
+                    br_cond_ast.get_token(),
+                    "Branches of when must be of same type as the value compared.",
+                ));
+            }
+
+            // Small hack to get a token that gives the user
+            // a useful error without having to add complexity
+            // to binary_mir()
+            let mut optok = br_cond_ast.get_token().clone();
+            optok.t_type = TType::EqualEqual;
+            let cond = self.binary_mir(br_cond, &optok, value.clone())?;
+
+            let branch_val = self.expression(branch)?;
+            if branch_val.get_type() != branch_type {
+                return Err(self.err(branch.get_token(), "Branch results must be of same type."));
+            }
+
+            cases.push((cond, branch_val))
+        }
+
+        Ok(Expr::when(cases, Some(else_val), Some(branch_type)))
     }
 
     fn var_def(&mut self, var: &ASTVar) -> Res<Expr> {

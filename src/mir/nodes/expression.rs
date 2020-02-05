@@ -138,6 +138,14 @@ pub enum Expr {
         value: Box<Expr>,
         first_store: bool,
     },
+
+    /// A when expression.
+    /// Cases are (condition, body).
+    When {
+        cases: Vec<(Expr, Expr)>,
+        else_: Box<Expr>,
+        phi: Option<Type>,
+    }
 }
 
 impl Expr {
@@ -267,6 +275,14 @@ impl Expr {
         Expr::VarGet(Rc::clone(var))
     }
 
+    pub fn when(cases: Vec<(Expr, Expr)>, else_: Option<Expr>, phi: Option<Type>) -> Expr {
+        Expr::When {
+            cases,
+            else_: Box::new(else_.unwrap_or(Expr::Literal(Literal::None))),
+            phi
+        }
+    }
+
     pub fn any_const() -> Expr {
         Expr::Literal(Literal::Any)
     }
@@ -371,6 +387,8 @@ impl Expr {
             }
 
             Expr::VarGet(var) | Expr::VarStore { var, .. } => var.type_.clone(),
+
+            Expr::When { phi, .. } => phi.clone().unwrap_or(Type::None)
         }
     }
 }
@@ -471,6 +489,9 @@ impl Display for Expr {
             } => write!(f, "loop ({}) {} else {}", condition, body, else_),
 
             Expr::Return(expr) => write!(f, "return {}", expr),
+
+            // TODO: Not be lazy
+            Expr::When { cases, else_, phi } => write!(f, "when (ty: {})", phi.is_some()),
         }
     }
 }
