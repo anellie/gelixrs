@@ -102,7 +102,6 @@ pub enum Expr {
         condition: Box<Expr>,
         body: Box<Expr>,
         else_: Box<Expr>,
-        variables: Vec<Rc<Variable>>,
         result_store: Option<Rc<Variable>>,
     },
 
@@ -217,14 +216,12 @@ impl Expr {
         cond: Expr,
         body: Expr,
         else_: Option<Expr>,
-        variables: Vec<Rc<Variable>>,
         store: Option<Rc<Variable>>,
     ) -> Expr {
         Expr::Loop {
             condition: Box::new(cond),
             body: Box::new(body),
             else_: Box::new(else_.unwrap_or(Expr::Literal(Literal::None))),
-            variables,
             result_store: store,
         }
     }

@@ -1,0 +1,25 @@
+/*
+1
+2
+freed
+3
+*/
+
+import std/memory/Free
+
+func main() {
+    print("1")
+    {
+        val a = S()
+        print("2")
+    }
+    print("3")
+}
+
+class S {}
+
+impl Free for S {
+    func free() {
+        print("freed")
+    }
+}

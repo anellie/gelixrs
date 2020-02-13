@@ -196,28 +196,19 @@ impl IRGenerator {
     }
 
     pub fn pop_locals_lift(&mut self, lift: BasicValueEnum) {
-        let mut locals = self.locals.pop().unwrap();
+        let locals = self.locals.pop().unwrap();
 
-        if let Some(val) = locals.pop() {
-            if val == lift {
-                self.locals().push(lift)
-            } else {
-                locals.push(val)
-            }
+        if !locals.is_empty() {
+            self.increment_refcount(lift);
+            self.locals().push(lift);
         }
 
         self.decrement_locals(&locals);
     }
 
     pub fn pop_locals_remove(&mut self, lift: BasicValueEnum) {
-        let mut locals = self.locals.pop().unwrap();
-
-        if let Some(val) = locals.pop() {
-            if val != lift {
-                locals.push(val)
-            }
-        }
-
+        let locals = self.locals.pop().unwrap();
+        self.increment_refcount(lift);
         self.decrement_locals(&locals);
     }
 
@@ -240,7 +231,10 @@ impl IRGenerator {
 
         match nodes.len() {
             0 => self.none_const,
-            1 => nodes[0].0,
+            1 => {
+                self.locals().push(nodes[0].0);
+                nodes[0].0
+            },
             _ => {
                 let ty = nodes[0].0.get_type();
                 let nodes = nodes.iter().map(|(v, b)| (v as &dyn BasicValue, b)).collect::<Vec<_>>();

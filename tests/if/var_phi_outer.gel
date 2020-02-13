@@ -1,0 +1,18 @@
+/*
+Hello!
+hi!
+Hello!
+*/
+
+func main() {
+    val a = "Hello!"
+    val inner = {
+        if (false) "bad"
+        else {
+            print(a)
+            print("hi!")
+            a
+        }
+    }
+    print(inner)
+}

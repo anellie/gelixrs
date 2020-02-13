@@ -147,9 +147,6 @@ impl IRGenerator {
             let alloc_ty = self.ir_ty_ptr(&var.type_);
             let alloca = self.builder.build_alloca(alloc_ty, &name);
             self.variables.insert(PtrEqRc::new(var), alloca);
-            if var.as_local.get() {
-                self.locals().push(alloca.into());
-            }
         }
 
         for expr in &func.exprs {
@@ -231,7 +228,6 @@ impl IRGenerator {
         let mpm = PassManager::create(());
         mpm.add_instruction_combining_pass();
         mpm.add_reassociate_pass();
-        mpm.add_cfg_simplification_pass();
         mpm.add_basic_alias_analysis_pass();
         mpm.add_instruction_combining_pass();
         mpm.add_reassociate_pass();

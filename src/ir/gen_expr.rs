@@ -111,9 +111,8 @@ impl IRGenerator {
                 condition,
                 body,
                 else_,
-                variables,
                 result_store,
-            } => self.loop_(condition, body, else_, variables, result_store),
+            } => self.loop_(condition, body, else_, result_store),
 
             Expr::ModifyRefCount { object, dec } => self.modify_ref_count(object, *dec),
 
@@ -163,6 +162,10 @@ impl IRGenerator {
                 let var = self.get_variable(var);
                 let val = self.expression(value);
                 self.build_store(var, val, *first_store);
+                if *first_store {
+                    self.locals().push(var.into());
+                }
+
                 val
             }
 
@@ -532,7 +535,6 @@ impl IRGenerator {
         condition: &Expr,
         body: &Expr,
         else_: &Expr,
-        variables: &[Rc<Variable>],
         result_store: &Option<Rc<Variable>>,
     ) -> BasicValueEnum {
         let loop_bb = self.append_block("for-loop");
@@ -559,10 +561,6 @@ impl IRGenerator {
             self.build_store(self.get_variable(result_store), body, false);
         }
         self.pop_dec_locals();
-        for var in variables {
-            let expr = self.expression(&Expr::load(var));
-            self.decrement_refcount(expr)
-        }
         let cond = self.expression(condition).into_int_value();
         let phi_node = if let Some(result_store) = result_store {
             Some(self.load_ptr(self.get_variable(result_store)))

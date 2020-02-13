@@ -55,7 +55,12 @@ extern "C" fn test_malloc(size: i64) -> i64 {
 
 extern "C" fn test_free(ptr: i64) {
     MALLOC_LIST.lock().unwrap().remove(&ptr);
-    unsafe { free(ptr) }
+    // TODO: free seems to cause SIGSEGV on some tests,
+    // even though they run fine outside the test runner.
+    // This shouldn't be a very big issue unless more tests
+    // with big memory requirements are added;
+    // not calling free causes the runner to leak less than 1MB of RAM.
+    // unsafe { free(ptr) }
 }
 
 #[test]

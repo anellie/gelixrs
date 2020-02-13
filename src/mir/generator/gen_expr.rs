@@ -366,8 +366,8 @@ impl MIRGenerator {
             (None, None)
         };
 
-        let loop_data = std::mem::replace(&mut self.current_loop, prev_loop).unwrap();
-        Ok(Expr::loop_(cond, body, else_, loop_data.variables, result_store))
+        self.current_loop = prev_loop;
+        Ok(Expr::loop_(cond, body, else_, result_store))
     }
 
     fn get(&mut self, object: &ASTExpr, name: &Token) -> Res<Expr> {
@@ -563,10 +563,6 @@ impl MIRGenerator {
             false,
             expr.get_type(),
         );
-        if let Some(loopdat) = &mut self.current_loop {
-            loopdat.variables.push(Rc::clone(&var));
-            var.as_local.set(false);
-        }
         Ok(Expr::store(&var, expr, true))
     }
 
@@ -686,10 +682,6 @@ impl MIRGenerator {
         let init = self.expression(&var.initializer)?;
         let _type = init.get_type();
         let var = self.define_variable(&var.name, var.mutable, _type);
-        if let Some(loopdat) = &mut self.current_loop {
-            loopdat.variables.push(Rc::clone(&var));
-            var.as_local.set(false);
-        }
         Ok(Expr::store(&var, init, true))
     }
 }

@@ -37,6 +37,8 @@ pub mod intrinsics;
 pub mod module;
 pub mod passes;
 
+pub type Environment = HashMap<Rc<String>, Rc<Variable>>;
+
 /// The MIRGenerator turns a list of declarations produced by the parser
 /// into their MIR representation.
 ///
@@ -57,7 +59,7 @@ pub struct MIRGenerator {
     /// An environment is a scope that variables live in.
     /// This field is used like a stack.
     /// See the begin_scope and end_scope functions for more info.
-    environments: Vec<HashMap<Rc<String>, Rc<Variable>>>,
+    environments: Vec<Environment>,
 
     /// The current loop, if in one.
     current_loop: Option<ForLoop>,
@@ -554,11 +556,6 @@ pub struct Pointer {
 struct ForLoop {
     /// The alloca of the for loop result. Can be None for loops that return None type.
     result_var: Option<Rc<Variable>>,
-    /// All variables that were newly created inside the loop.
-    /// This is used to decrement their refcount at the end of the loop,
-    /// which is required - simply decrementing them once at the end of the
-    /// function like usual would be incorrect behaviour causing leaks.
-    variables: Vec<Rc<Variable>>,
 }
 
 pub type Callable = Either<Rc<Variable>, IFaceFuncIndex>;
