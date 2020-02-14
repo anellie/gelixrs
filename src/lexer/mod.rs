@@ -89,6 +89,7 @@ impl Lexer {
         token.t_type = match &token.lexeme[..] {
             "and" => TType::And,
             "break" => TType::Break,
+            "case" => TType::Case,
             "class" => TType::Class,
             "construct" => TType::Construct,
             "else" => TType::Else,

@@ -97,6 +97,7 @@ pub enum TType {
 
     And,
     Break,
+    Case,
     Class,
     Construct,
     Else,

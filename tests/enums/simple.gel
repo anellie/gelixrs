@@ -1,0 +1,24 @@
+/*
+good
+good
+*/
+
+func main() {
+    val a = A:A
+    if (a == A:B) print("bad")
+    if (a == A:A) print("good")
+
+    when (a) {
+        A:A -> print("good")
+        A:B -> print("no")
+        else -> print("bad")
+    }
+}
+
+enum A {
+
+    case A
+    case B
+    case C
+
+}

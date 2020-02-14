@@ -75,7 +75,10 @@ pub enum Expr {
 
     /// A cast to an interface.
     /// Will create a temp alloca in IR to hold the interface struct.
-    CastToInterface { object: Box<Expr>, to: Type },
+    CastToInterface {
+        object: Box<Expr>,
+        to: Type,
+    },
 
     /// Construct a closure from the given function along with the captured
     /// variables. The function must have an additional first parameter
@@ -108,10 +111,16 @@ pub enum Expr {
     /// Modifies the refcount on a value, either
     /// incrementing or decrementing it.
     /// It returns the value - it essentially wraps it
-    ModifyRefCount { object: Box<Expr>, dec: bool },
+    ModifyRefCount {
+        object: Box<Expr>,
+        dec: bool,
+    },
 
     /// Gets a member of a class struct.
-    StructGet { object: Box<Expr>, index: usize },
+    StructGet {
+        object: Box<Expr>,
+        index: usize,
+    },
 
     /// Sets a member of a class struct.
     StructSet {
@@ -126,7 +135,10 @@ pub enum Expr {
     Return(Box<Expr>),
 
     /// A unary expression on numbers.
-    Unary { operator: TType, right: Box<Expr> },
+    Unary {
+        operator: TType,
+        right: Box<Expr>,
+    },
 
     /// Returns a variable.
     VarGet(Rc<Variable>),
@@ -144,7 +156,7 @@ pub enum Expr {
         cases: Vec<(Expr, Expr)>,
         else_: Box<Expr>,
         phi: Option<Type>,
-    }
+    },
 }
 
 impl Expr {
@@ -212,12 +224,7 @@ impl Expr {
         }
     }
 
-    pub fn loop_(
-        cond: Expr,
-        body: Expr,
-        else_: Option<Expr>,
-        store: Option<Rc<Variable>>,
-    ) -> Expr {
+    pub fn loop_(cond: Expr, body: Expr, else_: Option<Expr>, store: Option<Rc<Variable>>) -> Expr {
         Expr::Loop {
             condition: Box::new(cond),
             body: Box::new(body),
@@ -276,7 +283,7 @@ impl Expr {
         Expr::When {
             cases,
             else_: Box::new(else_.unwrap_or(Expr::Literal(Literal::None))),
-            phi
+            phi,
         }
     }
 
@@ -325,10 +332,16 @@ impl Expr {
 
             Expr::ConstructClosure { function, .. } => function.borrow().to_closure_type(),
 
-            Expr::If { then, else_, phi, .. } => {
+            Expr::If {
+                then, else_, phi, ..
+            } => {
                 if *phi {
                     let then_ty = then.get_type();
-                    if then_ty != Type::Any { then_ty } else { else_.get_type() }
+                    if then_ty != Type::Any {
+                        then_ty
+                    } else {
+                        else_.get_type()
+                    }
                 } else {
                     Type::None
                 }
@@ -381,7 +394,7 @@ impl Expr {
 
             Expr::VarGet(var) | Expr::VarStore { var, .. } => var.type_.clone(),
 
-            Expr::When { phi, .. } => phi.clone().unwrap_or(Type::None)
+            Expr::When { phi, .. } => phi.clone().unwrap_or(Type::None),
         }
     }
 }
@@ -472,7 +485,11 @@ impl Display for Expr {
                 then,
                 else_,
                 phi,
-            } => write!(f, "if (phi {}) ({}) {} else {}", phi, condition, then, else_),
+            } => write!(
+                f,
+                "if (phi {}) ({}) {} else {}",
+                phi, condition, then, else_
+            ),
 
             Expr::Loop {
                 condition,

@@ -72,6 +72,12 @@ pub enum Expression {
         name: Token,
     },
 
+    /// A getter of a static property (X:Y)
+    GetStatic {
+        object: Box<Expression>,
+        name: Token,
+    },
+
     /// An if expression. Value is the value of the expression of the chosen branch.
     /// If no else branch is present or either branch does not return an expression,
     /// None is returned.
@@ -148,6 +154,7 @@ impl Expression {
             Expression::Call { callee, .. } => callee.get_token(),
             Expression::For { condition, .. } => condition.get_token(),
             Expression::Get { name, .. } => name,
+            Expression::GetStatic { name, .. } => name,
             Expression::If { condition, .. } => condition.get_token(),
             Expression::IndexGet { bracket, .. } => &bracket,
             Expression::IndexSet { index, .. } => index.get_token(),

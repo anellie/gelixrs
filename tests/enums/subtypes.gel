@@ -1,0 +1,49 @@
+/*
+こにちわ！
+5
+こにちわ！
+すみません。
+すみません。
+*/
+
+func main() {
+    val a = A:A("こにちわ！")
+
+    when (a) {
+        A:A -> {
+            print(a.b)
+            print(a.a)
+        }
+
+        else -> print("bad")
+    }
+
+    when (a) {
+        A:A -> {
+            print(a.print())
+            a.sorry()
+        }
+        else -> print("bad")
+    }
+
+    a.sorry()
+}
+
+enum A {
+
+    val a = 5
+
+    func sorry() {
+        print("すみません。")
+    }
+
+    case A {
+        val b: String
+
+        func print() -> String = this.b
+    }
+
+    case B {
+        val b: i64
+    }
+}

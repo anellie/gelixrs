@@ -9,10 +9,10 @@ use crate::{
     mir::nodes::Variable,
 };
 use inkwell::{
+    basic_block::BasicBlock,
     types::{AnyTypeEnum, BasicType, BasicTypeEnum},
     values::{BasicValue, BasicValueEnum, PointerValue},
     AddressSpace::Generic,
-    basic_block::BasicBlock
 };
 use std::rc::Rc;
 
@@ -227,17 +227,23 @@ impl IRGenerator {
     }
 
     pub fn build_phi(&mut self, nodes: &[(BasicValueEnum, BasicBlock)]) -> BasicValueEnum {
-        let nodes = nodes.iter().filter(|(v, _)| v.get_type() != self.none_const.get_type()).collect::<Vec<_>>();
+        let nodes = nodes
+            .iter()
+            .filter(|(v, _)| v.get_type() != self.none_const.get_type())
+            .collect::<Vec<_>>();
 
         match nodes.len() {
             0 => self.none_const,
             1 => {
                 self.locals().push(nodes[0].0);
                 nodes[0].0
-            },
+            }
             _ => {
                 let ty = nodes[0].0.get_type();
-                let nodes = nodes.iter().map(|(v, b)| (v as &dyn BasicValue, b)).collect::<Vec<_>>();
+                let nodes = nodes
+                    .iter()
+                    .map(|(v, b)| (v as &dyn BasicValue, b))
+                    .collect::<Vec<_>>();
                 let phi = self.builder.build_phi(ty, "phi");
                 phi.add_incoming(&nodes);
                 self.locals().push(phi.as_basic_value());

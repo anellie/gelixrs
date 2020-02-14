@@ -66,7 +66,13 @@ impl IRGenerator {
             Expr::Break(value) => {
                 if self.loop_data.as_ref().unwrap().phi_nodes.is_some() {
                     let node = (self.expression(value), self.last_block());
-                    self.loop_data.as_mut().unwrap().phi_nodes.as_mut().unwrap().push(node);
+                    self.loop_data
+                        .as_mut()
+                        .unwrap()
+                        .phi_nodes
+                        .as_mut()
+                        .unwrap()
+                        .push(node);
                 }
                 self.builder
                     .build_unconditional_branch(&self.loop_data.as_ref().unwrap().end_block);
@@ -545,7 +551,11 @@ impl IRGenerator {
             &mut self.loop_data,
             Some(LoopData {
                 end_block: cont_bb,
-                phi_nodes: if result_store.is_some() { Some(vec![]) } else { None },
+                phi_nodes: if result_store.is_some() {
+                    Some(vec![])
+                } else {
+                    None
+                },
             }),
         );
 
@@ -689,13 +699,20 @@ impl IRGenerator {
             self.push_locals();
             let br_cond = self.expression(br_cond).into_int_value();
             self.pop_dec_locals();
-            let cmp = self.builder.build_int_compare(IntPredicate::EQ, cond, br_cond, "when-cmp");
-            self.builder.build_conditional_branch(cmp, &case_bb, &next_bb);
+            let cmp = self
+                .builder
+                .build_int_compare(IntPredicate::EQ, cond, br_cond, "when-cmp");
+            self.builder
+                .build_conditional_branch(cmp, &case_bb, &next_bb);
 
             self.position_at_block(case_bb);
             self.push_locals();
             let value = self.expression(branch);
-            if phi { self.pop_locals_remove(value) } else { self.pop_dec_locals() };
+            if phi {
+                self.pop_locals_remove(value)
+            } else {
+                self.pop_dec_locals()
+            };
             phi_nodes.push((value, self.last_block()));
             self.builder.build_unconditional_branch(&end_bb);
 
@@ -708,7 +725,11 @@ impl IRGenerator {
         // If the last case falls though, do the else case
         self.push_locals();
         let else_val = self.expression(else_);
-        if phi { self.pop_locals_remove(else_val) } else { self.pop_dec_locals() };
+        if phi {
+            self.pop_locals_remove(else_val)
+        } else {
+            self.pop_dec_locals()
+        };
         let else_end_bb = self.last_block();
         self.builder.build_unconditional_branch(&end_bb);
         phi_nodes.push((else_val, else_end_bb));

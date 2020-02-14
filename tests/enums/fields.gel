@@ -1,0 +1,37 @@
+/*
+*/
+
+func main() {
+    val a = A:A("Hello!")
+    val b = A:B(42)
+    val c = A:C(true)
+}
+
+enum A {
+
+    val a = 5
+
+    case A {
+        val b: String
+
+        construct(b) {}
+
+        func print() -> String = this.b
+    }
+
+    case B {
+        val b: i64
+
+        construct(b) {}
+
+        func print() -> String = this.b.to_string()
+    }
+
+    case C {
+        val b: bool
+
+        construct(b) {}
+
+        func print() -> String = this.b.to_string()
+    }
+}

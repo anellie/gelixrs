@@ -56,6 +56,8 @@ impl MIRGenerator {
 
             ASTExpr::Get { object, name } => self.get(object, name),
 
+            ASTExpr::GetStatic { object, name } => unimplemented!("Static property access"),
+
             ASTExpr::If {
                 condition,
                 then_branch,
@@ -155,7 +157,10 @@ impl MIRGenerator {
         }
 
         self.begin_scope();
-        let exprs = expressions.iter().map(|e| self.expression(e)).collect::<Res<_>>()?;
+        let exprs = expressions
+            .iter()
+            .map(|e| self.expression(e))
+            .collect::<Res<_>>()?;
         self.end_scope();
 
         Ok(Expr::Block(exprs))
@@ -166,11 +171,14 @@ impl MIRGenerator {
             return Err(self.err(err_tok, "Break is only allowed in loops."));
         }
 
-        let expr = expr.as_ref().map(|expr| {
-            let expression = self.expression(&expr)?;
-            self.get_or_create_loop_var(&expression.get_type())?;
-            Ok(expression)
-        }).transpose()?;
+        let expr = expr
+            .as_ref()
+            .map(|expr| {
+                let expression = self.expression(&expr)?;
+                self.get_or_create_loop_var(&expression.get_type())?;
+                Ok(expression)
+            })
+            .transpose()?;
 
         Ok(Expr::break_(expr))
     }
@@ -358,7 +366,10 @@ impl MIRGenerator {
         let (else_, result_store) = if let Some(else_b) = else_b {
             let else_val = self.expression(&else_b)?;
             if else_val.get_type() == body_type {
-                (Some(else_val), Some(self.get_or_create_loop_var(&body_type)?))
+                (
+                    Some(else_val),
+                    Some(self.get_or_create_loop_var(&body_type)?),
+                )
             } else {
                 (Some(else_val), None)
             }
@@ -396,7 +407,8 @@ impl MIRGenerator {
         }
 
         let then_val = self.expression(then_branch)?;
-        let else_val = else_branch.as_ref()
+        let else_val = else_branch
+            .as_ref()
             .map(|else_branch| self.expression(&else_branch))
             .unwrap_or(Ok(Expr::none_const()))?;
         let then_ty = then_val.get_type();

@@ -54,7 +54,27 @@ pub struct ClassMember {
     pub initializer: Option<Expression>,
 }
 
-// An interface definition.
+/// An enum definition.
+#[derive(Debug, Clone)]
+pub struct Enum {
+    pub name: Token,
+    pub visibility: Visibility,
+    pub generics: Option<Vec<Token>>,
+    pub variables: Vec<ClassMember>,
+    pub methods: Vec<Function>,
+    pub cases: Vec<EnumCase>,
+}
+
+/// A case inside an enum definition.
+#[derive(Debug, Clone)]
+pub struct EnumCase {
+    pub name: Token,
+    pub variables: Vec<ClassMember>,
+    pub methods: Vec<Function>,
+    pub constructors: Vec<Constructor>,
+}
+
+/// An interface definition.
 #[derive(Debug, Clone)]
 pub struct Interface {
     pub name: Token,

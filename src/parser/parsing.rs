@@ -26,7 +26,10 @@ use crate::{
     Error,
 };
 
-use crate::ast::literal::{Closure, ClosureParameter};
+use crate::ast::{
+    declaration::{Enum, EnumCase},
+    literal::{Closure, ClosureParameter},
+};
 
 // All expressions that require no semicolon when used as a higher expression.
 static NO_SEMICOLON: [TType; 3] = [TType::If, TType::LeftBrace, TType::When];
@@ -51,6 +54,9 @@ static CLASS_MODIFIERS: [TType; 0] = [];
 static MEMBER_MODIFIERS: [TType; 0] = [];
 // All tokens that can be modifiers on a method.
 static METHOD_MODIFIERS: [TType; 0] = [];
+
+// All tokens that can be modifiers on an enum.
+static ENUM_MODIFIERS: [TType; 0] = [];
 
 // All tokens that can be modifiers on a function.
 static FUNC_MODIFIERS: [TType; 2] = [TType::Extern, TType::Variadic];
@@ -108,6 +114,7 @@ impl Parser {
         self.consume_mods();
         match self.advance().t_type {
             TType::Class => module.classes.push(self.class_declaration()?),
+            TType::Enum => module.enums.push(self.enum_declaration()?),
             TType::Func => module.functions.push(self.function()?),
             TType::Import => module.imports.push(self.import_declaration()?),
             TType::Interface => module.interfaces.push(self.iface_declaration()?),
@@ -155,6 +162,86 @@ impl Parser {
         }
         self.consume(TType::RightParen, "Expected ')' after parameters.")?;
         Some(parameters)
+    }
+
+    fn enum_declaration(&mut self) -> Option<Enum> {
+        self.check_mods(&ENUM_MODIFIERS, "enum")?;
+        let visibility = self.get_visibility()?;
+        let (name, generics) = self.generic_ident()?;
+
+        self.consume(TType::LeftBrace, "Expected '{' before enum body.")?;
+
+        let mut methods: Vec<Function> = Vec::new();
+        let mut variables: Vec<ClassMember> = Vec::new();
+        let mut cases: Vec<EnumCase> = Vec::new();
+
+        while !self.check(TType::RightBrace) && !self.is_at_end() {
+            self.consume_mods();
+            match self.advance().t_type {
+                TType::Var => variables.push(self.class_variable(true)?),
+                TType::Val => variables.push(self.class_variable(false)?),
+                TType::Case => cases.push(self.enum_case()?),
+
+                TType::Func => {
+                    let func = self.function()?;
+                    if func.sig.generics.is_some() {
+                        self.error_at_current("Methods may not have generic parameters.")?
+                    }
+                    methods.push(func);
+                }
+
+                _ => self.error_at_current("Encountered invalid declaration inside enum.")?,
+            }
+        }
+
+        self.consume(TType::RightBrace, "Expected '}' after enum body.")?;
+        Some(Enum {
+            name,
+            visibility,
+            generics,
+            variables,
+            methods,
+            cases,
+        })
+    }
+
+    fn enum_case(&mut self) -> Option<EnumCase> {
+        let name = self.consume(TType::Identifier, "Expected case name.")?;
+
+        let mut methods: Vec<Function> = Vec::new();
+        let mut variables: Vec<ClassMember> = Vec::new();
+        let mut constructors: Vec<Constructor> = Vec::new();
+
+        if self.matches(TType::LeftBrace) {
+            while !self.check(TType::RightBrace) && !self.is_at_end() {
+                self.consume_mods();
+                match self.advance().t_type {
+                    TType::Var => variables.push(self.class_variable(true)?),
+                    TType::Val => variables.push(self.class_variable(false)?),
+                    TType::Construct => constructors.push(self.constructor()?),
+
+                    TType::Func => {
+                        let func = self.function()?;
+                        if func.sig.generics.is_some() {
+                            self.error_at_current("Methods may not have generic parameters.")?
+                        }
+                        methods.push(func);
+                    }
+
+                    _ => {
+                        self.error_at_current("Encountered invalid declaration inside enum case.")?
+                    }
+                }
+            }
+            self.consume(TType::RightBrace, "Expected '}' after case body.")?;
+        }
+
+        Some(EnumCase {
+            name,
+            variables,
+            methods,
+            constructors,
+        })
     }
 
     fn class_declaration(&mut self) -> Option<Class> {
@@ -232,7 +319,7 @@ impl Parser {
     }
 
     fn constructor(&mut self) -> Option<Constructor> {
-        self.check_mods(&METHOD_MODIFIERS, "class constructor")?;
+        self.check_mods(&METHOD_MODIFIERS, "constructor")?;
         let visibility = self.get_visibility()?;
 
         self.consume(TType::LeftParen, "Expected '(' after 'construct'.")?;
@@ -675,6 +762,14 @@ impl Parser {
                         object: Box::new(expression),
                         name: self
                             .consume(TType::Identifier, "Expected property name after '.'.")?,
+                    }
+                }
+
+                _ if self.matches(TType::Colon) => {
+                    expression = Expression::GetStatic {
+                        object: Box::new(expression),
+                        name: self
+                            .consume(TType::Identifier, "Expected property name after ':'.")?,
                     }
                 }
 
