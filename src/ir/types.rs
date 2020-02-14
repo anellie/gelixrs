@@ -6,10 +6,7 @@
 
 use crate::{
     ir::IRGenerator,
-    mir::{
-        nodes::{Class, ClosureType, Function, IFaceMethod, Interface, Type, Variable},
-        MutRc,
-    },
+    mir::nodes::{ClosureType, Function, IFaceMethod, Interface, Type, Variable},
 };
 use inkwell::{
     types::{BasicType, BasicTypeEnum, FunctionType, PointerType, StructType},
@@ -61,9 +58,28 @@ impl IRGenerator {
 
             Type::ClosureCaptured(captured) => self.build_captured_type(captured).into(),
 
-            Type::Class(class) => self.build_class(class).into(),
+            Type::Class(class) => self
+                .build_struct(
+                    &class.borrow().name,
+                    class.borrow().members.iter().map(|(_, m)| &m.type_),
+                )
+                .into(),
 
             Type::Interface(iface) => self.build_iface_type(iface.borrow()).into(),
+
+            Type::Enum(enu) => self
+                .build_struct(
+                    &enu.borrow().name,
+                    enu.borrow().members.iter().map(|(_, m)| &m.type_),
+                )
+                .into(),
+
+            Type::EnumCase(enu) => self
+                .build_struct(
+                    &enu.borrow().name,
+                    enu.borrow().members.iter().map(|(_, m)| &m.type_),
+                )
+                .into(),
 
             _ => panic!(format!("Unknown type '{}' to build", ty)),
         };
@@ -76,12 +92,6 @@ impl IRGenerator {
             );
         }
         ir_ty
-    }
-
-    /// Generates a class struct and its body.
-    fn build_class(&mut self, class: &MutRc<Class>) -> StructType {
-        let class = class.borrow();
-        self.build_struct(&class.name, class.members.iter().map(|(_, m)| &m.type_))
     }
 
     /// Generates the struct for captured variables, given a list of them.

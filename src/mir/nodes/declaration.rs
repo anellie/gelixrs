@@ -199,6 +199,71 @@ impl Display for IFaceMethod {
     }
 }
 
+/// A full enum including all members, methods and cases.
+/// The enum is represented as a struct in IR;
+/// to allow different variables in cases, the struct is padded.
+/// Additionally, the first field of the struct after the GC refcount
+/// is an u16 indicating the case of the enum (the discriminant).
+/// The discriminant is in the members map as `discriminant` and
+/// can be accessed by user code using that name.
+#[derive(Debug)]
+pub struct Enum {
+    /// The name of the enum.
+    pub name: Rc<String>,
+    /// All members shared across all cases.
+    pub members: IndexMap<Rc<String>, Rc<ClassMember>>,
+    /// All methods. Inserted as "doThing", not "Enum-doThing".
+    pub methods: HashMap<Rc<String>, Rc<Variable>>,
+    /// All cases of this enum.
+    pub cases: HashMap<Rc<String>, MutRc<EnumCase>>,
+    /// An internal function that is called when the refcount is decremented.
+    /// The only other parameter is a boolean indicating if the object is no longer
+    /// reachable and needs to be deallocated. If it is true, it will first decrement all enum
+    /// members first, then call free(). If not, it'll do nothing.
+    pub destructor: Rc<Variable>,
+    /// The context to be used inside this declaration.
+    pub context: Context,
+    /// The AST this was compiled from.
+    pub ast: Rc<ast::Enum>,
+}
+
+impl Enum {
+    pub fn from_ast(ast: ast::Enum, context: Context) -> MutRc<Enum> {
+        mutrc_new(Enum {
+            name: Rc::clone(&ast.name.lexeme),
+            members: IndexMap::with_capacity(ast.variables.len()),
+            methods: HashMap::with_capacity(ast.methods.len()),
+            cases: HashMap::with_capacity(ast.cases.len()),
+            destructor: Rc::new(Default::default()),
+            context,
+            ast: Rc::new(ast),
+        })
+    }
+}
+
+/// A case of an enum.
+#[derive(Debug)]
+pub struct EnumCase {
+    /// The name of the case.
+    pub name: Rc<String>,
+    /// The enum this case is a part of.
+    pub parent: MutRc<Enum>,
+    /// All case members. Includes members of the parent enum.
+    pub members: IndexMap<Rc<String>, Rc<ClassMember>>,
+    /// All case methods. Inserted as "doThing", not "Class-doThing";
+    /// includes parent enum methods.
+    pub methods: HashMap<Rc<String>, Rc<Variable>>,
+    /// An internal function that creates an instance of the case
+    /// and populates all fields with a user-given default value.
+    /// When the user wants to create an instance by calling a constructor,
+    /// this function is called first, followed by one of the constructor methods.
+    pub instantiator: Rc<Variable>,
+    /// All constructors of the case. They are simply methods
+    /// with special constraints to enforce safety.
+    /// Only call on instances produced by the instantiator function.
+    pub constructors: Vec<Rc<Variable>>,
+}
+
 /// A function.
 #[derive(Debug)]
 pub struct Function {

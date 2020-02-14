@@ -25,21 +25,12 @@ use std::rc::Rc;
 impl IRGenerator {
     pub fn expression(&mut self, expression: &Expr) -> BasicValueEnum {
         match expression {
-            Expr::AllocClassInst {
-                class,
+            Expr::AllocInst {
+                ty,
                 constructor,
                 constructor_args,
                 heap,
-            } => {
-                let ty = self.ir_ty(&Type::Class(Rc::clone(class)));
-                let alloc = self.create_alloc(ty, heap.get());
-                self.init_class_inst(
-                    alloc,
-                    self.get_variable(&class.borrow().instantiator),
-                    self.get_variable(&constructor),
-                    constructor_args,
-                )
-            }
+            } => self.alloc_inst(ty, constructor, constructor_args, heap.get()),
 
             Expr::Binary {
                 left,
@@ -90,7 +81,7 @@ impl IRGenerator {
                 index, arguments, ..
             } => self.call_dyn(*index, arguments),
 
-            Expr::CastToInterface { object, to } => self.cast_to_interface(object, to),
+            Expr::Cast { object, to } => self.cast(object, to),
 
             Expr::ConstructClosure {
                 function,
@@ -179,7 +170,29 @@ impl IRGenerator {
         }
     }
 
-    fn init_class_inst(
+    fn alloc_inst(
+        &mut self,
+        ty: &Type,
+        constructor: &Rc<Variable>,
+        constructor_args: &[Expr],
+        heap: bool,
+    ) -> BasicValueEnum {
+        let instantiator = match ty {
+            Type::Class(cls) => self.get_variable(&cls.borrow().instantiator),
+            Type::EnumCase(enu) => self.get_variable(&enu.borrow().instantiator),
+            _ => panic!("Cannot alloc type"),
+        };
+
+        let ty = self.ir_ty(ty);
+        self.build_alloc_and_init(
+            self.create_alloc(ty, heap),
+            instantiator,
+            self.get_variable(&constructor),
+            constructor_args,
+        )
+    }
+
+    fn build_alloc_and_init(
         &mut self,
         alloc: PointerValue,
         instantiator: PointerValue,
@@ -322,6 +335,19 @@ impl IRGenerator {
         }
 
         ret
+    }
+
+    fn cast(&mut self, object: &Expr, to: &Type) -> BasicValueEnum {
+        match to {
+            Type::Interface(_) => self.cast_to_interface(object, to),
+            _ => {
+                // This should be an enum cast;
+                // simply a bitcast is sufficient
+                let obj = self.expression(object);
+                let cast_ty = self.ir_ty_ptr(to);
+                self.builder.build_bitcast(obj, cast_ty, "cast")
+            }
+        }
     }
 
     fn cast_to_interface(&mut self, object: &Expr, to: &Type) -> BasicValueEnum {

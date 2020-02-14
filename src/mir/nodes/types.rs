@@ -12,7 +12,7 @@ use std::{
 
 use crate::mir::{
     generator::builder::Context,
-    nodes::{Class, Function, Interface, Variable},
+    nodes::{Class, Enum, EnumCase, Function, Interface, Variable},
     MutRc,
 };
 
@@ -68,6 +68,12 @@ pub enum Type {
     /// An interface. When used as a standalone type, it gets turned into a
     /// fat pointer (pointer to implementor + pointer to vtable) in IR.
     Interface(MutRc<Interface>),
+
+    /// An enum with unknown case.
+    Enum(MutRc<Enum>),
+
+    /// A known enum case.
+    EnumCase(MutRc<EnumCase>),
 }
 
 impl Type {
@@ -92,6 +98,8 @@ impl Type {
             Type::Class(cls) => cls.borrow().context.clone(),
             Type::Interface(iface) => iface.borrow().context.clone(),
             Type::Function(func) => func.borrow().context.clone(),
+            Type::Enum(enu) => enu.borrow().context.clone(),
+            Type::EnumCase(case) => case.borrow().parent.borrow().context.clone(),
             _ => return None,
         })
     }
@@ -172,6 +180,22 @@ impl PartialEq for Type {
                 }
             }
 
+            Type::Enum(e) => {
+                if let Type::Enum(o) = o {
+                    Rc::ptr_eq(e, o)
+                } else {
+                    false
+                }
+            }
+
+            Type::EnumCase(e) => {
+                if let Type::EnumCase(o) = o {
+                    Rc::ptr_eq(e, o)
+                } else {
+                    false
+                }
+            }
+
             Type::Any => true,
 
             _ => std::mem::discriminant(self) == std::mem::discriminant(o),
@@ -187,6 +211,8 @@ impl Hash for Type {
             Type::Function(v) => v.borrow().name.hash(state),
             Type::Class(v) => v.borrow().name.hash(state),
             Type::Interface(v) => v.borrow().name.hash(state),
+            Type::Enum(v) => v.borrow().name.hash(state),
+            Type::EnumCase(v) => v.borrow().name.hash(state),
             _ => std::mem::discriminant(self).hash(state),
         }
     }
@@ -199,6 +225,13 @@ impl Display for Type {
             Type::Closure(closure) => write!(f, "{}", closure),
             Type::Class(class) => write!(f, "{}", class.borrow().name),
             Type::Interface(iface) => write!(f, "{}", iface.borrow().name),
+            Type::Enum(enu) => write!(f, "{}", enu.borrow().name),
+            Type::EnumCase(case) => write!(
+                f,
+                "{}:{}",
+                case.borrow().parent.borrow().name,
+                case.borrow().name
+            ),
             _ => write!(f, "{:?}", self),
         }
     }

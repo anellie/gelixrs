@@ -9,7 +9,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use crate::{
     ast::{
         Class as ASTClass, Function as ASTFunc, IFaceImpl as ASTImpl, IFaceImpl,
-        Interface as ASTIFace, Type as ASTType,
+        Interface as ASTIFace, Type as ASTType, Enum as ASTEnum,
     },
     error::{Error, Res},
     lexer::token::Token,
@@ -28,6 +28,7 @@ use crate::{
     },
 };
 use either::Either::Right;
+use crate::mir::nodes::Enum;
 
 /// A prototype that classes can be instantiated from.
 /// This prototype is kept in AST form,
@@ -91,6 +92,7 @@ pub enum ProtoAST {
     Class(Rc<ASTClass>),
     Interface(Rc<ASTIFace>),
     Function(Rc<ASTFunc>),
+    Enum(Rc<ASTEnum>)
 }
 
 impl ProtoAST {
@@ -98,6 +100,7 @@ impl ProtoAST {
         match self {
             ProtoAST::Class(c) => Rc::clone(&c.name.lexeme),
             ProtoAST::Interface(i) => Rc::clone(&i.name.lexeme),
+            ProtoAST::Enum(e) => Rc::clone(&e.name.lexeme),
             ProtoAST::Function(f) => Rc::new(get_function_name(
                 &self_ref.module.borrow().path,
                 &f.sig.name.lexeme,
@@ -110,6 +113,7 @@ impl ProtoAST {
             ProtoAST::Class(c) => c.generics.as_ref().unwrap(),
             ProtoAST::Interface(i) => i.generics.as_ref().unwrap(),
             ProtoAST::Function(f) => f.sig.generics.as_ref().unwrap(),
+            ProtoAST::Enum(e) => e.generics.as_ref().unwrap()
         }
     }
 
@@ -151,6 +155,15 @@ impl ProtoAST {
                 insert_global_and_type(&builder.module, &global);
 
                 Type::Function(mir_fn)
+            }
+
+            ProtoAST::Enum(ast) => {
+                let mut ast = (**ast).clone();
+                ast.name.lexeme = Rc::clone(&name);
+
+                let context = get_context(ast.generics.as_ref().unwrap(), arguments);
+                let enu = Enum::from_ast(ast, context);
+                Type::Enum(enu)
             }
         })
     }

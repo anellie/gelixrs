@@ -29,14 +29,14 @@ use std::cell::Cell;
 /// crash or broken IR code.
 #[derive(Debug, Clone)]
 pub enum Expr {
-    /// Create a class instance.
+    /// Create a class or enum instance.
     /// This will perform the following steps in IR:
     /// - Allocate either an alloca or on the heap with malloc
-    /// - Call the class instantiator with this new allocation
+    /// - Call the instantiator with this new allocation
     /// - Call the given constructor with the allocation
     /// - Return the now initialized object as the value of this Expr
-    AllocClassInst {
-        class: MutRc<Class>,
+    AllocInst {
+        ty: Type,
         constructor: Rc<Variable>,
         constructor_args: Vec<Expr>,
         heap: Cell<bool>,
@@ -73,12 +73,15 @@ pub enum Expr {
         arguments: Vec<Expr>,
     },
 
-    /// A cast to an interface.
-    /// Will create a temp alloca in IR to hold the interface struct.
-    CastToInterface {
-        object: Box<Expr>,
-        to: Type,
-    },
+    /// A cast to some other type.
+    /// Following casts are currently done:
+    /// - Interface implementor to interface
+    ///   -> Will create a temp alloca in IR to hold the interface struct.
+    ///
+    /// Following casts are simply a noop bitcast in IR:
+    /// - Enum case to parent enum
+    /// - Parent enum to case (unchecked; MIR code does so)
+    Cast { object: Box<Expr>, to: Type },
 
     /// Construct a closure from the given function along with the captured
     /// variables. The function must have an additional first parameter
@@ -89,8 +92,15 @@ pub enum Expr {
         captured: Rc<Vec<Rc<Variable>>>,
     },
 
+    /// Calls libc free() on the inner expression.
+    /// Currently only used in destructors.
     Free(Box<Expr>),
 
+    /// An if branching expression.
+    /// For ASTExpr::If without else block,
+    /// else is simply Expr::none_const()
+    /// `phi` indicates that the expression will return
+    /// the value of the branch executed.
     If {
         condition: Box<Expr>,
         then: Box<Expr>,
@@ -101,6 +111,12 @@ pub enum Expr {
     /// Simply produces the literal as value.
     Literal(Literal),
 
+    /// A loop. body is executed until the condition is no
+    /// longer true; else is executed if it is never true.
+    /// For ASTExpr::For without else block,
+    /// else is simply Expr::none_const()
+    /// `result_store` is the value of the expression
+    /// if present, otherwise it's Expr::none_const().
     Loop {
         condition: Box<Expr>,
         body: Box<Expr>,
@@ -111,16 +127,10 @@ pub enum Expr {
     /// Modifies the refcount on a value, either
     /// incrementing or decrementing it.
     /// It returns the value - it essentially wraps it
-    ModifyRefCount {
-        object: Box<Expr>,
-        dec: bool,
-    },
+    ModifyRefCount { object: Box<Expr>, dec: bool },
 
     /// Gets a member of a class struct.
-    StructGet {
-        object: Box<Expr>,
-        index: usize,
-    },
+    StructGet { object: Box<Expr>, index: usize },
 
     /// Sets a member of a class struct.
     StructSet {
@@ -135,10 +145,7 @@ pub enum Expr {
     Return(Box<Expr>),
 
     /// A unary expression on numbers.
-    Unary {
-        operator: TType,
-        right: Box<Expr>,
-    },
+    Unary { operator: TType, right: Box<Expr> },
 
     /// Returns a variable.
     VarGet(Rc<Variable>),
@@ -165,8 +172,8 @@ impl Expr {
         constructor: &Rc<Variable>,
         constructor_args: Vec<Expr>,
     ) -> Expr {
-        Expr::AllocClassInst {
-            class: Rc::clone(&class),
+        Expr::AllocInst {
+            ty: Type::Class(Rc::clone(&class)),
             constructor: Rc::clone(&constructor),
             constructor_args,
             heap: Cell::new(true),
@@ -186,7 +193,7 @@ impl Expr {
     }
 
     pub fn iface_cast(obj: Expr, ty: &Type) -> Expr {
-        Expr::CastToInterface {
+        Expr::Cast {
             object: Box::new(obj),
             to: ty.clone(),
         }
@@ -296,7 +303,7 @@ impl Expr {
     /// on malformed expressions is undefined behavior that can lead to panics.
     pub fn get_type(&self) -> Type {
         match self {
-            Expr::AllocClassInst { class, .. } => Type::Class(Rc::clone(class)),
+            Expr::AllocInst { ty, .. } => ty.clone(),
 
             Expr::Binary {
                 right, operator, ..
@@ -328,7 +335,7 @@ impl Expr {
                 .ret_type
                 .clone(),
 
-            Expr::CastToInterface { to, .. } => to.clone(),
+            Expr::Cast { to, .. } => to.clone(),
 
             Expr::ConstructClosure { function, .. } => function.borrow().to_closure_type(),
 
@@ -402,9 +409,7 @@ impl Expr {
 impl Display for Expr {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         match self {
-            Expr::AllocClassInst { class, heap, .. } => {
-                write!(f, "alloc {} (heap: {})", class.borrow().name, heap.get())
-            }
+            Expr::AllocInst { ty, heap, .. } => write!(f, "alloc {} (heap: {})", ty, heap.get()),
 
             Expr::Binary {
                 left,
@@ -437,7 +442,7 @@ impl Display for Expr {
                 Ok(())
             }
 
-            Expr::CastToInterface { object, to, .. } => write!(f, "cast {} to {}", object, to),
+            Expr::Cast { object, to, .. } => write!(f, "cast {} to {}", object, to),
 
             Expr::ConstructClosure {
                 global, captured, ..

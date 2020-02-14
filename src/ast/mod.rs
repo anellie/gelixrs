@@ -4,7 +4,7 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-pub use declaration::{Class, Function, IFaceImpl, Interface, Type};
+pub use declaration::{Class, Enum, Function, IFaceImpl, Interface, Type};
 pub use expression::Expression;
 pub use literal::Literal;
 pub use module::{Import, Module};
