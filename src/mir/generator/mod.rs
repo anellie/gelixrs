@@ -251,10 +251,10 @@ impl MIRGenerator {
     }
 
     /// Searches all scopes for a variable, starting at the top.
-    fn find_var(&mut self, token: &Token) -> Res<Rc<Variable>> {
+    fn find_var(&mut self, token: &Token) -> Option<Rc<Variable>> {
         for env in self.environments.iter().rev() {
             if let Some(var) = env.get(&token.lexeme) {
-                return Ok(Rc::clone(var));
+                return Some(Rc::clone(var));
             }
         }
 
@@ -262,16 +262,12 @@ impl MIRGenerator {
             for env in closure_data.outer_env.iter().rev() {
                 if let Some(var) = env.get(&token.lexeme) {
                     closure_data.captured.push(Rc::clone(var));
-                    return Ok(Rc::clone(var));
+                    return Some(Rc::clone(var));
                 }
             }
         }
 
-        self.module.borrow().find_global(&token.lexeme).or_err(
-            &self.builder.path,
-            token,
-            &format!("Variable '{}' is not defined", token.lexeme),
-        )
+        self.module.borrow().find_global(&token.lexeme)
     }
 
     /// Returns the variable of the current loop or creates it if it does not exist yet.

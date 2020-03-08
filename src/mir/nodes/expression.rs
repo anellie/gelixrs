@@ -14,7 +14,7 @@ use crate::{
     lexer::token::TType,
     mir::{
         generator::intrinsics::INTRINSICS,
-        nodes::{Class, ClassMember, Function, Interface, Type, Variable},
+        nodes::{ClassMember, Function, Interface, Type, Variable},
         MutRc,
     },
 };
@@ -129,6 +129,10 @@ pub enum Expr {
     /// It returns the value - it essentially wraps it
     ModifyRefCount { object: Box<Expr>, dec: bool },
 
+    /// Return from the function with the given value.
+    /// Return without expression will use Literal::None.
+    Return(Box<Expr>),
+
     /// Gets a member of a class struct.
     StructGet { object: Box<Expr>, index: usize },
 
@@ -140,9 +144,8 @@ pub enum Expr {
         first_set: bool,
     },
 
-    /// Return from the function with the given value.
-    /// Return without expression will use Literal::None.
-    Return(Box<Expr>),
+    /// Similar to VarGet, but returns a Type::Type.
+    TypeGet(Type),
 
     /// A unary expression on numbers.
     Unary { operator: TType, right: Box<Expr> },
@@ -167,13 +170,13 @@ pub enum Expr {
 }
 
 impl Expr {
-    pub fn alloc_class(
-        class: &MutRc<Class>,
-        constructor: &Rc<Variable>,
-        constructor_args: Vec<Expr>,
-    ) -> Expr {
+    pub fn alloc_type(ty: Type, constructor: &Rc<Variable>, constructor_args: Vec<Expr>) -> Expr {
+        // The type to alloc might still be boxed in Type::Type,
+        // unbox it if so
+        let ty = if let Type::Type(ty) = ty { *ty } else { ty };
+
         Expr::AllocInst {
-            ty: Type::Class(Rc::clone(&class)),
+            ty,
             constructor: Rc::clone(&constructor),
             constructor_args,
             heap: Cell::new(true),
@@ -247,6 +250,10 @@ impl Expr {
         }
     }
 
+    pub fn ret(expr: Expr) -> Expr {
+        Expr::Return(Box::new(expr))
+    }
+
     pub fn struct_get(object: Expr, field: &Rc<ClassMember>) -> Expr {
         Expr::StructGet {
             object: Box::new(object),
@@ -263,8 +270,8 @@ impl Expr {
         }
     }
 
-    pub fn ret(expr: Expr) -> Expr {
-        Expr::Return(Box::new(expr))
+    pub fn type_get(ty: Type) -> Expr {
+        Expr::TypeGet(Type::Type(Box::new(ty)))
     }
 
     pub fn unary(right: Expr, op: TType) -> Expr {
@@ -381,6 +388,8 @@ impl Expr {
             },
 
             Expr::ModifyRefCount { object, .. } => object.get_type(),
+
+            Expr::TypeGet(ty) => ty.clone(),
 
             Expr::StructGet { object, index } | Expr::StructSet { object, index, .. } => {
                 let object = object.get_type();
@@ -504,6 +513,8 @@ impl Display for Expr {
             } => write!(f, "loop ({}) {} else {}", condition, body, else_),
 
             Expr::Return(expr) => write!(f, "return {}", expr),
+
+            Expr::TypeGet(ty) => write!(f, "get_type {}", ty),
 
             // TODO: Not be lazy
             Expr::When { phi, .. } => write!(f, "when (ty: {})", phi.is_some()),

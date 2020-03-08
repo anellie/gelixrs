@@ -147,6 +147,10 @@ impl IRGenerator {
                 value
             }
 
+            // This expression cannot be used in a meaningful way - all
+            // possible uses are transformed in MIR already.
+            Expr::TypeGet(_) => self.none_const,
+
             Expr::Unary { right, operator } => self.unary(right, *operator),
 
             Expr::VarGet(var) => self.load_ptr(self.get_variable(var)),

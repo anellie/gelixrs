@@ -8,8 +8,8 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
     ast::{
-        Class as ASTClass, Function as ASTFunc, IFaceImpl as ASTImpl, IFaceImpl,
-        Interface as ASTIFace, Type as ASTType, Enum as ASTEnum,
+        Class as ASTClass, Enum as ASTEnum, Function as ASTFunc, IFaceImpl as ASTImpl, IFaceImpl,
+        Interface as ASTIFace, Type as ASTType,
     },
     error::{Error, Res},
     lexer::token::Token,
@@ -23,12 +23,11 @@ use crate::{
             },
             MIRGenerator,
         },
-        nodes::{Class, Interface, Type, Variable},
+        nodes::{Class, Enum, Interface, Type, Variable},
         MModule, MutRc,
     },
 };
 use either::Either::Right;
-use crate::mir::nodes::Enum;
 
 /// A prototype that classes can be instantiated from.
 /// This prototype is kept in AST form,
@@ -92,7 +91,7 @@ pub enum ProtoAST {
     Class(Rc<ASTClass>),
     Interface(Rc<ASTIFace>),
     Function(Rc<ASTFunc>),
-    Enum(Rc<ASTEnum>)
+    Enum(Rc<ASTEnum>),
 }
 
 impl ProtoAST {
@@ -113,7 +112,7 @@ impl ProtoAST {
             ProtoAST::Class(c) => c.generics.as_ref().unwrap(),
             ProtoAST::Interface(i) => i.generics.as_ref().unwrap(),
             ProtoAST::Function(f) => f.sig.generics.as_ref().unwrap(),
-            ProtoAST::Enum(e) => e.generics.as_ref().unwrap()
+            ProtoAST::Enum(e) => e.generics.as_ref().unwrap(),
         }
     }
 

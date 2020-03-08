@@ -56,7 +56,7 @@ impl MIRGenerator {
 
             ASTExpr::Get { object, name } => self.get(object, name),
 
-            ASTExpr::GetStatic { object, name } => unimplemented!("Static property access"),
+            ASTExpr::GetStatic { object, name } => self.get_static(object, name),
 
             ASTExpr::If {
                 condition,
@@ -103,7 +103,11 @@ impl MIRGenerator {
     }
 
     fn assignment(&mut self, name: &Token, value: &ASTExpr) -> Res<Expr> {
-        let var = self.find_var(&name)?;
+        let var = self.find_var(&name).or_err(
+            &self.builder.path,
+            name,
+            &format!("Variable '{}' is not defined", name.lexeme),
+        )?;
         let value = self.expression(value)?;
         let val_ty = value.get_type();
 
@@ -184,12 +188,15 @@ impl MIRGenerator {
     }
 
     fn call(&mut self, callee: &ASTExpr, arguments: &[ASTExpr]) -> Res<Expr> {
-        if let Some(expr) = self.try_method_or_constructor(callee, arguments)? {
+        if let Some(expr) = self.try_method_call(callee, arguments)? {
+            return Ok(expr);
+        }
+        let callee_mir = self.expression(callee)?;
+        if let Some(expr) = self.try_constructor_call(&callee_mir, arguments, callee.get_token())? {
             return Ok(expr);
         }
 
         // method above fell through, its either a function/closure call or invalid
-        let callee_mir = self.expression(callee)?;
         if let Type::Function(func) = callee_mir.get_type() {
             let args = self.generate_func_args(
                 func.borrow().parameters.iter().map(|p| &p.type_),
@@ -220,130 +227,98 @@ impl MIRGenerator {
         }
     }
 
-    fn try_method_or_constructor(
-        &mut self,
-        callee: &ASTExpr,
-        arguments: &[ASTExpr],
-    ) -> Res<Option<Expr>> {
-        match callee {
-            // Method call
-            ASTExpr::Get { object, name } => {
-                if !self.uninitialized_this_members.is_empty() {
-                    return Err(self.err(name, "Cannot call methods in constructors until all class members are initialized."));
-                }
-
-                let (object, field) = self.get_field(object, name)?;
-                let func = field.right().or_err(
-                    &self.builder.path,
+    fn try_method_call(&mut self, callee: &ASTExpr, arguments: &[ASTExpr]) -> Res<Option<Expr>> {
+        if let ASTExpr::Get { object, name } = callee {
+            if !self.uninitialized_this_members.is_empty() {
+                return Err(self.err(
                     name,
-                    "Class members cannot be called.",
-                )?;
-
-                match func {
-                    Left(func) => {
-                        let args = self.generate_func_args(
-                            func.type_
-                                .as_function()
-                                .borrow()
-                                .parameters
-                                .iter()
-                                .map(|p| &p.type_),
-                            arguments,
-                            Some(object),
-                            false,
-                            name,
-                        )?;
-
-                        Ok(Some(Expr::call(Expr::load(&func), args)))
-                    }
-
-                    Right(index) => {
-                        let ty = object.get_type();
-                        let iface = ty.as_interface().borrow();
-                        let params = &iface.methods.get_index(index).unwrap().1.parameters;
-                        let args = self.generate_func_args(
-                            // 'params' need to have the 'this' parameter, this is the result...
-                            Some(ty.clone()).iter().chain(params.iter()),
-                            arguments,
-                            Some(object),
-                            false,
-                            name,
-                        )?;
-
-                        Ok(Some(Expr::call_dyn(ty.as_interface(), index, args)))
-                    }
-                }
+                    "Cannot call methods in constructors until all class members are initialized.",
+                ));
             }
 
-            // Class constructor
-            ASTExpr::Variable(name) => {
-                let ty = self.builder.find_type(&ASTType::Ident(name.clone()));
-                if let Ok(Type::Class(class)) = ty {
-                    Ok(Some(
-                        self.generate_class_instantiation(class, arguments, name)?,
-                    ))
-                } else {
-                    Ok(None)
-                }
-            }
+            let (object, field) = self.get_field(object, name)?;
+            let func = field.right().or_err(
+                &self.builder.path,
+                name,
+                "Class members cannot be called.",
+            )?;
 
-            // Prototype constructor
-            ASTExpr::VarWithGenerics { name, generics } => {
-                let proto = self.module.borrow().find_prototype(&name.lexeme);
-
-                if proto.is_some() && proto.unwrap().ast.is_class() {
-                    let ty = self.builder.find_type(&ASTType::Generic {
-                        token: name.clone(),
-                        types: generics.clone(),
-                    })?;
-                    Ok(Some(self.generate_class_instantiation(
-                        Rc::clone(ty.as_class()),
+            match func {
+                Left(func) => {
+                    let args = self.generate_func_args(
+                        func.type_
+                            .as_function()
+                            .borrow()
+                            .parameters
+                            .iter()
+                            .map(|p| &p.type_),
                         arguments,
+                        Some(object),
+                        false,
                         name,
-                    )?))
-                } else {
-                    Ok(None)
+                    )?;
+
+                    Ok(Some(Expr::call(Expr::load(&func), args)))
+                }
+
+                Right(index) => {
+                    let ty = object.get_type();
+                    let iface = ty.as_interface().borrow();
+                    let params = &iface.methods.get_index(index).unwrap().1.parameters;
+                    let args = self.generate_func_args(
+                        // 'params' need to have the 'this' parameter, this is the result...
+                        Some(ty.clone()).iter().chain(params.iter()),
+                        arguments,
+                        Some(object),
+                        false,
+                        name,
+                    )?;
+
+                    Ok(Some(Expr::call_dyn(ty.as_interface(), index, args)))
                 }
             }
-
-            _ => Ok(None),
+        } else {
+            Ok(None)
         }
     }
 
-    fn generate_class_instantiation(
+    fn try_constructor_call(
         &mut self,
-        class: MutRc<Class>,
+        callee: &Expr,
         args: &[ASTExpr],
         err_tok: &Token,
-    ) -> Res<Expr> {
-        let args = args
-            .iter()
-            .map(|arg| self.expression(arg))
-            .collect::<Res<Vec<Expr>>>()?;
+    ) -> Res<Option<Expr>> {
+        let callee_type = callee.get_type();
+        if let Some(constructors) = callee.get_type().get_constructors() {
+            let args = args
+                .iter()
+                .map(|arg| self.expression(arg))
+                .collect::<Res<Vec<Expr>>>()?;
 
-        let cls = class.borrow();
-        let constructor: &Rc<Variable> = cls
-            .constructors
-            .iter()
-            .find(|constructor| {
-                let constructor = constructor.type_.as_function().borrow();
-                if constructor.parameters.len() - 1 != args.len() {
-                    return false;
-                }
-                for (param, arg) in constructor.parameters.iter().skip(1).zip(args.iter()) {
-                    if param.type_ != arg.get_type() {
+            let constructor: &Rc<Variable> = constructors
+                .iter()
+                .find(|constructor| {
+                    let constructor = constructor.type_.as_function().borrow();
+                    if constructor.parameters.len() - 1 != args.len() {
                         return false;
                     }
-                }
-                true
-            })
-            .or_err(
-                &self.builder.path,
-                err_tok,
-                "No matching constructor found for arguments.",
-            )?;
+                    for (param, arg) in constructor.parameters.iter().skip(1).zip(args.iter()) {
+                        if param.type_ != arg.get_type() {
+                            return false;
+                        }
+                    }
+                    true
+                })
+                .or_err(
+                    &self.builder.path,
+                    err_tok,
+                    "No matching constructor found for arguments.",
+                )?;
 
-        Ok(Expr::alloc_class(&class, constructor, args))
+            Ok(Some(Expr::alloc_type(callee_type, constructor, args)))
+        } else {
+            Ok(None)
+        }
     }
 
     fn for_(
@@ -393,6 +368,23 @@ impl MIRGenerator {
             return Err(self.err(name, "Cannot get uninitialized class member."));
         }
         Ok(Expr::struct_get(object, &field))
+    }
+
+    fn get_static(&mut self, object: &ASTExpr, name: &Token) -> Res<Expr> {
+        let obj = self.expression(object)?;
+        if let Type::Type(ty) = obj.get_type() {
+            if let Type::Enum(enu) = &*ty {
+                if let Some(case) = enu.borrow().cases.get(&name.lexeme) {
+                    Ok(Expr::type_get(Type::EnumCase(Rc::clone(case))))
+                } else {
+                    Err(self.err(name, "Unknown enum case."))
+                }
+            } else {
+                Err(self.err(name, "Static access is only supported on enum types."))
+            }
+        } else {
+            Err(self.err(name, "Static access is not supported on values."))
+        }
     }
 
     fn if_(
@@ -506,14 +498,16 @@ impl MIRGenerator {
             Rc::clone(arr.methods.get(&Rc::new("push".to_string())).unwrap())
         };
 
-        let array = self.generate_class_instantiation(
-            array_type,
-            &[ASTExpr::Literal(
-                Literal::I64(values_mir.len() as u64),
-                dummy_tok.clone(),
-            )],
-            &dummy_tok,
-        )?;
+        let array = self
+            .try_constructor_call(
+                &Expr::type_get(Type::Class(array_type)),
+                &[ASTExpr::Literal(
+                    Literal::I64(values_mir.len() as u64),
+                    dummy_tok.clone(),
+                )],
+                &dummy_tok,
+            )?
+            .unwrap();
 
         for value in values_mir {
             self.insert_at_ptr(Expr::call(
@@ -625,19 +619,28 @@ impl MIRGenerator {
     }
 
     fn var(&mut self, var: &Token) -> Res<Expr> {
-        Ok(Expr::load(&self.find_var(&var)?))
+        if let Some(var) = self.find_var(&var) {
+            Ok(Expr::load(&var))
+        } else {
+            self.module
+                .borrow()
+                .find_type(&var.lexeme)
+                .map(|t| Expr::type_get(t))
+                .or_err(
+                    &self.builder.path,
+                    var,
+                    &format!("Variable '{}' is not defined", var.lexeme),
+                )
+        }
     }
 
     fn var_with_generics(&mut self, name: &Token, generics: &[ASTType]) -> Res<Expr> {
-        // All valid cases of this are function prototypes.
-        // Class prototypes can only be called and not assigned;
-        // which would be handled in the ASTExpr::Call branch.
-        let function = self.builder.find_type(&ASTType::Generic {
+        let ty = self.builder.find_type(&ASTType::Generic {
             token: name.clone(),
             types: Vec::from(generics),
         })?;
 
-        if let Type::Function(func) = function {
+        if let Type::Function(func) = ty {
             Ok(Expr::load(
                 &self
                     .module
@@ -646,7 +649,7 @@ impl MIRGenerator {
                     .unwrap(),
             ))
         } else {
-            Err(self.err(&name, "Can only instantiate function prototypes here"))
+            Ok(Expr::type_get(ty))
         }
     }
 
@@ -692,8 +695,15 @@ impl MIRGenerator {
 
     fn var_def(&mut self, var: &ASTVar) -> Res<Expr> {
         let init = self.expression(&var.initializer)?;
-        let _type = init.get_type();
-        let var = self.define_variable(&var.name, var.mutable, _type);
-        Ok(Expr::store(&var, init, true))
+        let type_ = init.get_type();
+        if type_.is_assignable() {
+            let var = self.define_variable(&var.name, var.mutable, type_);
+            Ok(Expr::store(&var, init, true))
+        } else {
+            Err(self.err(
+                &var.initializer.get_token(),
+                &format!("Cannot assign type '{}' to a variable.", type_),
+            ))
+        }
     }
 }

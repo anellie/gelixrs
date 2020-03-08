@@ -74,6 +74,11 @@ pub enum Type {
 
     /// A known enum case.
     EnumCase(MutRc<EnumCase>),
+
+    /// A type.
+    /// This is used mainly for accessing static members of types,
+    /// and constructors.
+    Type(Box<Type>),
 }
 
 impl Type {
@@ -122,6 +127,27 @@ impl Type {
         match self {
             Type::F32 | Type::F64 => true,
             _ => false,
+        }
+    }
+
+    /// Can this type be assigned to variables?
+    /// True for everything but types, as they are static.
+    pub fn is_assignable(&self) -> bool {
+        !self.is_type()
+    }
+
+    /// Returns a list of available constructors, should self be a
+    /// static type access.
+    /// TODO: Copying the list of constructors is not great for performance
+    pub fn get_constructors(&self) -> Option<Vec<Rc<Variable>>> {
+        if let Type::Type(ty) = self {
+            match &**ty {
+                Type::Class(cls) => Some(cls.borrow().constructors.clone()),
+                Type::EnumCase(enu) => Some(enu.borrow().constructors.clone()),
+                _ => None,
+            }
+        } else {
+            None
         }
     }
 
@@ -196,6 +222,14 @@ impl PartialEq for Type {
                 }
             }
 
+            Type::Type(t) => {
+                if let Type::Type(o) = o {
+                    t == o
+                } else {
+                    false
+                }
+            }
+
             Type::Any => true,
 
             _ => std::mem::discriminant(self) == std::mem::discriminant(o),
@@ -213,6 +247,7 @@ impl Hash for Type {
             Type::Interface(v) => v.borrow().name.hash(state),
             Type::Enum(v) => v.borrow().name.hash(state),
             Type::EnumCase(v) => v.borrow().name.hash(state),
+            Type::Type(t) => t.hash(state),
             _ => std::mem::discriminant(self).hash(state),
         }
     }
@@ -232,6 +267,15 @@ impl Display for Type {
                 case.borrow().parent.borrow().name,
                 case.borrow().name
             ),
+            Type::Type(ty) => match **ty {
+                Type::Function(_) => write!(f, "Function"),
+                Type::Closure(_) => write!(f, "Closure"),
+                Type::Class(_) => write!(f, "Class"),
+                Type::Interface(_) => write!(f, "Interface"),
+                Type::Enum(_) => write!(f, "Enum"),
+                Type::EnumCase(_) => write!(f, "EnumCase"),
+                _ => write!(f, "{:?}", self),
+            },
             _ => write!(f, "{:?}", self),
         }
     }

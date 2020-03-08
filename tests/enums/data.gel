@@ -1,5 +1,5 @@
-// P-ERR
-(Not implemented yet; TODO)
+/*
+*/
 
 func main() {
     val a = A:A("Hello!")
