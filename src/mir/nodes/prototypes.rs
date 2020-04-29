@@ -7,10 +7,7 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
-    ast::{
-        Class as ASTClass, Enum as ASTEnum, Function as ASTFunc, IFaceImpl as ASTImpl, IFaceImpl,
-        Interface as ASTIFace, Type as ASTType,
-    },
+    ast,
     error::{Error, Res},
     lexer::token::Token,
     mir::{
@@ -18,18 +15,18 @@ use crate::{
             builder::{Context, MIRBuilder},
             module::DONE_PASSES,
             passes::{
-                declaring_globals::{generate_mir_fn, get_function_name, insert_global_and_type},
+                declaring_globals::{generate_mir_fn, insert_global_and_type},
                 declaring_iface_impls::declare_impl,
             },
             MIRGenerator,
         },
-        nodes::{Class, Enum, Interface, Type, Variable},
+        nodes::{Type, Variable, ADT},
         MModule, MutRc,
     },
 };
 use either::Either::Right;
 
-/// A prototype that classes can be instantiated from.
+/// A prototype that ADTs or functions can be instantiated from.
 /// This prototype is kept in AST form,
 /// as all other MIR codegen would have to handle lots of
 /// edge cases and be aware of prototypes otherwise.
@@ -46,11 +43,18 @@ use either::Either::Right;
 /// of handling prototypes another way.
 /// (Also, this missing check does not lead to unsound compiled code -
 /// not producing unsound code is the most important reason of type checking.)
+///
+/// Another drawback is of course performance, as instancing during IR
+/// instead of MIR would allow for less work to be done.
+/// TODO: Potentially move instancing to IR for better performance
 #[derive(Debug, Clone)]
 pub struct Prototype {
+    /// The name of the type.
+    /// For ADT: user given name
+    /// For functions: $module:$fnName
     pub name: Rc<String>,
     pub instances: RefCell<HashMap<Vec<Type>, Type>>,
-    pub impls: RefCell<Vec<(ASTImpl, MutRc<MModule>)>>,
+    pub impls: RefCell<Vec<(ast::IFaceImpl, MutRc<MModule>)>>,
     pub module: MutRc<MModule>,
     pub ast: ProtoAST,
 }
@@ -68,7 +72,7 @@ impl Prototype {
 
         check_generic_arguments(&self.module, self.ast.get_parameters(), &arguments, err_tok)?;
 
-        let name = get_name(self.ast.get_name(&self_ref), &arguments);
+        let name = get_name(&self.name, &arguments);
         let ty = self.ast.create_mir(&name, &arguments, self_ref)?;
         let mut generator = MIRGenerator::new(MIRBuilder::new(&self.module));
 
@@ -88,31 +92,15 @@ impl Prototype {
 
 #[derive(Debug, Clone, EnumIsA)]
 pub enum ProtoAST {
-    Class(Rc<ASTClass>),
-    Interface(Rc<ASTIFace>),
-    Function(Rc<ASTFunc>),
-    Enum(Rc<ASTEnum>),
+    ADT(Rc<ast::ADT>),
+    Function(Rc<ast::Function>),
 }
 
 impl ProtoAST {
-    fn get_name(&self, self_ref: &Rc<Prototype>) -> Rc<String> {
-        match self {
-            ProtoAST::Class(c) => Rc::clone(&c.name.lexeme),
-            ProtoAST::Interface(i) => Rc::clone(&i.name.lexeme),
-            ProtoAST::Enum(e) => Rc::clone(&e.name.lexeme),
-            ProtoAST::Function(f) => Rc::new(get_function_name(
-                &self_ref.module.borrow().path,
-                &f.sig.name.lexeme,
-            )),
-        }
-    }
-
     fn get_parameters(&self) -> &[Token] {
         match self {
-            ProtoAST::Class(c) => c.generics.as_ref().unwrap(),
-            ProtoAST::Interface(i) => i.generics.as_ref().unwrap(),
+            ProtoAST::ADT(a) => a.generics.as_ref().unwrap(),
             ProtoAST::Function(f) => f.sig.generics.as_ref().unwrap(),
-            ProtoAST::Enum(e) => e.generics.as_ref().unwrap(),
         }
     }
 
@@ -123,22 +111,13 @@ impl ProtoAST {
         self_ref: Rc<Prototype>,
     ) -> Res<Type> {
         Ok(match self {
-            ProtoAST::Class(ast) => {
+            ProtoAST::ADT(ast) => {
                 let mut ast = (**ast).clone();
                 ast.name.lexeme = Rc::clone(&name);
 
                 let context = get_context(ast.generics.as_ref().unwrap(), arguments);
-                let class = Class::from_ast(ast, context);
-                Type::Class(class)
-            }
-
-            ProtoAST::Interface(ast) => {
-                let mut ast = (**ast).clone();
-                ast.name.lexeme = Rc::clone(&name);
-
-                let context = get_context(ast.generics.as_ref().unwrap(), arguments);
-                let iface = Interface::from_ast(ast, Some(self_ref), context);
-                Type::Interface(iface)
+                let adt = ADT::from_ast(ast, context, Some(self_ref));
+                Type::Adt(adt)
             }
 
             ProtoAST::Function(ast) => {
@@ -155,20 +134,11 @@ impl ProtoAST {
 
                 Type::Function(mir_fn)
             }
-
-            ProtoAST::Enum(ast) => {
-                let mut ast = (**ast).clone();
-                ast.name.lexeme = Rc::clone(&name);
-
-                let context = get_context(ast.generics.as_ref().unwrap(), arguments);
-                let enu = Enum::from_ast(ast, context);
-                Type::Enum(enu)
-            }
         })
     }
 }
 
-fn get_name(name: Rc<String>, args: &[Type]) -> Rc<String> {
+fn get_name(name: &String, args: &[Type]) -> Rc<String> {
     let mut arg_names = args[0].to_string();
     for arg in args.iter().skip(1) {
         arg_names = format!("{}, {}", arg_names, arg);
@@ -213,14 +183,14 @@ fn attach_impls(
     builder: &mut MIRBuilder,
     ty: &Type,
     name: &Rc<String>,
-    impls: &[(IFaceImpl, MutRc<MModule>)],
+    impls: &[(ast::IFaceImpl, MutRc<MModule>)],
 ) -> Res<()> {
     for (im, module) in impls {
         builder.switch_module(module);
         let mut ast = im.clone();
         let mut tok = ast.implementor.get_token().clone();
         tok.lexeme = Rc::clone(&name);
-        ast.implementor = ASTType::Ident(tok);
+        ast.implementor = ast::Type::Ident(tok);
         declare_impl(ast, builder, Some(ty.clone()))?;
     }
     Ok(())

@@ -14,8 +14,9 @@ use either::Either;
 use indexmap::IndexMap;
 
 use crate::{
+    ast,
     ast::{
-        declaration::{Class as ASTClass, Constructor, Function as ASTFunc},
+        declaration::{Constructor, Function as ASTFunc},
         expression::Expression as ASTExpr,
     },
     error::Res,
@@ -23,7 +24,7 @@ use crate::{
     mir::{
         generator::{builder::MIRBuilder, intrinsics::INTRINSICS},
         get_iface_impls,
-        nodes::{ClassMember, Expr, Function, Type, Variable},
+        nodes::{ADTMember, ADTType, Expr, Function, Type, Variable},
         result::ToMIRResult,
         MModule, MutRc, IFACE_IMPLS,
     },
@@ -77,7 +78,7 @@ pub struct MIRGenerator {
     /// does not validate that the object the access occurs on is 'this'.
     /// Because of this, accesses of members on other objects of the same type
     /// (that ARE initialized) will be considered illegal.
-    uninitialized_this_members: HashSet<Rc<ClassMember>>,
+    uninitialized_this_members: HashSet<Rc<ADTMember>>,
 
     /// Closure-related data, if compiling a closure.
     closure_data: Option<ClosureData>,
@@ -129,19 +130,23 @@ impl MIRGenerator {
         Ok(())
     }
 
-    /// Generate all constructors of the given class.
-    /// Class should already be defined in MIR.
-    pub fn generate_constructors(&mut self, class: &ASTClass) -> Res<()> {
-        let class_rc = self
+    /// Generate all constructors of the given ADT.
+    /// ADT should already be defined in MIR.
+    pub fn generate_constructors(
+        &mut self,
+        adt: &ast::ADT,
+        constructors: &[ast::Constructor],
+    ) -> Res<()> {
+        let adt_rc = self
             .module
             .borrow()
-            .find_type(&class.name.lexeme)
+            .find_type(&adt.name.lexeme)
             .unwrap()
-            .as_class()
+            .as_adt()
             .clone();
 
-        for (constructor, mir_fn) in class.constructors.iter().zip(
-            class_rc
+        for (constructor, mir_fn) in constructors.iter().zip(
+            adt_rc
                 .borrow()
                 .constructors
                 .iter()
@@ -151,13 +156,13 @@ impl MIRGenerator {
                 mir_fn,
                 constructor.parameters.get(0).map(|l| l.0.line).unwrap_or(0),
             )?;
-            self.set_uninitialized_members(constructor, &class_rc.borrow().members);
+            self.set_uninitialized_members(constructor, &adt_rc.borrow().members);
             if let Some(body) = &constructor.body {
                 let body = self.expression(body)?;
                 self.insert_at_ptr(body);
             }
             self.end_scope();
-            self.check_no_uninitialized(&class.name)?;
+            self.check_no_uninitialized(&adt.name)?;
         }
 
         self.uninitialized_this_members.clear();
@@ -167,7 +172,7 @@ impl MIRGenerator {
     fn set_uninitialized_members(
         &mut self,
         constructor: &Constructor,
-        class_mems: &IndexMap<Rc<String>, Rc<ClassMember>>,
+        class_mems: &IndexMap<Rc<String>, Rc<ADTMember>>,
     ) {
         self.uninitialized_this_members.clear();
         for (name, mem) in class_mems.iter() {
@@ -295,18 +300,18 @@ impl MIRGenerator {
     }
 
     /// Returns a field of the given expression/object,
-    /// where a field can be either a class member or an associated method.
+    /// where a field can be either a member or an associated method.
     fn get_field(
         &mut self,
         object: &ASTExpr,
         name: &Token,
-    ) -> Res<(Expr, Either<Rc<ClassMember>, Callable>)> {
+    ) -> Res<(Expr, Either<Rc<ADTMember>, Callable>)> {
         let object = self.expression(object)?;
         let ty = object.get_type();
 
-        if let Type::Class(class) = &ty {
-            let class = class.borrow();
-            let field = class.members.get(&name.lexeme);
+        if let Type::Adt(adt) = &ty {
+            let adt = adt.borrow();
+            let field = adt.members.get(&name.lexeme);
             if let Some(field) = field {
                 return Ok((object, Either::Left(Rc::clone(field))));
             }
@@ -374,14 +379,17 @@ impl MIRGenerator {
     /// Searches for an associated method on a type. Can be either an interface
     /// method or a class method.
     fn find_associated_method(&self, ty: Type, name: &Token) -> Option<Callable> {
-        let method = if let Type::Class(class) = &ty {
-            class.borrow().methods.get(&name.lexeme).cloned().map(Left)
-        } else if let Type::Interface(iface) = &ty {
-            iface
-                .borrow()
-                .methods
-                .get_full(&name.lexeme)
-                .map(|(i, _, _)| Right(i))
+        let method = if let Type::Adt(adt) = &ty {
+            let adt = adt.borrow();
+            adt.methods
+                .get(&name.lexeme)
+                .cloned()
+                .map(Left)
+                .or_else(|| {
+                    adt.dyn_methods
+                        .get_full(&name.lexeme)
+                        .map(|(i, _, _)| Right(i))
+                })
         } else {
             None
         };
@@ -408,16 +416,16 @@ impl MIRGenerator {
         let proto = INTRINSICS.with(|i| i.borrow().get_op_iface(op));
         let iface_impls = get_iface_impls(left_ty)?;
         let iface_impls = iface_impls.borrow();
-        let op_impls = iface_impls
-            .interfaces
-            .values()
-            .filter(|im| im.iface.borrow().proto.as_ref().is_some())
-            .filter(|im| Rc::ptr_eq(im.iface.borrow().proto.as_ref().unwrap(), &proto));
 
-        for im in op_impls {
-            let method = im.methods.get_index(0).unwrap().1;
-            if &method.type_.as_function().borrow().parameters[1].type_ == right_ty {
-                return Some(method).cloned();
+        for im in iface_impls.interfaces.values() {
+            match im.iface.borrow().ty {
+                ADTType::Interface { proto: Some(ref p) } if Rc::ptr_eq(&proto, &p) => {
+                    let method = im.methods.get_index(0).unwrap().1;
+                    if &method.type_.as_function().borrow().parameters[1].type_ == right_ty {
+                        return Some(method).cloned();
+                    }
+                }
+                _ => (),
             }
         }
         None

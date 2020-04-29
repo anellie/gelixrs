@@ -20,7 +20,7 @@ use crate::{
             },
             MIRGenerator,
         },
-        nodes::{IFaceMethod, Type, Variable},
+        nodes::{AbstractMethod, Type, Variable},
         result::ToMIRResult,
     },
 };
@@ -57,7 +57,7 @@ impl ModulePass for FillIfaceImpls {
 
             for method in ast.methods.iter() {
                 let iface = iface.borrow();
-                let iface_method = iface.methods.get(&method.sig.name.lexeme).or_err(
+                let iface_method = iface.dyn_methods.get(&method.sig.name.lexeme).or_err(
                     &gen.builder.path,
                     &method.sig.name,
                     "Method is not defined in interface.",
@@ -101,7 +101,7 @@ fn check_equal_signature(
     builder: &MIRBuilder,
     method: &Function,
     mir_method: Rc<Variable>,
-    iface_method: &IFaceMethod,
+    iface_method: &AbstractMethod,
 ) -> Res<()> {
     let mir_method = mir_method.type_.as_function();
     let mir_method = mir_method.borrow();

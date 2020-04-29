@@ -10,7 +10,7 @@ use std::{
 };
 
 use crate::{
-    ast::declaration::{Class, Enum, Function, IFaceImpl, Interface},
+    ast::declaration::{Function, IFaceImpl, ADT},
     lexer::token::Token,
 };
 
@@ -40,9 +40,7 @@ pub struct Module {
     pub path: Rc<ModulePath>,
     pub src: Rc<String>,
 
-    pub classes: Vec<Class>,
-    pub enums: Vec<Enum>,
-    pub interfaces: Vec<Interface>,
+    pub adts: Vec<ADT>,
     pub iface_impls: Vec<IFaceImpl>,
     pub functions: Vec<Function>,
     pub imports: Vec<Import>,

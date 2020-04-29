@@ -7,7 +7,7 @@
 use crate::{
     ir::IRGenerator,
     mir::{
-        nodes::{Class, Type},
+        nodes::{Type, ADT},
         MutRc,
     },
 };
@@ -80,7 +80,7 @@ impl IRGenerator {
                     .get(ty.get_name().unwrap().to_str().unwrap())
                     .unwrap()
                 {
-                    Type::Class(class) => self.mod_refcount_class(ptr, class, decrement),
+                    Type::Adt(adt) => self.mod_refcount_adt(ptr, adt, decrement),
                     Type::Closure(_) => self.mod_refcount_closure(ptr, decrement),
                     _ => panic!("Cannot mod refcount on this"),
                 }
@@ -89,15 +89,17 @@ impl IRGenerator {
         }
     }
 
-    fn mod_refcount_class(&self, ptr: PointerValue, class: &MutRc<Class>, decrement: bool) {
-        let func = self.get_variable(&class.borrow().destructor);
-        let refcount = unsafe { self.builder.build_struct_gep(ptr, 0, "rcgep") };
-        let refcount = self.write_new_refcount(refcount, decrement);
-        if decrement {
-            self.build_maybe_free(refcount, &mut |this, pred| {
-                this.builder
-                    .build_call(func, &[ptr.into(), pred.into()], "free");
-            })
+    fn mod_refcount_adt(&self, ptr: PointerValue, adt: &MutRc<ADT>, decrement: bool) {
+        if let Some(destructor) = &adt.borrow().destructor {
+            let func = self.get_variable(destructor);
+            let refcount = unsafe { self.builder.build_struct_gep(ptr, 0, "rcgep") };
+            let refcount = self.write_new_refcount(refcount, decrement);
+            if decrement {
+                self.build_maybe_free(refcount, &mut |this, pred| {
+                    this.builder
+                        .build_call(func, &[ptr.into(), pred.into()], "free");
+                })
+            }
         }
     }
 

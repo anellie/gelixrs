@@ -12,7 +12,7 @@ use std::{
 
 use crate::mir::{
     generator::builder::Context,
-    nodes::{Class, Enum, EnumCase, Function, Interface, Variable},
+    nodes::{Function, Variable, ADT},
     MutRc,
 };
 
@@ -20,7 +20,7 @@ use crate::mir::{
 /// For all types that can have generic parameters, these parameters
 /// are not part of the type. They are erased when the type
 /// is first created from the prototype (see prototypes.rs).
-#[derive(Debug, Clone, EnumAsGetters, EnumIsA)]
+#[derive(Debug, Clone, EnumAsGetters, EnumIsA, EnumIntoGetters)]
 pub enum Type {
     /// The Any type is considered equal to all other types.
     /// This is used as the type of 'return' or 'break' expressions,
@@ -56,24 +56,15 @@ pub enum Type {
     /// Functions can be cast to closures using Expr::ConstructClosure.
     Closure(Rc<ClosureType>),
 
-    /// An ADT holding all the variables captured by a closure.
+    /// A simple struct holding all the variables captured by a closure.
     /// Only used as the receiver on closure functions, this anywhere
     /// else is undefined behavior.
     ClosureCaptured(Rc<Vec<Rc<Variable>>>),
 
-    /// A class. This type is lowered to a pointer of the underlying struct
-    /// in IR.
-    Class(MutRc<Class>),
-
-    /// An interface. When used as a standalone type, it gets turned into a
-    /// fat pointer (pointer to implementor + pointer to vtable) in IR.
-    Interface(MutRc<Interface>),
-
-    /// An enum with unknown case.
-    Enum(MutRc<Enum>),
-
-    /// A known enum case.
-    EnumCase(MutRc<EnumCase>),
+    /// An ADT. Used for all data types that are stored inside an
+    /// underlying struct in IR that are not directly callable
+    /// (looking at you, closures.)
+    Adt(MutRc<ADT>),
 
     /// A type.
     /// This is used mainly for accessing static members of types,
@@ -100,11 +91,8 @@ impl Type {
     /// Returns the context of the type, if any.
     pub fn context(&self) -> Option<Context> {
         Some(match self {
-            Type::Class(cls) => cls.borrow().context.clone(),
-            Type::Interface(iface) => iface.borrow().context.clone(),
             Type::Function(func) => func.borrow().context.clone(),
-            Type::Enum(enu) => enu.borrow().context.clone(),
-            Type::EnumCase(case) => case.borrow().parent.borrow().context.clone(),
+            Type::Adt(adt) => adt.borrow().context.clone(),
             _ => return None,
         })
     }
@@ -140,11 +128,12 @@ impl Type {
     /// static type access.
     /// TODO: Copying the list of constructors is not great for performance
     pub fn get_constructors(&self) -> Option<Vec<Rc<Variable>>> {
+        // Thanks, no box pattern matching!
         if let Type::Type(ty) = self {
-            match &**ty {
-                Type::Class(cls) => Some(cls.borrow().constructors.clone()),
-                Type::EnumCase(enu) => Some(enu.borrow().constructors.clone()),
-                _ => None,
+            if let Type::Adt(ty) = &**ty {
+                Some(ty.borrow().constructors.clone())
+            } else {
+                None
             }
         } else {
             None
@@ -154,8 +143,7 @@ impl Type {
     pub fn display_full(&self, f: &mut Formatter) -> Result<(), Error> {
         match self {
             Type::Function(func) => write!(f, "{}", func.borrow()),
-            Type::Class(class) => write!(f, "{}", class.borrow()),
-            Type::Interface(iface) => write!(f, "{}", iface.borrow()),
+            Type::Adt(adt) => write!(f, "{}", adt.borrow()),
             _ => write!(f, "{:?}", self),
         }
     }
@@ -190,33 +178,9 @@ impl PartialEq for Type {
                 }
             }
 
-            Type::Class(c) => {
-                if let Type::Class(o) = o {
+            Type::Adt(c) => {
+                if let Type::Adt(o) = o {
                     Rc::ptr_eq(c, o)
-                } else {
-                    false
-                }
-            }
-
-            Type::Interface(i) => {
-                if let Type::Interface(o) = o {
-                    Rc::ptr_eq(i, o)
-                } else {
-                    false
-                }
-            }
-
-            Type::Enum(e) => {
-                if let Type::Enum(o) = o {
-                    Rc::ptr_eq(e, o)
-                } else {
-                    false
-                }
-            }
-
-            Type::EnumCase(e) => {
-                if let Type::EnumCase(o) = o {
-                    Rc::ptr_eq(e, o)
                 } else {
                     false
                 }
@@ -243,10 +207,7 @@ impl Hash for Type {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
             Type::Function(v) => v.borrow().name.hash(state),
-            Type::Class(v) => v.borrow().name.hash(state),
-            Type::Interface(v) => v.borrow().name.hash(state),
-            Type::Enum(v) => v.borrow().name.hash(state),
-            Type::EnumCase(v) => v.borrow().name.hash(state),
+            Type::Adt(v) => v.borrow().name.hash(state),
             Type::Type(t) => t.hash(state),
             _ => std::mem::discriminant(self).hash(state),
         }
@@ -258,22 +219,11 @@ impl Display for Type {
         match self {
             Type::Function(func) => write!(f, "{}", func.borrow().to_closure_type()),
             Type::Closure(closure) => write!(f, "{}", closure),
-            Type::Class(class) => write!(f, "{}", class.borrow().name),
-            Type::Interface(iface) => write!(f, "{}", iface.borrow().name),
-            Type::Enum(enu) => write!(f, "{}", enu.borrow().name),
-            Type::EnumCase(case) => write!(
-                f,
-                "{}:{}",
-                case.borrow().parent.borrow().name,
-                case.borrow().name
-            ),
+            Type::Adt(adt) => write!(f, "{}", adt.borrow().name),
             Type::Type(ty) => match **ty {
                 Type::Function(_) => write!(f, "Function"),
                 Type::Closure(_) => write!(f, "Closure"),
-                Type::Class(_) => write!(f, "Class"),
-                Type::Interface(_) => write!(f, "Interface"),
-                Type::Enum(_) => write!(f, "Enum"),
-                Type::EnumCase(_) => write!(f, "EnumCase"),
+                Type::Adt(_) => write!(f, "ADT"),
                 _ => write!(f, "{:?}", self),
             },
             _ => write!(f, "{:?}", self),

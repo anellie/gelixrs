@@ -14,8 +14,8 @@ use either::Either;
 use crate::{
     ast::{
         declaration::{
-            Class, ClassMember, Constructor, ConstructorParam, FuncSignature, Function,
-            FunctionParam, IFaceImpl, Interface, Type, Variable, Visibility,
+            ADTMember, Constructor, ConstructorParam, FuncSignature, Function, FunctionParam,
+            IFaceImpl, Type, Variable, Visibility,
         },
         expression::Expression,
         literal::Literal,
@@ -27,7 +27,7 @@ use crate::{
 };
 
 use crate::ast::{
-    declaration::{Enum, EnumCase},
+    declaration::{ADTType, ADT},
     literal::{Closure, ClosureParameter},
 };
 
@@ -113,11 +113,11 @@ impl Parser {
     pub fn declaration(&mut self, module: &mut Module) -> Option<()> {
         self.consume_mods();
         match self.advance().t_type {
-            TType::Class => module.classes.push(self.class_declaration()?),
-            TType::Enum => module.enums.push(self.enum_declaration()?),
+            TType::Class => module.adts.push(self.class_declaration()?),
+            TType::Enum => module.adts.push(self.enum_declaration()?),
             TType::Func => module.functions.push(self.function()?),
             TType::Import => module.imports.push(self.import_declaration()?),
-            TType::Interface => module.interfaces.push(self.iface_declaration()?),
+            TType::Interface => module.adts.push(self.iface_declaration()?),
             TType::Impl => module.iface_impls.push(self.iface_impl()?),
             _ => self.error_at_current("Encountered invalid top-level declaration.")?,
         }
@@ -164,7 +164,7 @@ impl Parser {
         Some(parameters)
     }
 
-    fn enum_declaration(&mut self) -> Option<Enum> {
+    fn enum_declaration(&mut self) -> Option<ADT> {
         self.check_mods(&ENUM_MODIFIERS, "enum")?;
         let visibility = self.get_visibility()?;
         let (name, generics) = self.generic_ident()?;
@@ -172,8 +172,8 @@ impl Parser {
         self.consume(TType::LeftBrace, "Expected '{' before enum body.")?;
 
         let mut methods: Vec<Function> = Vec::new();
-        let mut variables: Vec<ClassMember> = Vec::new();
-        let mut cases: Vec<EnumCase> = Vec::new();
+        let mut variables: Vec<ADTMember> = Vec::new();
+        let mut cases: Vec<ADT> = Vec::new();
 
         while !self.check(TType::RightBrace) && !self.is_at_end() {
             self.consume_mods();
@@ -194,22 +194,33 @@ impl Parser {
             }
         }
 
+        // TODO: no
+        for (i, var) in variables.iter().enumerate() {
+            for case in &mut cases {
+                if let ADTType::EnumCase {
+                    ref mut variables, ..
+                } = &mut case.ty
+                {
+                    variables.insert(i, var.clone())
+                }
+            }
+        }
+
         self.consume(TType::RightBrace, "Expected '}' after enum body.")?;
-        Some(Enum {
+        Some(ADT {
             name,
             visibility,
             generics,
-            variables,
             methods,
-            cases,
+            ty: ADTType::Enum { variables, cases },
         })
     }
 
-    fn enum_case(&mut self) -> Option<EnumCase> {
+    fn enum_case(&mut self) -> Option<ADT> {
         let name = self.consume(TType::Identifier, "Expected case name.")?;
 
         let mut methods: Vec<Function> = Vec::new();
-        let mut variables: Vec<ClassMember> = Vec::new();
+        let mut variables: Vec<ADTMember> = Vec::new();
         let mut constructors: Vec<Constructor> = Vec::new();
 
         if self.matches(TType::LeftBrace) {
@@ -236,15 +247,19 @@ impl Parser {
             self.consume(TType::RightBrace, "Expected '}' after case body.")?;
         }
 
-        Some(EnumCase {
+        Some(ADT {
             name,
-            variables,
+            visibility: Visibility::Public,
+            generics: None,
             methods,
-            constructors,
+            ty: ADTType::EnumCase {
+                variables,
+                constructors,
+            },
         })
     }
 
-    fn class_declaration(&mut self) -> Option<Class> {
+    fn class_declaration(&mut self) -> Option<ADT> {
         self.check_mods(&CLASS_MODIFIERS, "class")?;
         let visibility = self.get_visibility()?;
         let (name, generics) = self.generic_ident()?;
@@ -252,7 +267,7 @@ impl Parser {
         self.consume(TType::LeftBrace, "Expected '{' before class body.")?;
 
         let mut methods: Vec<Function> = Vec::new();
-        let mut variables: Vec<ClassMember> = Vec::new();
+        let mut variables: Vec<ADTMember> = Vec::new();
         let mut constructors: Vec<Constructor> = Vec::new();
 
         while !self.check(TType::RightBrace) && !self.is_at_end() {
@@ -275,17 +290,19 @@ impl Parser {
         }
 
         self.consume(TType::RightBrace, "Expected '}' after class body.")?;
-        Some(Class {
+        Some(ADT {
             name,
             visibility,
             generics,
             methods,
-            variables,
-            constructors,
+            ty: ADTType::Class {
+                variables,
+                constructors,
+            },
         })
     }
 
-    fn class_variable(&mut self, mutable: bool) -> Option<ClassMember> {
+    fn class_variable(&mut self, mutable: bool) -> Option<ADTMember> {
         self.check_mods(&MEMBER_MODIFIERS, "class member")?;
         let name = self.consume(TType::Identifier, "Expected variable name.")?;
 
@@ -309,7 +326,7 @@ impl Parser {
         }
         self.consume_semi_or_nl("Expected newline or ';' after variable declaration.")?;
 
-        Some(ClassMember {
+        Some(ADTMember {
             name,
             visibility: self.get_visibility()?,
             mutable,
@@ -377,7 +394,7 @@ impl Parser {
         Some(Import { path, symbol })
     }
 
-    fn iface_declaration(&mut self) -> Option<Interface> {
+    fn iface_declaration(&mut self) -> Option<ADT> {
         self.check_mods(&IFACE_MODIFIERS, "interface")?;
         let visibility = self.get_visibility()?;
         let (name, generics) = self.generic_ident()?;
@@ -404,11 +421,12 @@ impl Parser {
         }
 
         self.consume(TType::RightBrace, "Expected '}' after interface body.")?;
-        Some(Interface {
+        Some(ADT {
             name,
             visibility,
             generics,
             methods,
+            ty: ADTType::Interface,
         })
     }
 

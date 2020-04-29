@@ -31,19 +31,15 @@ impl PreMIRPass for FilterPrototypes {
         let mut errs = Vec::new();
 
         let class_iter = ast
-            .classes
-            .drain_filter(|c| c.generics.is_some())
-            .map(|c| (c.name.clone(), ProtoAST::Class(Rc::new(c))));
-        let iface_iter = ast
-            .interfaces
-            .drain_filter(|i| i.generics.is_some())
-            .map(|i| (i.name.clone(), ProtoAST::Interface(Rc::new(i))));
+            .adts
+            .drain_filter(|a| a.generics.is_some())
+            .map(|a| (a.name.clone(), ProtoAST::ADT(Rc::new(a))));
         let func_iter = ast
             .functions
             .drain_filter(|f| f.sig.generics.is_some())
             .map(|f| (f.sig.name.clone(), ProtoAST::Function(Rc::new(f))));
 
-        for (name, ast) in class_iter.chain(iface_iter).chain(func_iter) {
+        for (name, ast) in class_iter.chain(func_iter) {
             module
                 .try_reserve_name(&name)
                 .map_err(|e| errs.push(e))

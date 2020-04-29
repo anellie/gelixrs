@@ -11,12 +11,12 @@ use crate::{
     error::Errors,
     mir::{
         generator::{builder::Context, passes::PreMIRPass},
-        nodes::{Class, Interface, Type},
+        nodes::{ADTType, Type, ADT},
         MModule, MutRc,
     },
 };
 
-/// This pass defines all types inside the module; currently classes and interfaces.
+/// This pass defines all types inside the module.
 /// It only creates a stub MIR definition and inserts it as a type;
 /// nothing is filled or created.
 pub struct DeclareTypes();
@@ -31,30 +31,25 @@ impl PreMIRPass for DeclareTypes {
         let mut module = module.borrow_mut();
         let mut errs = Vec::new();
 
-        for class in ast.classes.drain(..) {
-            let name = class.name.clone();
+        for adt in ast.adts.drain(..) {
+            let name = adt.name.clone();
             module
                 .try_reserve_name(&name)
                 .map_err(|e| errs.push(e))
                 .ok();
 
-            module.types.insert(
-                Rc::clone(&name.lexeme),
-                Type::Class(Class::from_ast(class, Context::default())),
-            );
-        }
-
-        for iface in ast.interfaces.drain(..) {
-            let name = iface.name.clone();
+            let adt = ADT::from_ast(adt, Context::default(), None);
             module
-                .try_reserve_name(&name)
-                .map_err(|e| errs.push(e))
-                .ok();
+                .types
+                .insert(Rc::clone(&name.lexeme), Type::Adt(Rc::clone(&adt)));
 
-            module.types.insert(
-                Rc::clone(&name.lexeme),
-                Type::Interface(Interface::from_ast(iface, None, Context::default())),
-            );
+            if let ADTType::Enum { cases } = &adt.borrow().ty {
+                for (name, case) in cases {
+                    module
+                        .types
+                        .insert(Rc::clone(&name), Type::Adt(Rc::clone(&case)));
+                }
+            };
         }
 
         if errs.is_empty() {

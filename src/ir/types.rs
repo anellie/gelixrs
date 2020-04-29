@@ -6,7 +6,7 @@
 
 use crate::{
     ir::IRGenerator,
-    mir::nodes::{ClosureType, Function, IFaceMethod, Interface, Type, Variable},
+    mir::nodes::{ADTType, AbstractMethod, ClosureType, Function, Type, Variable, ADT},
 };
 use inkwell::{
     types::{BasicType, BasicTypeEnum, FunctionType, PointerType, StructType},
@@ -58,28 +58,20 @@ impl IRGenerator {
 
             Type::ClosureCaptured(captured) => self.build_captured_type(captured).into(),
 
-            Type::Class(class) => self
-                .build_struct(
-                    &class.borrow().name,
-                    class.borrow().members.iter().map(|(_, m)| &m.type_),
-                )
-                .into(),
+            Type::Adt(adt) => {
+                // Interfaces require special handling
+                // TODO
+                match adt.borrow().ty {
+                    ADTType::Interface { .. } => self.build_iface_type(adt.borrow()).into(),
 
-            Type::Interface(iface) => self.build_iface_type(iface.borrow()).into(),
-
-            Type::Enum(enu) => self
-                .build_struct(
-                    &enu.borrow().name,
-                    enu.borrow().members.iter().map(|(_, m)| &m.type_),
-                )
-                .into(),
-
-            Type::EnumCase(enu) => self
-                .build_struct(
-                    &enu.borrow().name,
-                    enu.borrow().members.iter().map(|(_, m)| &m.type_),
-                )
-                .into(),
+                    _ => self
+                        .build_struct(
+                            &adt.borrow().name,
+                            adt.borrow().members.iter().map(|(_, m)| &m.type_),
+                        )
+                        .into(),
+                }
+            }
 
             _ => panic!(format!("Unknown type '{}' to build", ty)),
         };
@@ -176,7 +168,7 @@ impl IRGenerator {
 
     /// Generate the type of an interface when used as a standalone type,
     /// which is a struct with 2 pointers (vtable + implementor).
-    fn build_iface_type(&mut self, iface: Ref<Interface>) -> StructType {
+    fn build_iface_type(&mut self, iface: Ref<ADT>) -> StructType {
         let free_method_sig = Some(
             self.context
                 .void_type()
@@ -191,7 +183,7 @@ impl IRGenerator {
             .into_iter()
             .chain(
                 iface
-                    .methods
+                    .dyn_methods
                     .iter()
                     .map(|(_, method)| self.build_iface_method_type(method)),
             )
@@ -209,7 +201,7 @@ impl IRGenerator {
         )
     }
 
-    fn build_iface_method_type(&mut self, method: &IFaceMethod) -> BasicTypeEnum {
+    fn build_iface_method_type(&mut self, method: &AbstractMethod) -> BasicTypeEnum {
         let params: Vec<BasicTypeEnum> = Some(self.void_ptr().into())
             .into_iter()
             .chain(method.parameters.iter().map(|param| self.ir_ty_ptr(&param)))

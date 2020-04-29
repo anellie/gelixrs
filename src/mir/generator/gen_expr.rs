@@ -20,7 +20,7 @@ use crate::{
             passes::declaring_globals::{generate_mir_fn, insert_global_and_type},
             ForLoop, MIRGenerator,
         },
-        nodes::{catch_up_passes, Class, Expr, Type, Variable},
+        nodes::{catch_up_passes, ADTType, Expr, Type, Variable, ADT},
         result::ToMIRResult,
         MutRc,
     },
@@ -263,8 +263,8 @@ impl MIRGenerator {
 
                 Right(index) => {
                     let ty = object.get_type();
-                    let iface = ty.as_interface().borrow();
-                    let params = &iface.methods.get_index(index).unwrap().1.parameters;
+                    let adt = ty.as_adt().borrow();
+                    let params = &adt.dyn_methods.get_index(index).unwrap().1.parameters;
                     let args = self.generate_func_args(
                         // 'params' need to have the 'this' parameter, this is the result...
                         Some(ty.clone()).iter().chain(params.iter()),
@@ -274,7 +274,7 @@ impl MIRGenerator {
                         name,
                     )?;
 
-                    Ok(Some(Expr::call_dyn(ty.as_interface(), index, args)))
+                    Ok(Some(Expr::call_dyn(ty.as_adt(), index, args)))
                 }
             }
         } else {
@@ -373,9 +373,9 @@ impl MIRGenerator {
     fn get_static(&mut self, object: &ASTExpr, name: &Token) -> Res<Expr> {
         let obj = self.expression(object)?;
         if let Type::Type(ty) = obj.get_type() {
-            if let Type::Enum(enu) = &*ty {
-                if let Some(case) = enu.borrow().cases.get(&name.lexeme) {
-                    Ok(Expr::type_get(Type::EnumCase(Rc::clone(case))))
+            if let ADTType::Enum { cases, .. } = &ty.as_adt().borrow().ty {
+                if let Some(case) = cases.get(&name.lexeme) {
+                    Ok(Expr::type_get(Type::Adt(Rc::clone(case))))
                 } else {
                     Err(self.err(name, "Unknown enum case."))
                 }
@@ -482,14 +482,14 @@ impl MIRGenerator {
             .borrow()
             .find_prototype(&"Array".to_string())
             .unwrap();
-        let array_type: MutRc<Class> = Rc::clone(
+        let array_type: MutRc<ADT> = Rc::clone(
             arr_proto
                 .build(
                     vec![elem_type],
                     &Token::generic_token(TType::RightBracket),
                     Rc::clone(&arr_proto),
                 )?
-                .as_class(),
+                .as_adt(),
         );
 
         let dummy_tok = Token::generic_token(TType::Var);
@@ -500,7 +500,7 @@ impl MIRGenerator {
 
         let array = self
             .try_constructor_call(
-                &Expr::type_get(Type::Class(array_type)),
+                &Expr::type_get(Type::Adt(array_type)),
                 &[ASTExpr::Literal(
                     Literal::I64(values_mir.len() as u64),
                     dummy_tok.clone(),

@@ -10,7 +10,7 @@ use crate::{
     lexer::token::TType,
     mir::{
         get_iface_impls,
-        nodes::{Expr, Function, Type, Variable},
+        nodes::{ADTType, Expr, Function, Type, Variable, ADT},
         MutRc,
     },
 };
@@ -176,21 +176,15 @@ impl IRGenerator {
 
     fn alloc_inst(
         &mut self,
-        ty: &Type,
+        ty: &MutRc<ADT>,
         constructor: &Rc<Variable>,
         constructor_args: &[Expr],
         heap: bool,
     ) -> BasicValueEnum {
-        let instantiator = match ty {
-            Type::Class(cls) => self.get_variable(&cls.borrow().instantiator),
-            Type::EnumCase(enu) => self.get_variable(&enu.borrow().instantiator),
-            _ => panic!("Cannot alloc type"),
-        };
-
-        let ty = self.ir_ty(ty);
+        let ir_ty = self.ir_ty(&Type::Adt(ty.clone()));
         self.build_alloc_and_init(
-            self.create_alloc(ty, heap),
-            instantiator,
+            self.create_alloc(ir_ty, heap),
+            self.get_variable(&ty.borrow().instantiator.as_ref().unwrap()),
             self.get_variable(&constructor),
             constructor_args,
         )
@@ -342,8 +336,8 @@ impl IRGenerator {
     }
 
     fn cast(&mut self, object: &Expr, to: &Type) -> BasicValueEnum {
-        match to {
-            Type::Interface(_) => self.cast_to_interface(object, to),
+        match to.as_adt().borrow().ty {
+            ADTType::Interface { .. } => self.cast_to_interface(object, to),
             _ => {
                 // This should be an enum cast;
                 // simply a bitcast is sufficient
@@ -405,10 +399,10 @@ impl IRGenerator {
 
     fn get_free_function(&self, ty: &Type) -> Option<PointerValue> {
         Some(match ty {
-            Type::Class(class) => self.functions[&PtrEqRc::new(&class.borrow().destructor)]
+            Type::Adt(adt) if adt.borrow().destructor.is_some() => self.functions
+                [&PtrEqRc::new(&adt.borrow().destructor.as_ref().unwrap())]
                 .as_global_value()
                 .as_pointer_value(),
-            Type::Interface(_) => unimplemented!("Interfaces implementing interfaces"),
             _ => self.void_ptr().const_zero(),
         })
     }

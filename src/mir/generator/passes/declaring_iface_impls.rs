@@ -65,9 +65,7 @@ pub fn declare_impl(
     let implementor = implementor?;
 
     let ty = builder.find_type(&iface_impl.iface)?;
-    let iface = if let Type::Interface(iface) = ty.clone() {
-        iface
-    } else {
+    if !ty.is_adt() || !ty.as_adt().borrow().ty.is_interface() {
         return Err(Error::new(
             &err_token,
             "MIR",
@@ -79,7 +77,7 @@ pub fn declare_impl(
     let impls = get_or_create_iface_impls(&implementor);
     let mir_impl = IFaceImpl {
         implementor,
-        iface,
+        iface: Rc::clone(ty.as_adt()),
         methods: IndexMap::with_capacity(iface_impl.methods.len()),
         module: Rc::clone(&builder.module),
         ast: Rc::new(iface_impl),

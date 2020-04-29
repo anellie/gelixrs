@@ -34,17 +34,17 @@ impl ModulePass for Generate {
                 }
             }
 
-            Type::Class(class) => {
-                let ast = Rc::clone(&class.borrow().ast);
-                gen.generate_constructors(&ast)?;
+            Type::Adt(adt) => {
+                let ast = Rc::clone(&adt.borrow().ast);
+                if let Some(constructors) = ast.constructors() {
+                    gen.generate_constructors(&ast, constructors)?;
+                }
 
-                for method in ast.methods.iter() {
-                    let mir = &class.borrow().methods[&method.sig.name.lexeme];
+                for method in ast.methods.iter().filter(|m| m.body.is_some()) {
+                    let mir = &adt.borrow().methods[&method.sig.name.lexeme];
                     gen.generate_function(method, Some(mir.type_.as_function()))?;
                 }
             }
-
-            Type::Interface(_iface) => (),
 
             _ => panic!("Primitive type in module!"),
         }

@@ -20,18 +20,61 @@ pub enum Visibility {
     Module,
 }
 
-/// A class definition.
+/// An generic ADT declaration.
 #[derive(Debug, Clone)]
-pub struct Class {
+pub struct ADT {
     pub name: Token,
     pub visibility: Visibility,
     pub generics: Option<Vec<Token>>,
-    pub variables: Vec<ClassMember>,
     pub methods: Vec<Function>,
-    pub constructors: Vec<Constructor>,
+    pub ty: ADTType,
 }
 
-/// A constructor in a class.
+impl ADT {
+    pub fn members(&self) -> Option<&[ADTMember]> {
+        match &self.ty {
+            ADTType::Class { variables, .. } => Some(&variables),
+            ADTType::Interface => None,
+            ADTType::Enum { variables, .. } => Some(&variables),
+            ADTType::EnumCase { variables, .. } => Some(&variables),
+        }
+    }
+
+    pub fn constructors(&self) -> Option<&[Constructor]> {
+        match &self.ty {
+            ADTType::Class { constructors, .. } => Some(&constructors),
+            ADTType::EnumCase { constructors, .. } => Some(&constructors),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum ADTType {
+    /// A class declaration.
+    Class {
+        variables: Vec<ADTMember>,
+        constructors: Vec<Constructor>,
+    },
+
+    /// An interface declaration.
+    Interface,
+
+    /// An enum declaration.
+    Enum {
+        variables: Vec<ADTMember>,
+        cases: Vec<ADT>,
+    },
+
+    /// An enum case.
+    EnumCase {
+        // Includes all parent members
+        variables: Vec<ADTMember>,
+        constructors: Vec<Constructor>,
+    },
+}
+
+/// A constructor in a declaration.
 /// The body can be empty if the constructor
 /// only requires parameter setters and would
 /// simply have a pointless empty body otherwise.
@@ -44,43 +87,14 @@ pub struct Constructor {
 
 pub type ConstructorParam = (Token, Option<Type>);
 
-/// A member of a class.
+/// A member of a declaration.
 #[derive(Debug, Clone)]
-pub struct ClassMember {
+pub struct ADTMember {
     pub name: Token,
     pub visibility: Visibility,
     pub mutable: bool,
     pub ty: Option<Type>,
     pub initializer: Option<Expression>,
-}
-
-/// An enum definition.
-#[derive(Debug, Clone)]
-pub struct Enum {
-    pub name: Token,
-    pub visibility: Visibility,
-    pub generics: Option<Vec<Token>>,
-    pub variables: Vec<ClassMember>,
-    pub methods: Vec<Function>,
-    pub cases: Vec<EnumCase>,
-}
-
-/// A case inside an enum definition.
-#[derive(Debug, Clone)]
-pub struct EnumCase {
-    pub name: Token,
-    pub variables: Vec<ClassMember>,
-    pub methods: Vec<Function>,
-    pub constructors: Vec<Constructor>,
-}
-
-/// An interface definition.
-#[derive(Debug, Clone)]
-pub struct Interface {
-    pub name: Token,
-    pub visibility: Visibility,
-    pub generics: Option<Vec<Token>>,
-    pub methods: Vec<Function>,
 }
 
 /// An interface implementation for a class.
@@ -89,13 +103,6 @@ pub struct IFaceImpl {
     pub iface: Type,
     pub implementor: Type,
     pub methods: Vec<Function>,
-}
-
-/// A function inside an interface, where the body is the default implementation and optional
-#[derive(Debug, Clone)]
-pub struct InterfaceFunc {
-    pub sig: FuncSignature,
-    pub body: Option<Expression>,
 }
 
 /// A function signature.

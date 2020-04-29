@@ -14,7 +14,7 @@ use crate::{
     lexer::token::TType,
     mir::{
         generator::intrinsics::INTRINSICS,
-        nodes::{ClassMember, Function, Interface, Type, Variable},
+        nodes::{ADTMember, Function, Type, Variable, ADT},
         MutRc,
     },
 };
@@ -36,7 +36,7 @@ pub enum Expr {
     /// - Call the given constructor with the allocation
     /// - Return the now initialized object as the value of this Expr
     AllocInst {
-        ty: Type,
+        ty: MutRc<ADT>,
         constructor: Rc<Variable>,
         constructor_args: Vec<Expr>,
         heap: Cell<bool>,
@@ -68,7 +68,7 @@ pub enum Expr {
     /// Implemented in IR as a struct with pointers to implementor and vtable (fat ptr).
     /// The value/fat ptr is obtained from the arguments list.
     CallDyn {
-        callee: MutRc<Interface>,
+        callee: MutRc<ADT>,
         index: usize,
         arguments: Vec<Expr>,
     },
@@ -176,7 +176,7 @@ impl Expr {
         let ty = if let Type::Type(ty) = ty { *ty } else { ty };
 
         Expr::AllocInst {
-            ty,
+            ty: ty.into_adt(),
             constructor: Rc::clone(&constructor),
             constructor_args,
             heap: Cell::new(true),
@@ -217,7 +217,7 @@ impl Expr {
         }
     }
 
-    pub fn call_dyn(callee: &MutRc<Interface>, index: usize, arguments: Vec<Expr>) -> Expr {
+    pub fn call_dyn(callee: &MutRc<ADT>, index: usize, arguments: Vec<Expr>) -> Expr {
         Expr::CallDyn {
             callee: Rc::clone(callee),
             index,
@@ -254,7 +254,7 @@ impl Expr {
         Expr::Return(Box::new(expr))
     }
 
-    pub fn struct_get(object: Expr, field: &Rc<ClassMember>) -> Expr {
+    pub fn struct_get(object: Expr, field: &Rc<ADTMember>) -> Expr {
         Expr::StructGet {
             object: Box::new(object),
             index: field.index,
@@ -310,7 +310,7 @@ impl Expr {
     /// on malformed expressions is undefined behavior that can lead to panics.
     pub fn get_type(&self) -> Type {
         match self {
-            Expr::AllocInst { ty, .. } => ty.clone(),
+            Expr::AllocInst { ty, .. } => Type::Adt(ty.clone()),
 
             Expr::Binary {
                 right, operator, ..
@@ -335,7 +335,7 @@ impl Expr {
 
             Expr::CallDyn { callee, index, .. } => callee
                 .borrow()
-                .methods
+                .dyn_methods
                 .get_index(*index)
                 .unwrap()
                 .1
@@ -393,19 +393,16 @@ impl Expr {
 
             Expr::StructGet { object, index } | Expr::StructSet { object, index, .. } => {
                 let object = object.get_type();
-                if let Type::Class(class) = object {
-                    class
-                        .borrow()
-                        .members
-                        .iter()
-                        .find(|(_, mem)| mem.index == *index)
-                        .unwrap()
-                        .1
-                        .type_
-                        .clone()
-                } else {
-                    panic!("non-class struct get")
-                }
+                object
+                    .into_adt()
+                    .borrow()
+                    .members
+                    .iter()
+                    .find(|(_, mem)| mem.index == *index)
+                    .unwrap()
+                    .1
+                    .type_
+                    .clone()
             }
 
             Expr::VarGet(var) | Expr::VarStore { var, .. } => var.type_.clone(),
@@ -418,7 +415,9 @@ impl Expr {
 impl Display for Expr {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         match self {
-            Expr::AllocInst { ty, heap, .. } => write!(f, "alloc {} (heap: {})", ty, heap.get()),
+            Expr::AllocInst { ty, heap, .. } => {
+                write!(f, "alloc {} (heap: {})", ty.borrow(), heap.get())
+            }
 
             Expr::Binary {
                 left,
@@ -442,7 +441,8 @@ impl Display for Expr {
                 index,
                 arguments,
             } => {
-                let method_name = Rc::clone(callee.borrow().methods.get_index(*index).unwrap().0);
+                let method_name =
+                    Rc::clone(callee.borrow().dyn_methods.get_index(*index).unwrap().0);
                 write!(f, "call method {}", method_name)?;
                 write!(f, " with ")?;
                 for arg in arguments.iter() {

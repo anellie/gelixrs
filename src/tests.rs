@@ -44,7 +44,6 @@ extern "C" fn test_puts(string: *const c_char) {
 
 extern "C" {
     fn malloc(x: i64) -> i64;
-    fn free(x: i64);
 }
 
 extern "C" fn test_malloc(size: i64) -> i64 {

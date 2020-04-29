@@ -24,55 +24,143 @@ use crate::{
 };
 use std::cell::Cell;
 
-/// A full class including all members and methods.
-/// Members are ordered, as the class is represented as a struct in IR;
-/// structs in IR only have indices for members, not names.
+/// A general purpose class used for all user-defined data structures.
+/// The ty field inside is used for further specialization.
 #[derive(Debug)]
-pub struct Class {
-    /// The name of the class.
+pub struct ADT {
+    /// The name of the ADT.
     pub name: Rc<String>,
-    /// All class members.
-    pub members: IndexMap<Rc<String>, Rc<ClassMember>>,
-    /// All class methods. Inserted as "doThing", not "Class-doThing".
+    /// All members of the underlying ADT struct.
+    pub members: IndexMap<Rc<String>, Rc<ADTMember>>,
+    /// All methods of this ADT that can be called by the user
+    /// using get/receiver syntax (adt.method(p1, p2) --compile-> method(adt, p1, p2))
     pub methods: HashMap<Rc<String>, Rc<Variable>>,
-    /// An internal function that creates an instance of the class
+    /// See [AbstractMethod].
+    /// Used only for interfaces, currently.
+    pub dyn_methods: IndexMap<Rc<String>, AbstractMethod>,
+
+    /// An internal function that creates an instance of the ADT
     /// and populates all fields with a user-given default value.
     /// When the user wants to create an instance by calling a constructor,
     /// this function is called first, followed by one of the constructor methods.
-    pub instantiator: Rc<Variable>,
-    /// All constructors of the class. They are simply methods
+    ///
+    /// Note that not all ADT have this function since not all are intended to be
+    /// user-instantiated (for example interfaces or closure capture ADTs)
+    pub instantiator: Option<Rc<Variable>>,
+    /// All constructors of the ADT, if any. They are simply methods
     /// with special constraints to enforce safety.
     /// Only call on instances produced by the instantiator function.
+    ///
+    /// Note that not all ADT have this function since not all are intended to be
+    /// user-instantiated (for example interfaces or closure capture ADTs)
     pub constructors: Vec<Rc<Variable>>,
-    /// Another internal function that is called when the refcount is decremented.
+    /// An internal function that is called when the refcount is decremented.
     /// The only other parameter is a boolean indicating if the object is no longer
-    /// reachable and needs to be deallocated. If it is true, it will first decrement all class
-    /// members first, then call free(). If not, it'll do nothing.
-    pub destructor: Rc<Variable>,
-    /// The context to be used inside this declaration.
+    /// reachable and needs to be deallocated. If it is true, it will first decrement
+    /// all members first, then call free(). If not, it'll do nothing.
+    ///
+    /// Note that not all ADT have this function since not all are intended to be
+    /// garbage-collected.
+    pub destructor: Option<Rc<Variable>>,
+
+    /// The context to be used inside this ADT.
     pub context: Context,
-    /// The AST this was compiled from.
-    pub ast: Rc<ast::Class>,
+
+    pub ast: Rc<ast::ADT>,
+    pub ty: ADTType,
 }
 
-impl Class {
-    pub fn from_ast(ast: ast::Class, context: Context) -> MutRc<Class> {
-        mutrc_new(Class {
+impl ADT {
+    /// TODO: Enum edge case is rather ugly
+    pub fn from_ast(
+        mut ast: ast::ADT,
+        context: Context,
+        proto: Option<Rc<Prototype>>,
+    ) -> MutRc<ADT> {
+        let mut enum_cases: Option<Vec<ast::ADT>> = None;
+        let (mem_size, method_size, dyn_size, const_size, ty) = match &mut ast.ty {
+            ast::ADTType::Class {
+                variables,
+                constructors,
+            } => (
+                variables.len(),
+                ast.methods.len(),
+                0,
+                constructors.len(),
+                ADTType::Class,
+            ),
+
+            ast::ADTType::Interface => (0, 0, ast.methods.len(), 0, ADTType::Interface { proto }),
+
+            ast::ADTType::Enum {
+                variables,
+                ref mut cases,
+            } => {
+                enum_cases = Some(std::mem::replace(cases, vec![]));
+                (
+                    variables.len(),
+                    ast.methods.len(),
+                    0,
+                    0,
+                    ADTType::Enum {
+                        cases: HashMap::new(),
+                    },
+                )
+            }
+
+            ast::ADTType::EnumCase {
+                variables,
+                constructors,
+            } => (
+                variables.len(), // TODO: check parent
+                ast.methods.len(),
+                0,
+                constructors.len(),
+                ADTType::Generic,
+            ),
+        };
+
+        let adt = mutrc_new(ADT {
             name: Rc::clone(&ast.name.lexeme),
-            members: IndexMap::with_capacity(ast.variables.len()),
-            methods: HashMap::with_capacity(ast.methods.len()),
-            instantiator: Rc::new(Default::default()),
-            constructors: Vec::with_capacity(ast.constructors.len()),
-            destructor: Rc::new(Default::default()),
-            context,
+            members: IndexMap::with_capacity(mem_size),
+            methods: HashMap::with_capacity(method_size),
+            dyn_methods: IndexMap::with_capacity(dyn_size),
+            instantiator: None,
+            constructors: Vec::with_capacity(const_size),
+            destructor: None,
+            context: context.clone(),
             ast: Rc::new(ast),
-        })
+            ty,
+        });
+
+        if let Some(cases) = enum_cases {
+            adt.borrow_mut().ty = ADTType::Enum {
+                cases: cases
+                    .into_iter()
+                    .map(|c| {
+                        (
+                            Rc::clone(&c.name.lexeme),
+                            Self::enum_parent(Self::from_ast(c, context.clone(), None), &adt),
+                        )
+                    })
+                    .collect(),
+            }
+        }
+
+        adt
+    }
+
+    fn enum_parent(child: MutRc<ADT>, parent: &MutRc<ADT>) -> MutRc<ADT> {
+        child.borrow_mut().ty = ADTType::EnumCase {
+            parent: Rc::clone(parent),
+        };
+        child
     }
 }
 
-impl Display for Class {
+impl Display for ADT {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-        writeln!(f, "class {} {{\n", self.name)?;
+        writeln!(f, "adt {} {{\n", self.name)?;
         for (name, member) in self.members.iter() {
             writeln!(
                 f,
@@ -90,69 +178,67 @@ impl Display for Class {
     }
 }
 
-/// A member of a class.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct ClassMember {
-    pub mutable: bool,
-    pub type_: Type,
-    /// This is the index used for StructGet and StructSet
-    /// expressions. This is needed due to the IR only using indices for members
-    pub index: usize,
-    /// If this member has a default value set before constructors run.
-    /// Used to determine if a constructor needs to initialize a member.
-    pub has_default_value: bool,
-}
+/// The exact type of ADT.
+/// Can also contain type-specific data.
+#[derive(Debug, EnumIsA)]
+pub enum ADTType {
+    /// A generic ADT that is just a bunch of members.
+    /// Used for things like interface vtables.
+    Generic,
 
-/// An interface consisting of methods a type can implement.
-#[derive(Debug)]
-pub struct Interface {
-    /// The name of the interface. Generally the name given by the user;
-    /// should the interface have been created from a prototype with generic parameters,
-    /// its name is $Name<$Param1,$Param2>
-    pub name: Rc<String>,
-    /// A map of all methods.
-    /// Indexed due to the vtable in IR being a struct.
-    pub methods: IndexMap<Rc<String>, IFaceMethod>,
-    /// The prototype this interface was built from, if any.
-    /// Only used for some intrinsics.
-    pub proto: Option<Rc<Prototype>>,
-    /// The context to be used inside this declaration.
-    pub context: Context,
-    /// The AST this was compiled from.
-    pub ast: Rc<ast::Interface>,
-}
+    /// A class definition.
+    Class,
 
-impl Interface {
-    pub fn from_ast(
-        ast: ast::Interface,
+    /// An enum definition.
+    Interface {
+        /// The prototype this interface was built from, if any.
+        /// Only used for some intrinsics.
         proto: Option<Rc<Prototype>>,
-        context: Context,
-    ) -> MutRc<Interface> {
-        mutrc_new(Interface {
-            name: Rc::clone(&ast.name.lexeme),
-            methods: IndexMap::with_capacity(ast.methods.len()),
-            proto,
-            context,
-            ast: Rc::new(ast),
-        })
+    },
+
+    /// An enum, with unknown case.
+    Enum {
+        /// All cases.
+        /// TODO: Copying all member and methods for each case is inefficient,
+        /// ideally EnumCase and Enum would be merged somehow
+        cases: HashMap<Rc<String>, MutRc<ADT>>,
+    },
+
+    /// An enum with known case.
+    EnumCase { parent: MutRc<ADT> },
+}
+
+impl ADTType {
+    /// If this type needs lifecycle methods (instantiator/destructor).
+    /// Also used to determine if the type should have its members generated.
+    pub fn needs_lifecycle(&self) -> bool {
+        self.is_class() || self.is_enum_case()
     }
 }
 
-impl Display for Interface {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-        writeln!(f, "interface {} {{\n", self.name)?;
-        for (_, func) in self.methods.iter() {
-            writeln!(f, "    {}", func)?;
-        }
-        writeln!(f, "}}")
-    }
+/// A member of an ADT struct.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ADTMember {
+    /// If this member can be reassigned from user code.
+    pub mutable: bool,
+    /// If this type is visible to user code.
+    /// Used to hide interface vtables for example.
+    pub visible: bool,
+    /// The type of the member.
+    pub type_: Type,
+    /// The index of the member inside the ADT struct.
+    pub index: usize,
+    /// If this member has a default value.
+    /// This is used for some ADTs to check user constructors
+    /// initialize all members before the constructor returns.
+    pub has_default_value: bool,
 }
 
 /// An implementation of an interface.
 #[derive(Debug)]
 pub struct IFaceImpl {
     pub implementor: Type,
-    pub iface: MutRc<Interface>,
+    pub iface: MutRc<ADT>,
     /// Note: These methods are the same order as the ones on the interface.
     pub methods: IndexMap<Rc<String>, Rc<Variable>>,
     /// Note: This is the module that the impl block is in.
@@ -173,19 +259,19 @@ pub struct IFaceImpls {
     pub methods: HashMap<Rc<String>, Rc<Variable>>,
 }
 
-/// A method inside an interface.
-/// The default implementation is left in AST state so that it can be compiled
-/// individually on concrete implementations if needed; it can be found
-/// in the 'ast' field of the interface this function is contained in.
+/// An abstract method (currently only on interfaces.)
+/// Used for dynamic dispatch methods, where the exact
+/// method is not known at compile time.
 #[derive(Debug)]
-pub struct IFaceMethod {
+pub struct AbstractMethod {
     pub name: Rc<String>,
     pub parameters: Vec<Type>,
     pub ret_type: Type,
+    // TODO: Is this obsolete? probably
     pub has_default_impl: bool,
 }
 
-impl Display for IFaceMethod {
+impl Display for AbstractMethod {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         write!(f, "func {}(", self.name)?;
 
@@ -197,71 +283,6 @@ impl Display for IFaceMethod {
 
         writeln!(f, ")")
     }
-}
-
-/// A full enum including all members, methods and cases.
-/// The enum is represented as a struct in IR;
-/// to allow different variables in cases, the struct is padded.
-/// Additionally, the first field of the struct after the GC refcount
-/// is an u16 indicating the case of the enum (the discriminant).
-/// The discriminant is in the members map as `discriminant` and
-/// can be accessed by user code using that name.
-#[derive(Debug)]
-pub struct Enum {
-    /// The name of the enum.
-    pub name: Rc<String>,
-    /// All members shared across all cases.
-    pub members: IndexMap<Rc<String>, Rc<ClassMember>>,
-    /// All methods. Inserted as "doThing", not "Enum-doThing".
-    pub methods: HashMap<Rc<String>, Rc<Variable>>,
-    /// All cases of this enum.
-    pub cases: HashMap<Rc<String>, MutRc<EnumCase>>,
-    /// An internal function that is called when the refcount is decremented.
-    /// The only other parameter is a boolean indicating if the object is no longer
-    /// reachable and needs to be deallocated. If it is true, it will first decrement all enum
-    /// members first, then call free(). If not, it'll do nothing.
-    pub destructor: Rc<Variable>,
-    /// The context to be used inside this declaration.
-    pub context: Context,
-    /// The AST this was compiled from.
-    pub ast: Rc<ast::Enum>,
-}
-
-impl Enum {
-    pub fn from_ast(ast: ast::Enum, context: Context) -> MutRc<Enum> {
-        mutrc_new(Enum {
-            name: Rc::clone(&ast.name.lexeme),
-            members: IndexMap::with_capacity(ast.variables.len()),
-            methods: HashMap::with_capacity(ast.methods.len()),
-            cases: HashMap::with_capacity(ast.cases.len()),
-            destructor: Rc::new(Default::default()),
-            context,
-            ast: Rc::new(ast),
-        })
-    }
-}
-
-/// A case of an enum.
-#[derive(Debug)]
-pub struct EnumCase {
-    /// The name of the case.
-    pub name: Rc<String>,
-    /// The enum this case is a part of.
-    pub parent: MutRc<Enum>,
-    /// All case members. Includes members of the parent enum.
-    pub members: IndexMap<Rc<String>, Rc<ClassMember>>,
-    /// All case methods. Inserted as "doThing", not "Class-doThing";
-    /// includes parent enum methods.
-    pub methods: HashMap<Rc<String>, Rc<Variable>>,
-    /// An internal function that creates an instance of the case
-    /// and populates all fields with a user-given default value.
-    /// When the user wants to create an instance by calling a constructor,
-    /// this function is called first, followed by one of the constructor methods.
-    pub instantiator: Rc<Variable>,
-    /// All constructors of the case. They are simply methods
-    /// with special constraints to enforce safety.
-    /// Only call on instances produced by the instantiator function.
-    pub constructors: Vec<Rc<Variable>>,
 }
 
 /// A function.
