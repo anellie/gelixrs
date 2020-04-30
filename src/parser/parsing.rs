@@ -247,6 +247,40 @@ impl Parser {
                 }
             }
             self.consume(TType::RightBrace, "Expected '}' after case body.")?;
+        } else if self.matches(TType::LeftParen) {
+            while !self.check(TType::RightParen) && !self.is_at_end() {
+                self.consume_mods();
+
+                let tok = self.match_tokens(&[TType::Val, TType::Var]);
+                let mutable = if let Some(tok) = tok {
+                    tok.t_type == TType::Var
+                } else {
+                    self.error_at_current("Expected 'var' or 'val'.")?;
+                    unreachable!();
+                };
+
+                let name = self.consume(TType::Identifier, "Expected member name.")?;
+                self.consume(TType::Colon, "Expected ':' after member name.")?;
+                let ty = self.type_("Expected member type.")?;
+                variables.push(ADTMember {
+                    name,
+                    visibility: self.get_visibility()?,
+                    mutable,
+                    ty: Some(ty),
+                    initializer: None,
+                });
+
+                if !self.matches(TType::Comma) {
+                    break;
+                }
+            }
+            self.consume(TType::RightParen, "Expected ')' after members.")?;
+
+            constructors.push(Constructor {
+                visibility: Visibility::Public,
+                parameters: variables.iter().map(|m| (m.name.clone(), None)).collect(),
+                body: None
+            })
         }
 
         Some(ADT {

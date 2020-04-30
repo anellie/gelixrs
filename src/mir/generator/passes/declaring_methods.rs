@@ -22,7 +22,7 @@ use crate::{
             passes::{declaring_globals::create_function, ModulePass, PassType},
             MIRGenerator,
         },
-        nodes::{AbstractMethod, Expr, Type, Variable, ADT},
+        nodes::{ADTType, AbstractMethod, Expr, Type, Variable, ADT},
         result::ToMIRResult,
         MutRc,
     },
@@ -41,7 +41,19 @@ impl ModulePass for DeclareMethods {
             if adt.borrow().ty.needs_lifecycle() {
                 declare_lifecycle_methods(&mut gen.builder, &adt)?;
             }
-            declare_user_methods(&mut gen.builder, adt)?;
+            declare_user_methods(&mut gen.builder, &adt)?;
+
+            // TODO: This is a little ugly... it works i guess?
+            if let ADTType::Enum { cases } = &adt.borrow().ty {
+                for case in cases.values() {
+                    let mut case = case.borrow_mut();
+                    case.methods.reserve(adt.borrow().methods.len());
+                    for method in &adt.borrow().methods {
+                        case.methods
+                            .insert(Rc::clone(method.0), Rc::clone(method.1));
+                    }
+                }
+            }
         }
         Ok(())
     }
@@ -59,7 +71,7 @@ fn declare_lifecycle_methods(builder: &mut MIRBuilder, adt: &MutRc<ADT>) -> Res<
     Ok(())
 }
 
-fn declare_user_methods(builder: &mut MIRBuilder, adt: MutRc<ADT>) -> Res<()> {
+fn declare_user_methods(builder: &mut MIRBuilder, adt: &MutRc<ADT>) -> Res<()> {
     let ast = Rc::clone(&adt.borrow().ast);
     let this_param = FunctionParam::this_param(&ast.name);
 

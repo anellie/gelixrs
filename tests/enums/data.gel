@@ -1,14 +1,21 @@
 /*
+Hello!
+42
+true
 */
 
 func main() {
     val a = A:A("Hello!")
     val b = A:B(42)
     val c = A:C(true)
+
+    print(a.a)
+    print(b.a)
+    print(c.a)
 }
 
 enum A {
-    case A(a: String)
-    case B(a: i64)
-    case C(a: bool)
+    case A(val a: String)
+    case B(val a: i64)
+    case C(val a: bool)
 }
