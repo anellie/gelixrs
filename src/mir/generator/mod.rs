@@ -413,7 +413,7 @@ impl MIRGenerator {
         left_ty: &Type,
         right_ty: &Type,
     ) -> Option<Rc<Variable>> {
-        let proto = INTRINSICS.with(|i| i.borrow().get_op_iface(op));
+        let proto = INTRINSICS.with(|i| i.borrow().get_op_iface(op))?;
         let iface_impls = get_iface_impls(left_ty)?;
         let iface_impls = iface_impls.borrow();
 

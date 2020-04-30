@@ -136,7 +136,9 @@ impl MIRGenerator {
         let left_ty = left.get_type();
         let right_ty = right.get_type();
 
-        if left_ty == right_ty && left_ty.is_number() {
+        if (left_ty == right_ty && left_ty.is_number())
+            || (operator.t_type == TType::Is && right_ty.is_type())
+        {
             Ok(Expr::binary(left, operator.t_type, right))
         } else {
             let method_var = self
@@ -668,7 +670,8 @@ impl MIRGenerator {
         let mut cases = Vec::with_capacity(branches.len());
         for (br_cond_ast, branch) in branches.iter() {
             let br_cond = self.expression(br_cond_ast)?;
-            if br_cond.get_type() != cond_type {
+            let br_type = br_cond.get_type();
+            if br_type != cond_type && !br_type.is_type() {
                 return Err(self.err(
                     br_cond_ast.get_token(),
                     "Branches of when must be of same type as the value compared.",
@@ -679,8 +682,12 @@ impl MIRGenerator {
             // a useful error without having to add complexity
             // to binary_mir()
             let mut optok = br_cond_ast.get_token().clone();
-            optok.t_type = TType::EqualEqual;
-            let cond = self.binary_mir(br_cond, &optok, value.clone())?;
+            optok.t_type = if br_type.is_type() {
+                TType::Is
+            } else {
+                TType::EqualEqual
+            };
+            let cond = self.binary_mir(value.clone(), &optok, br_cond)?;
 
             let branch_val = self.expression(branch)?;
             if branch_val.get_type() != branch_type {

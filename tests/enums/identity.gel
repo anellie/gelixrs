@@ -1,7 +1,7 @@
 /*
-Hello!
-42
-true
+a
+b
+c
 */
 
 func main() {
@@ -20,9 +20,9 @@ enum A {
 
     func to_string() -> String {
         when (this) {
-            A:A -> this.b
-            A:B -> this.b.to_string()
-            A:C -> this.b.to_string()
+            A:A -> "a"
+            A:B -> "b"
+            A:C -> "c"
             else -> "bad"
         }
     }

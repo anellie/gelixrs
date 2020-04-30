@@ -105,6 +105,7 @@ impl Lexer {
             "import" => TType::Import,
             "in" => TType::In,
             "interface" => TType::Interface,
+            "is" => TType::Is,
             "or" => TType::Or,
             "return" => TType::Return,
             "to" => TType::To,

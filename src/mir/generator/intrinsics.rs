@@ -52,8 +52,8 @@ pub struct Intrinsics {
 
 impl Intrinsics {
     /// Returns the interface corresponding with this binary operator
-    pub fn get_op_iface(&self, ty: TType) -> Rc<Prototype> {
-        Rc::clone(&self.ops[&ty])
+    pub fn get_op_iface(&self, ty: TType) -> Option<Rc<Prototype>> {
+        self.ops.get(&ty).cloned()
     }
 
     /// Returns the array type for a given array literal,

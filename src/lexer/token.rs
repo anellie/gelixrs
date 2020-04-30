@@ -113,6 +113,7 @@ pub enum TType {
     Import,
     In,
     Interface,
+    Is,
     Or,
     Return,
     To,

@@ -25,7 +25,7 @@ use crate::mir::{
     nodes::{Function, Type, Variable},
     MModule, MutRc,
 };
-use inkwell::passes::PassManager;
+use inkwell::{passes::PassManager, types::StructType, AddressSpace::Generic};
 
 mod gc;
 mod gen_expr;
@@ -64,13 +64,17 @@ pub struct IRGenerator {
     /// All functions.
     functions: HashMap<PtrEqRc<Variable>, FunctionValue>,
     /// All types (classes/interfaces/structs) that are available.
-    types: HashMap<Type, BasicTypeEnum>,
+    /// The GlobalValue is a pointer to a static struct containing type
+    /// information. All values have a pointer to this struct in them.
+    types: HashMap<Type, (BasicTypeEnum, PointerValue)>,
     /// A map of types based on their names in IR to allow for backwards lookup.
     types_bw: HashMap<String, Type>,
 
     /// A constant that is used for expressions that don't produce a value but are required to,
     /// like return or break expressions.
     none_const: BasicValueEnum,
+    /// The type for type info that is baked into every value
+    type_info_type: StructType,
 
     /// Needed state about the current loop, if compiling one.
     loop_data: Option<LoopData>,
@@ -239,16 +243,19 @@ impl IRGenerator {
             )]);
 
         let mut types = HashMap::with_capacity(50);
-        types.insert(Type::None, none_const.get_type().into());
-        types.insert(Type::Bool, context.bool_type().into());
+        let null_ptr = context.i64_type().ptr_type(Generic).const_null();
+        types.insert(Type::None, (none_const.get_type().into(), null_ptr));
+        types.insert(Type::Bool, (context.bool_type().into(), null_ptr));
 
-        types.insert(Type::I8, context.i8_type().into());
-        types.insert(Type::I16, context.i16_type().into());
-        types.insert(Type::I32, context.i32_type().into());
-        types.insert(Type::I64, context.i64_type().into());
+        types.insert(Type::I8, (context.i8_type().into(), null_ptr));
+        types.insert(Type::I16, (context.i16_type().into(), null_ptr));
+        types.insert(Type::I32, (context.i32_type().into(), null_ptr));
+        types.insert(Type::I64, (context.i64_type().into(), null_ptr));
 
-        types.insert(Type::F32, context.f32_type().into());
-        types.insert(Type::F64, context.f64_type().into());
+        types.insert(Type::F32, (context.f32_type().into(), null_ptr));
+        types.insert(Type::F64, (context.f64_type().into(), null_ptr));
+
+        let type_info_type = context.struct_type(&[context.i64_type().into()], false);
 
         IRGenerator {
             context,
@@ -266,6 +273,7 @@ impl IRGenerator {
             types_bw: HashMap::with_capacity(50),
             functions: HashMap::with_capacity(10),
 
+            type_info_type,
             none_const: none_const.into(),
             loop_data: None,
         }

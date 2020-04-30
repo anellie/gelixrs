@@ -766,7 +766,8 @@ impl Parser {
         ]
     );
     binary_op!(addition, multiplication, [TType::Plus, TType::Minus]);
-    binary_op!(multiplication, unary, [TType::Star, TType::Slash]);
+    binary_op!(multiplication, identity, [TType::Star, TType::Slash]);
+    binary_op!(identity, unary, [TType::Is]);
 
     fn unary(&mut self) -> Option<Expression> {
         Some(

@@ -86,17 +86,7 @@ impl IRGenerator {
         assert!(ptr.get_type().get_element_type().is_struct_type());
 
         // Account for the reference count field, should it be present
-        let index = if ptr
-            .get_type()
-            .get_element_type()
-            .as_struct_type()
-            .get_field_type_at_index(0)
-            == Some(self.context.i32_type().into())
-        {
-            index as u32 + 1
-        } else {
-            index as u32
-        };
+        let index = index as u32 + self.get_struct_offset(ptr);
 
         assert!(
             ptr.get_type()
@@ -106,7 +96,26 @@ impl IRGenerator {
                 > index
         );
 
-        unsafe { self.builder.build_struct_gep(ptr, index, "gep") }
+        unsafe { self.builder.build_struct_gep(ptr, index as u32, "gep") }
+    }
+
+    pub fn get_type_info_field(&self, ptr: PointerValue) -> PointerValue {
+        unsafe { self.builder.build_struct_gep(ptr, 1, "gep") }
+    }
+
+    pub fn get_struct_offset(&self, ptr: PointerValue) -> u32 {
+        let elem_ty = ptr.get_type().get_element_type();
+        let struct_type = elem_ty.as_struct_type();
+        let mut i = 0;
+
+        // Account for the reference count field, should it be present
+        i +=
+            (struct_type.get_field_type_at_index(i) == Some(self.context.i32_type().into())) as u32;
+        // Account for the type info field, should it be present
+        i += (struct_type.get_field_type_at_index(i)
+            == Some(self.type_info_type.ptr_type(Generic).into())) as u32;
+
+        i
     }
 
     /// Creates a new stack allocation instruction in the entry block of the function.
@@ -224,6 +233,10 @@ impl IRGenerator {
                 self.decrement_refcount(*local);
             }
         }
+    }
+
+    pub fn nullptr(&self) -> PointerValue {
+        self.context.i64_type().ptr_type(Generic).const_null()
     }
 
     pub fn build_phi(&mut self, nodes: &[(BasicValueEnum, BasicBlock)]) -> BasicValueEnum {

@@ -38,8 +38,24 @@ impl IRGenerator {
                 right,
             } => {
                 let left = self.expression(left);
-                let right = self.expression(right);
-                self.binary(left, *operator, right)
+                if operator == &TType::Is {
+                    let ty_info_ptr = self.ir_ty_info(right.get_type().as_type());
+                    let left_ptr = self.get_type_info_field(left.into_pointer_value());
+                    let left_ptr = self.load_ptr(left_ptr).into_pointer_value();
+
+                    let left_int =
+                        self.builder
+                            .build_ptr_to_int(left_ptr, self.context.i64_type(), "conv");
+                    let right_int =
+                        self.builder
+                            .build_ptr_to_int(ty_info_ptr, self.context.i64_type(), "conv");
+                    self.builder
+                        .build_int_compare(IntPredicate::EQ, left_int, right_int, "ident")
+                        .into()
+                } else {
+                    let right = self.expression(right);
+                    self.binary(left, *operator, right)
+                }
             }
 
             Expr::Block(exprs) => {
@@ -182,12 +198,22 @@ impl IRGenerator {
         heap: bool,
     ) -> BasicValueEnum {
         let ir_ty = self.ir_ty(&Type::Adt(ty.clone()));
+        let alloc = self.create_alloc(ir_ty, heap);
+        self.maybe_init_type_info(ty, alloc);
         self.build_alloc_and_init(
-            self.create_alloc(ir_ty, heap),
+            alloc,
             self.get_variable(&ty.borrow().instantiator.as_ref().unwrap()),
             self.get_variable(&constructor),
             constructor_args,
         )
+    }
+
+    fn maybe_init_type_info(&mut self, ty: &MutRc<ADT>, alloc: PointerValue) {
+        if ty.borrow().ty.needs_lifecycle() {
+            let gep = unsafe { self.builder.build_struct_gep(alloc, 1, "tygep") };
+            let val = self.ir_ty_info(&Type::Adt(Rc::clone(ty)));
+            self.builder.build_store(gep, val);
+        }
     }
 
     fn build_alloc_and_init(

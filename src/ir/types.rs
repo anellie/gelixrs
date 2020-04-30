@@ -10,6 +10,7 @@ use crate::{
 };
 use inkwell::{
     types::{BasicType, BasicTypeEnum, FunctionType, PointerType, StructType},
+    values::PointerValue,
     AddressSpace::Generic,
 };
 use std::{cell::Ref, rc::Rc};
@@ -37,6 +38,15 @@ impl IRGenerator {
 
     /// Converts a MIRType to the corresponding LLVM type.
     pub fn ir_ty(&mut self, mir: &Type) -> BasicTypeEnum {
+        self.ir_ty_full(mir).0
+    }
+
+    /// Converts a MIRType to the corresponding LLVM type info global struct.
+    pub fn ir_ty_info(&mut self, mir: &Type) -> PointerValue {
+        self.ir_ty_full(mir).1
+    }
+
+    pub fn ir_ty_full(&mut self, mir: &Type) -> (BasicTypeEnum, PointerValue) {
         self.types
             .get(mir)
             .copied()
@@ -44,13 +54,13 @@ impl IRGenerator {
     }
 
     /// Generates a type, if it was not found in self.types.
-    fn build_type(&mut self, ty: &Type) -> BasicTypeEnum {
+    fn build_type(&mut self, ty: &Type) -> (BasicTypeEnum, PointerValue) {
         let ir_ty = match ty {
             // Any is a special case - it is not in self.types
             // as it is considered equal to all other types -
             // this would break the hashmap and result in returning
             // of Any when the type searched for is not Any.
-            Type::Any => return self.none_const.get_type(),
+            Type::Any => return (self.none_const.get_type(), self.nullptr()),
 
             Type::Function(func) => self.build_fn_type(func.borrow()).ptr_type(Generic).into(),
 
@@ -68,6 +78,7 @@ impl IRGenerator {
                         .build_struct(
                             &adt.borrow().name,
                             adt.borrow().members.iter().map(|(_, m)| &m.type_),
+                            true,
                         )
                         .into(),
                 }
@@ -76,19 +87,25 @@ impl IRGenerator {
             _ => panic!(format!("Unknown type '{}' to build", ty)),
         };
 
-        self.types.insert(ty.clone(), ir_ty);
+        let type_info = self.build_type_info();
+
+        self.types.insert(ty.clone(), (ir_ty, type_info));
         if let BasicTypeEnum::StructType(struc) = ir_ty {
             self.types_bw.insert(
                 struc.get_name().unwrap().to_str().unwrap().to_string(),
                 ty.clone(),
             );
         }
-        ir_ty
+        (ir_ty, type_info)
     }
 
     /// Generates the struct for captured variables, given a list of them.
     fn build_captured_type(&mut self, captured: &[Rc<Variable>]) -> StructType {
-        self.build_struct("closure-captured", captured.iter().map(|var| &var.type_))
+        self.build_struct(
+            "closure-captured",
+            captured.iter().map(|var| &var.type_),
+            false,
+        )
     }
 
     /// Generates a struct out of an iterator of member types.
@@ -96,9 +113,10 @@ impl IRGenerator {
         &mut self,
         name: &str,
         body: T,
+        type_info: bool,
     ) -> StructType {
         let body: Vec<_> = body.map(|var| self.ir_ty_ptr(&var)).collect();
-        self.build_struct_ir(name, body.into_iter(), true)
+        self.build_struct_ir(name, body.into_iter(), true, type_info)
     }
 
     fn build_struct_ir<T: Iterator<Item = BasicTypeEnum>>(
@@ -106,15 +124,25 @@ impl IRGenerator {
         name: &str,
         body: T,
         refcount: bool,
+        type_info: bool,
     ) -> StructType {
         let first_field = if refcount {
             Some(self.context.i32_type().into())
         } else {
             None
         };
+        let second_field = if type_info {
+            Some(self.type_info_type.ptr_type(Generic).into())
+        } else {
+            None
+        };
 
         let struc_val = self.context.opaque_struct_type(name);
-        let body: Vec<_> = first_field.into_iter().chain(body).collect();
+        let body: Vec<_> = first_field
+            .into_iter()
+            .chain(second_field.into_iter())
+            .chain(body)
+            .collect();
         struc_val.set_body(&body, false);
         struc_val
     }
@@ -188,7 +216,7 @@ impl IRGenerator {
                     .map(|(_, method)| self.build_iface_method_type(method)),
             )
             .collect();
-        let vtable_struct = self.build_struct_ir("vtable", vtable.into_iter(), false);
+        let vtable_struct = self.build_struct_ir("vtable", vtable.into_iter(), false, false);
 
         self.build_struct_ir(
             &iface.name,
@@ -197,6 +225,7 @@ impl IRGenerator {
                 vtable_struct.ptr_type(Generic).into(),
             ]
             .into_iter(),
+            false,
             false,
         )
     }
@@ -215,6 +244,20 @@ impl IRGenerator {
         }
         .ptr_type(Generic)
         .into()
+    }
+
+    fn build_type_info(&self) -> PointerValue {
+        let global = self
+            .module
+            .add_global(self.type_info_type, None, "typeinfo");
+        global.set_initializer(
+            &self.type_info_type.const_named_struct(&[self
+                .context
+                .i64_type()
+                .const_int(0, false)
+                .into()]),
+        );
+        global.as_pointer_value()
     }
 
     pub fn void_ptr(&self) -> PointerType {
