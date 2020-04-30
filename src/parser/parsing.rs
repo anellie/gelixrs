@@ -180,7 +180,7 @@ impl Parser {
             match self.advance().t_type {
                 TType::Var => variables.push(self.class_variable(true)?),
                 TType::Val => variables.push(self.class_variable(false)?),
-                TType::Case => cases.push(self.enum_case()?),
+                TType::Case => cases.push(self.enum_case(&name)?),
 
                 TType::Func => {
                     let func = self.function()?;
@@ -216,8 +216,10 @@ impl Parser {
         })
     }
 
-    fn enum_case(&mut self) -> Option<ADT> {
-        let name = self.consume(TType::Identifier, "Expected case name.")?;
+    fn enum_case(&mut self, parent_name: &Token) -> Option<ADT> {
+        let mut name = self.consume(TType::Identifier, "Expected case name.")?;
+        let new_name = Rc::new(format!("{}:{}", parent_name.lexeme, name.lexeme));
+        let case_name = std::mem::replace(&mut name.lexeme, new_name);
 
         let mut methods: Vec<Function> = Vec::new();
         let mut variables: Vec<ADTMember> = Vec::new();
@@ -255,6 +257,7 @@ impl Parser {
             ty: ADTType::EnumCase {
                 variables,
                 constructors,
+                case_name,
             },
         })
     }

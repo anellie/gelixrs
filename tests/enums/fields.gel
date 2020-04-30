@@ -1,15 +1,29 @@
 /*
+5
+5
+2
+Hello!
+42
+true
 */
 
 func main() {
     val a = A:A("Hello!")
     val b = A:B(42)
     val c = A:C(true)
+
+    print(a.a)
+    print(b.a)
+    print(c.a)
+
+    print(a.print())
+    print(b.print())
+    print(c.b)
 }
 
 enum A {
 
-    val a = 5
+    var a = 5
 
     case A {
         val b: String
@@ -30,7 +44,9 @@ enum A {
     case C {
         val b: bool
 
-        construct(b) {}
+        construct(b) {
+            this.a = 2
+        }
 
         func print() -> String = this.b.to_string()
     }

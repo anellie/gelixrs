@@ -27,15 +27,7 @@ enum A {
         }
     }
 
-    case A {
-        val b: String
-    }
-
-    case B {
-        val b: i64
-    }
-
-    case C {
-        val b: bool
-    }
+    case A(b: String)
+    case B(b: i64)
+    case C(b: bool)
 }

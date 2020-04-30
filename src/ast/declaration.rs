@@ -7,6 +7,7 @@
 use std::fmt;
 
 use super::{super::lexer::token::Token, expression::Expression};
+use std::rc::Rc;
 
 /// Visibilities of a declaration.
 /// Most declarations default to 'module'
@@ -71,6 +72,8 @@ pub enum ADTType {
         // Includes all parent members
         variables: Vec<ADTMember>,
         constructors: Vec<Constructor>,
+        // The name of the case without the parent before it
+        case_name: Rc<String>,
     },
 }
 

@@ -44,10 +44,10 @@ impl PreMIRPass for DeclareTypes {
                 .insert(Rc::clone(&name.lexeme), Type::Adt(Rc::clone(&adt)));
 
             if let ADTType::Enum { cases } = &adt.borrow().ty {
-                for (name, case) in cases {
+                for case in cases.values() {
                     module
                         .types
-                        .insert(Rc::clone(&name), Type::Adt(Rc::clone(&case)));
+                        .insert(Rc::clone(&case.borrow().name), Type::Adt(Rc::clone(&case)));
                 }
             };
         }

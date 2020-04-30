@@ -19,7 +19,7 @@
                     "kind": "bin"
                 }
             },
-            "args": ["testing.gel", "--ir"],
+            "args": ["tests/enums/fields.gel", "--ir"],
             "cwd": "${workspaceFolder}"
         },
         {

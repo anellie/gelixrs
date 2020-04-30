@@ -111,6 +111,7 @@ impl ADT {
             ast::ADTType::EnumCase {
                 variables,
                 constructors,
+                ..
             } => (
                 variables.len(), // TODO: check parent
                 ast.methods.len(),
@@ -138,8 +139,13 @@ impl ADT {
                 cases: cases
                     .into_iter()
                     .map(|c| {
+                        let case_name = if let ast::ADTType::EnumCase { case_name, .. } = &c.ty {
+                            case_name
+                        } else {
+                            panic!()
+                        };
                         (
-                            Rc::clone(&c.name.lexeme),
+                            Rc::clone(&case_name),
                             Self::enum_parent(Self::from_ast(c, context.clone(), None), &adt),
                         )
                     })
