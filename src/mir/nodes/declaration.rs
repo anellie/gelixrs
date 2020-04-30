@@ -218,7 +218,7 @@ impl ADTType {
     /// If this type needs lifecycle methods (instantiator/destructor).
     /// Also used to determine if the type should have its members generated.
     pub fn needs_lifecycle(&self) -> bool {
-        self.is_class() || self.is_enum_case()
+        self.is_class() || self.is_enum_case() || self.is_enum()
     }
 }
 

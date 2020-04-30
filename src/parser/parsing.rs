@@ -279,7 +279,7 @@ impl Parser {
             constructors.push(Constructor {
                 visibility: Visibility::Public,
                 parameters: variables.iter().map(|m| (m.name.clone(), None)).collect(),
-                body: None
+                body: None,
             })
         }
 

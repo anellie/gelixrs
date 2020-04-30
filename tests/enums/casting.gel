@@ -1,0 +1,28 @@
+/*
+4
+4
+4
+*/
+
+func main() {
+    val a = A:A("Hello!")
+    val b = A:B(42)
+    val c = A:C(true)
+
+    t(a)
+    t(b)
+    t(c)
+}
+
+func t(a: A) {
+    print(a.c)
+}
+
+enum A {
+
+    val c = 4
+
+    case A(val a: String)
+    case B(val a: i64)
+    case C(val a: bool)
+}

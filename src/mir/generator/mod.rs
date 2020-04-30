@@ -436,17 +436,28 @@ impl MIRGenerator {
     /// returns the new expression that should be used in case a cast happened.
     fn check_call_arg_type(&self, arg: Expr, ty: &Type) -> Option<Expr> {
         let arg_type = arg.get_type();
-        if &arg_type == ty {
-            Some(arg)
-        } else if get_iface_impls(&arg_type)?
-            .borrow()
-            .interfaces
-            .get(ty)
-            .is_some()
-        {
-            Some(Expr::iface_cast(arg, ty))
-        } else {
-            None
+        match &arg_type {
+            _ if &arg_type == ty => Some(arg),
+
+            // Interface cast
+            _ if get_iface_impls(&arg_type)?
+                .borrow()
+                .interfaces
+                .get(ty)
+                .is_some() =>
+            {
+                Some(Expr::cast(arg, ty))
+            }
+
+            // Enum case to enum cast
+            Type::Adt(adt) => match (&adt.borrow().ty, ty) {
+                (ADTType::EnumCase { parent }, Type::Adt(adt)) if Rc::ptr_eq(parent, adt) => {
+                    Some(Expr::cast(arg, ty))
+                }
+                _ => None,
+            },
+
+            _ => None,
         }
     }
 

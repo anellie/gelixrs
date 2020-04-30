@@ -195,7 +195,7 @@ impl Expr {
         Expr::Break(Box::new(expr.unwrap_or(Expr::Literal(Literal::None))))
     }
 
-    pub fn iface_cast(obj: Expr, ty: &Type) -> Expr {
+    pub fn cast(obj: Expr, ty: &Type) -> Expr {
         Expr::Cast {
             object: Box::new(obj),
             to: ty.clone(),
