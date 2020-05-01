@@ -1,0 +1,28 @@
+/*
+Hello!
+No this is Patrick
+*/
+
+func main() {
+    val a = Krusty:Crab("Hello!")
+    val b = Krusty:B(42)
+
+    a.test()
+    b.test()
+}
+
+enum Krusty {
+
+    val a = 5
+
+    func test() {
+        if (this is Krusty:Crab) {
+            print(this.b)
+        } else {
+            print("No this is Patrick")
+        }
+    }
+
+    case Crab(val b: String)
+    case B(val b: i64)
+}

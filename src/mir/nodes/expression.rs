@@ -27,7 +27,7 @@ use std::cell::Cell;
 /// When compiling MIR expressions into IR, they are not checked for
 /// validity. Invalid/Illegal expressions will most likely result in a
 /// crash or broken IR code.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, EnumIsA, EnumAsGetters)]
 pub enum Expr {
     /// Create a class or enum instance.
     /// This will perform the following steps in IR:

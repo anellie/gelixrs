@@ -23,6 +23,7 @@ use crate::{
     },
 };
 use std::cell::Cell;
+use std::hint::unreachable_unchecked;
 
 /// A general purpose class used for all user-defined data structures.
 /// The ty field inside is used for further specialization.
@@ -205,7 +206,7 @@ pub enum ADTType {
     /// An enum, with unknown case.
     Enum {
         /// All cases.
-        /// TODO: Copying all member and methods for each case is inefficient,
+        /// TODO: Copying all members and methods for each case is inefficient,
         /// ideally EnumCase and Enum would be merged somehow
         cases: HashMap<Rc<String>, MutRc<ADT>>,
     },
@@ -219,6 +220,16 @@ impl ADTType {
     /// Also used to determine if the type should have its members generated.
     pub fn needs_lifecycle(&self) -> bool {
         self.is_class() || self.is_enum_case() || self.is_enum()
+    }
+
+    /// Returns the cases of an enum type.
+    /// Use on any other type will result in a panic.
+    pub fn cases(&self) -> &HashMap<Rc<String>, MutRc<ADT>> {
+        if let ADTType::Enum { cases } = self {
+            cases
+        } else {
+            unreachable!();
+        }
     }
 }
 

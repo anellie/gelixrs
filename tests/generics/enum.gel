@@ -1,26 +1,29 @@
 /*
+Hello!
+435
+false
 */
 
 func main() {
     val a = A::<String>:C("Hello!")
-    val c = A::<i64>:C(435)
-    val d = A::<bool>:C(false)
+    val c = A::<i64>:D(435)
+    val d = A::<bool>:D(false)
+
+    print(a.b)
+    print(c.print())
+    print(d.print())
 }
 
 enum A<B> {
 
     val a = 5
 
-    case C {
-        val b: String
-
-        construct(b) {}
-    }
+    case C(val b: String)
 
     case D {
         val b: B
 
-        construct(b) {}
+        construct(b)
 
         func print() -> String = this.b.to_string()
     }

@@ -40,10 +40,10 @@ enum A {
     case A {
         val b: String
 
+        construct(b)
+
         func print() -> String = this.b
     }
 
-    case B {
-        val b: i64
-    }
+    case B(val b: i64)
 }

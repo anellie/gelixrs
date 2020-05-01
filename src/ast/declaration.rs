@@ -48,6 +48,26 @@ impl ADT {
             _ => None,
         }
     }
+
+    /// This is only called on prototypes and used to replace their name with
+    /// the name of an instance. For EnumCase, it is assumed the name
+    /// is for the parent, since only Enum prototypes exist
+    pub fn replace_proto_name(&mut self, new: &Rc<String>) {
+        match &mut self.ty {
+            ADTType::Enum { cases, .. } => {
+                self.name.lexeme = Rc::clone(new);
+                for case in cases.iter_mut() {
+                    case.replace_proto_name(new)
+                }
+            }
+
+            ADTType::EnumCase { case_name, .. } => {
+                self.name.lexeme = Rc::new(format!("{}:{}", new, case_name))
+            }
+
+            _ => self.name.lexeme = Rc::clone(new),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

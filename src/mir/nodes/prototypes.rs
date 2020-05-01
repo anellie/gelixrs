@@ -20,7 +20,7 @@ use crate::{
             },
             MIRGenerator,
         },
-        nodes::{Type, Variable, ADT},
+        nodes::{ADTType, Type, Variable, ADT},
         MModule, MutRc,
     },
 };
@@ -84,7 +84,30 @@ impl Prototype {
 
         generator.builder.context = ty.context().unwrap();
         attach_impls(&mut generator.builder, &ty, &name, &self.impls.borrow())?;
-        catch_up_passes(&mut generator, &ty)?;
+
+        // Enums require special handling because of their child cases
+        if ty.is_adt() && ty.as_adt().borrow().ty.is_enum() {
+            let adt = ty.as_adt();
+            // Insert every child case into the module as well
+            for case in adt.borrow().ty.cases().values() {
+                self.module
+                    .borrow_mut()
+                    .types
+                    .insert(Rc::clone(&case.borrow().name), Type::Adt(Rc::clone(case)));
+            }
+
+            // Run all passes on the enum and its cases, making sure they are done in lockstep
+            let len = DONE_PASSES.with(|d| d.borrow().len());
+            for i in 0..len {
+                catch_up_pass(&mut generator, ty.clone(), i)?;
+                for case in adt.borrow().ty.cases().values() {
+                    catch_up_pass(&mut generator, Type::Adt(Rc::clone(case)), i)?;
+                }
+            }
+        } else {
+            // If it's not an enum, just catch up all passes and it's done
+            catch_up_passes(&mut generator, &ty)?;
+        }
 
         Ok(ty)
     }
@@ -113,7 +136,7 @@ impl ProtoAST {
         Ok(match self {
             ProtoAST::ADT(ast) => {
                 let mut ast = (**ast).clone();
-                ast.name.lexeme = Rc::clone(&name);
+                ast.replace_proto_name(&name);
 
                 let context = get_context(ast.generics.as_ref().unwrap(), arguments);
                 let adt = ADT::from_ast(ast, context, Some(self_ref));
@@ -204,4 +227,10 @@ pub fn catch_up_passes(gen: &mut MIRGenerator, ty: &Type) -> Res<()> {
         DONE_PASSES.with(|d| d.borrow()[i].run_type(gen, ty.clone()))?
     }
     Ok(())
+}
+
+fn catch_up_pass(gen: &mut MIRGenerator, ty: Type, i: usize) -> Res<()> {
+    let module = Rc::clone(&gen.module);
+    gen.switch_module(&module);
+    DONE_PASSES.with(|d| d.borrow()[i].run_type(gen, ty))
 }

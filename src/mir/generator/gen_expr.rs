@@ -400,7 +400,12 @@ impl MIRGenerator {
             return Err(self.err(condition.get_token(), "If condition must be a boolean"));
         }
 
-        let then_val = self.expression(then_branch)?;
+        self.begin_scope(); // scope for smart casts if applicable
+        let mut then_block = self.smart_casts(&cond);
+        then_block.push(self.expression(then_branch)?);
+        let then_val = Expr::Block(then_block);
+        self.end_scope();
+
         let else_val = else_branch
             .as_ref()
             .map(|else_branch| self.expression(&else_branch))
@@ -411,6 +416,44 @@ impl MIRGenerator {
             then_ty == else_val.get_type() && (then_ty != Type::None || else_ty != Type::None);
 
         Ok(Expr::if_(cond, then_val, else_val, phi))
+    }
+
+    fn smart_casts(&mut self, condition: &Expr) -> Vec<Expr> {
+        let mut casts = Vec::new();
+        self.find_casts(&mut casts, condition);
+        casts
+    }
+
+    fn find_casts(&mut self, list: &mut Vec<Expr>, expr: &Expr) {
+        if let Expr::Binary {
+            left,
+            operator,
+            right,
+        } = expr
+        {
+            match operator {
+                TType::And => {
+                    self.find_casts(list, &left);
+                    self.find_casts(list, &right);
+                }
+
+                TType::Is if left.is_var_get() => {
+                    let ty = (&**right.get_type().as_type()).clone();
+                    let var = self.define_variable(
+                        &Token::generic_identifier(left.as_var_get().name.to_string()),
+                        false,
+                        ty,
+                    );
+                    list.push(Expr::store(
+                        &var,
+                        Expr::cast((**left).clone(), &right.get_type().as_type()),
+                        true,
+                    ));
+                }
+
+                _ => (),
+            }
+        }
     }
 
     fn index_get(&mut self, indexed: &ASTExpr, index: &ASTExpr, bracket: &Token) -> Res<Expr> {
@@ -689,7 +732,12 @@ impl MIRGenerator {
             };
             let cond = self.binary_mir(value.clone(), &optok, br_cond)?;
 
-            let branch_val = self.expression(branch)?;
+            self.begin_scope();
+            let mut branch_list = self.smart_casts(&cond);
+            branch_list.push(self.expression(branch)?);
+            let branch_val = Expr::Block(branch_list);
+            self.end_scope();
+
             if branch_val.get_type() != branch_type {
                 return Err(self.err(branch.get_token(), "Branch results must be of same type."));
             }
