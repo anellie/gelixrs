@@ -1,0 +1,16 @@
+/*
+false
+false
+true
+true
+*/
+
+func main() {
+    print(echo(false) and echo(true))
+    print(echo(true) or echo(false))
+}
+
+func echo(b: bool) -> bool {
+    print(b)
+    b
+}

@@ -13,7 +13,7 @@ use super::{
 };
 
 /// All binary operand types that return a bool instead of the types of their values.
-pub static LOGICAL_BINARY: [TType; 8] = [
+pub static LOGICAL_BINARY: [TType; 10] = [
     TType::Greater,
     TType::Less,
     TType::GreaterEqual,
@@ -22,6 +22,8 @@ pub static LOGICAL_BINARY: [TType; 8] = [
     TType::BangEqual,
     TType::Bang,
     TType::Is,
+    TType::And,
+    TType::Or
 ];
 
 /// An enum with all expression types in Gelix.

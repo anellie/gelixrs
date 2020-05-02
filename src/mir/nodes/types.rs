@@ -105,7 +105,7 @@ impl Type {
     /// Is this type an integer?
     pub fn is_int(&self) -> bool {
         match self {
-            Type::I8 | Type::I16 | Type::I32 | Type::I64 => true,
+            Type::Bool | Type::I8 | Type::I16 | Type::I32 | Type::I64 => true,
             _ => false,
         }
     }

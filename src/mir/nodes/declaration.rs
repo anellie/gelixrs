@@ -23,7 +23,6 @@ use crate::{
     },
 };
 use std::cell::Cell;
-use std::hint::unreachable_unchecked;
 
 /// A general purpose class used for all user-defined data structures.
 /// The ty field inside is used for further specialization.

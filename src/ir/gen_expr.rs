@@ -24,6 +24,10 @@ use std::rc::Rc;
 
 impl IRGenerator {
     pub fn expression(&mut self, expression: &Expr) -> BasicValueEnum {
+        if self.builder.get_insert_block().is_none() {
+            return self.none_const
+        }
+
         match expression {
             Expr::AllocInst {
                 ty,
@@ -250,15 +254,15 @@ impl IRGenerator {
         operator: TType,
         right: BasicValueEnum,
     ) -> BasicValueEnum {
-        match left.get_type() {
-            BasicTypeEnum::IntType(_) => {
-                let left = left.into_int_value();
-                let right = right.into_int_value();
+        match (left, right) {
+            (BasicValueEnum::IntValue(left), BasicValueEnum::IntValue(right)) => {
                 BasicValueEnum::IntValue(match operator {
                     TType::Plus => self.builder.build_int_add(left, right, "add"),
                     TType::Minus => self.builder.build_int_sub(left, right, "sub"),
                     TType::Star => self.builder.build_int_mul(left, right, "mul"),
                     TType::Slash => self.builder.build_int_signed_div(left, right, "div"),
+                    TType::And => self.builder.build_and(left, right, "and"),
+                    TType::Or => self.builder.build_or(left, right, "or"),
                     _ => {
                         self.builder
                             .build_int_compare(get_predicate(operator), left, right, "cmp")
@@ -266,9 +270,7 @@ impl IRGenerator {
                 })
             }
 
-            BasicTypeEnum::FloatType(_) => {
-                let left = left.into_float_value();
-                let right = right.into_float_value();
+            (BasicValueEnum::FloatValue(left), BasicValueEnum::FloatValue(right)) => {
                 BasicValueEnum::FloatValue(match operator {
                     TType::Plus => self.builder.build_float_add(left, right, "add"),
                     TType::Minus => self.builder.build_float_sub(left, right, "sub"),
@@ -285,7 +287,8 @@ impl IRGenerator {
                 })
             }
 
-            _ => panic!("invalid binary operation: {:?}", left.get_type()),
+            // One of the operators is `Any`, so it will branch away; return whatever
+            _ => self.context.bool_type().const_int(0, false).into(),
         }
     }
 

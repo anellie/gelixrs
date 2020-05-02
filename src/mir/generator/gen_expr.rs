@@ -139,7 +139,11 @@ impl MIRGenerator {
         if (left_ty == right_ty && left_ty.is_number())
             || (operator.t_type == TType::Is && right_ty.is_type())
         {
-            Ok(Expr::binary(left, operator.t_type, right))
+            if operator.t_type == TType::And || operator.t_type == TType::Or {
+                Ok(self.binary_logic(left, operator.t_type, right))
+            } else {
+                Ok(Expr::binary(left, operator.t_type, right))
+            }
         } else {
             let method_var = self
                 .get_operator_overloading_method(operator.t_type, &left_ty, &right_ty)
@@ -154,6 +158,17 @@ impl MIRGenerator {
                 expr = Expr::unary(expr, TType::Bang);
             }
             Ok(expr)
+        }
+    }
+
+    /// Logic operators need special treatment for shortcircuiting behavior
+    fn binary_logic(&mut self, left: Expr, operator: TType, right: Expr) -> Expr {
+        if operator == TType::And {
+            // a and b --> if (a) b else false
+            Expr::if_(left, right, Expr::Literal(Literal::Bool(false)), true)
+        } else {
+            // a or b --> if (a) true else b
+            Expr::if_(left, Expr::Literal(Literal::Bool(true)), right, true)
         }
     }
 

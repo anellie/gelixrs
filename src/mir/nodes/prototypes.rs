@@ -20,7 +20,7 @@ use crate::{
             },
             MIRGenerator,
         },
-        nodes::{ADTType, Type, Variable, ADT},
+        nodes::{Type, Variable, ADT},
         MModule, MutRc,
     },
 };
