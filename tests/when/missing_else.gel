@@ -1,8 +1,8 @@
-// P-ERR
+// C-ERR
 
 func main() {
-    when (4) {
+    print(when (4) {
         4 -> 0
         24 -> 1
-    }
+    })
 }

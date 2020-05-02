@@ -1,0 +1,32 @@
+/*
+Hello!
+42
+true
+*/
+
+func main() {
+    val a = A:A("Hello!")
+    val b = A:B(42)
+    val c = A:C(true)
+
+    print(a.to_string())
+    print(b.to_string())
+    print(c.to_string())
+}
+
+enum A {
+
+    val a = 5
+
+    func to_string() -> String {
+        when (this) {
+            A:A -> this.b
+            A:B -> this.b.to_string()
+            A:C -> this.b.to_string()
+        }
+    }
+
+    case A(val b: String)
+    case B(val b: i64)
+    case C(val b: bool)
+}

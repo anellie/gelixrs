@@ -164,7 +164,7 @@ pub enum Expr {
     /// Cases are (condition, body).
     When {
         cases: Vec<(Expr, Expr)>,
-        else_: Box<Expr>,
+        else_: Option<Box<Expr>>,
         phi: Option<Type>,
     },
 }
@@ -192,7 +192,7 @@ impl Expr {
     }
 
     pub fn break_(expr: Option<Expr>) -> Expr {
-        Expr::Break(Box::new(expr.unwrap_or(Expr::Literal(Literal::None))))
+        Expr::Break(Box::new(expr.unwrap_or_else(Expr::none_const)))
     }
 
     pub fn cast(obj: Expr, ty: &Type) -> Expr {
@@ -238,7 +238,7 @@ impl Expr {
         Expr::Loop {
             condition: Box::new(cond),
             body: Box::new(body),
-            else_: Box::new(else_.unwrap_or(Expr::Literal(Literal::None))),
+            else_: Box::new(else_.unwrap_or_else(Expr::none_const)),
             result_store: store,
         }
     }
@@ -293,11 +293,11 @@ impl Expr {
         Expr::VarGet(Rc::clone(var))
     }
 
-    pub fn when(cases: Vec<(Expr, Expr)>, else_: Option<Expr>, phi: Option<Type>) -> Expr {
+    pub fn when(cases: Vec<(Expr, Expr)>, else_: Option<Expr>, phi: Type) -> Expr {
         Expr::When {
             cases,
-            else_: Box::new(else_.unwrap_or(Expr::Literal(Literal::None))),
-            phi,
+            else_: else_.map(Box::new),
+            phi: if phi == Type::None { None } else { Some(phi) },
         }
     }
 

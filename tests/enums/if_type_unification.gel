@@ -1,0 +1,22 @@
+/*
+*/
+
+func main() {
+    b()
+}
+
+func a() -> A {
+    if (true or !true) A:A(12i16)
+    else A:B(23)
+}
+
+func b() -> A {
+    if (true or !true) A:A(53i16)
+    else a()
+}
+
+enum A {
+    case A(val b: i16)
+    case B(val b: i64)
+    case C(val b: bool)
+}

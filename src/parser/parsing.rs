@@ -692,14 +692,11 @@ impl Parser {
                 branches.push((condition, expression));
             }
         }
-        if else_branch.is_none() {
-            self.error_at_current("'when' expression is missing 'else' branch.");
-        }
 
         Some(Expression::When {
             value,
             branches,
-            else_branch: Box::new(else_branch?),
+            else_branch: else_branch.map(Box::new),
         })
     }
 

@@ -1,0 +1,20 @@
+/*
+*/
+
+func main() {
+    a()
+}
+
+func a() -> A {
+    when (45) {
+        12 -> A:A()
+        134 -> A:C()
+        else -> A:B()
+    }
+}
+
+enum A {
+    case A
+    case B
+    case C
+}

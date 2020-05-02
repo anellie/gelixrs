@@ -111,21 +111,18 @@ impl MIRGenerator {
         let body = self.expression(body)?;
 
         let ret_type = function.borrow().ret_type.clone();
-        let body_type = body.get_type();
+        let body = self.try_cast(body, &ret_type);
         match () {
             _ if ret_type == Type::None => self.insert_at_ptr(body),
-            _ if ret_type == body_type => self.insert_at_ptr(Expr::ret(body)),
-            _ => {
-                let body = self.check_expr_type(body, &ret_type).or_err(
-                    &self.builder.path,
-                    &func.sig.name,
-                    &format!(
-                        "Function return type ({}) does not match body type ({}).",
-                        ret_type, body_type
-                    ),
-                )?;
-                self.insert_at_ptr(Expr::ret(body))
-            }
+            _ if ret_type == body.get_type() => self.insert_at_ptr(Expr::ret(body)),
+            _ => Err(self.err(
+                &func.sig.name,
+                &format!(
+                    "Function return type ({}) does not match body type ({}).",
+                    ret_type,
+                    body.get_type()
+                ),
+            ))?,
         };
 
         self.end_scope();
@@ -352,15 +349,13 @@ impl MIRGenerator {
         let mut result = Vec::with_capacity(args_len);
         if let Some(arg) = first_arg {
             let ty = parameters.next().unwrap();
-            let arg = self
-                .check_expr_type(arg, ty)
-                .expect("internal error: method call");
+            let arg = self.try_cast(arg, ty);
             result.push(arg)
         }
         for (argument, parameter) in arguments.iter().zip(parameters) {
             let arg = self.expression(argument)?;
             let arg_type = arg.get_type();
-            let arg = self.check_expr_type(arg, &parameter).or_err(
+            let arg = self.cast_or_none(arg, &parameter).or_err(
                 &self.builder.path,
                 argument.get_token(),
                 &format!(
@@ -433,34 +428,98 @@ impl MIRGenerator {
         None
     }
 
+    /// Will cast value to ty, if needed.
+    /// If the cast is not possible, returns None.
+    fn cast_or_none(&self, value: Expr, ty: &Type) -> Option<Expr> {
+        let value = self.try_cast(value, ty);
+        if &value.get_type() == ty {
+            Some(value)
+        } else {
+            None
+        }
+    }
+
     /// Checks if the value is of the given type ty.
     /// Will do casts if needed to make the types match;
     /// returns the new expression that should be used in case a cast happened.
-    fn check_expr_type(&self, value: Expr, ty: &Type) -> Option<Expr> {
-        let arg_type = value.get_type();
-        match &arg_type {
-            _ if &arg_type == ty => Some(value),
-
-            // Interface cast
-            _ if get_iface_impls(&arg_type)?
-                .borrow()
-                .interfaces
-                .get(ty)
-                .is_some() =>
-            {
-                Some(Expr::cast(value, ty))
-            }
+    /// If there is no way to make value.get_type() == ty,
+    /// this function just returns value unmodified.
+    fn try_cast(&self, value: Expr, ty: &Type) -> Expr {
+        let val_ty = value.get_type();
+        match &val_ty {
+            _ if &val_ty == ty => return value,
 
             // Enum case to enum cast
             Type::Adt(adt) => match (&adt.borrow().ty, ty) {
                 (ADTType::EnumCase { parent }, Type::Adt(adt)) if Rc::ptr_eq(parent, adt) => {
-                    Some(Expr::cast(value, ty))
+                    return Expr::cast(value, ty)
                 }
-                _ => None,
+                _ => (),
             },
 
-            _ => None,
+            _ => (),
         }
+
+        // Interface cast
+        if let Some(impls) = get_iface_impls(&val_ty) {
+            if impls.borrow().interfaces.get(ty).is_some() {
+                return Expr::cast(value, ty);
+            }
+        }
+
+        value
+    }
+
+    /// Will try to make left and right be of the same type.
+    /// Return value is (NewType, left, right).
+    /// If both are already the same type, this will just return the original type.
+    /// If they cannot be made to match, it returns None as type.
+    fn try_unify_type(&self, mut left: Expr, mut right: Expr) -> (Option<Type>, Expr, Expr) {
+        let left_ty = left.get_type();
+        let right_ty = right.get_type();
+
+        match (&left_ty, &right_ty) {
+            _ if left_ty == right_ty => return (Some(left_ty), left, right),
+
+            // Can be either interface and implementor, enum cases or enum and a case
+            (Type::Adt(_), Type::Adt(_)) => {
+                left = self.try_cast(left, &right_ty);
+                right = self.try_cast(right, &left_ty);
+                let left_ty = left.get_type();
+                let right_ty = right.get_type();
+
+                if left_ty == right_ty {
+                    return (Some(left_ty), left, right);
+                } else if let (ADTType::EnumCase { parent: p1 }, ADTType::EnumCase { parent: p2 }) = (
+                    &left_ty.as_adt().borrow().ty,
+                    &right_ty.as_adt().borrow().ty,
+                ) {
+                    if Rc::ptr_eq(p1, p2) {
+                        let ty = Type::Adt(Rc::clone(&p1));
+                        return (
+                            Some(ty.clone()),
+                            Expr::cast(left, &ty),
+                            Expr::cast(right, &ty),
+                        );
+                    }
+                }
+            }
+
+            // Can only be interface/implementor
+            (Type::Adt(adt), _) | (_, Type::Adt(adt)) => {
+                let ty = Type::Adt(Rc::clone(&adt));
+                left = self.try_cast(left, &ty);
+                right = self.try_cast(right, &ty);
+
+                if left.get_type() == right.get_type() {
+                    return (Some(left_ty), left, right);
+                }
+            }
+
+            _ => (),
+        }
+
+        (None, left, right)
     }
 
     /// Creates a new scope. A new scope is created for every function and block,

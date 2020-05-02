@@ -740,13 +740,19 @@ impl IRGenerator {
         }
     }
 
-    fn when(&mut self, cases: &[(Expr, Expr)], else_: &Expr, phi: bool) -> BasicValueEnum {
+    fn when(
+        &mut self,
+        cases: &[(Expr, Expr)],
+        else_: &Option<Box<Expr>>,
+        phi: bool,
+    ) -> BasicValueEnum {
         let cond = self.context.bool_type().const_int(1, false);
         let end_bb = self.append_block("when-end");
 
         let mut phi_nodes = Vec::with_capacity(cases.len());
         let mut next_bb = self.append_block("when-case-false");
-        for (br_cond, branch) in cases {
+        // If the else block is missing, the last block becomes the 'default', so don't compile it in the loop
+        for (br_cond, branch) in cases.iter().take(cases.len() - else_.is_none() as usize) {
             let case_bb = self.append_block("when-case");
 
             self.push_locals();
@@ -776,6 +782,11 @@ impl IRGenerator {
         next_bb.remove_from_function().unwrap();
 
         // If the last case falls though, do the else case
+        let else_ = else_
+            .as_ref()
+            .map(|e| &**e)
+            .or_else(|| cases.last().map(|l| &l.1))
+            .unwrap();
         self.push_locals();
         let else_val = self.expression(else_);
         if phi {

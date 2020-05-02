@@ -488,8 +488,9 @@ impl MIRGenerator {
             .unwrap_or(Ok(Expr::none_const()))?;
         let then_ty = then_val.get_type();
         let else_ty = else_val.get_type();
-        let phi =
-            then_ty == else_val.get_type() && (then_ty != Type::None || else_ty != Type::None);
+
+        let (phi_type, then_val, else_val) = self.try_unify_type(then_val, else_val);
+        let phi = phi_type.is_some() && (then_ty != Type::None || else_ty != Type::None);
 
         Ok(Expr::if_(cond, then_val, else_val, phi))
     }
@@ -694,19 +695,16 @@ impl MIRGenerator {
     }
 
     fn return_(&mut self, val: &Option<Box<ASTExpr>>, err_tok: &Token) -> Res<Expr> {
-        let mut value = val
+        let value = val
             .as_ref()
             .map(|v| self.expression(&*v))
             .transpose()?
             .unwrap_or_else(Expr::none_const);
 
         let ret_type = self.cur_fn().borrow().ret_type.clone();
+        let value = self.try_cast(value, &ret_type);
         if value.get_type() != ret_type {
-            value = self.check_expr_type(value, &ret_type).or_err(
-                &self.builder.path,
-                err_tok,
-                "Return expression in function has wrong type",
-            )?;
+            Err(self.err(err_tok, "Return expression in function has wrong type"))?
         }
 
         Ok(Expr::ret(value))
@@ -781,52 +779,135 @@ impl MIRGenerator {
 
     fn when(
         &mut self,
-        value: &ASTExpr,
+        ast_value: &ASTExpr,
         branches: &[(ASTExpr, ASTExpr)],
-        else_branch: &ASTExpr,
+        else_branch: &Option<Box<ASTExpr>>,
     ) -> Res<Expr> {
-        let value = self.expression(value)?;
+        let value = self.expression(ast_value)?;
         let cond_type = value.get_type();
 
-        let else_val = self.expression(else_branch)?;
-        let branch_type = else_val.get_type();
-
         let mut cases = Vec::with_capacity(branches.len());
-        for (br_cond_ast, branch) in branches.iter() {
-            let br_cond = self.expression(br_cond_ast)?;
-            let br_type = br_cond.get_type();
-            if br_type != cond_type && !br_type.is_type() {
-                return Err(self.err(
-                    br_cond_ast.get_token(),
-                    "Branches of when must be of same type as the value compared.",
-                ));
-            }
 
-            // Small hack to get a token that gives the user
-            // a useful error without having to add complexity
-            // to binary_mir()
-            let mut optok = br_cond_ast.get_token().clone();
-            optok.t_type = if br_type.is_type() {
-                TType::Is
-            } else {
-                TType::EqualEqual
-            };
-            let cond = self.binary_mir(value.clone(), &optok, br_cond)?;
+        let mut iter = branches.iter();
+        let first = iter.next();
+        if first.is_none() {
+            // There are no branches, just return else branch or nothing
+            return else_branch.as_ref().map(|br| self.expression(br)).unwrap_or(Ok(Expr::none_const()))
+        }
 
-            self.begin_scope();
-            let mut branch_list = self.smart_casts(&cond);
-            branch_list.push(self.expression(branch)?);
-            let branch_val = Expr::Block(branch_list);
-            self.end_scope();
+        let (first_cond, mut first_val) =
+            self.when_branch(value.clone(), &cond_type, first.unwrap())?;
+        let mut first_ty = first_val.get_type();
+        for branch in iter {
+            let (cond, mut branch_val) = self.when_branch(value.clone(), &cond_type, branch)?;
 
-            if branch_val.get_type() != branch_type {
-                return Err(self.err(branch.get_token(), "Branch results must be of same type."));
+            if first_ty != Type::None {
+                let result = self.try_unify_type(first_val, branch_val);
+                first_ty = result.0.unwrap_or(Type::None);
+                first_val = result.1;
+                branch_val = result.2;
+            } else if branch_val.get_type() != first_ty {
+                first_ty = Type::None
             }
 
             cases.push((cond, branch_val))
         }
 
-        Ok(Expr::when(cases, Some(else_val), Some(branch_type)))
+        // TODO: Deduplicate this...
+        let mut else_br = else_branch
+            .as_ref()
+            .map(|e| self.expression(e))
+            .transpose()?;
+        if let Some(branch_val) = &else_br {
+            if first_ty != Type::None {
+                let result = self.try_unify_type(first_val, else_br.unwrap());
+                first_ty = result.0.unwrap_or(Type::None);
+                first_val = result.1;
+                else_br = Some(result.2);
+            } else if branch_val.get_type() != first_ty {
+                first_ty = Type::None
+            }
+        }
+
+        cases.insert(0, (first_cond, first_val));
+        if else_br.is_none() && !self.can_omit_else(&cond_type, &cases) {
+            first_ty = Type::None
+        }
+        Ok(Expr::when(cases, else_br, first_ty))
+    }
+
+    fn when_branch(
+        &mut self,
+        value: Expr,
+        cond_type: &Type,
+        branch: &(ASTExpr, ASTExpr),
+    ) -> Res<(Expr, Expr)> {
+        let br_cond = self.expression(&branch.0)?;
+        let br_type = br_cond.get_type();
+        if &br_type != cond_type && !br_type.is_type() {
+            return Err(self.err(
+                branch.0.get_token(),
+                "Branches of when must be of same type as the value compared.",
+            ));
+        }
+
+        // Small hack to get a token that gives the user
+        // a useful error without having to add complexity
+        // to binary_mir()
+        let mut optok = branch.0.get_token().clone();
+        optok.t_type = if br_type.is_type() {
+            TType::Is
+        } else {
+            TType::EqualEqual
+        };
+        let cond = self.binary_mir(value, &optok, br_cond)?;
+
+        self.begin_scope();
+        let mut branch_list = self.smart_casts(&cond);
+        branch_list.push(self.expression(&branch.1)?);
+        let branch_val = Expr::Block(branch_list);
+        self.end_scope();
+
+        Ok((cond, branch_val))
+    }
+
+    /// If a when expression can safely give a value even when an else branch is missing.
+    /// Only true when switching on enum type with every case present.
+    fn can_omit_else(&self, value_ty: &Type, when_cases: &[(Expr, Expr)]) -> bool {
+        let adt = if let Type::Adt(adt) = value_ty {
+            adt
+        } else {
+            return false;
+        };
+        let adt = adt.borrow();
+        let cases = if let ADTType::Enum { cases } = &adt.ty {
+            cases
+        } else {
+            return false;
+        };
+        let mut cases: Vec<&MutRc<ADT>> = cases.values().collect();
+
+        for (cond, _) in when_cases.iter() {
+            let (op, right) = if let Expr::Binary {
+                operator, right, ..
+            } = cond
+            {
+                (operator, right)
+            } else {
+                panic!("Invalid when condition")
+            };
+
+            if *op != TType::Is {
+                return false;
+            };
+            let ty = right.get_type();
+            let ty = ty.as_type().as_adt();
+            let i = cases.iter().position(|c| Rc::ptr_eq(c, &ty));
+            if let Some(i) = i {
+                cases.remove(i);
+            }
+        }
+        cases.is_empty()
     }
 
     fn var_def(&mut self, var: &ASTVar) -> Res<Expr> {

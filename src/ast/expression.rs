@@ -141,10 +141,11 @@ pub enum Expression {
     VarWithGenerics { name: Token, generics: Vec<Type> },
 
     /// A when expression.
+    /// Else branch is optional when matching on enum cases.
     When {
         value: Box<Expression>,
         branches: Vec<(Expression, Expression)>,
-        else_branch: Box<Expression>,
+        else_branch: Option<Box<Expression>>,
     },
 
     // Below are all 'higher expressions'. These are differentiated in the parser.
