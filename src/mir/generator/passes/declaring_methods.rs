@@ -22,11 +22,12 @@ use crate::{
             passes::{declaring_globals::create_function, ModulePass, PassType},
             MIRGenerator,
         },
-        nodes::{ADTType, AbstractMethod, Expr, Type, Variable, ADT},
+        nodes::{ADTType, AbstractMethod, Expr, ProtoAST, Prototype, Type, Variable, ADT},
         result::ToMIRResult,
         MutRc,
     },
 };
+use std::cell::RefCell;
 
 /// This pass defines all methods on classes and interfaces.
 pub struct DeclareMethods();
@@ -50,6 +51,10 @@ impl ModulePass for DeclareMethods {
                     case.methods.reserve(adt.borrow().methods.len());
                     for method in &adt.borrow().methods {
                         case.methods
+                            .insert(Rc::clone(method.0), Rc::clone(method.1));
+                    }
+                    for method in &adt.borrow().proto_methods {
+                        case.proto_methods
                             .insert(Rc::clone(method.0), Rc::clone(method.1));
                     }
                 }
@@ -77,11 +82,18 @@ fn declare_user_methods(builder: &mut MIRBuilder, adt: &MutRc<ADT>) -> Res<()> {
 
     // Do all user-defined methods
     for method in ast.methods.iter().filter(|m| m.body.is_some()) {
-        let mir_method =
-            create_function(builder, Left(&method.sig), false, Some(this_param.clone()))?;
-        adt.borrow_mut()
-            .methods
-            .insert(Rc::clone(&method.sig.name.lexeme), mir_method);
+        if method.sig.generics.is_some() {
+            adt.borrow_mut().proto_methods.insert(
+                Rc::clone(&method.sig.name.lexeme),
+                generic_method(builder, method, &this_param)?,
+            );
+        } else {
+            let mir_method =
+                create_function(builder, Left(&method.sig), false, Some(this_param.clone()))?;
+            adt.borrow_mut()
+                .methods
+                .insert(Rc::clone(&method.sig.name.lexeme), mir_method);
+        }
     }
 
     if let Some(constructors) = ast.constructors() {
@@ -126,6 +138,37 @@ fn declare_user_methods(builder: &mut MIRBuilder, adt: &MutRc<ADT>) -> Res<()> {
     }
 
     Ok(())
+}
+
+fn generic_method(
+    builder: &mut MIRBuilder,
+    method: &ast::Function,
+    this_param: &FunctionParam,
+) -> Res<Rc<Prototype>> {
+    let name = Rc::new(format!("{}-{}", this_param.type_, method.sig.name.lexeme));
+    builder
+        .module
+        .borrow_mut()
+        .try_reserve_name_rc(&name, &method.sig.name)?;
+
+    let mut ast = method.clone();
+    ast.sig.parameters.insert(0, this_param.clone());
+
+    let proto = Rc::new(Prototype {
+        name: Rc::clone(&name),
+        instances: Default::default(),
+        impls: RefCell::new(vec![]),
+        module: Rc::clone(&builder.module),
+        ast: ProtoAST::Function(Rc::new(ast)),
+    });
+
+    builder
+        .module
+        .borrow_mut()
+        .protos
+        .insert(name, Rc::clone(&proto));
+
+    Ok(proto)
 }
 
 /// Returns signature of the ADT instantiator.

@@ -25,7 +25,7 @@ use std::rc::Rc;
 impl IRGenerator {
     pub fn expression(&mut self, expression: &Expr) -> BasicValueEnum {
         if self.builder.get_insert_block().is_none() {
-            return self.none_const
+            return self.none_const;
         }
 
         match expression {

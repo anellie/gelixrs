@@ -111,18 +111,20 @@ impl MIRGenerator {
         let body = self.expression(body)?;
 
         let ret_type = function.borrow().ret_type.clone();
+        let body_type = body.get_type();
         match () {
             _ if ret_type == Type::None => self.insert_at_ptr(body),
-            _ if ret_type == body.get_type() => self.insert_at_ptr(Expr::ret(body)),
+            _ if ret_type == body_type => self.insert_at_ptr(Expr::ret(body)),
             _ => {
-                return Err(self.err(
+                let body = self.check_expr_type(body, &ret_type).or_err(
+                    &self.builder.path,
                     &func.sig.name,
                     &format!(
                         "Function return type ({}) does not match body type ({}).",
-                        ret_type,
-                        body.get_type()
+                        ret_type, body_type
                     ),
-                ));
+                )?;
+                self.insert_at_ptr(Expr::ret(body))
             }
         };
 
@@ -351,14 +353,14 @@ impl MIRGenerator {
         if let Some(arg) = first_arg {
             let ty = parameters.next().unwrap();
             let arg = self
-                .check_call_arg_type(arg, ty)
+                .check_expr_type(arg, ty)
                 .expect("internal error: method call");
             result.push(arg)
         }
         for (argument, parameter) in arguments.iter().zip(parameters) {
             let arg = self.expression(argument)?;
             let arg_type = arg.get_type();
-            let arg = self.check_call_arg_type(arg, &parameter).or_err(
+            let arg = self.check_expr_type(arg, &parameter).or_err(
                 &self.builder.path,
                 argument.get_token(),
                 &format!(
@@ -431,13 +433,13 @@ impl MIRGenerator {
         None
     }
 
-    /// Checks if the arg parameter is of the given type ty.
+    /// Checks if the value is of the given type ty.
     /// Will do casts if needed to make the types match;
     /// returns the new expression that should be used in case a cast happened.
-    fn check_call_arg_type(&self, arg: Expr, ty: &Type) -> Option<Expr> {
-        let arg_type = arg.get_type();
+    fn check_expr_type(&self, value: Expr, ty: &Type) -> Option<Expr> {
+        let arg_type = value.get_type();
         match &arg_type {
-            _ if &arg_type == ty => Some(arg),
+            _ if &arg_type == ty => Some(value),
 
             // Interface cast
             _ if get_iface_impls(&arg_type)?
@@ -446,13 +448,13 @@ impl MIRGenerator {
                 .get(ty)
                 .is_some() =>
             {
-                Some(Expr::cast(arg, ty))
+                Some(Expr::cast(value, ty))
             }
 
             // Enum case to enum cast
             Type::Adt(adt) => match (&adt.borrow().ty, ty) {
                 (ADTType::EnumCase { parent }, Type::Adt(adt)) if Rc::ptr_eq(parent, adt) => {
-                    Some(Expr::cast(arg, ty))
+                    Some(Expr::cast(value, ty))
                 }
                 _ => None,
             },

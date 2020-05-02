@@ -1,0 +1,15 @@
+// C-ERR
+
+func main() {}
+
+
+class Test {
+    func whoAmI<B>(b: B) {
+        print("I'm a method!")
+        print(b)
+    }
+
+    func whoAmI() {
+        print("oh no!")
+    }
+}

@@ -23,7 +23,7 @@ pub static LOGICAL_BINARY: [TType; 10] = [
     TType::Bang,
     TType::Is,
     TType::And,
-    TType::Or
+    TType::Or,
 ];
 
 /// An enum with all expression types in Gelix.
@@ -73,6 +73,14 @@ pub enum Expression {
     Get {
         object: Box<Expression>,
         name: Token,
+    },
+
+    /// A getter with generic parameters (x.y::<A, B>)
+    /// Used for generic methods.
+    GetGeneric {
+        object: Box<Expression>,
+        name: Token,
+        params: Vec<Type>,
     },
 
     /// A getter of a static property (X:Y)
@@ -157,6 +165,7 @@ impl Expression {
             Expression::Call { callee, .. } => callee.get_token(),
             Expression::For { condition, .. } => condition.get_token(),
             Expression::Get { name, .. } => name,
+            Expression::GetGeneric { name, .. } => name,
             Expression::GetStatic { name, .. } => name,
             Expression::If { condition, .. } => condition.get_token(),
             Expression::IndexGet { bracket, .. } => &bracket,

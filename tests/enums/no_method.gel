@@ -1,0 +1,9 @@
+// C-ERR
+
+func main() {
+    Test:A().hello()
+}
+
+enum Test {
+    case A
+}

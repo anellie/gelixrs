@@ -66,6 +66,16 @@ impl Prototype {
         err_tok: &Token,
         self_ref: Rc<Prototype>,
     ) -> Res<Type> {
+        self.build_with_parent_context(arguments, err_tok, self_ref, &Context::default())
+    }
+
+    pub fn build_with_parent_context(
+        &self,
+        arguments: Vec<Type>,
+        err_tok: &Token,
+        self_ref: Rc<Prototype>,
+        context: &Context,
+    ) -> Res<Type> {
         if let Some(inst) = self.instances.borrow().get(&arguments) {
             return Ok(inst.clone());
         }
@@ -73,7 +83,7 @@ impl Prototype {
         check_generic_arguments(&self.module, self.ast.get_parameters(), &arguments, err_tok)?;
 
         let name = get_name(&self.name, &arguments);
-        let ty = self.ast.create_mir(&name, &arguments, self_ref)?;
+        let ty = self.ast.create_mir(&name, &arguments, self_ref, context)?;
         let mut generator = MIRGenerator::new(MIRBuilder::new(&self.module));
 
         self.module
@@ -132,13 +142,14 @@ impl ProtoAST {
         name: &Rc<String>,
         arguments: &[Type],
         self_ref: Rc<Prototype>,
+        context: &Context,
     ) -> Res<Type> {
         Ok(match self {
             ProtoAST::ADT(ast) => {
                 let mut ast = (**ast).clone();
                 ast.replace_proto_name(&name);
 
-                let context = get_context(ast.generics.as_ref().unwrap(), arguments);
+                let context = get_context(context, ast.generics.as_ref().unwrap(), arguments);
                 let adt = ADT::from_ast(ast, context, Some(self_ref));
                 Type::Adt(adt)
             }
@@ -149,7 +160,7 @@ impl ProtoAST {
 
                 let builder = MIRBuilder::with_context(
                     &self_ref.module,
-                    get_context(ast.sig.generics.as_ref().unwrap(), arguments),
+                    get_context(context, ast.sig.generics.as_ref().unwrap(), arguments),
                 );
                 let mir_fn = generate_mir_fn(&builder, Right(ast), String::clone(name), None)?;
                 let global = Variable::new(false, Type::Function(Rc::clone(&mir_fn)), name);
@@ -169,13 +180,14 @@ fn get_name(name: &String, args: &[Type]) -> Rc<String> {
     Rc::new(format!("{}<{}>", name, arg_names))
 }
 
-fn get_context(params: &[Token], args: &[Type]) -> Context {
+fn get_context(context: &Context, params: &[Token], args: &[Type]) -> Context {
     Context {
         type_aliases: Rc::new(
             params
                 .iter()
                 .map(|p| Rc::clone(&p.lexeme))
                 .zip(args.iter().cloned())
+                .chain(HashMap::clone(&context.type_aliases).into_iter())
                 .collect(),
         ),
     }

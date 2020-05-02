@@ -38,6 +38,8 @@ pub struct ADT {
     /// See [AbstractMethod].
     /// Used only for interfaces, currently.
     pub dyn_methods: IndexMap<Rc<String>, AbstractMethod>,
+    /// Methods with generic parameters.
+    pub proto_methods: HashMap<Rc<String>, Rc<Prototype>>,
 
     /// An internal function that creates an instance of the ADT
     /// and populates all fields with a user-given default value.
@@ -126,6 +128,7 @@ impl ADT {
             members: IndexMap::with_capacity(mem_size),
             methods: HashMap::with_capacity(method_size),
             dyn_methods: IndexMap::with_capacity(dyn_size),
+            proto_methods: HashMap::new(),
             instantiator: None,
             constructors: Vec::with_capacity(const_size),
             destructor: None,

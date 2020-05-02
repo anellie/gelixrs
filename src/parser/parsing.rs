@@ -181,14 +181,7 @@ impl Parser {
                 TType::Var => variables.push(self.class_variable(true)?),
                 TType::Val => variables.push(self.class_variable(false)?),
                 TType::Case => cases.push(self.enum_case(&name)?),
-
-                TType::Func => {
-                    let func = self.function()?;
-                    if func.sig.generics.is_some() {
-                        self.error_at_current("Methods may not have generic parameters.")?
-                    }
-                    methods.push(func);
-                }
+                TType::Func => methods.push(self.function()?),
 
                 _ => self.error_at_current("Encountered invalid declaration inside enum.")?,
             }
@@ -232,14 +225,7 @@ impl Parser {
                     TType::Var => variables.push(self.class_variable(true)?),
                     TType::Val => variables.push(self.class_variable(false)?),
                     TType::Construct => constructors.push(self.constructor()?),
-
-                    TType::Func => {
-                        let func = self.function()?;
-                        if func.sig.generics.is_some() {
-                            self.error_at_current("Methods may not have generic parameters.")?
-                        }
-                        methods.push(func);
-                    }
+                    TType::Func => methods.push(self.function()?),
 
                     _ => {
                         self.error_at_current("Encountered invalid declaration inside enum case.")?
@@ -313,14 +299,7 @@ impl Parser {
                 TType::Var => variables.push(self.class_variable(true)?),
                 TType::Val => variables.push(self.class_variable(false)?),
                 TType::Construct => constructors.push(self.constructor()?),
-
-                TType::Func => {
-                    let func = self.function()?;
-                    if func.sig.generics.is_some() {
-                        self.error_at_current("Methods may not have generic parameters.")?
-                    }
-                    methods.push(func);
-                }
+                TType::Func => methods.push(self.function()?),
 
                 _ => self.error_at_current("Encountered invalid declaration inside class.")?,
             }
@@ -814,10 +793,18 @@ impl Parser {
                 }
 
                 _ if self.matches(TType::Dot) => {
-                    expression = Expression::Get {
-                        object: Box::new(expression),
-                        name: self
-                            .consume(TType::Identifier, "Expected property name after '.'.")?,
+                    let (name, generics) = self.generic_identifier()?;
+                    if let Some(params) = generics {
+                        expression = Expression::GetGeneric {
+                            object: Box::new(expression),
+                            name,
+                            params,
+                        }
+                    } else {
+                        expression = Expression::Get {
+                            object: Box::new(expression),
+                            name,
+                        }
                     }
                 }
 
@@ -857,6 +844,15 @@ impl Parser {
     }
 
     fn identifier(&mut self) -> Option<Expression> {
+        let (name, generics) = self.generic_identifier()?;
+        Some(if let Some(generics) = generics {
+            Expression::VarWithGenerics { name, generics }
+        } else {
+            Expression::Variable(name)
+        })
+    }
+
+    fn generic_identifier(&mut self) -> Option<(Token, Option<Vec<Type>>)> {
         let name = self.advance();
 
         Some(if self.matches(TType::ColonColon) {
@@ -869,10 +865,9 @@ impl Parser {
                 }
             }
             self.consume(TType::Greater, "Expected '>' after type parameters.")?;
-
-            Expression::VarWithGenerics { name, generics }
+            (name, Some(generics))
         } else {
-            Expression::Variable(name)
+            (name, None)
         })
     }
 

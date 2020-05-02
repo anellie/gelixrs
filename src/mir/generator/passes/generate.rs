@@ -40,9 +40,22 @@ impl ModulePass for Generate {
                     gen.generate_constructors(&ast, constructors)?;
                 }
 
-                for method in ast.methods.iter().filter(|m| m.body.is_some()) {
+                for method in ast
+                    .methods
+                    .iter()
+                    .filter(|m| m.body.is_some() && m.sig.generics.is_none())
+                {
                     let mir = &adt.borrow().methods[&method.sig.name.lexeme];
                     gen.generate_function(method, Some(mir.type_.as_function()))?;
+                }
+
+                for method in adt.borrow().proto_methods.values() {
+                    for inst in method.instances.borrow().values() {
+                        gen.generate_function(
+                            inst.as_function().borrow().ast.as_ref().unwrap(),
+                            None,
+                        )?;
+                    }
                 }
             }
 

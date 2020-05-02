@@ -56,6 +56,10 @@ impl MIRGenerator {
 
             ASTExpr::Get { object, name } => self.get(object, name),
 
+            ASTExpr::GetGeneric { name, .. } => {
+                Err(self.err(name, "Can only call generic methods directly"))
+            }
+
             ASTExpr::GetStatic { object, name } => self.get_static(object, name),
 
             ASTExpr::If {
@@ -245,57 +249,114 @@ impl MIRGenerator {
     }
 
     fn try_method_call(&mut self, callee: &ASTExpr, arguments: &[ASTExpr]) -> Res<Option<Expr>> {
-        if let ASTExpr::Get { object, name } = callee {
-            if !self.uninitialized_this_members.is_empty() {
-                return Err(self.err(
+        match callee {
+            ASTExpr::Get { object, name } => {
+                if !self.uninitialized_this_members.is_empty() {
+                    return Err(self.err(
+                        name,
+                        "Cannot call methods in constructors until all class members are initialized.",
+                    ));
+                }
+
+                let (object, field) = self.get_field(object, name)?;
+                let func = field.right().or_err(
+                    &self.builder.path,
                     name,
-                    "Cannot call methods in constructors until all class members are initialized.",
-                ));
+                    "Class members cannot be called.",
+                )?;
+
+                match func {
+                    Left(func) => {
+                        let args = self.generate_func_args(
+                            func.type_
+                                .as_function()
+                                .borrow()
+                                .parameters
+                                .iter()
+                                .map(|p| &p.type_),
+                            arguments,
+                            Some(object),
+                            false,
+                            name,
+                        )?;
+
+                        Ok(Some(Expr::call(Expr::load(&func), args)))
+                    }
+
+                    Right(index) => {
+                        let ty = object.get_type();
+                        let adt = ty.as_adt().borrow();
+                        let params = &adt.dyn_methods.get_index(index).unwrap().1.parameters;
+                        let args = self.generate_func_args(
+                            // 'params' need to have the 'this' parameter, this is the result...
+                            Some(ty.clone()).iter().chain(params.iter()),
+                            arguments,
+                            Some(object),
+                            false,
+                            name,
+                        )?;
+
+                        Ok(Some(Expr::call_dyn(ty.as_adt(), index, args)))
+                    }
+                }
             }
 
-            let (object, field) = self.get_field(object, name)?;
-            let func = field.right().or_err(
-                &self.builder.path,
+            ASTExpr::GetGeneric {
+                object,
                 name,
-                "Class members cannot be called.",
-            )?;
-
-            match func {
-                Left(func) => {
-                    let args = self.generate_func_args(
-                        func.type_
-                            .as_function()
-                            .borrow()
-                            .parameters
-                            .iter()
-                            .map(|p| &p.type_),
-                        arguments,
-                        Some(object),
-                        false,
+                params,
+            } => {
+                if !self.uninitialized_this_members.is_empty() {
+                    return Err(self.err(
                         name,
-                    )?;
-
-                    Ok(Some(Expr::call(Expr::load(&func), args)))
+                        "Cannot call methods in constructors until all class members are initialized.",
+                    ));
                 }
 
-                Right(index) => {
-                    let ty = object.get_type();
-                    let adt = ty.as_adt().borrow();
-                    let params = &adt.dyn_methods.get_index(index).unwrap().1.parameters;
-                    let args = self.generate_func_args(
-                        // 'params' need to have the 'this' parameter, this is the result...
-                        Some(ty.clone()).iter().chain(params.iter()),
-                        arguments,
-                        Some(object),
-                        false,
-                        name,
-                    )?;
+                let object = self.expression(object)?;
+                let ty = object.get_type();
 
-                    Ok(Some(Expr::call_dyn(ty.as_adt(), index, args)))
-                }
+                let adt = if let Type::Adt(adt) = &ty {
+                    adt
+                } else {
+                    return Err(self.err(name, "This type does not support generic methods."));
+                };
+                let adt = adt.borrow();
+                let proto = adt.proto_methods.get(&name.lexeme).cloned().or_err(
+                    &self.builder.path,
+                    name,
+                    "Unknown field or method.",
+                )?;
+
+                let args = params
+                    .iter()
+                    .map(|ty| self.builder.find_type(&ty))
+                    .collect::<Res<Vec<Type>>>()?;
+
+                let func =
+                    proto.build_with_parent_context(args, name, Rc::clone(&proto), &adt.context)?;
+                let func_rc = self
+                    .builder
+                    .module
+                    .borrow()
+                    .find_global(&func.as_function().borrow().name)
+                    .unwrap();
+                let args = self.generate_func_args(
+                    func.as_function()
+                        .borrow()
+                        .parameters
+                        .iter()
+                        .map(|p| &p.type_),
+                    arguments,
+                    Some(object),
+                    false,
+                    name,
+                )?;
+
+                Ok(Some(Expr::call(Expr::load(&func_rc), args)))
             }
-        } else {
-            Ok(None)
+
+            _ => Ok(None),
         }
     }
 
@@ -633,14 +694,19 @@ impl MIRGenerator {
     }
 
     fn return_(&mut self, val: &Option<Box<ASTExpr>>, err_tok: &Token) -> Res<Expr> {
-        let value = val
+        let mut value = val
             .as_ref()
             .map(|v| self.expression(&*v))
             .transpose()?
             .unwrap_or_else(Expr::none_const);
 
-        if value.get_type() != self.cur_fn().borrow().ret_type.clone() {
-            return Err(self.err(err_tok, "Return expression in function has wrong type"));
+        let ret_type = self.cur_fn().borrow().ret_type.clone();
+        if value.get_type() != ret_type {
+            value = self.check_expr_type(value, &ret_type).or_err(
+                &self.builder.path,
+                err_tok,
+                "Return expression in function has wrong type",
+            )?;
         }
 
         Ok(Expr::ret(value))

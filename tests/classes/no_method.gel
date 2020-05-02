@@ -1,0 +1,7 @@
+// C-ERR
+
+func main() {
+    Test().hello()
+}
+
+class Test {}
