@@ -6,7 +6,7 @@ Before installing `gelixrs`, please ensure you have the following dependencies
 installed on your system:
 - The `clang` compiler
 - A recent version of the LLVM library (8.0.0+)
-- A rust compiler
+- A nightly rust compiler
 
 ### Downloading the source
 

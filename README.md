@@ -4,26 +4,10 @@ A compiler for gelix, a simple programming language. Written in Rust.
 
 It uses the Inkwell LLVM wrapper to output native binaries.
 
-For more information on gelix, check out the docs directory for examples.
+For more information on gelix, check out the docs at [gelix.angm.xyz](https://gelix.angm.xyz).
 
-### Progress
-
-The code is an alpha state. The compiler can output native code with LLVM.
-
-Most of gelix's features are implemented. However, the compiler is not stable,
-and the resulting binary should not be used outside of testing.
-
-Also, the current master branch regularly has mayor breakage when refactoring code.
-
-### Build/Run
-
-``` bash
-# Build as release
-cargo build --release
-
-# Compile $file
-gelixrs $file -o exec.out
-```
+Note that while gelix is not yet feature complete, all features described in the docs 
+are implemented and should work.
 
 ### Code style
 
