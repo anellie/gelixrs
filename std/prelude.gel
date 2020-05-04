@@ -4,6 +4,13 @@ import std/string/ToString
 
 func print(a: ToString) = puts(a.to_string().ptr.pointer)
 
+func cast<T>(value: T) -> T = value
+
+func try_cast<T, V>(value: T) -> Opt<V> {
+    if (value is V) Opt::<V>:Some(value)
+    else Opt::<V>:None()
+}
+
 // A simple, variable-length array type.
 // E is the type of values it can hold.
 //

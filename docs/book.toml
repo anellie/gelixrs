@@ -1,0 +1,5 @@
+[book]
+authors = ["Felix Ang. <me@angm.xyz>"]
+language = "en"
+multilingual = false
+src = "src"
