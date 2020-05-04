@@ -28,7 +28,12 @@ cargo build --release
 # Copy to a location in your $PATH:
 cp ./target/release/gelixrs ~/.local/bin/gelix
 # Alternatively, to install system-wide:
-sudo cp ./target/release/gelixrs /usr/local/share/bin/gelix
+sudo cp ./target/release/gelixrs /usr/local/bin/gelix
+
+# Also copy the standard library to its path:
+cp std .local/share/gelix-std
+# Alternatively, to install system-wide:
+sudo cp std /usr/local/lib/gelix-std
 ```
 
 You should now be able to invoke the compiler with `gelix`.

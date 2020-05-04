@@ -79,7 +79,7 @@ Inside loops, you have another expression you probably know about from other
 programming languages: `break`.
 
 Once hit, a break expression will immediately terminate the loop completely
-and continue execution after it.
+and continue execution after the loop.
 
 To allow `break` to work with "for as expression", a break can have an optional value:
 
@@ -90,11 +90,12 @@ for (i from 0 to 5) {
     else print(i)
 } else 255
 
-// This prints "0 1" but evaluates to None due to mismatching types
+// This causes a compile error, as the "break" expression
+// must match the type of the loop or omit the value to
+// make the loop return None:
 for (i from 0 to 5) {
-    if (i == 2) break "NaN"
+    if (i == 2) break "NaN" // Removing '"NaN"' would make this compile
     else print(i)
 } else 255
-
 ```
 
