@@ -12,7 +12,7 @@ extern crate enum_methods;
 #[cfg(test)]
 extern crate lazy_static;
 
-use std::{fs, path::PathBuf, rc::Rc};
+use std::{fs, path::PathBuf, rc::Rc, env};
 
 use crate::{
     ast::module::{Import, Module, ModulePath},
@@ -125,4 +125,24 @@ pub fn compile_ir(modules: Vec<MutRc<MModule>>) -> inkwell::module::Module {
 
 pub fn stem_to_rc_str(path: &PathBuf) -> Rc<String> {
     Rc::new(path.file_stem().unwrap().to_str().unwrap().to_string())
+}
+
+pub fn find_std_module() -> Result<PathBuf, &'static str> {
+    let mut local_std = env::current_dir().expect("Failed to get current directory!");
+    local_std.push("std");
+    if local_std.exists() {
+        return Ok(local_std)
+    }
+
+    let user_std = PathBuf::from("~/.local/share/gelix-std");
+    if user_std.exists() {
+        return Ok(user_std)
+    }
+
+    let system_std = PathBuf::from("/usr/local/lib/gelix-std");
+    if system_std.exists() {
+        return Ok(system_std)
+    }
+
+    Err("Failed to find standard library. Please make sure to follow the installation instructions.")
 }

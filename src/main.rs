@@ -6,7 +6,7 @@
 
 use std::{env, fs, path::PathBuf, process};
 
-use gelixrs::stem_to_rc_str;
+use gelixrs::{stem_to_rc_str, find_std_module};
 use inkwell::{execution_engine::JitFunction, OptimizationLevel};
 use structopt::StructOpt;
 
@@ -55,8 +55,7 @@ fn run(args: Opt) -> Result<(), &'static str> {
         return Err("Given path does not exist.");
     }
 
-    let mut std_mod = env::current_dir().expect("Failed to get current directory!");
-    std_mod.push("std");
+    let std_mod = find_std_module()?;
     let modules = vec![args.file.clone(), std_mod];
 
     let mut code = gelixrs::parse_source(modules).or_else(|errors| {
