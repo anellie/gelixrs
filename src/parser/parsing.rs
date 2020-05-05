@@ -115,8 +115,9 @@ impl Parser {
         match self.advance().t_type {
             TType::Class => module.adts.push(self.class_declaration()?),
             TType::Enum => module.adts.push(self.enum_declaration()?),
+            TType::Export => module.exports.push(self.import_declaration("export")?),
             TType::Func => module.functions.push(self.function()?),
-            TType::Import => module.imports.push(self.import_declaration()?),
+            TType::Import => module.imports.push(self.import_declaration("import")?),
             TType::Interface => module.adts.push(self.iface_declaration()?),
             TType::Impl => module.iface_impls.push(self.iface_impl()?),
             _ => self.error_at_current("Encountered invalid top-level declaration.")?,
@@ -389,11 +390,11 @@ impl Parser {
         })
     }
 
-    fn import_declaration(&mut self) -> Option<Import> {
-        self.check_mods(&IMPORT_MODIFIERS, "import")?;
+    fn import_declaration(&mut self, name: &'static str) -> Option<Import> {
+        self.check_mods(&IMPORT_MODIFIERS, name)?;
         let mut path = Vec::new();
         if !self.check(TType::Identifier) {
-            self.error_at_current("Expected path after 'import'.")?
+            self.error_at_current(&format!("Expected path after '{}'.", name))?
         }
 
         let mut symbol = self.advance();
@@ -403,7 +404,7 @@ impl Parser {
             consumed_slash = self.matches(TType::Slash);
         }
         if consumed_slash {
-            self.error_at_current("Trailing '/' in import.")?
+            self.error_at_current(&format!("Trailing '/' in {}.", name))?
         }
 
         let path = Rc::new(ModulePath(path));

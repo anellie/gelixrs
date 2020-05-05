@@ -34,7 +34,7 @@ impl PreMIRPass for DeclareTypes {
         for adt in ast.adts.drain(..) {
             let name = adt.name.clone();
             module
-                .try_reserve_name(&name)
+                .try_reserve_name(&name, true)
                 .map_err(|e| errs.push(e))
                 .ok();
 

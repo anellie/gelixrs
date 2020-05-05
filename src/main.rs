@@ -6,7 +6,7 @@
 
 use std::{env, fs, path::PathBuf, process};
 
-use gelixrs::{stem_to_rc_str, find_std_module};
+use gelixrs::{find_std_module, stem_to_rc_str};
 use inkwell::{execution_engine::JitFunction, OptimizationLevel};
 use structopt::StructOpt;
 

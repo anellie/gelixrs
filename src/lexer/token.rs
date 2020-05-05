@@ -103,6 +103,7 @@ pub enum TType {
     Else,
     Enum,
     Error,
+    Export,
     Ext,
     False,
     For,

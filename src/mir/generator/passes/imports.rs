@@ -11,6 +11,22 @@ use crate::{
     error::{Error, Errors, Res},
     mir::{generator::passes::PreMIRPass, result::ToMIRResult, MModule, MutRc},
 };
+use crate::mir::Imports;
+
+fn find_module<'a>(
+    module: &MModule,
+    modules: &'a [MutRc<MModule>],
+    import: &Import,
+) -> Res<&'a MutRc<MModule>> {
+    modules
+        .iter()
+        .find(|m| m.try_borrow().ok().map(|m| Rc::clone(&m.path)) == Some(Rc::clone(&import.path)))
+        .or_err(&module.path, &import.symbol, "Unknown module.")
+}
+
+fn get_imports(module: &mut MModule, is_export: bool) -> &mut Imports {
+    if is_export { &mut module.exports } else { &mut module.imports }
+}
 
 /// This pass imports all types.
 pub struct ImportTypes();
@@ -23,22 +39,19 @@ impl PreMIRPass for ImportTypes {
         modules: &[MutRc<MModule>],
     ) -> Result<(), Errors> {
         module.borrow_mut().imports.ast = mem::replace(&mut ast.imports, vec![]);
-        drain_mod_imports(modules, module, &mut |modules, module, import| {
-            let src_module_rc = modules
-                .iter()
-                .find(|m| {
-                    m.try_borrow().ok().map(|m| Rc::clone(&m.path)) == Some(Rc::clone(&import.path))
-                })
-                .or_err(&module.path, &import.symbol, "Unknown module.")?;
+        module.borrow_mut().exports.ast = mem::replace(&mut ast.exports, vec![]);
 
+        drain_mod_imports(modules, module, &mut |modules, module, import, is_export| {
+            let src_module_rc = find_module(module, modules, import)?;
             let src_module = src_module_rc.borrow();
+
             match &import.symbol.lexeme[..] {
                 "+" => {
-                    for name in src_module.types.keys().chain(src_module.protos.keys()) {
-                        module.try_reserve_name_rc(name, &import.symbol)?;
+                    for name in &src_module.local_names {
+                        module.try_reserve_name_rc(name, &import.symbol, false)?;
                     }
-                    module
-                        .imports
+
+                    get_imports(module, is_export)
                         .modules
                         .insert(Rc::clone(&src_module.path), Rc::clone(src_module_rc));
                     Ok(false)
@@ -46,19 +59,19 @@ impl PreMIRPass for ImportTypes {
 
                 _ => {
                     let name = Rc::clone(&import.symbol.lexeme);
-                    let ty = src_module.types.get(&name);
+                    let ty = src_module.find_local_type(&name);
 
                     if let Some(ty) = ty {
-                        module.imports.types.insert(name, ty.clone());
+                        get_imports(module, is_export).types.insert(name, ty.clone());
                     } else {
-                        let proto = src_module.protos.get(&name);
+                        let proto = src_module.find_local_prototype(&name);
                         match proto {
-                            Some(p) => module.imports.protos.insert(name, p.clone()),
+                            Some(p) => get_imports(module, is_export).protos.insert(name, p.clone()),
                             None => return Ok(false),
                         };
                     }
 
-                    module.try_reserve_name(&import.symbol)?;
+                    module.try_reserve_name(&import.symbol, false)?;
                     Ok(true)
                 }
             }
@@ -76,30 +89,20 @@ impl PreMIRPass for ImportGlobals {
         module: MutRc<MModule>,
         modules: &[MutRc<MModule>],
     ) -> Result<(), Errors> {
-        drain_mod_imports(modules, module, &mut |modules, module, import| {
-            let src_module_rc = modules
-                .iter()
-                .find(|m| {
-                    m.try_borrow().ok().map(|m| Rc::clone(&m.path)) == Some(Rc::clone(&import.path))
-                })
-                .or_err(&module.path, &import.symbol, "Unknown module.")?;
-
+        drain_mod_imports(modules, module, &mut |modules, module, import, is_export| {
+            let src_module_rc = find_module(module, modules, import)?;
             let src_module = src_module_rc.borrow();
+
             match &import.symbol.lexeme[..] {
-                "+" => {
-                    for name in src_module.globals.keys() {
-                        module.try_reserve_name_rc(name, &import.symbol)?;
-                    }
-                    Ok(true)
-                }
+                "+" => Ok(true),
 
                 _ => {
-                    module.try_reserve_name(&import.symbol)?;
+                    module.try_reserve_name(&import.symbol, false)?;
                     let name = Rc::clone(&import.symbol.lexeme);
-                    let global = src_module.globals.get(&name);
+                    let global = src_module.find_local_global(&name);
 
                     if let Some(global) = global {
-                        module.imports.globals.insert(name, global.clone());
+                        get_imports(module, is_export).globals.insert(name, global.clone());
                         Ok(true)
                     } else {
                         Err(Error::new(
@@ -120,7 +123,7 @@ impl PreMIRPass for ImportGlobals {
 fn drain_mod_imports(
     modules: &[MutRc<MModule>],
     module: MutRc<MModule>,
-    cond: &mut dyn FnMut(&[MutRc<MModule>], &mut RefMut<MModule>, &Import) -> Res<bool>,
+    cond: &mut dyn FnMut(&[MutRc<MModule>], &mut RefMut<MModule>, &Import, bool) -> Res<bool>,
 ) -> Result<(), Errors> {
     let mut errs = Vec::new();
     let mut module = module.borrow_mut();
@@ -130,11 +133,23 @@ fn drain_mod_imports(
     let mut i = 0;
     while i != module.imports.ast.len() {
         let import = module.imports.ast.remove(i);
-        if !cond(modules, &mut module, &import)
+        if !cond(modules, &mut module, &import, false)
             .map_err(|e| errs.push(e))
             .unwrap_or(false)
         {
             module.imports.ast.insert(i, import);
+            i += 1;
+        }
+    }
+
+    let mut i = 0;
+    while i != module.exports.ast.len() {
+        let export = module.exports.ast.remove(i);
+        if !cond(modules, &mut module, &export, true)
+            .map_err(|e| errs.push(e))
+            .unwrap_or(false)
+        {
+            module.exports.ast.insert(i, export);
             i += 1;
         }
     }

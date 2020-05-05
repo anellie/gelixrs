@@ -149,7 +149,7 @@ fn generic_method(
     builder
         .module
         .borrow_mut()
-        .try_reserve_name_rc(&name, &method.sig.name)?;
+        .try_reserve_name_rc(&name, &method.sig.name, true)?;
 
     let mut ast = method.clone();
     ast.sig.parameters.insert(0, this_param.clone());

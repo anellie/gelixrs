@@ -93,7 +93,7 @@ fn get_and_reserve_func_name(
     if let Some(arg) = &this_param {
         name.lexeme = Rc::new(format!("{}-{}", arg.type_, name.lexeme));
     }
-    module.borrow_mut().try_reserve_name(&name)?;
+    module.borrow_mut().try_reserve_name(&name, true)?;
 
     let full_name = if is_external {
         String::clone(&name.lexeme)

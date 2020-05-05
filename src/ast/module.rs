@@ -44,6 +44,7 @@ pub struct Module {
     pub iface_impls: Vec<IFaceImpl>,
     pub functions: Vec<Function>,
     pub imports: Vec<Import>,
+    pub exports: Vec<Import>,
 }
 
 impl Module {

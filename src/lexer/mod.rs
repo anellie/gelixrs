@@ -95,6 +95,7 @@ impl Lexer {
             "else" => TType::Else,
             "enum" => TType::Enum,
             "error" => TType::Error,
+            "export" => TType::Export,
             "ext" => TType::Ext,
             "false" => TType::False,
             "for" => TType::For,

@@ -12,7 +12,7 @@ extern crate enum_methods;
 #[cfg(test)]
 extern crate lazy_static;
 
-use std::{fs, path::PathBuf, rc::Rc, env};
+use std::{env, fs, path::PathBuf, rc::Rc};
 
 use crate::{
     ast::module::{Import, Module, ModulePath},
@@ -131,19 +131,19 @@ pub fn find_std_module() -> Result<PathBuf, &'static str> {
     let mut local_std = env::current_dir().expect("Failed to get current directory!");
     local_std.push("std");
     if local_std.exists() {
-        return Ok(local_std)
+        return Ok(local_std);
     }
 
     let mut user_std = dirs::data_dir().expect("Failed to get home directory!");
     user_std.push("gelix");
     user_std.push("std");
     if user_std.exists() {
-        return Ok(user_std)
+        return Ok(user_std);
     }
 
     let system_std = PathBuf::from("/usr/local/lib/gelix/std");
     if system_std.exists() {
-        return Ok(system_std)
+        return Ok(system_std);
     }
 
     Err("Failed to find standard library. Please make sure to follow the installation instructions.")

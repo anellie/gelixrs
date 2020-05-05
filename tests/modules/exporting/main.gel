@@ -1,0 +1,12 @@
+import exporting/other/+
+
+func main() {
+    val s = Sub()
+    print(sub(4, 2))
+    print(s.a)
+    s.a = 4
+    s.sup()
+
+    test()
+}
+

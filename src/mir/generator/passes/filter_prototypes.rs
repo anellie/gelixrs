@@ -41,7 +41,7 @@ impl PreMIRPass for FilterPrototypes {
 
         for (name, ast) in class_iter.chain(func_iter) {
             module
-                .try_reserve_name(&name)
+                .try_reserve_name(&name, true)
                 .map_err(|e| errs.push(e))
                 .ok();
             module.protos.insert(

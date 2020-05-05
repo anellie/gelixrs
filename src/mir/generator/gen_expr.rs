@@ -792,7 +792,10 @@ impl MIRGenerator {
         let first = iter.next();
         if first.is_none() {
             // There are no branches, just return else branch or nothing
-            return else_branch.as_ref().map(|br| self.expression(br)).unwrap_or(Ok(Expr::none_const()))
+            return else_branch
+                .as_ref()
+                .map(|br| self.expression(br))
+                .unwrap_or(Ok(Expr::none_const()));
         }
 
         let (first_cond, mut first_val) =
