@@ -29,6 +29,23 @@ import my_project/animals/cat/Cat
 
 Note that it is not possible to import modules right now.
 
+#### module.gel
+
+By naming a file `module.gel`, it will be used as the module of the directory it is in.
+
+For example:
+
+```
+my_project/
+└── my_module/
+    ├── module.gel
+    └── other.gel
+```
+
+This would result in `my_project/my_module` containing everything in `module.gel`, allowing
+importing as `import my_project/my_module/+`, while still permitting submodules 
+(like `my_project/my_module/other` in this example).
+
 ### Export
 
 Additionally to `import`, gelix also has the `export` statement. It does
