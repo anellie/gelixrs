@@ -27,11 +27,15 @@ impl PreMIRPass for PopulateIntrinsics {
         if **module.path.0[0] == *"std" && **module.path.0[1] == *"ops" {
             // This is the std/ops module, containing all operator interfaces
             INTRINSICS.with(|i| i.borrow_mut().fill_ops_table(module))
-        } else if **module.path.0[0] == *"std" && **module.path.0[1] == *"prelude" {
-            // This is the prelude, containing the array and string classes
+        } else if **module.path.0[0] == *"std" && **module.path.0[1] == *"string" {
+            // This is std/string, containing the string class
+            INTRINSICS.with(|i| {
+                i.borrow_mut().string_type = module.find_type(&"String".to_string());
+            })
+        } else if **module.path.0[0] == *"std" && **module.path.0[1] == *"collections" {
+            // This is std/collections, containing the array class
             INTRINSICS.with(|i| {
                 i.borrow_mut().array_proto = module.find_prototype(&"Array".to_string());
-                i.borrow_mut().string_type = module.find_type(&"String".to_string());
             })
         } else if **module.path.0[0] == *"std" && **module.path.0[1] == *"memory" {
             INTRINSICS.with(|i| {

@@ -1,6 +1,8 @@
-import std/intrinsics/+
-import std/ffi/+
+import std/intrinsics/puts
 import std/string/ToString
+
+export std/collections/Array
+export std/string/String
 
 func print(a: ToString) = puts(a.to_string().ptr.pointer)
 
@@ -9,117 +11,6 @@ func cast<T>(value: T) -> T = value
 func try_cast<T, V>(value: T) -> Opt<V> {
     if (value is V) Opt::<V>:Some(value)
     else Opt::<V>:None()
-}
-
-// A simple, variable-length array type.
-// E is the type of values it can hold.
-//
-// To access array items, use the index operator: array[index]
-// Accessing an item above the index will cause a crash.
-//
-// To create a new array, use a literal:
-// val arr = [0, 1, 2, 3]
-// val text = ["Hello", "I'm", "A", "String", "Array!"]
-//
-// This is not valid since the type of elements cannot be inferred:
-// val a = []
-// If you need an empty array, use the constructor on the class.
-//
-// Retrieving elements works as you'd expect using indexing syntax:
-// print([2, 123, 312][1]) // prints 123
-class Array<E> {
-
-    var len = 0
-    var capacity: i64
-    var ptr: Ptr<E>
-
-    /// Construct an empty array with the given capacity.
-    /// Will allocate the amount given on the heap (malloc),
-    /// capacity of 0 results in no allocation until first insertion.
-    construct(capacity) {
-        this.ptr = allocate::<E>(capacity)
-    }
-
-    /// Simply construct an array out of raw parts.
-    /// Rarely useful, unless dealing with low-level code.
-    construct(len: i64, capacity, ptr) {
-        this.len = len
-    }
-
-    func get(index: i64) -> E {
-        this.ptr.element_at_index(index)
-    }
-
-    func set(index: i64, element: E) -> E {
-        val old_elem = this.get(index)
-        this.ptr.set(index, element)
-        old_elem
-    }
-
-    func push(elem: E) {
-        this.maybe_extend()
-        // This sets the pointer directly, as Array.set will
-        // return the old element - which would be unallocated memory,
-        // resulting in a segfault.
-        this.ptr.set(this.len, elem)
-        this.len = this.len + 1
-    }
-
-    func pop() -> E {
-        this.len = this.len - 1
-        this.get(this.len)
-    }
-
-    func maybe_extend() {
-        if (this.len == this.capacity) this.extend()
-    }
-
-    func extend() {
-        this.capacity = (this.capacity + 1) * 2
-        val new_ptr = allocate::<E>(this.capacity)
-        copy_ptr::<E>(this.ptr, new_ptr, this.len)
-        this.ptr = new_ptr
-    }
-}
-
-
-/// A UTF-8 string.
-/// Currently, strings are null-terminated.
-class String {
-
-    var length = 0
-    var capacity: i64
-    var ptr: Ptr<i8>
-
-    /// Construct an empty string with the given capacity.
-    /// Will allocate the amount given on the heap (malloc),
-    /// capacity of 0 results in no allocation until first insertion.
-    construct(capacity) {
-        this.ptr = allocate::<i8>(capacity)
-    }
-
-    /// Simply construct a string out of raw parts.
-    /// Rarely useful, unless dealing with low-level code.
-    construct(len: i64, capacity, ptr) {
-        this.length = len
-    }
-
-    /// The length of the string, in bytes.
-    /// Note that byte length in UTF-8 does not
-    /// equal the amount of characters in the string.
-    func len() -> i64 {
-        // Subtract the null terminator
-        this.length - 1
-    }
-
-    /// Clears the string, setting the len to 0
-    /// and writing a null terminator to the first
-    /// index of its pointer.
-    func clear() {
-        val null_char = this.ptr.element_at_index(this.length - 1)
-        this.ptr.set(0, null_char)
-        this.length = 1
-    }
 }
 
 enum Opt<T> {

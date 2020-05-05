@@ -1,4 +1,44 @@
+import std/ptr/+
 import std/intrinsics/sprintf
+
+/// A UTF-8 string.
+/// Currently, strings are null-terminated.
+class String {
+
+    var length = 0
+    var capacity: i64
+    var ptr: Ptr<i8>
+
+    /// Construct an empty string with the given capacity.
+    /// Will allocate the amount given on the heap (malloc),
+    /// capacity of 0 results in no allocation until first insertion.
+    construct(capacity) {
+        this.ptr = allocate::<i8>(capacity)
+    }
+
+    /// Simply construct a string out of raw parts.
+    /// Rarely useful, unless dealing with low-level code.
+    construct(len: i64, capacity, ptr) {
+        this.length = len
+    }
+
+    /// The length of the string, in bytes.
+    /// Note that byte length in UTF-8 does not
+    /// equal the amount of characters in the string.
+    func len() -> i64 {
+        // Subtract the null terminator
+        this.length - 1
+    }
+
+    /// Clears the string, setting the len to 0
+    /// and writing a null terminator to the first
+    /// index of its pointer.
+    func clear() {
+        val null_char = this.ptr.element_at_index(this.length - 1)
+        this.ptr.set(0, null_char)
+        this.length = 1
+    }
+}
 
 // An interface for types that can be represented as a string.
 // Note that generally, toString should not expose the implementation

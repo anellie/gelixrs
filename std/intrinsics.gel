@@ -9,7 +9,7 @@
 /// Many of these functions perform raw pointer arithmetic without any checks.
 /// If you need to use low-level pointers, look at std::ffi and Ptr instead.
 
-import std/ffi/+
+import std/ptr/+
 
 /// Returns the size of the type in bytes; equivalent to sizeof()
 extern func gelixrs_get_type_size<T>() -> i64

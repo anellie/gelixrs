@@ -1,4 +1,76 @@
 import std/ops/+
+import std/ptr/+
+
+// A simple, variable-length array type.
+// E is the type of values it can hold.
+//
+// To access array items, use the index operator: array[index]
+// Accessing an item above the index will cause a crash.
+//
+// To create a new array, use a literal:
+// val arr = [0, 1, 2, 3]
+// val text = ["Hello", "I'm", "A", "String", "Array!"]
+//
+// This is not valid since the type of elements cannot be inferred:
+// val a = []
+// If you need an empty array, use the constructor on the class.
+//
+// Retrieving elements works as you'd expect using indexing syntax:
+// print([2, 123, 312][1]) // prints 123
+class Array<E> {
+
+    var len = 0
+    var capacity: i64
+    var ptr: Ptr<E>
+
+    /// Construct an empty array with the given capacity.
+    /// Will allocate the amount given on the heap (malloc),
+    /// capacity of 0 results in no allocation until first insertion.
+    construct(capacity) {
+        this.ptr = allocate::<E>(capacity)
+    }
+
+    /// Simply construct an array out of raw parts.
+    /// Rarely useful, unless dealing with low-level code.
+    construct(len: i64, capacity, ptr) {
+        this.len = len
+    }
+
+    func get(index: i64) -> E {
+        this.ptr.element_at_index(index)
+    }
+
+    func set(index: i64, element: E) -> E {
+        val old_elem = this.get(index)
+        this.ptr.set(index, element)
+        old_elem
+    }
+
+    func push(elem: E) {
+        this.maybe_extend()
+        // This sets the pointer directly, as Array.set will
+        // return the old element - which would be unallocated memory,
+        // resulting in a segfault.
+        this.ptr.set(this.len, elem)
+        this.len = this.len + 1
+    }
+
+    func pop() -> E {
+        this.len = this.len - 1
+        this.get(this.len)
+    }
+
+    func maybe_extend() {
+        if (this.len == this.capacity) this.extend()
+    }
+
+    func extend() {
+        this.capacity = (this.capacity + 1) * 2
+        val new_ptr = allocate::<E>(this.capacity)
+        copy_ptr::<E>(this.ptr, new_ptr, this.len)
+        this.ptr = new_ptr
+    }
+}
 
 impl IndexGet<i64, E> for Array<E> {
     func index_get(index: i64) -> E {
