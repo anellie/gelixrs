@@ -5,6 +5,7 @@ authors = ["Felix Ang. <felix.ang@protonmail.com>"]
 edition = "2018"
 
 [dependencies]
+dirs = "2.0.2"
 structopt = "0.2.18"
 either = "1.5.2"
 indexmap = "1.2.0"

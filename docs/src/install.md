@@ -5,7 +5,7 @@
 Before installing `gelixrs`, please ensure you have the following dependencies 
 installed on your system:
 - The `clang` compiler
-- A recent version of the LLVM library (8.0.0+)
+- The LLVM library (8.0 recommended, others might work by changing version in `Cargo.toml`)
 - A nightly rust compiler
 
 ### Downloading the source
@@ -19,7 +19,7 @@ in your browser and download a ZIP of the archive.
 
 ### Compiling and installing
 
-To compile and install the compiler, simply run:
+To compile and install the compiler on Linux, simply run:
 
 ```bash
 # Compile with optimizations
@@ -31,9 +31,15 @@ cp ./target/release/gelixrs ~/.local/bin/gelix
 sudo cp ./target/release/gelixrs /usr/local/bin/gelix
 
 # Also copy the standard library to its path:
-cp std .local/share/gelix-std
+mkdir ~/.local/share/gelix
+cp std ~/.local/share/gelix/
 # Alternatively, to install system-wide:
-sudo cp std /usr/local/lib/gelix-std
+sudo mkdir /usr/local/lib/gelix/
+sudo cp std /usr/local/lib/gelix/
 ```
 
 You should now be able to invoke the compiler with `gelix`.
+
+Should you use Mac OS or Windows, you'll have to put the compiler into a location
+in your PATH, and put the standard library into 
+`C:\Users\...\AppData\Roaming\gelix\std` or `/Users/.../Library/Application Support/gelix/std` respectively.

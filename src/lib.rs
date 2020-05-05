@@ -134,12 +134,14 @@ pub fn find_std_module() -> Result<PathBuf, &'static str> {
         return Ok(local_std)
     }
 
-    let user_std = PathBuf::from("~/.local/share/gelix-std");
+    let mut user_std = dirs::data_dir().expect("Failed to get home directory!");
+    user_std.push("gelix");
+    user_std.push("std");
     if user_std.exists() {
         return Ok(user_std)
     }
 
-    let system_std = PathBuf::from("/usr/local/lib/gelix-std");
+    let system_std = PathBuf::from("/usr/local/lib/gelix/std");
     if system_std.exists() {
         return Ok(system_std)
     }
