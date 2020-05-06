@@ -1,5 +1,8 @@
-import std/ptr/+
+import std/intrinsics/build_string_literal
 import std/intrinsics/sprintf
+import std/math/max
+import std/ops/Add
+import std/ptr/+
 
 /// A UTF-8 string.
 /// Currently, strings are null-terminated.
@@ -27,21 +30,55 @@ class String {
     /// equal the amount of characters in the string.
     func len() -> i64 {
         // Subtract the null terminator
-        this.length - 1
+        max(this.length - 1, 0)
     }
 
     /// Clears the string, setting the len to 0
     /// and writing a null terminator to the first
     /// index of its pointer.
     func clear() {
+        if (this.length == 0) return
         val null_char = this.ptr.element_at_index(this.length - 1)
         this.ptr.set(0, null_char)
         this.length = 1
     }
+
+    /// Appends the given string to itself.
+    /// Will not modify the other string.
+    /// Returns itself for easy chaining.
+    func append(other: String) -> String {
+        this.reserve(other.length)
+        copy_ptr::<i8>(other.ptr, this.ptr.ptr_at_index(this.len()), other.length)
+        this.length = this.length + other.len()
+        this
+    }
+
+    /// Allocate enough memory to hold `amount` more elements.
+    /// If the string already has the needed capacity, this does nothing.
+    func reserve(amount: i64) {
+        if (this.capacity > (this.length + amount)) return
+        this.capacity = this.length + amount
+        val new_ptr = allocate::<i8>(this.capacity)
+        copy_ptr::<i8>(this.ptr, new_ptr, this.length)
+        this.ptr = new_ptr
+    }
+}
+
+impl ToString for String {
+    func to_string() -> String = this
+}
+
+impl Add<String, String> for String {
+    func add(other: String) -> String {
+        // +1 to account for the null terminator
+        val new = String(this.len() + other.len() + 1)
+        new.append(this)
+        new.append(other)
+    }
 }
 
 // An interface for types that can be represented as a string.
-// Note that generally, toString should not expose the implementation
+// Note that generally, ToString should not expose the implementation
 // of the type, but instead be information relevant to the user.
 //
 // For example, a 'Person' class might return its name and age
@@ -55,10 +92,6 @@ impl ToString for bool {
         if (this) "true"
         else "false"
     }
-}
-
-impl ToString for String {
-    func to_string() -> String = this
 }
 
 impl ToString for i64 {

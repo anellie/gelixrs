@@ -49,6 +49,9 @@ extern func malloc(size: i64) -> i64
 /// libc free
 extern func free(ptr: i64)
 
+/// libc quick_exit
+extern func quick_exit(status: i32)
+
 /// Build a string literal, given a i8* pointer and a
 /// length. Will copy the string at the pointer into
 /// a heap-allocated string.

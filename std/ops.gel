@@ -5,8 +5,8 @@
 /// Just like adding numbers, this operator should not modify either of its
 /// parameters. It should instead return a new object independent of either.
 ///
-/// The recommended way to use this operator is exclusively on numbers, like a
-/// 3D vector or a matrix.
+/// The recommended way to use this operator is exclusively on or other things
+/// that can be easily modified, like a 3D vector, matrix or string.
 /// Using it for adding to a collection, for example,
 /// is not recommended as doing so can be confusing to read.
 interface Add<O, T> {

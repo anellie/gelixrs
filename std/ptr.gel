@@ -41,6 +41,18 @@ public class Ptr<E> {
         gelixrs_deref_ptr::<E>(index)
     }
 
+    /// Returns a new `Ptr` that starts at the given index.
+    /// This new pointer will always have `heap == false`
+    /// to prevent it from freeing memory it does not own.
+    ///
+    /// Because of this, a pointer created by this method is meant to
+    /// be temporary. It must NOT outlive it's parent pointer, or
+    /// it will point to deallocated data.
+    public func ptr_at_index(index: i64) -> Ptr<E> {
+        val index = this.pointer + (index * size_of::<E>())
+        Ptr::<E>(index, false)
+    }
+
     public func set(index: i64, data: E) {
         val index = this.pointer + (index * size_of::<E>())
         gelixrs_set_ptr::<E>(index, data)
@@ -60,7 +72,7 @@ impl Free for Ptr<E> {
 /// by the GC.
 public func allocate<T>(size: i64) -> Ptr<T> {
     var ptr = if (size == 0) 0 else malloc(size_of::<T>() * size)
-    Ptr::<T>(ptr, true)
+    Ptr::<T>(ptr, size != 0)
 }
 
 /// Copies elements in memory at `src` to `dst`,

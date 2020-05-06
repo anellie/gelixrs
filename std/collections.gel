@@ -38,10 +38,13 @@ class Array<E> {
     }
 
     func get(index: i64) -> E {
+        if (index >= this.len) panic("Array index out of bounds!")
         this.ptr.element_at_index(index)
     }
 
     func set(index: i64, element: E) -> E {
+        if (index >= this.len) panic("Array index out of bounds!")
+
         val old_elem = this.get(index)
         dec_ref::<E>(old_elem)
 
@@ -62,12 +65,14 @@ class Array<E> {
         this.len = this.len + 1
     }
 
-    func pop() -> E {
+    func pop() -> Opt<E> {
+        if (this.len == 0) return Opt::<E>:None
+
         this.len = this.len - 1
         val value = this.get(this.len)
 
         dec_ref::<E>(value)
-        value
+        Opt::<E>:Some(value)
     }
 
     func maybe_extend() {
@@ -84,7 +89,9 @@ class Array<E> {
 
 impl Free for Array<E> {
     func free() {
-        for (elem from 0 to this.len) dec_ref::<E>(this[elem])
+        for (elem from 0 to this.len) {
+            dec_ref::<E>(this[elem])
+        }
     }
 }
 
