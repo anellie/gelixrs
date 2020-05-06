@@ -5,6 +5,7 @@ ok
 
 interface Test<A> {
     func test() -> A
+    func other()
 }
 
 class Implementor<A> {
@@ -14,7 +15,10 @@ class Implementor<A> {
 
 impl Test<String> for Implementor<A> {
     func test() -> String = "ok"
+    func other() = test::<A>()
 }
+
+func test<A>() {}
 
 func main() {
     print(Implementor::<String>("ok").test())

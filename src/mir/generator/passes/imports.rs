@@ -9,9 +9,8 @@ use std::{cell::RefMut, mem, rc::Rc};
 use crate::{
     ast::{Import, Module},
     error::{Error, Errors, Res},
-    mir::{generator::passes::PreMIRPass, result::ToMIRResult, MModule, MutRc},
+    mir::{generator::passes::PreMIRPass, result::ToMIRResult, Imports, MModule, MutRc},
 };
-use crate::mir::Imports;
 
 fn find_module<'a>(
     module: &MModule,
@@ -25,7 +24,11 @@ fn find_module<'a>(
 }
 
 fn get_imports(module: &mut MModule, is_export: bool) -> &mut Imports {
-    if is_export { &mut module.exports } else { &mut module.imports }
+    if is_export {
+        &mut module.exports
+    } else {
+        &mut module.imports
+    }
 }
 
 /// This pass imports all types.
@@ -41,41 +44,49 @@ impl PreMIRPass for ImportTypes {
         module.borrow_mut().imports.ast = mem::replace(&mut ast.imports, vec![]);
         module.borrow_mut().exports.ast = mem::replace(&mut ast.exports, vec![]);
 
-        drain_mod_imports(modules, module, &mut |modules, module, import, is_export| {
-            let src_module_rc = find_module(module, modules, import)?;
-            let src_module = src_module_rc.borrow();
+        drain_mod_imports(
+            modules,
+            module,
+            &mut |modules, module, import, is_export| {
+                let src_module_rc = find_module(module, modules, import)?;
+                let src_module = src_module_rc.borrow();
 
-            match &import.symbol.lexeme[..] {
-                "+" => {
-                    for name in &src_module.local_names {
-                        module.try_reserve_name_rc(name, &import.symbol, false)?;
+                match &import.symbol.lexeme[..] {
+                    "+" => {
+                        for name in &src_module.local_names {
+                            module.try_reserve_name_rc(name, &import.symbol, false)?;
+                        }
+
+                        get_imports(module, is_export)
+                            .modules
+                            .insert(Rc::clone(&src_module.path), Rc::clone(src_module_rc));
+                        Ok(false)
                     }
 
-                    get_imports(module, is_export)
-                        .modules
-                        .insert(Rc::clone(&src_module.path), Rc::clone(src_module_rc));
-                    Ok(false)
-                }
+                    _ => {
+                        let name = Rc::clone(&import.symbol.lexeme);
+                        let ty = src_module.find_local_type(&name);
 
-                _ => {
-                    let name = Rc::clone(&import.symbol.lexeme);
-                    let ty = src_module.find_local_type(&name);
+                        if let Some(ty) = ty {
+                            get_imports(module, is_export)
+                                .types
+                                .insert(name, ty.clone());
+                        } else {
+                            let proto = src_module.find_local_prototype(&name);
+                            match proto {
+                                Some(p) => get_imports(module, is_export)
+                                    .protos
+                                    .insert(name, p.clone()),
+                                None => return Ok(false),
+                            };
+                        }
 
-                    if let Some(ty) = ty {
-                        get_imports(module, is_export).types.insert(name, ty.clone());
-                    } else {
-                        let proto = src_module.find_local_prototype(&name);
-                        match proto {
-                            Some(p) => get_imports(module, is_export).protos.insert(name, p.clone()),
-                            None => return Ok(false),
-                        };
+                        module.try_reserve_name(&import.symbol, false)?;
+                        Ok(true)
                     }
-
-                    module.try_reserve_name(&import.symbol, false)?;
-                    Ok(true)
                 }
-            }
-        })
+            },
+        )
     }
 }
 
@@ -89,32 +100,38 @@ impl PreMIRPass for ImportGlobals {
         module: MutRc<MModule>,
         modules: &[MutRc<MModule>],
     ) -> Result<(), Errors> {
-        drain_mod_imports(modules, module, &mut |modules, module, import, is_export| {
-            let src_module_rc = find_module(module, modules, import)?;
-            let src_module = src_module_rc.borrow();
+        drain_mod_imports(
+            modules,
+            module,
+            &mut |modules, module, import, is_export| {
+                let src_module_rc = find_module(module, modules, import)?;
+                let src_module = src_module_rc.borrow();
 
-            match &import.symbol.lexeme[..] {
-                "+" => Ok(true),
+                match &import.symbol.lexeme[..] {
+                    "+" => Ok(true),
 
-                _ => {
-                    module.try_reserve_name(&import.symbol, false)?;
-                    let name = Rc::clone(&import.symbol.lexeme);
-                    let global = src_module.find_local_global(&name);
+                    _ => {
+                        module.try_reserve_name(&import.symbol, false)?;
+                        let name = Rc::clone(&import.symbol.lexeme);
+                        let global = src_module.find_local_global(&name);
 
-                    if let Some(global) = global {
-                        get_imports(module, is_export).globals.insert(name, global.clone());
-                        Ok(true)
-                    } else {
-                        Err(Error::new(
-                            &import.symbol,
-                            "MIR",
-                            "Unknown module member.".to_string(),
-                            &module.path,
-                        ))
+                        if let Some(global) = global {
+                            get_imports(module, is_export)
+                                .globals
+                                .insert(name, global.clone());
+                            Ok(true)
+                        } else {
+                            Err(Error::new(
+                                &import.symbol,
+                                "MIR",
+                                "Unknown module member.".to_string(),
+                                &module.path,
+                            ))
+                        }
                     }
                 }
-            }
-        })
+            },
+        )
     }
 }
 

@@ -1,0 +1,18 @@
+/*
+Hello
+hi
+*/
+
+func main() {
+    val a = "Hello"
+    val b = "hi"
+
+    {
+        var arr = Array::<String>(2)
+        arr.push(a)
+        arr.push(b)
+    }
+
+    print(a)
+    print(b)
+}

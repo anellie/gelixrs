@@ -100,6 +100,16 @@ impl IRGenerator {
                 self.builder.build_return(None);
             }
 
+            "inc_ref" => {
+                self.increment_refcount(ir.get_first_param().unwrap());
+                self.builder.build_return(None);
+            }
+
+            "dec_ref" => {
+                self.decrement_refcount(ir.get_first_param().unwrap());
+                self.builder.build_return(None);
+            }
+
             "inc_ref_iface" => {
                 let vtable_ptr = self.builder.build_int_to_ptr(
                     ir.get_last_param().unwrap().into_int_value(),

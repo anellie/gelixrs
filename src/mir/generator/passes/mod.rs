@@ -4,15 +4,12 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::rc::Rc;
-
 use crate::{
-    ast::{Module, Type as ASTType},
-    error::{Error, Errors, Res},
-    lexer::token::Token,
+    ast::Module,
+    error::{Errors, Res},
     mir::{
         generator::MIRGenerator,
-        nodes::{Type, Variable},
+        nodes::Type,
         MModule, MutRc,
     },
 };
@@ -29,13 +26,6 @@ pub mod imports;
 pub mod insert_members;
 pub mod populate_intrinsics;
 pub mod validate;
-
-thread_local! {
-    // A constant used by some passes that is simply gelix's None type.
-    static NONE_CONST: ASTType = ASTType::Ident(Token::generic_identifier("None".to_string()));
-    // An RC of the string 'internal-init'
-    static INIT_CONST: Rc<String> = Rc::new("internal-init".to_string());
-}
 
 /// A pass that runs before the AST is discarded.
 pub trait PreMIRPass {
@@ -57,13 +47,7 @@ pub trait ModulePass {
     fn run_globally(&self, _modules: &[MutRc<MModule>]) -> Result<(), Vec<Errors>> {
         Ok(())
     }
-    fn run_mod(&self, _gen: &mut MIRGenerator) -> Result<(), Vec<Error>> {
-        Ok(())
-    }
     fn run_type(&self, _gen: &mut MIRGenerator, _ty: Type) -> Res<()> {
-        Ok(())
-    }
-    fn run_global_var(&self, _gen: &mut MIRGenerator, _global: Rc<Variable>) -> Res<()> {
         Ok(())
     }
 }
@@ -72,21 +56,17 @@ pub trait ModulePass {
 /// The reason for this pass implementation is that prototypes
 /// require 'catching up' when instanced later.
 /// By specifying which pass affects them, its easy to do so.
+#[derive(PartialEq)]
 pub enum PassType {
     /// This pass runs on the all modules.
-    /// Most of these passes do some form of
-    /// validation or data collection;
-    /// import resolution also belongs in here.
+    /// Currently only import resolution.
     Globally,
-    /// This pass runs on the whole module and modifies
-    /// said module.
-    Module,
-    /// This pass only modifies a specific type in the module.
+    /// This pass only modifies a specific type in a module.
     /// It should not modify anything else in the module.
     /// Note that the [Context] of non-primitive types (class/iface/func)
     /// is automatically attached.
+    /// This does not include primitive types.
     Type,
-    /// This pass only modifies a specific global/function
-    /// in the module.
-    GlobalVar,
+    /// Same as [PassType::Type], but will also run on primitive types.
+    AllTypes,
 }

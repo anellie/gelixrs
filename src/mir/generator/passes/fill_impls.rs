@@ -4,7 +4,7 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::{cell::RefCell, collections::HashMap, mem, rc::Rc};
+use std::{collections::HashMap, mem, rc::Rc};
 
 use either::Either::Left;
 
@@ -27,23 +27,14 @@ use crate::{
 
 /// This pass defines all methods on interface impls.
 /// The boolean indicates if the pass has already been run at least once.
-pub struct FillIfaceImpls(pub RefCell<bool>);
+pub struct FillIfaceImpls();
 
 impl ModulePass for FillIfaceImpls {
     fn get_type(&self) -> PassType {
-        PassType::Type
+        PassType::AllTypes
     }
 
     fn run_type(&self, gen: &mut MIRGenerator, ty: Type) -> Res<()> {
-        // If this the first time this pass runs, run it on primitive types.
-        // (Since primitive types are not in any module, they would never run if not for this.)
-        if *self.0.borrow() {
-            mem::replace(&mut *self.0.borrow_mut(), false);
-            for ty in Type::primitives().iter() {
-                self.run_type(gen, ty.clone())?;
-            }
-        }
-
         let impls = get_or_create_iface_impls(&ty);
         let mut impls = impls.borrow_mut();
 

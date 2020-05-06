@@ -111,6 +111,25 @@ impl MIRBuilder {
         self.module = Rc::clone(module);
     }
 
+    pub fn add_to_context(&mut self, context: &Context) {
+        match () {
+            _ if self.context.type_aliases.is_empty() => self.context = context.clone(),
+            _ if context.type_aliases.is_empty() => (),
+            _ => {
+                self.context = Context {
+                    type_aliases: Rc::new(
+                        context
+                            .type_aliases
+                            .iter()
+                            .chain(self.context.type_aliases.iter())
+                            .map(|(a, b)| (a.clone(), b.clone()))
+                            .collect(),
+                    ),
+                };
+            }
+        }
+    }
+
     pub fn new(module: &MutRc<MModule>) -> MIRBuilder {
         MIRBuilder {
             path: Rc::clone(&module.borrow().path),

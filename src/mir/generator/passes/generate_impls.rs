@@ -7,50 +7,45 @@
 use std::rc::Rc;
 
 use crate::{
-    error::Errors,
+    error::Res,
     mir::{
         generator::{
-            builder::MIRBuilder,
-            passes::{ModulePass, PassType},
+            builder::Context,
+            passes::{declaring_iface_impls::get_or_create_iface_impls, ModulePass, PassType},
             MIRGenerator,
         },
-        nodes::IFaceImpls,
-        MModule, MutRc, IFACE_IMPLS,
+        nodes::{IFaceImpls, Type},
+        MutRc,
     },
 };
 
 /// This pass generates all functions inside iface impls.
+/// The boolean indicates if the pass has already been run at least once.
 pub struct GenerateImpls();
 
 impl ModulePass for GenerateImpls {
     fn get_type(&self) -> PassType {
-        PassType::Globally
+        PassType::AllTypes
     }
 
-    fn run_globally(&self, modules: &[MutRc<MModule>]) -> Result<(), Vec<Errors>> {
-        // Actual module does not matter for now; will be
-        // set as needed when generating impls
-        let mut gen = MIRGenerator::new(MIRBuilder::new(&modules[0]));
-
-        IFACE_IMPLS.with(|iface_impls| {
-            let iface_impls = iface_impls.borrow();
-            for (_, impls) in iface_impls.iter() {
-                gen_impl_for_type(&mut gen, impls).map_err(|e| vec![e])?
-            }
-            Ok(())
-        })
+    fn run_type(&self, gen: &mut MIRGenerator, ty: Type) -> Res<()> {
+        let impls = get_or_create_iface_impls(&ty);
+        gen_impl_for_type(gen, &impls)
     }
 }
 
-pub fn gen_impl_for_type(gen: &mut MIRGenerator, impls: &MutRc<IFaceImpls>) -> Result<(), Errors> {
+pub fn gen_impl_for_type(gen: &mut MIRGenerator, impls: &MutRc<IFaceImpls>) -> Res<()> {
     let impls = impls.borrow();
+
     for im in impls.interfaces.values() {
+        gen.builder.context = im.implementor.context().unwrap_or_else(Context::default);
+        gen.builder.add_to_context(&im.iface.borrow().context);
+
         let ast = Rc::clone(&im.ast);
         gen.switch_module(&im.module);
 
         for (i, (_, method)) in im.methods.iter().enumerate() {
-            gen.generate_function(&ast.methods[i], Some(method.type_.as_function()))
-                .map_err(|e| Errors(vec![e], Rc::clone(&im.module.borrow().src)))?;
+            gen.generate_function(&ast.methods[i], Some(method.type_.as_function()))?;
         }
     }
 

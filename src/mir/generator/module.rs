@@ -30,7 +30,9 @@ use crate::{
             },
             MIRGenerator,
         },
-        mutrc_new, MModule, MutRc, IFACE_IMPLS,
+        mutrc_new,
+        nodes::Type,
+        MModule, MutRc, IFACE_IMPLS,
     },
 };
 
@@ -77,7 +79,7 @@ impl PassRunner {
 
         let mut passes: Vec<Box<dyn ModulePass>> = vec![
             Box::new(DeclareMethods()),
-            Box::new(FillIfaceImpls(RefCell::new(true))),
+            Box::new(FillIfaceImpls()),
             Box::new(InsertClassMembers()),
             Box::new(Generate()),
             Box::new(GenerateImpls()),
@@ -101,21 +103,20 @@ impl PassRunner {
     ) -> Result<(), Vec<Errors>> {
         let mut errors = Vec::new();
 
-        match DONE_PASSES.with(|d| d.borrow().last().unwrap().get_type()) {
+        let pass_type = DONE_PASSES.with(|d| d.borrow().last().unwrap().get_type());
+        match pass_type {
             PassType::Globally => {
                 pass.run_globally(&self.modules)?;
             }
 
-            PassType::Module => {
-                for module in self.modules.iter() {
-                    gen.switch_module(module);
-                    pass.run_mod(gen)
-                        .map_err(|e| errors.push(Errors(e, Rc::clone(&module.borrow().src))))
-                        .ok();
+            PassType::Type | PassType::AllTypes => {
+                let primitive_iter = if pass_type == PassType::AllTypes {
+                    Some((Type::primitives().to_vec(), Rc::clone(&gen.module)))
+                } else {
+                    None
                 }
-            }
+                .into_iter();
 
-            PassType::Type => {
                 let types = self
                     .modules
                     .iter()
@@ -127,46 +128,13 @@ impl PassRunner {
                     })
                     .collect::<Vec<_>>();
 
-                for (types, module) in types {
+                for (types, module) in primitive_iter.chain(types.into_iter()) {
                     let mut errs = Vec::new();
 
                     gen.switch_module(&module);
                     for ty in types {
                         ty.context().map(|c| gen.builder.context = c);
                         pass.run_type(gen, ty).map_err(|e| errs.push(e)).ok();
-                    }
-
-                    if !errs.is_empty() {
-                        errors.push(Errors(errs, Rc::clone(&module.borrow().src)));
-                    }
-                }
-            }
-
-            PassType::GlobalVar => {
-                let globals = self
-                    .modules
-                    .iter()
-                    .map(|module| {
-                        (
-                            module
-                                .borrow()
-                                .globals
-                                .values()
-                                .cloned()
-                                .collect::<Vec<_>>(),
-                            Rc::clone(module),
-                        )
-                    })
-                    .collect::<Vec<_>>();
-
-                for (globals, module) in globals {
-                    let mut errs = Vec::new();
-
-                    gen.switch_module(&module);
-                    for global in globals {
-                        pass.run_global_var(gen, global)
-                            .map_err(|e| errs.push(e))
-                            .ok();
                     }
 
                     if !errs.is_empty() {

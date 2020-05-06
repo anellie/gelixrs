@@ -1,3 +1,4 @@
+import std/memory/Free
 import std/ops/+
 import std/ptr/+
 
@@ -42,12 +43,18 @@ class Array<E> {
 
     func set(index: i64, element: E) -> E {
         val old_elem = this.get(index)
+        dec_ref::<E>(old_elem)
+
+        inc_ref::<E>(element)
         this.ptr.set(index, element)
+
         old_elem
     }
 
     func push(elem: E) {
         this.maybe_extend()
+        inc_ref::<E>(elem)
+
         // This sets the pointer directly, as Array.set will
         // return the old element - which would be unallocated memory,
         // resulting in a segfault.
@@ -57,7 +64,10 @@ class Array<E> {
 
     func pop() -> E {
         this.len = this.len - 1
-        this.get(this.len)
+        val value = this.get(this.len)
+
+        dec_ref::<E>(value)
+        value
     }
 
     func maybe_extend() {
@@ -69,6 +79,12 @@ class Array<E> {
         val new_ptr = allocate::<E>(this.capacity)
         copy_ptr::<E>(this.ptr, new_ptr, this.len)
         this.ptr = new_ptr
+    }
+}
+
+impl Free for Array<E> {
+    func free() {
+        for (elem from 0 to this.len) dec_ref::<E>(this[elem])
     }
 }
 

@@ -12,7 +12,11 @@ public func size_of<T>() -> i64 {
 /// Should you misuse a pointer and try to dereference
 /// invalid memory, gelix will simply crash at runtime.
 ///
-/// This pointer is automatically memory-managed.
+/// This pointer is partially memory-managed.
+/// It will automatically deallocate itself when picked up by the GC,
+/// but it will NOT modify the reference counters on the values written to it.
+/// Because of this, you are responsible for incrementing/decrementing them
+/// as appropriate, using the functions in the class.
 ///
 /// To obtain a heap-allocated pointer, use `allocate`.
 public class Ptr<E> {
@@ -32,7 +36,6 @@ public class Ptr<E> {
     /// Returns the element at the given `index`.
     /// Similar to C array indexing - 0 is the
     /// pointer itself, 1 is (ptr + (1 * sizeof(T))) and so on.
-    /// This returns a new pointer object, and does not modify the called one.
     public func element_at_index(index: i64) -> E {
         val index = this.pointer + (index * size_of::<E>())
         gelixrs_deref_ptr::<E>(index)
@@ -67,4 +70,16 @@ public func copy_ptr<T>(src: Ptr<T>, dst: Ptr<T>, len: i64) {
     for (i from 0 to len) {
         dst.set(i, src.element_at_index(i))
     }
+}
+
+/// Will increment the reference count on a value by 1.
+/// Will cause memory leaks if not careful!
+public func inc_ref<T>(value: T) {
+    gelixrs_inc_ref::<T>(value)
+}
+
+/// Will decrement the reference count on a value by 1.
+/// Will cause use-after-free bugs if not careful!
+public func dec_ref<T>(value: T) {
+    gelixrs_dec_ref::<T>(value)
 }

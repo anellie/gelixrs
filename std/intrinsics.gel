@@ -24,6 +24,12 @@ extern func gelixrs_deref_ptr<T>(ptr: i64) -> T
 /// and stores `data` at its location.
 extern func gelixrs_set_ptr<T>(ptr: i64, data: T)
 
+/// Increments the refcount on the value
+extern func gelixrs_inc_ref<T>(value: T)
+
+/// Decrements the refcount on the value
+extern func gelixrs_dec_ref<T>(value: T)
+
 /// These 2 functions are used to increment/decrement the refcount on interfaces.
 /// The parameters are split into 2 since interfaces are StructValues,
 /// which cannot be cast.
