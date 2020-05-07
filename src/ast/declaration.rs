@@ -191,9 +191,13 @@ pub enum Type {
 
     /// A pointer type, written *$type.
     /// For primitives, this will compile down to a pointer.
-    /// For ADTs, which are by default pointers, this will
-    /// compile to a value instead.
+    /// For ADTs, this will behave like the ADT directly (already pointers)
     Pointer(Box<Type>),
+
+    /// A value type, written ^$type.
+    /// For primitives, this will do nothing (already a value).
+    /// For ADTs, this will compile to a direct struct value instead of a pointer.
+    Value(Box<Type>),
 
     /// An array of a type, written [$type]
     Array(Box<Type>),
@@ -213,11 +217,8 @@ pub enum Type {
 impl Type {
     pub fn get_token(&self) -> &Token {
         match self {
-            Type::Ident(tok) => tok,
-            Type::Pointer(type_) => type_.get_token(),
-            Type::Array(type_) => type_.get_token(),
-            Type::Closure { closing_paren, .. } => closing_paren,
-            Type::Generic { token, .. } => token,
+            Type::Ident(token) | Type::Generic { token, .. } | Type::Closure { closing_paren: token, .. } => token,
+            Type::Pointer(inner) | Type::Array(inner) | Type::Value(inner) => inner.get_token(),
         }
     }
 }
@@ -228,6 +229,8 @@ impl fmt::Display for Type {
             Type::Ident(tok) => write!(f, "{}", tok.lexeme),
 
             Type::Pointer(type_) => write!(f, "*{}", type_),
+
+            Type::Value(type_) => write!(f, "^{}", type_),
 
             Type::Array(type_) => write!(f, "[{}]", type_),
 

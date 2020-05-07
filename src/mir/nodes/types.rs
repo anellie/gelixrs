@@ -70,6 +70,10 @@ pub enum Type {
     /// This is mainly for C interop.
     Value(Box<Type>),
 
+    /// A pointer to a value that is usually a value (primitives).
+    /// This is mainly for C interop.
+    Pointer(Box<Type>),
+
     /// A type.
     /// This is used mainly for accessing static members of types,
     /// and constructors.
@@ -90,6 +94,10 @@ impl Type {
             Type::F32,
             Type::F64,
         ]
+    }
+
+    pub fn is_primitive(&self) -> bool {
+        self.is_none() || self.is_number()
     }
 
     /// Returns the context of the type, if any.
@@ -198,6 +206,14 @@ impl PartialEq for Type {
                 }
             }
 
+            Type::Pointer(t) => {
+                if let Type::Pointer(o) = o {
+                    t == o
+                } else {
+                    false
+                }
+            }
+
             Type::Type(t) => {
                 if let Type::Type(o) = o {
                     t == o
@@ -220,8 +236,7 @@ impl Hash for Type {
         match self {
             Type::Function(v) => v.borrow().name.hash(state),
             Type::Adt(v) => v.borrow().name.hash(state),
-            Type::Value(v) => v.hash(state),
-            Type::Type(t) => t.hash(state),
+            Type::Value(v) | Type::Pointer(v) | Type::Type(v) => v.hash(state),
             _ => std::mem::discriminant(self).hash(state),
         }
     }
@@ -233,7 +248,8 @@ impl Display for Type {
             Type::Function(func) => write!(f, "{}", func.borrow().to_closure_type()),
             Type::Closure(closure) => write!(f, "{}", closure),
             Type::Adt(adt) => write!(f, "{}", adt.borrow().name),
-            Type::Value(inner) => write!(f, "*{}", inner),
+            Type::Value(inner) => write!(f, "^{}", inner),
+            Type::Pointer(inner) => write!(f, "*{}", inner),
             Type::Type(ty) => match **ty {
                 Type::Function(_) => write!(f, "Function"),
                 Type::Closure(_) => write!(f, "Closure"),

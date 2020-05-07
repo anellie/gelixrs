@@ -9,7 +9,7 @@ func main() {
     free::<Test>(t)
 }
 
-func hm(a: *Test) {}
+func hm(a: ^Test) {}
 
 extern class Test {
     val a = 4

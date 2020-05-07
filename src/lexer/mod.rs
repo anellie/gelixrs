@@ -48,6 +48,7 @@ impl Lexer {
             '+' => self.make_token(TType::Plus),
             '*' => self.make_token(TType::Star),
             '/' => self.make_token(TType::Slash),
+            '^' => self.make_token(TType::Caret),
 
             // Double-char
             '!' => self.check_double_token('=', TType::BangEqual, TType::Bang),

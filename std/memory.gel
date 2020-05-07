@@ -23,7 +23,7 @@ func free<T>(value: T) = gelixrs_free_type::<T>(value)
 
 /// Will simply load the given value.
 /// TODO: Same interface bounds note as free above
-func load_value<T>(value: T) -> *T = gelixrs_load_value::<T>(value)
+func load_value<T>(value: T) -> ^T = gelixrs_load_value::<T>(value)
 
 /// A wrapper intended for extern classes to allow them to be automatically managed.
 /// Whenever this wrapper gets GC'd, it will free its inner value as well.

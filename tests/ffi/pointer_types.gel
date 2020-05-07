@@ -1,0 +1,7 @@
+/*
+*/
+
+func main() {
+}
+
+func hm(a: *bool) {}

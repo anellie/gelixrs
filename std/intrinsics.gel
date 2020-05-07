@@ -41,7 +41,7 @@ extern func gelixrs_dec_ref_iface(implementor: i64, vtable: i64)
 extern func gelixrs_free_type<T>(value: T)
 
 /// Will simply load the given value
-extern func gelixrs_load_value<T>(value: T) -> *T
+extern func gelixrs_load_value<T>(value: T) -> ^T
 
 /// libc puts
 extern func puts(s: i64)

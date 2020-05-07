@@ -1059,6 +1059,11 @@ impl Parser {
                 }
             }
 
+            TType::Caret => {
+                let inner = self.type_(msg)?;
+                Type::Value(Box::new(inner))
+            }
+
             TType::Star => {
                 let inner = self.type_(msg)?;
                 Type::Pointer(Box::new(inner))

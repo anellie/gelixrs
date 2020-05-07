@@ -50,7 +50,27 @@ impl MIRBuilder {
             }
 
             ASTType::Pointer(inner) => {
-                self.find_type(inner).map(|t| Type::Value(Box::new(t)))
+                let inner = self.find_type(inner)?;
+
+                // Non-primitives are already pointers so it would
+                // be pointless (ha) to wrap them
+                Ok(if inner.is_primitive() {
+                    Type::Pointer(Box::new(inner))
+                } else {
+                    inner
+                })
+            }
+
+            ASTType::Value(inner) => {
+                let inner = self.find_type(inner)?;
+
+                // Primitives are already values so it would
+                // be unnecessary to wrap them
+                Ok(if !inner.is_primitive() {
+                    Type::Value(Box::new(inner))
+                } else {
+                    inner
+                })
             }
 
             ASTType::Array(inner) => {

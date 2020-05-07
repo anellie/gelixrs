@@ -69,6 +69,7 @@ pub enum TType {
     RightBracket,
     LeftBrace,
     RightBrace,
+    Caret,
     Comma,
     Dot,
     Minus,
