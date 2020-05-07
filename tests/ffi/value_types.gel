@@ -1,0 +1,16 @@
+/*
+*/
+
+import std/memory/+
+
+func main() {
+    val t = Test()
+    hm(load_value::<Test>(t))
+    free::<Test>(t)
+}
+
+func hm(a: *Test) {}
+
+extern class Test {
+    val a = 4
+}

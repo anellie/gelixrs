@@ -189,6 +189,12 @@ pub enum Type {
     /// Just an identifier, primitive type, class, or interface
     Ident(Token),
 
+    /// A pointer type, written *$type.
+    /// For primitives, this will compile down to a pointer.
+    /// For ADTs, which are by default pointers, this will
+    /// compile to a value instead.
+    Pointer(Box<Type>),
+
     /// An array of a type, written [$type]
     Array(Box<Type>),
 
@@ -208,6 +214,7 @@ impl Type {
     pub fn get_token(&self) -> &Token {
         match self {
             Type::Ident(tok) => tok,
+            Type::Pointer(type_) => type_.get_token(),
             Type::Array(type_) => type_.get_token(),
             Type::Closure { closing_paren, .. } => closing_paren,
             Type::Generic { token, .. } => token,
@@ -219,6 +226,8 @@ impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
             Type::Ident(tok) => write!(f, "{}", tok.lexeme),
+
+            Type::Pointer(type_) => write!(f, "*{}", type_),
 
             Type::Array(type_) => write!(f, "[{}]", type_),
 

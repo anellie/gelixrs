@@ -72,7 +72,7 @@ impl IRGenerator {
 
     fn mod_refcount(&self, value: BasicValueEnum, decrement: bool) {
         match value {
-            BasicValueEnum::StructValue(struc) => self.mod_refcount_iface(struc, decrement),
+            BasicValueEnum::StructValue(struc) if struc.get_name().to_str().unwrap().starts_with("iface") => self.mod_refcount_iface(struc, decrement),
             BasicValueEnum::PointerValue(ptr) => {
                 let ty = ptr.get_type().get_element_type().into_struct_type();
                 match &self
@@ -82,10 +82,11 @@ impl IRGenerator {
                 {
                     Type::Adt(adt) => self.mod_refcount_adt(ptr, adt, decrement),
                     Type::Closure(_) => self.mod_refcount_closure(ptr, decrement),
+                    Type::Value(_) => (),
                     _ => panic!("Cannot mod refcount on this"),
                 }
             }
-            _ => panic!("Cannot mod refcount on this"),
+            _ => (),
         }
     }
 

@@ -1059,6 +1059,11 @@ impl Parser {
                 }
             }
 
+            TType::Star => {
+                let inner = self.type_(msg)?;
+                Type::Pointer(Box::new(inner))
+            }
+
             TType::LeftBracket => {
                 let arr_type = self.type_("Expected type after '[' in array type.")?;
                 self.consume(TType::RightBracket, "Expected ']' after array type.")?;

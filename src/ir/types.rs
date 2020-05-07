@@ -30,6 +30,7 @@ impl IRGenerator {
             {
                 ir
             }
+            (BasicTypeEnum::StructType(_), Type::Value(_)) => ir,
             (BasicTypeEnum::StructType(struc), _) => struc.ptr_type(Generic).into(),
             _ => ir,
         }
@@ -89,17 +90,22 @@ impl IRGenerator {
                     .into(),
             },
 
+            Type::Value(inner) => self.ir_ty(inner),
+
             _ => panic!(format!("Unknown type '{}' to build", ty)),
         };
 
         let type_info = self.build_type_info();
 
         self.types.insert(ty.clone(), (ir_ty, type_info));
-        if let BasicTypeEnum::StructType(struc) = ir_ty {
-            self.types_bw.insert(
-                struc.get_name().unwrap().to_str().unwrap().to_string(),
-                ty.clone(),
-            );
+        match ir_ty {
+            BasicTypeEnum::StructType(struc) if !ty.is_value() => {
+                self.types_bw.insert(
+                    struc.get_name().unwrap().to_str().unwrap().to_string(),
+                    ty.clone(),
+                );
+            }
+            _ => ()
         }
         (ir_ty, type_info)
     }
@@ -226,7 +232,7 @@ impl IRGenerator {
         let vtable_struct = self.build_struct_ir("vtable", vtable.into_iter(), false, false);
 
         self.build_struct_ir(
-            &format!("noload-{}", &iface.name),
+            &format!("iface-{}", &iface.name),
             vec![
                 self.context.i64_type().ptr_type(Generic).into(),
                 vtable_struct.ptr_type(Generic).into(),

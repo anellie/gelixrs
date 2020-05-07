@@ -49,6 +49,10 @@ impl MIRBuilder {
                 ty.or_type_err(&self.path, ast, "Unknown type.")
             }
 
+            ASTType::Pointer(inner) => {
+                self.find_type(inner).map(|t| Type::Value(Box::new(t)))
+            }
+
             ASTType::Array(inner) => {
                 let tok = inner.get_token().clone();
                 INTRINSICS.with(|i| i.borrow().get_array_type(self.find_type(inner)?, Some(tok)))

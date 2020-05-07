@@ -40,6 +40,9 @@ extern func gelixrs_dec_ref_iface(implementor: i64, vtable: i64)
 /// immediately. Can be very unsafe - does not check for dangling references!
 extern func gelixrs_free_type<T>(value: T)
 
+/// Will simply load the given value
+extern func gelixrs_load_value<T>(value: T) -> *T
+
 /// libc puts
 extern func puts(s: i64)
 

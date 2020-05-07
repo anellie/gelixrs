@@ -132,6 +132,11 @@ impl IRGenerator {
                 self.builder.build_return(None);
             }
 
+            "load_value" => {
+                let value = ir.get_first_param().unwrap();
+                self.builder.build_return(Some(&self.builder.build_load(value.into_pointer_value(), "var")));
+            }
+
             "inc_ref_iface" => {
                 let vtable_ptr = self.builder.build_int_to_ptr(
                     ir.get_last_param().unwrap().into_int_value(),
