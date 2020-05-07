@@ -140,12 +140,14 @@ impl MIRGenerator {
         let left_ty = left.get_type();
         let right_ty = right.get_type();
 
-        if (left_ty == right_ty && left_ty.is_number())
+        if (left_ty.is_int() && right_ty.is_int())
+            || left_ty.is_float() && right_ty.is_float()
             || (operator.t_type == TType::Is && right_ty.is_type())
         {
             if operator.t_type == TType::And || operator.t_type == TType::Or {
                 Ok(self.binary_logic(left, operator.t_type, right))
             } else {
+                let (_, left, right) = self.try_unify_type(left, right);
                 Ok(Expr::binary(left, operator.t_type, right))
             }
         } else {

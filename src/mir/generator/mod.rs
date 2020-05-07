@@ -457,6 +457,9 @@ impl MIRGenerator {
                 _ => (),
             },
 
+            // Number cast
+            _ if val_ty.is_number() && ty.is_number() => return Expr::cast(value, ty),
+
             _ => (),
         }
 
@@ -480,6 +483,12 @@ impl MIRGenerator {
 
         match (&left_ty, &right_ty) {
             _ if left_ty == right_ty => return (Some(left_ty), left, right),
+
+            // Number cast
+            _ if (left_ty.is_int() && right_ty.is_int()) || left_ty.is_float() && right_ty.is_float() => {
+                let right = self.try_cast(right, &left_ty);
+                return (Some(left_ty), left, right)
+            }
 
             // Can be either interface and implementor, enum cases or enum and a case
             (Type::Adt(_), Type::Adt(_)) => {

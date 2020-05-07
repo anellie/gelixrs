@@ -109,3 +109,35 @@ impl ToString for i32 {
         buffer
     }
 }
+
+impl ToString for i16 {
+    func to_string() -> String {
+        var buffer = String(6)
+        sprintf(buffer.ptr.pointer, "%d".ptr.pointer, this)
+        buffer
+    }
+}
+
+impl ToString for i8 {
+    func to_string() -> String {
+        var buffer = String(4)
+        sprintf(buffer.ptr.pointer, "%d".ptr.pointer, this)
+        buffer
+    }
+}
+
+impl ToString for f64 {
+    func to_string() -> String {
+        var buffer = String(40)
+        sprintf(buffer.ptr.pointer, "%g".ptr.pointer, this)
+        buffer
+    }
+}
+
+impl ToString for f32 {
+    func to_string() -> String {
+        var buffer = String(40)
+        sprintf(buffer.ptr.pointer, "%g".ptr.pointer, this)
+        buffer
+    }
+}

@@ -365,15 +365,34 @@ impl IRGenerator {
     }
 
     fn cast(&mut self, object: &Expr, to: &Type) -> BasicValueEnum {
-        match to.as_adt().borrow().ty {
-            ADTType::Interface { .. } => self.cast_to_interface(object, to),
-            _ => {
-                // This should be an enum cast;
-                // simply a bitcast is sufficient
+        match to {
+            _ if to.is_int() => {
                 let obj = self.expression(object);
-                let cast_ty = self.ir_ty_ptr(to);
-                self.builder.build_bitcast(obj, cast_ty, "cast")
+                let cast_ty = self.ir_ty(to).into_int_type();
+                self.builder.build_int_cast(obj.into_int_value(), cast_ty, "cast").into()
             }
+
+            _ if to.is_float() => {
+                let obj = self.expression(object);
+                let cast_ty = self.ir_ty(to).into_float_type();
+                self.builder.build_float_cast(obj.into_float_value(), cast_ty, "cast").into()
+            }
+
+            Type::Adt(adt) => {
+                match adt.borrow().ty {
+                    ADTType::Interface { .. } => self.cast_to_interface(object, to),
+
+                    _ => {
+                        // This should be an enum cast;
+                        // simply a bitcast is sufficient
+                        let obj = self.expression(object);
+                        let cast_ty = self.ir_ty_ptr(to);
+                        self.builder.build_bitcast(obj, cast_ty, "cast")
+                    }
+                }
+            }
+
+            _ => panic!("Invalid cast")
         }
     }
 

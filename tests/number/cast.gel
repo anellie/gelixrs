@@ -1,0 +1,14 @@
+/*
+1
+76
+4
+*/
+
+func main() {
+    print(1i8)
+    a(13, 34.5)
+    print(12i16 + 64i32)
+    print(3.0 + cast::<f32>(1.0))
+}
+
+func a(a: i16, b: f32) {}
