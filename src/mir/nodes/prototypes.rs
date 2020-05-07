@@ -8,6 +8,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
     ast,
+    ast::declaration::GenericParam,
     error::{Error, Res},
     lexer::token::Token,
     mir::{
@@ -20,6 +21,7 @@ use crate::{
             },
             MIRGenerator,
         },
+        get_iface_impls,
         nodes::{Type, Variable, ADT},
         MModule, MutRc,
     },
@@ -130,7 +132,7 @@ pub enum ProtoAST {
 }
 
 impl ProtoAST {
-    fn get_parameters(&self) -> &[Token] {
+    fn get_parameters(&self) -> &[GenericParam] {
         match self {
             ProtoAST::ADT(a) => a.generics.as_ref().unwrap(),
             ProtoAST::Function(f) => f.sig.generics.as_ref().unwrap(),
@@ -180,12 +182,12 @@ fn get_name(name: &String, args: &[Type]) -> Rc<String> {
     Rc::new(format!("{}<{}>", name, arg_names))
 }
 
-fn get_context(context: &Context, params: &[Token], args: &[Type]) -> Context {
+fn get_context(context: &Context, params: &[GenericParam], args: &[Type]) -> Context {
     Context {
         type_aliases: Rc::new(
             params
                 .iter()
-                .map(|p| Rc::clone(&p.lexeme))
+                .map(|p| Rc::clone(&p.name.lexeme))
                 .zip(args.iter().cloned())
                 .chain(HashMap::clone(&context.type_aliases).into_iter())
                 .collect(),
@@ -195,7 +197,7 @@ fn get_context(context: &Context, params: &[Token], args: &[Type]) -> Context {
 
 fn check_generic_arguments(
     module: &MutRc<MModule>,
-    parameters: &[Token],
+    parameters: &[GenericParam],
     arguments: &[Type],
     err_tok: &Token,
 ) -> Result<(), Error> {
@@ -204,13 +206,43 @@ fn check_generic_arguments(
             err_tok,
             "MIR",
             format!(
-                "Wrong amount of generic parameters (expected {}; got {})",
+                "Wrong amount of generic arguments (expected {}; got {})",
                 parameters.len(),
                 arguments.len()
             ),
             &module.borrow().path,
         ));
     }
+
+    // for each param with a bound
+    for (param, bound, arg) in parameters
+        .iter()
+        .zip(arguments.iter())
+        .filter_map(|(param, arg)| param.bound.as_ref().map(|bound| (param, bound, arg)))
+    {
+        if arg.has_marker(&bound.lexeme) {
+            continue; // Valid marker, all good
+        }
+
+        let iface = module.borrow().find_type(&bound.lexeme);
+        if let (Some(iface), Some(impls)) = (iface, get_iface_impls(arg)) {
+            if impls.borrow().interfaces.contains_key(&iface) {
+                continue; // Valid interface bound, all good
+            }
+        }
+
+        // Not a valid bound!
+        return Err(Error::new(
+            err_tok,
+            "MIR",
+            format!(
+                "Generic argument '{}' does not fulfill bound '{}' on parameter '{}'.",
+                arg, bound.lexeme, param.name.lexeme
+            ),
+            &module.borrow().path,
+        ));
+    }
+
     Ok(())
 }
 

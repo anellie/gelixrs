@@ -12,7 +12,7 @@ use std::{
 
 use crate::mir::{
     generator::builder::Context,
-    nodes::{Function, Variable, ADT},
+    nodes::{ADTType, Function, Variable, ADT},
     MutRc,
 };
 
@@ -130,6 +130,11 @@ impl Type {
         }
     }
 
+    /// Is this type a pointer at machine level?
+    pub fn is_ptr(&self) -> bool {
+        self.is_adt() || self.is_pointer() || self.is_closure()
+    }
+
     /// Can this type be assigned to variables?
     /// True for everything but types, as they are static.
     pub fn is_assignable(&self) -> bool {
@@ -149,6 +154,35 @@ impl Type {
             }
         } else {
             None
+        }
+    }
+
+    pub fn has_marker(&self, marker: &str) -> bool {
+        match &marker[..] {
+            "Primitive" => self.is_primitive(),
+            "Number" => self.is_number(),
+            "Integer" => self.is_int(),
+            "Float" => self.is_float(),
+
+            "IsPointer" => self.is_ptr(),
+            "IsValue" => !self.is_ptr(),
+
+            _ if self.is_adt() => {
+                let adt = self.as_adt().borrow();
+                match (&marker[..], &adt.ty) {
+                    ("Class", ADTType::Class { .. })
+                    | ("Interface", ADTType::Interface { .. })
+                    | ("Enum", ADTType::Enum { .. })
+                    | ("EnumCase", ADTType::EnumCase { .. }) => true,
+
+                    ("ExtClass", ADTType::Class { external, .. }) => *external,
+
+                    _ => false,
+                }
+            }
+
+            // Marker does not exist
+            _ => false,
         }
     }
 

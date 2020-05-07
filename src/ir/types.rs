@@ -105,7 +105,7 @@ impl IRGenerator {
                     ty.clone(),
                 );
             }
-            _ => ()
+            _ => (),
         }
         (ir_ty, type_info)
     }

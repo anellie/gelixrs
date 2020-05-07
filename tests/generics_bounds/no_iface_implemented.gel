@@ -1,0 +1,18 @@
+// C-ERR
+
+interface Test {
+    func test() -> String
+}
+
+class Implementor {
+    val a: String
+    construct(a)
+}
+
+func bounded<T: Test>(a: T) {
+    print(a.test())
+}
+
+func main() {
+    bounded::<Implementor>(Implementor("Hello"))
+}

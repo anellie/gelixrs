@@ -26,7 +26,7 @@ pub enum Visibility {
 pub struct ADT {
     pub name: Token,
     pub visibility: Visibility,
-    pub generics: Option<Vec<Token>>,
+    pub generics: Option<Vec<GenericParam>>,
     pub methods: Vec<Function>,
     pub ty: ADTType,
 }
@@ -137,7 +137,7 @@ pub struct IFaceImpl {
 pub struct FuncSignature {
     pub name: Token,
     pub visibility: Visibility,
-    pub generics: Option<Vec<Token>>,
+    pub generics: Option<Vec<GenericParam>>,
     pub return_type: Option<Type>,
     pub parameters: Vec<FunctionParam>,
     pub variadic: bool,
@@ -217,7 +217,12 @@ pub enum Type {
 impl Type {
     pub fn get_token(&self) -> &Token {
         match self {
-            Type::Ident(token) | Type::Generic { token, .. } | Type::Closure { closing_paren: token, .. } => token,
+            Type::Ident(token)
+            | Type::Generic { token, .. }
+            | Type::Closure {
+                closing_paren: token,
+                ..
+            } => token,
             Type::Pointer(inner) | Type::Array(inner) | Type::Value(inner) => inner.get_token(),
         }
     }
@@ -265,4 +270,13 @@ impl fmt::Display for Type {
             }
         }
     }
+}
+
+/// A generic parameter.
+#[derive(Debug, Clone)]
+pub struct GenericParam {
+    /// The name of the parameter
+    pub(crate) name: Token,
+    /// Optional bounds of types substituting it
+    pub(crate) bound: Option<Token>,
 }

@@ -27,7 +27,7 @@ use crate::{
 };
 
 use crate::ast::{
-    declaration::{ADTType, ADT},
+    declaration::{ADTType, GenericParam, ADT},
     literal::{Closure, ClosureParameter},
 };
 
@@ -978,14 +978,24 @@ impl Parser {
     }
 
     // Reads an identifier followed by optional generic type parameters.
-    fn generic_ident(&mut self) -> Option<(Token, Option<Vec<Token>>)> {
+    fn generic_ident(&mut self) -> Option<(Token, Option<Vec<GenericParam>>)> {
         let name = self.consume(TType::Identifier, "Expected a name.")?;
         let mut generics = None;
         if self.matches(TType::Less) {
             let mut generics_vec = Vec::with_capacity(1);
             while let Some(type_) = self.match_tokens(&[TType::Identifier]) {
-                generics_vec.push(type_);
-                self.matches(TType::Comma);
+                if self.matches(TType::Colon) {
+                    generics_vec.push(GenericParam {
+                        name: type_,
+                        bound: Some(self.consume(TType::Identifier, "Expected bound after ':'.")?),
+                    });
+                } else {
+                    generics_vec.push(GenericParam {
+                        name: type_,
+                        bound: None,
+                    })
+                }
+                if !self.matches(TType::Comma) { break; }
             }
             self.consume(TType::Greater, "Expected '>' after type parameters.")?;
             generics = Some(generics_vec)

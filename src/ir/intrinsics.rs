@@ -134,7 +134,9 @@ impl IRGenerator {
 
             "load_value" => {
                 let value = ir.get_first_param().unwrap();
-                self.builder.build_return(Some(&self.builder.build_load(value.into_pointer_value(), "var")));
+                self.builder.build_return(Some(
+                    &self.builder.build_load(value.into_pointer_value(), "var"),
+                ));
             }
 
             "inc_ref_iface" => {

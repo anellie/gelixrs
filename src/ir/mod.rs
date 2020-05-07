@@ -17,7 +17,7 @@ use inkwell::{
     builder::Builder,
     context::Context,
     module::Module,
-    types::{BasicTypeEnum, BasicType},
+    types::{BasicType, BasicTypeEnum},
     values::{BasicValueEnum, FunctionValue, PointerValue},
 };
 
@@ -244,7 +244,12 @@ impl IRGenerator {
 
         let mut types = HashMap::with_capacity(50);
         let null_ptr = context.i64_type().ptr_type(Generic).const_null();
-        Self::insert_primitive(&mut types, Type::None, none_const.get_type().into(), null_ptr);
+        Self::insert_primitive(
+            &mut types,
+            Type::None,
+            none_const.get_type().into(),
+            null_ptr,
+        );
         Self::insert_primitive(&mut types, Type::Bool, context.bool_type().into(), null_ptr);
 
         Self::insert_primitive(&mut types, Type::I8, context.i8_type().into(), null_ptr);
@@ -279,9 +284,17 @@ impl IRGenerator {
         }
     }
 
-    fn insert_primitive(types: &mut HashMap<Type, (BasicTypeEnum, PointerValue)>, ty: Type, ir: BasicTypeEnum, null_ptr: PointerValue) {
+    fn insert_primitive(
+        types: &mut HashMap<Type, (BasicTypeEnum, PointerValue)>,
+        ty: Type,
+        ir: BasicTypeEnum,
+        null_ptr: PointerValue,
+    ) {
         types.insert(ty.clone(), (ir, null_ptr));
-        types.insert(Type::Pointer(Box::new(ty)), (ir.ptr_type(Generic).into(), null_ptr));
+        types.insert(
+            Type::Pointer(Box::new(ty)),
+            (ir.ptr_type(Generic).into(), null_ptr),
+        );
     }
 }
 
