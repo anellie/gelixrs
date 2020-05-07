@@ -36,6 +36,10 @@ extern func gelixrs_dec_ref<T>(value: T)
 extern func gelixrs_inc_ref_iface(implementor: i64, vtable: i64)
 extern func gelixrs_dec_ref_iface(implementor: i64, vtable: i64)
 
+/// Will call the given value's destructor, causing it to be deallocated
+/// immediately. Can be very unsafe - does not check for dangling references!
+extern func gelixrs_free_type<T>(value: T)
+
 /// libc puts
 extern func puts(s: i64)
 

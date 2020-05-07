@@ -23,15 +23,14 @@ impl IRGenerator {
             return self.none_const.get_type();
         };
         let ir = self.ir_ty(mir);
-        match ir {
-            // If the first field is NOT i32, then this struct type is not refcounted -
-            // all non-refcounted structs are passed by value, and do not need to be
-            // turned into a pointer (currently, only interface fat pointers are like this)
-            BasicTypeEnum::StructType(struc)
-                if struc.get_field_type_at_index(0) == Some(self.context.i32_type().into()) =>
+        match (ir, mir) {
+            // If the type does not need lifecycle (currently only interfaces), then it is passed by value
+            (BasicTypeEnum::StructType(_), Type::Adt(adt))
+                if !adt.borrow().ty.needs_lifecycle() =>
             {
-                struc.ptr_type(Generic).into()
+                ir
             }
+            (BasicTypeEnum::StructType(struc), _) => struc.ptr_type(Generic).into(),
             _ => ir,
         }
     }
@@ -68,21 +67,27 @@ impl IRGenerator {
 
             Type::ClosureCaptured(captured) => self.build_captured_type(captured).into(),
 
-            Type::Adt(adt) => {
-                // Interfaces require special handling
-                // TODO
-                match adt.borrow().ty {
-                    ADTType::Interface { .. } => self.build_iface_type(adt.borrow()).into(),
+            Type::Adt(adt) => match adt.borrow().ty {
+                ADTType::Class { external } if external => self
+                    .build_struct(
+                        &adt.borrow().name,
+                        adt.borrow().members.iter().map(|(_, m)| &m.type_),
+                        false,
+                        false,
+                    )
+                    .into(),
 
-                    _ => self
-                        .build_struct(
-                            &adt.borrow().name,
-                            adt.borrow().members.iter().map(|(_, m)| &m.type_),
-                            true,
-                        )
-                        .into(),
-                }
-            }
+                ADTType::Interface { .. } => self.build_iface_type(adt.borrow()).into(),
+
+                _ => self
+                    .build_struct(
+                        &adt.borrow().name,
+                        adt.borrow().members.iter().map(|(_, m)| &m.type_),
+                        true,
+                        true,
+                    )
+                    .into(),
+            },
 
             _ => panic!(format!("Unknown type '{}' to build", ty)),
         };
@@ -104,6 +109,7 @@ impl IRGenerator {
         self.build_struct(
             "closure-captured",
             captured.iter().map(|var| &var.type_),
+            true,
             false,
         )
     }
@@ -113,10 +119,11 @@ impl IRGenerator {
         &mut self,
         name: &str,
         body: T,
+        refcount: bool,
         type_info: bool,
     ) -> StructType {
         let body: Vec<_> = body.map(|var| self.ir_ty_ptr(&var)).collect();
-        self.build_struct_ir(name, body.into_iter(), true, type_info)
+        self.build_struct_ir(name, body.into_iter(), refcount, type_info)
     }
 
     fn build_struct_ir<T: Iterator<Item = BasicTypeEnum>>(
@@ -219,7 +226,7 @@ impl IRGenerator {
         let vtable_struct = self.build_struct_ir("vtable", vtable.into_iter(), false, false);
 
         self.build_struct_ir(
-            &iface.name,
+            &format!("noload-{}", &iface.name),
             vec![
                 self.context.i64_type().ptr_type(Generic).into(),
                 vtable_struct.ptr_type(Generic).into(),

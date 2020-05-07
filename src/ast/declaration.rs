@@ -76,6 +76,10 @@ pub enum ADTType {
     Class {
         variables: Vec<ADTMember>,
         constructors: Vec<Constructor>,
+        // If this class is marked with "extern".
+        // Will cause the class to NOT be memory-managed and
+        // be compatible with C structs.
+        external: bool,
     },
 
     /// An interface declaration.

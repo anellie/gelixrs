@@ -1,3 +1,5 @@
+import std/intrinsics/+
+
 /// This interface allows implementing custom behavior
 /// when a value is freed.
 /// This can be used for multiple purposes like
@@ -7,4 +9,25 @@ interface Free {
     /// When implemented on aggregate value types like classes,
     /// this method is called on the class first, then all fields.
     func free()
+}
+
+/// Will run the given value's destructor, causing it to be deallocated
+/// immediately. Can be very unsafe - does not check for dangling references!
+///
+/// Mainly intended to be used with extern classes, as they require manual
+/// memory management.
+///
+/// TODO: This should require an extern class once interface bounds are implemented,
+/// it currently does nothing on non-class types
+func free<T>(value: T) = gelixrs_free_type::<T>(value)
+
+/// A wrapper intended for extern classes to allow them to be automatically managed.
+/// Whenever this wrapper gets GC'd, it will free its inner value as well.
+class Gc<T> {
+    val inner: T
+    construct(inner)
+}
+
+impl Free for Gc<T> {
+    func free() = free::<T>(this.inner)
 }

@@ -163,9 +163,11 @@ fn get_expected_result(mut path: PathBuf) -> Result<String, Failure> {
         Err(Failure::Parse)
     } else if code.starts_with("// C-ERR") {
         Err(Failure::Compile)
+    } else if code.starts_with("// LEAK") {
+        Err(Failure::Leak(1))
     } else {
-        let split: Vec<&str> = code.split("*/").collect();
-        Ok(split[0][3..].to_string())
+        let split = code.split("*/").next().unwrap();
+        Ok(split[3..].to_string())
     }
 }
 

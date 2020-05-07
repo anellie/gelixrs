@@ -1,0 +1,5 @@
+// P-ERR
+
+func main() {}
+
+extern func bad() = 2 + 2 == 5

@@ -71,7 +71,10 @@ impl IRGenerator {
         match ptr.get_type().get_element_type() {
             AnyTypeEnum::FunctionType(_) => BasicValueEnum::PointerValue(ptr),
             AnyTypeEnum::StructType(str)
-                if str.get_field_type_at_index(0) == Some(self.context.i32_type().into()) =>
+                if str
+                    .get_name()
+                    .map(|n| !n.to_str().unwrap().starts_with("noload"))
+                    .unwrap_or(true) =>
             {
                 BasicValueEnum::PointerValue(ptr)
             }

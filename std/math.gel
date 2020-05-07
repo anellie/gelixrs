@@ -1,0 +1,9 @@
+/// Returns the maximum of the 2 given integers.
+func max(a: i64, b: i64) -> i64 {
+    if (a > b) a else b
+}
+
+/// Returns the minimum of the 2 given integers.
+func min(a: i64, b: i64) -> i64 {
+    if (a < b) a else b
+}

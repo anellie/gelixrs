@@ -1,0 +1,19 @@
+/*
+*/
+
+import std/memory/+
+
+extern class Test {
+    val a: i64
+    val b: i8
+
+    construct() {
+        this.a = 4
+        this.b = 4i8
+    }
+}
+
+func main() {
+    val a = Test()
+    free::<Test>(a)
+}

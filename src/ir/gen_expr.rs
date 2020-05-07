@@ -213,7 +213,7 @@ impl IRGenerator {
     }
 
     fn maybe_init_type_info(&mut self, ty: &MutRc<ADT>, alloc: PointerValue) {
-        if ty.borrow().ty.needs_lifecycle() {
+        if ty.borrow().ty.needs_lifecycle() && ty.borrow().ty.has_refcount() {
             let gep = unsafe { self.builder.build_struct_gep(alloc, 1, "tygep") };
             let val = self.ir_ty_info(&Type::Adt(Rc::clone(ty)));
             self.builder.build_store(gep, val);

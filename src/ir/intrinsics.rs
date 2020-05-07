@@ -110,6 +110,28 @@ impl IRGenerator {
                 self.builder.build_return(None);
             }
 
+            "free_type" => {
+                let value = ir.get_first_param().unwrap();
+                let struct_type = value
+                    .into_pointer_value()
+                    .get_type()
+                    .get_element_type()
+                    .into_struct_type();
+                let adt = self
+                    .types_bw
+                    .get(struct_type.get_name().unwrap().to_str().unwrap())
+                    .unwrap()
+                    .as_adt();
+                let destructor = self.get_variable(&adt.borrow().destructor.as_ref().unwrap());
+                self.builder.build_call(
+                    destructor,
+                    &[value, self.context.bool_type().const_int(1, false).into()],
+                    "free",
+                );
+
+                self.builder.build_return(None);
+            }
+
             "inc_ref_iface" => {
                 let vtable_ptr = self.builder.build_int_to_ptr(
                     ir.get_last_param().unwrap().into_int_value(),

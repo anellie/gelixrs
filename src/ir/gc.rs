@@ -90,6 +90,9 @@ impl IRGenerator {
     }
 
     fn mod_refcount_adt(&self, ptr: PointerValue, adt: &MutRc<ADT>, decrement: bool) {
+        if !adt.borrow().ty.has_refcount() {
+            return;
+        }
         if let Some(destructor) = &adt.borrow().destructor {
             let func = self.get_variable(destructor);
             let refcount = unsafe { self.builder.build_struct_gep(ptr, 0, "rcgep") };

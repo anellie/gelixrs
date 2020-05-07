@@ -7,11 +7,7 @@
 use crate::{
     ast::Module,
     error::{Errors, Res},
-    mir::{
-        generator::MIRGenerator,
-        nodes::Type,
-        MModule, MutRc,
-    },
+    mir::{generator::MIRGenerator, nodes::Type, MModule, MutRc},
 };
 
 pub mod declaring_globals;

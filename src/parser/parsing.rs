@@ -49,7 +49,7 @@ pub static MODIFIERS: [TType; 4] = [
 static GLOBAL_MODIFIERS: [TType; 2] = [TType::Public, TType::Private];
 
 // All tokens that can be modifiers on a class.
-static CLASS_MODIFIERS: [TType; 0] = [];
+static CLASS_MODIFIERS: [TType; 1] = [TType::Extern];
 // All tokens that can be modifiers on a class member.
 static MEMBER_MODIFIERS: [TType; 0] = [];
 // All tokens that can be modifiers on a method.
@@ -287,6 +287,7 @@ impl Parser {
         self.check_mods(&CLASS_MODIFIERS, "class")?;
         let visibility = self.get_visibility()?;
         let (name, generics) = self.generic_ident()?;
+        let external = self.modifiers.iter().any(|t| t.t_type == TType::Extern);
 
         self.consume(TType::LeftBrace, "Expected '{' before class body.")?;
 
@@ -315,6 +316,7 @@ impl Parser {
             ty: ADTType::Class {
                 variables,
                 constructors,
+                external,
             },
         })
     }

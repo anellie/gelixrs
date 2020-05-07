@@ -84,12 +84,15 @@ impl ADT {
             ast::ADTType::Class {
                 variables,
                 constructors,
+                external,
             } => (
                 variables.len(),
                 ast.methods.len(),
                 0,
                 constructors.len(),
-                ADTType::Class,
+                ADTType::Class {
+                    external: *external,
+                },
             ),
 
             ast::ADTType::Interface => (0, 0, ast.methods.len(), 0, ADTType::Interface { proto }),
@@ -196,7 +199,10 @@ pub enum ADTType {
     Generic,
 
     /// A class definition.
-    Class,
+    Class {
+        // If this class is external (see gelix docs for more info)
+        external: bool,
+    },
 
     /// An enum definition.
     Interface {
@@ -224,6 +230,14 @@ impl ADTType {
         self.is_class() || self.is_enum_case() || self.is_enum()
     }
 
+    /// If this type has a refcount and typeinfo field. Currently true for everything but
+    /// extern classes.
+    pub fn has_refcount(&self) -> bool {
+        match self {
+            ADTType::Class { external } => !external,
+            _ => true,
+        }
+    }
     /// Returns the cases of an enum type.
     /// Use on any other type will result in a panic.
     pub fn cases(&self) -> &HashMap<Rc<String>, MutRc<ADT>> {
