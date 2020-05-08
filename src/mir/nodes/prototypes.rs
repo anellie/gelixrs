@@ -31,6 +31,7 @@ use crate::{
     },
 };
 use either::Either::Right;
+use indexmap::map::IndexMap;
 
 /// A prototype that ADTs or functions can be instantiated from.
 /// This prototype is kept in AST form,
@@ -153,8 +154,11 @@ impl Prototype {
             .filter(|p| p.1.len() == arguments.len())
         {
             index = i;
-            search_res = (0..self.ast.get_parameters().len())
-                .map(|_| self.resolve_param(call, &arguments, ast_args))
+            search_res = self
+                .ast
+                .get_parameters()
+                .iter()
+                .map(|param| self.resolve_param(param, call, &arguments))
                 .collect::<Option<Vec<Type>>>();
             if search_res.is_some() {
                 break;
@@ -200,11 +204,78 @@ impl Prototype {
 
     fn resolve_param(
         &self,
+        param: &GenericParam,
         call_params: &[FunctionParam],
         arguments: &[Expr],
-        ast_args: &[Expression],
     ) -> Option<Type> {
-        unimplemented!("Parameter resolution")
+        let goal = ast::Type::Ident(param.name.clone());
+
+        for (param, mir) in call_params.iter().zip(arguments.iter()) {
+            if let Some(ty) = self.match_param(&param.type_, mir.get_type(), &goal) {
+                return Some(ty);
+            }
+        }
+
+        None
+    }
+
+    fn match_param(&self, param: &ast::Type, mir: Type, goal: &ast::Type) -> Option<Type> {
+        match &param {
+            ast::Type::Ident(_) if goal == param => Some(mir),
+
+            ast::Type::Pointer(inner) if goal == &**inner => Some(*mir.into_pointer()),
+
+            ast::Type::Value(inner) if goal == &**inner => {
+                // This is required since primitives do not actually get wrapped in MIR
+                // (See MIRBuilder::find_type)
+                if let Type::Value(mir) = mir {
+                    Some(*mir)
+                } else {
+                    Some(mir)
+                }
+            }
+
+            ast::Type::Array(inner) if goal == &**inner => Some(
+                mir.context()
+                    .unwrap()
+                    .type_aliases
+                    .values()
+                    .next()
+                    .unwrap()
+                    .clone(),
+            ),
+
+            ast::Type::Closure {
+                params, ret_type, ..
+            } => {
+                let mir = mir.into_closure();
+
+                // Try recursively resolving parameters
+                for (ty, mir) in params.iter().zip(mir.parameters.iter()) {
+                    if let Some(ty) = self.match_param(ty, mir.clone(), &goal) {
+                        return Some(ty);
+                    }
+                }
+
+                // Try resolving return type
+                ret_type
+                    .as_ref()
+                    .and_then(|ret_type| self.match_param(ret_type, mir.ret_type.clone(), &goal))
+            }
+
+            ast::Type::Generic { types, .. } => {
+                let context = mir.context().unwrap();
+                // Try recursively resolving, might be a parameter of
+                // type Proto<Other<T>> for example and T should be inferred from that
+                for (ty, mir) in types.iter().zip(context.type_aliases.values()) {
+                    if let Some(ty) = self.match_param(ty, mir.clone(), &goal) {
+                        return Some(ty);
+                    }
+                }
+                None
+            }
+            _ => None,
+        }
     }
 }
 
@@ -324,7 +395,7 @@ fn get_context(context: &Context, params: &[GenericParam], args: &[Type]) -> Con
                 .iter()
                 .map(|p| Rc::clone(&p.name.lexeme))
                 .zip(args.iter().cloned())
-                .chain(HashMap::clone(&context.type_aliases).into_iter())
+                .chain(IndexMap::clone(&context.type_aliases).into_iter())
                 .collect(),
         ),
     }

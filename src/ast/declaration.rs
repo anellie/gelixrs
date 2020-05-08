@@ -184,7 +184,7 @@ pub struct Variable {
 }
 
 /// A type literal, like 'String' or '[i64]'
-#[derive(Clone, Debug, EnumAsGetters, EnumIsA)]
+#[derive(Clone, Debug, PartialEq, EnumAsGetters, EnumIsA)]
 pub enum Type {
     /// Just an identifier, primitive type, class, or interface
     Ident(Token),

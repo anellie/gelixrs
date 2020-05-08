@@ -58,6 +58,12 @@ impl Token {
     }
 }
 
+impl PartialEq for Token {
+    fn eq(&self, other: &Self) -> bool {
+        self.lexeme == other.lexeme
+    }
+}
+
 /// All types of tokens available. Most are keywords or special chars.
 /// The ScanError token is a special token signifying a syntax error.
 /// Its lexeme is an error message to be displayed to the user.

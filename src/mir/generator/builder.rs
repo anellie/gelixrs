@@ -4,7 +4,7 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::{collections::HashMap, rc::Rc};
+use std::rc::Rc;
 
 use crate::{
     ast::{module::ModulePath, Type as ASTType},
@@ -17,6 +17,7 @@ use crate::{
         MModule, MutRc,
     },
 };
+use indexmap::map::IndexMap;
 
 /// The MIR builder is used alongside the module after
 /// all types have been declared. It can be used for
@@ -177,5 +178,5 @@ pub struct Context {
     /// as a type. Used for instantiating generic stuff
     /// where the key is the parameter name (like T)
     /// and the value the type to use in its place.
-    pub type_aliases: Rc<HashMap<Rc<String>, Type>>,
+    pub type_aliases: Rc<IndexMap<Rc<String>, Type>>,
 }

@@ -1,0 +1,34 @@
+/*
+1
+hi
+hmm
+132
+hello!
+*/
+
+func main() {
+    print(echo(1))
+    print(echo("hi"))
+    print(Test("hmm").a)
+    print(Test(132).a)
+    advanced((a: i64) -> {})
+    advanced2(() -> 123)
+    print(Test(23).echo("hello!"))
+}
+
+func echo<T>(a: T) -> T {
+    a
+}
+
+class Test<A> {
+    val a: A
+    construct(a)
+
+    func echo<B>(a: B) -> B = a
+}
+
+func advanced<T>(a: (T)) {
+}
+
+func advanced2<T>(a: (): T) {
+}
