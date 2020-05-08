@@ -264,9 +264,15 @@ impl MIRGenerator {
                     }
 
                     // Proto method call with inferred generics
-                    (ASTExpr::Get { name, .. }, AssociatedMethod::Proto(ref proto)) => {
-                        proto.try_infer_call(args, arguments, name, Rc::clone(&proto))
-                    }
+                    (ASTExpr::Get { name, .. }, AssociatedMethod::Proto(ref proto)) => proto
+                        .try_infer_call(
+                            self,
+                            args,
+                            arguments,
+                            name,
+                            Rc::clone(&proto),
+                            obj_ty.context(),
+                        ),
 
                     // Proto method call with explicit generics
                     (ASTExpr::GetGeneric { params, .. }, AssociatedMethod::Proto(ref proto)) => {
@@ -303,7 +309,7 @@ impl MIRGenerator {
                 if self.module.borrow().find_prototype(&tok.lexeme).is_some() =>
             {
                 let proto = self.module.borrow().find_prototype(&tok.lexeme).unwrap();
-                proto.try_infer_call(args, arguments, tok, Rc::clone(&proto))
+                proto.try_infer_call(self, args, arguments, tok, Rc::clone(&proto), None)
             }
 
             // Can be either a constructor or function call

@@ -8,7 +8,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::{
     ast::Module,
-    error::Errors,
+    error::{Error, Errors},
     mir::{
         generator::passes::PreMIRPass,
         nodes::{ProtoAST, Prototype},
@@ -44,6 +44,10 @@ impl PreMIRPass for FilterPrototypes {
                 .try_reserve_name(&name, true)
                 .map_err(|e| errs.push(e))
                 .ok();
+            let call_parameters = ast
+                .get_call_parameters()
+                .map_err(|(e, tok)| errs.push(Error::new(&tok, "MIR", e, &module.path)))
+                .unwrap_or_else(|()| vec![]); // value won't matter since it'll abort due to the error anyway
             module.protos.insert(
                 Rc::clone(&name.lexeme),
                 Rc::new(Prototype {
@@ -52,6 +56,7 @@ impl PreMIRPass for FilterPrototypes {
                     impls: RefCell::new(vec![]),
                     module: Rc::clone(&module_rc),
                     ast,
+                    call_parameters,
                 }),
             );
         }

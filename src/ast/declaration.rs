@@ -276,7 +276,7 @@ impl fmt::Display for Type {
 #[derive(Debug, Clone)]
 pub struct GenericParam {
     /// The name of the parameter
-    pub(crate) name: Token,
+    pub name: Token,
     /// Optional bounds of types substituting it
-    pub(crate) bound: Option<Token>,
+    pub bound: Option<Token>,
 }

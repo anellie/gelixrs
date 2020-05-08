@@ -154,12 +154,14 @@ fn generic_method(
     let mut ast = method.clone();
     ast.sig.parameters.insert(0, this_param.clone());
 
+    let call_parameters = ast.sig.parameters.clone();
     let proto = Rc::new(Prototype {
         name: Rc::clone(&name),
         instances: Default::default(),
         impls: RefCell::new(vec![]),
         module: Rc::clone(&builder.module),
         ast: ProtoAST::Function(Rc::new(ast)),
+        call_parameters: vec![call_parameters],
     });
 
     builder

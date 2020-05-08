@@ -383,7 +383,7 @@ impl MIRGenerator {
 
     /// Same as above, but takes a function instead.
     /// `func` should be Type::Function or Type::Closure, otherwise returns an error.
-    fn check_func_args_(
+    pub fn check_func_args_(
         &mut self,
         func: &Type,
         args: &mut Vec<Expr>,

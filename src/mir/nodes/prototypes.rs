@@ -8,7 +8,10 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
     ast,
-    ast::{declaration::GenericParam, Expression},
+    ast::{
+        declaration::{FunctionParam, GenericParam},
+        Expression,
+    },
     error::{Error, Res},
     lexer::token::Token,
     mir::{
@@ -23,6 +26,7 @@ use crate::{
         },
         get_iface_impls,
         nodes::{Expr, Type, Variable, ADT},
+        result::ToMIRResult,
         MModule, MutRc,
     },
 };
@@ -59,6 +63,10 @@ pub struct Prototype {
     pub impls: RefCell<Vec<(ast::IFaceImpl, MutRc<MModule>)>>,
     pub module: MutRc<MModule>,
     pub ast: ProtoAST,
+    /// A list of all possible argument types to call this prototype.
+    /// Used for type inference; kept in memory since
+    /// constructors make looking it up not free.
+    pub call_parameters: Vec<Vec<FunctionParam>>,
 }
 
 impl Prototype {
@@ -129,12 +137,74 @@ impl Prototype {
     /// Return value is the expression of the finished call.
     pub fn try_infer_call(
         &self,
-        _arguments: Vec<Expr>,
-        _ast_args: &[Expression],
-        _err_tok: &Token,
-        _self_ref: Rc<Prototype>,
+        gen: &mut MIRGenerator,
+        mut arguments: Vec<Expr>,
+        ast_args: &[Expression],
+        err_tok: &Token,
+        self_ref: Rc<Prototype>,
+        parent_context: Option<Context>,
     ) -> Res<Expr> {
-        unimplemented!("Prototype inference");
+        let mut index = 0;
+        let mut search_res = None;
+        for (i, call) in self
+            .call_parameters
+            .iter()
+            .enumerate()
+            .filter(|p| p.1.len() == arguments.len())
+        {
+            index = i;
+            search_res = (0..self.ast.get_parameters().len())
+                .map(|_| self.resolve_param(call, &arguments, ast_args))
+                .collect::<Option<Vec<Type>>>();
+            if search_res.is_some() {
+                break;
+            }
+        }
+
+        let ty_args = search_res.or_err(
+            &self.module.borrow().path,
+            err_tok,
+            "Cannot infer types (please specify explicitly).",
+        )?;
+
+        let ty = self.build_with_parent_context(
+            ty_args,
+            err_tok,
+            self_ref,
+            &parent_context.unwrap_or_else(Context::default),
+        )?;
+
+        match &ty {
+            Type::Function(func) => {
+                gen.check_func_args_(&ty, &mut arguments, ast_args, err_tok, false)?;
+
+                let fn_load = Expr::load(
+                    &self
+                        .module
+                        .borrow()
+                        .find_global(&func.borrow().name)
+                        .unwrap(),
+                );
+
+                Ok(Expr::call(fn_load, arguments))
+            }
+
+            Type::Adt(adt) => {
+                let constructor = Rc::clone(&adt.borrow().constructors[index]);
+                Ok(Expr::alloc_type(ty, &constructor, arguments))
+            }
+
+            _ => panic!("Unexpected prototype instance type"),
+        }
+    }
+
+    fn resolve_param(
+        &self,
+        call_params: &[FunctionParam],
+        arguments: &[Expr],
+        ast_args: &[Expression],
+    ) -> Option<Type> {
+        unimplemented!("Parameter resolution")
     }
 }
 
@@ -149,6 +219,58 @@ impl ProtoAST {
         match self {
             ProtoAST::ADT(a) => a.generics.as_ref().unwrap(),
             ProtoAST::Function(f) => f.sig.generics.as_ref().unwrap(),
+        }
+    }
+
+    // TODO: I am so, so sorry for making this abomination
+    pub fn get_call_parameters(&self) -> Result<Vec<Vec<FunctionParam>>, (String, Token)> {
+        match self {
+            ProtoAST::ADT(adt) => {
+                if let (Some(constructors), Some(members)) = (adt.constructors(), adt.members()) {
+                    constructors
+                        .iter()
+                        .map(|c| {
+                            c.parameters
+                                .iter()
+                                .map(|(name, ty)| {
+                                    Ok(FunctionParam {
+                                        type_: {
+                                            if let Some(ty) = ty {
+                                                Ok(ty.clone())
+                                            } else {
+                                                members
+                                                    .iter()
+                                                    .find(|i| i.name.lexeme == name.lexeme)
+                                                    .ok_or((
+                                                        format!(
+                                                            "Unknown member '{}'.",
+                                                            name.lexeme
+                                                        ),
+                                                        name.clone(),
+                                                    ))?
+                                                    .ty
+                                                    .clone()
+                                                    .ok_or((
+                                                        format!(
+                                                            "Missing type on member '{}'.",
+                                                            name.lexeme
+                                                        ),
+                                                        name.clone(),
+                                                    ))
+                                            }
+                                        }?,
+                                        name: name.clone(),
+                                    })
+                                })
+                                .collect::<Result<Vec<FunctionParam>, (String, Token)>>()
+                        })
+                        .collect()
+                } else {
+                    Ok(vec![])
+                }
+            }
+
+            ProtoAST::Function(func) => Ok(vec![func.sig.parameters.clone()]),
         }
     }
 
