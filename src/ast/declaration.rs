@@ -190,8 +190,8 @@ pub enum Type {
     Ident(Token),
 
     /// A pointer type, written *$type.
-    /// For primitives, this will compile down to a pointer.
-    /// For ADTs, this will behave like the ADT directly (already pointers)
+    /// For primitives, this is a pointer.
+    /// For ADTs, this is a double pointer.
     Pointer(Box<Type>),
 
     /// A value type, written ^$type.

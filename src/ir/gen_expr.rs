@@ -369,13 +369,17 @@ impl IRGenerator {
             _ if to.is_int() => {
                 let obj = self.expression(object);
                 let cast_ty = self.ir_ty(to).into_int_type();
-                self.builder.build_int_cast(obj.into_int_value(), cast_ty, "cast").into()
+                self.builder
+                    .build_int_cast(obj.into_int_value(), cast_ty, "cast")
+                    .into()
             }
 
             _ if to.is_float() => {
                 let obj = self.expression(object);
                 let cast_ty = self.ir_ty(to).into_float_type();
-                self.builder.build_float_cast(obj.into_float_value(), cast_ty, "cast").into()
+                self.builder
+                    .build_float_cast(obj.into_float_value(), cast_ty, "cast")
+                    .into()
             }
 
             Type::Adt(adt) => {
@@ -392,7 +396,7 @@ impl IRGenerator {
                 }
             }
 
-            _ => panic!("Invalid cast")
+            _ => panic!("Invalid cast"),
         }
     }
 

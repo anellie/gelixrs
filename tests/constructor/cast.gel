@@ -1,0 +1,18 @@
+/*
+54
+*/
+
+func main() {
+    Test(54).simple()
+}
+
+class Test {
+
+    val a: i32
+
+    construct(a)
+
+    func simple() {
+        print(this.a)
+    }
+}

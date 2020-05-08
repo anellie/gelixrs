@@ -24,13 +24,12 @@ use crate::{
     mir::{
         generator::{builder::MIRBuilder, intrinsics::INTRINSICS},
         get_iface_impls,
-        nodes::{ADTMember, ADTType, Expr, Function, Type, Variable},
+        nodes::{ADTMember, ADTType, Expr, Function, Prototype, Type, Variable},
         result::ToMIRResult,
         MModule, MutRc, IFACE_IMPLS,
     },
     Error,
 };
-use either::Either::{Left, Right};
 
 pub mod builder;
 pub mod gen_expr;
@@ -304,7 +303,7 @@ impl MIRGenerator {
         &mut self,
         object: &ASTExpr,
         name: &Token,
-    ) -> Res<(Expr, Either<Rc<ADTMember>, Callable>)> {
+    ) -> Res<(Expr, Either<Rc<ADTMember>, AssociatedMethod>)> {
         let object = self.expression(object)?;
         let ty = object.get_type();
 
@@ -321,71 +320,123 @@ impl MIRGenerator {
             .or_err(&self.builder.path, name, "Unknown field or method.")
     }
 
-    /// Takes a list of arguments and compiles them into MIR,
-    /// performing all needed safety checks.
-    /// first_arg allows an additional already-compiled first arg;
-    /// this is usually used for a receiver like on class methods.
-    fn generate_func_args<'a, T: Iterator<Item = &'a Type>>(
+    /// Check a function call's arguments for correctness,
+    /// possibly adding a cast if required.
+    fn check_func_args<'a, T: Iterator<Item = &'a Type>>(
         &mut self,
         mut parameters: T,
-        arguments: &[ASTExpr],
-        first_arg: Option<Expr>,
+        args: &mut Vec<Expr>,
+        ast_args: &[ASTExpr],
         allow_variadic: bool,
         err_tok: &Token,
-    ) -> Res<Vec<Expr>> {
+        is_method: bool,
+    ) -> Res<()> {
         let para_len = parameters.size_hint().0;
-        let args_len = arguments.len() + (first_arg.is_some() as usize);
-        if para_len > args_len || (para_len < args_len && !allow_variadic) {
+        if para_len > args.len() || (para_len < args.len() && !allow_variadic) {
             return Err(self.err(
                 err_tok,
                 &format!(
                     "Incorrect amount of function arguments. (Expected {}; got {})",
                     parameters.size_hint().0,
-                    arguments.len()
+                    args.len()
                 ),
             ));
         }
 
-        let mut result = Vec::with_capacity(args_len);
-        if let Some(arg) = first_arg {
-            let ty = parameters.next().unwrap();
-            let arg = self.try_cast(arg, ty);
-            result.push(arg)
-        }
-        for (argument, parameter) in arguments.iter().zip(parameters) {
-            let arg = self.expression(argument)?;
-            let arg_type = arg.get_type();
-            let arg = self.cast_or_none(arg, &parameter).or_err(
-                &self.builder.path,
-                argument.get_token(),
-                &format!(
-                    "Call argument is the wrong type (was {}, expected {})",
-                    arg_type, parameter
-                ),
-            )?;
-            result.push(arg)
-        }
-        // Also generate any variadic args should there be any
-        for argument in arguments.iter().skip(result.len()) {
-            result.push(self.expression(argument)?);
+        // Sometimes, methods need their "this" arg to be cast (enum case calling a parent func for example)
+        // Since parameters are an iterator it needs to be done now
+        if is_method {
+            // Remove the "this" argument to get ownership using swap_remove, last arg is now
+            // swapped into index 0
+            let arg = self.try_cast(args.swap_remove(0), parameters.next().unwrap());
+            // Put "this" arg at the end and swap them again
+            let this_index = args.len();
+            args.push(arg);
+            args.swap(0, this_index);
+            // (This is done since it does not need any copying)
         }
 
-        Ok(result)
+        for ((argument, parameter), ast) in args
+            .iter_mut()
+            .skip(is_method as usize)
+            .zip(parameters)
+            .zip(ast_args.iter())
+        {
+            // The mem::replace usage temporarily swaps out the argument with none_const
+            // to get the ownership cast_or_none requires
+            let arg_type = argument.get_type();
+            let arg = self
+                .cast_or_none(mem::replace(argument, Expr::none_const()), &parameter)
+                .or_err(
+                    &self.builder.path,
+                    ast.get_token(),
+                    &format!(
+                        "Call argument is the wrong type (was {}, expected {})",
+                        arg_type, parameter
+                    ),
+                )?;
+            mem::replace(argument, arg);
+        }
+
+        Ok(())
+    }
+
+    /// Same as above, but takes a function instead.
+    /// `func` should be Type::Function or Type::Closure, otherwise returns an error.
+    fn check_func_args_(
+        &mut self,
+        func: &Type,
+        args: &mut Vec<Expr>,
+        ast_args: &[ASTExpr],
+        err_tok: &Token,
+        is_method: bool,
+    ) -> Res<()> {
+        match func {
+            Type::Function(func) => self.check_func_args(
+                func.borrow().parameters.iter().map(|p| &p.type_),
+                args,
+                ast_args,
+                func.borrow()
+                    .ast
+                    .as_ref()
+                    .map(|a| a.sig.variadic)
+                    .unwrap_or(false),
+                err_tok,
+                is_method,
+            ),
+
+            Type::Closure(closure) => self.check_func_args(
+                closure.parameters.iter(),
+                args,
+                ast_args,
+                false,
+                err_tok,
+                is_method,
+            ),
+
+            _ => Err(self.err(err_tok, "This cannot be called.")),
+        }
     }
 
     /// Searches for an associated method on a type. Can be either an interface
     /// method or a class method.
-    fn find_associated_method(&self, ty: Type, name: &Token) -> Option<Callable> {
+    fn find_associated_method(&self, ty: Type, name: &Token) -> Option<AssociatedMethod> {
         let method = if let Type::Adt(adt) = &ty {
             let adt = adt.borrow();
             adt.methods
                 .get(&name.lexeme)
                 .cloned()
-                .map(Left)
+                .map(AssociatedMethod::Fn)
+                .or_else(|| {
+                    adt.proto_methods
+                        .get(&name.lexeme)
+                        .cloned()
+                        .map(AssociatedMethod::Proto)
+                })
                 .or_else(|| {
                     adt.dyn_methods
                         .get_full(&name.lexeme)
-                        .map(|(i, _, _)| Right(i))
+                        .map(|(i, _, _)| AssociatedMethod::IFace(i))
                 })
         } else {
             None
@@ -398,7 +449,7 @@ impl MIRGenerator {
                 .methods
                 .get(&name.lexeme)
                 .cloned()
-                .map(Left)
+                .map(AssociatedMethod::Fn)
         })
     }
 
@@ -485,9 +536,11 @@ impl MIRGenerator {
             _ if left_ty == right_ty => return (Some(left_ty), left, right),
 
             // Number cast
-            _ if (left_ty.is_int() && right_ty.is_int()) || left_ty.is_float() && right_ty.is_float() => {
+            _ if (left_ty.is_int() && right_ty.is_int())
+                || left_ty.is_float() && right_ty.is_float() =>
+            {
                 let right = self.try_cast(right, &left_ty);
-                return (Some(left_ty), left, right)
+                return (Some(left_ty), left, right);
             }
 
             // Can be either interface and implementor, enum cases or enum and a case
@@ -643,8 +696,15 @@ struct ForLoop {
     result_var: Option<Rc<Variable>>,
 }
 
-pub type Callable = Either<Rc<Variable>, IFaceFuncIndex>;
-pub type IFaceFuncIndex = usize;
+/// All types of associated methods on a type.
+pub enum AssociatedMethod {
+    // A simple method that can be called normally
+    Fn(Rc<Variable>),
+    // A dynamic method (this is the index of the method.)
+    IFace(usize),
+    // A prototype that needs its types inferred.
+    Proto(Rc<Prototype>),
+}
 
 /// Data required for closure compilation.
 pub struct ClosureData {

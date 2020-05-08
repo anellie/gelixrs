@@ -376,19 +376,21 @@ impl Parser {
         }
         self.consume(TType::RightParen, "Expected ')' after parameters.")?;
 
-        let body = if START_OF_FN_BODY.contains(&self.current.t_type) {
+        Some(Constructor {
+            visibility,
+            parameters,
+            body: self.maybe_fn_body()?,
+        })
+    }
+
+    fn maybe_fn_body(&mut self) -> Option<Option<Expression>> {
+        Some(if START_OF_FN_BODY.contains(&self.current.t_type) {
             if !self.check(TType::LeftBrace) {
-                self.consume(TType::Equal, "Expected start of block or '='.");
+                self.consume(TType::Equal, "Expected start of block or '='.")?;
             }
             Some(self.expression()?)
         } else {
             None
-        };
-
-        Some(Constructor {
-            visibility,
-            parameters,
-            body,
         })
     }
 
@@ -425,14 +427,7 @@ impl Parser {
             match self.advance().t_type {
                 TType::Func => {
                     let sig = self.func_signature()?;
-                    let body = if START_OF_FN_BODY.contains(&self.current.t_type) {
-                        if !self.check(TType::LeftBrace) {
-                            self.consume(TType::Equal, "Expected start of block or '='.");
-                        }
-                        Some(self.expression()?)
-                    } else {
-                        None
-                    };
+                    let body = self.maybe_fn_body()?;
                     methods.push(Function { sig, body })
                 }
                 _ => self.error_at_current("Encountered invalid declaration inside interface.")?,
@@ -995,7 +990,9 @@ impl Parser {
                         bound: None,
                     })
                 }
-                if !self.matches(TType::Comma) { break; }
+                if !self.matches(TType::Comma) {
+                    break;
+                }
             }
             self.consume(TType::Greater, "Expected '>' after type parameters.")?;
             generics = Some(generics_vec)

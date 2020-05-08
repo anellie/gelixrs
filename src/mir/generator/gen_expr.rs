@@ -17,15 +17,16 @@ use crate::{
     lexer::token::{TType, Token},
     mir::{
         generator::{
+            builder::Context,
             passes::declaring_globals::{generate_mir_fn, insert_global_and_type},
-            ForLoop, MIRGenerator,
+            AssociatedMethod, ForLoop, MIRGenerator,
         },
         nodes::{catch_up_passes, ADTType, Expr, Type, Variable, ADT},
         result::ToMIRResult,
         MutRc,
     },
 };
-use either::Either::{Left, Right};
+use either::Either::Right;
 
 /// This impl contains all code of the generator that directly
 /// produces expressions.
@@ -211,193 +212,142 @@ impl MIRGenerator {
     }
 
     fn call(&mut self, callee: &ASTExpr, arguments: &[ASTExpr]) -> Res<Expr> {
-        if let Some(expr) = self.try_method_call(callee, arguments)? {
-            return Ok(expr);
-        }
-        let callee_mir = self.expression(callee)?;
-        if let Some(expr) = self.try_constructor_call(&callee_mir, arguments, callee.get_token())? {
-            return Ok(expr);
-        }
+        let mut args = arguments
+            .iter()
+            .map(|a| self.expression(a))
+            .collect::<Res<Vec<_>>>()?;
 
-        // method above fell through, its either a function/closure call or invalid
-        if let Type::Function(func) = callee_mir.get_type() {
-            let args = self.generate_func_args(
-                func.borrow().parameters.iter().map(|p| &p.type_),
-                arguments,
-                None,
-                func.borrow()
-                    .ast
-                    .as_ref()
-                    .map(|a| a.sig.variadic)
-                    .unwrap_or(false),
-                callee.get_token(),
-            )?;
-            Ok(Expr::call(callee_mir, args))
-        } else if let Type::Closure(closure) = callee_mir.get_type() {
-            let args = self.generate_func_args(
-                closure.parameters.iter(),
-                arguments,
-                None,
-                false,
-                callee.get_token(),
-            )?;
-            Ok(Expr::call(callee_mir, args))
-        } else {
-            Err(self.err(
-                callee.get_token(),
-                "Only functions are allowed to be called",
-            ))
-        }
-    }
-
-    fn try_method_call(&mut self, callee: &ASTExpr, arguments: &[ASTExpr]) -> Res<Option<Expr>> {
         match callee {
-            ASTExpr::Get { object, name } => {
-                if !self.uninitialized_this_members.is_empty() {
-                    return Err(self.err(
-                        name,
-                        "Cannot call methods in constructors until all class members are initialized.",
-                    ));
-                }
+            // Method call while a `this` member is still uninitialized
+            ASTExpr::Get { name, .. } | ASTExpr::GetGeneric { name, .. }
+                if !self.uninitialized_this_members.is_empty() =>
+            {
+                Err(self.err(
+                    name,
+                    "Cannot call methods in constructors until all class members are initialized.",
+                ))
+            }
 
+            // Method call
+            ASTExpr::Get { object, name } | ASTExpr::GetGeneric { object, name, .. } => {
                 let (object, field) = self.get_field(object, name)?;
                 let func = field.right().or_err(
                     &self.builder.path,
                     name,
                     "Class members cannot be called.",
                 )?;
+                let obj_ty = object.get_type();
+                args.insert(0, object);
 
-                match func {
-                    Left(func) => {
-                        let args = self.generate_func_args(
-                            func.type_
-                                .as_function()
-                                .borrow()
-                                .parameters
-                                .iter()
-                                .map(|p| &p.type_),
-                            arguments,
-                            Some(object),
-                            false,
-                            name,
-                        )?;
-
-                        Ok(Some(Expr::call(Expr::load(&func), args)))
+                match (callee, func) {
+                    // Regular method call
+                    (ASTExpr::Get { .. }, AssociatedMethod::Fn(func)) => {
+                        self.check_func_args_(&func.type_, &mut args, arguments, name, true)?;
+                        Ok(Expr::call(Expr::load(&func), args))
                     }
 
-                    Right(index) => {
-                        let ty = object.get_type();
-                        let adt = ty.as_adt().borrow();
+                    // Interface method call
+                    (ASTExpr::Get { .. }, AssociatedMethod::IFace(index)) => {
+                        let adt = obj_ty.as_adt().borrow();
                         let params = &adt.dyn_methods.get_index(index).unwrap().1.parameters;
-                        let args = self.generate_func_args(
+                        self.check_func_args(
                             // 'params' need to have the 'this' parameter, this is the result...
-                            Some(ty.clone()).iter().chain(params.iter()),
+                            Some(obj_ty.clone()).iter().chain(params.iter()),
+                            &mut args,
                             arguments,
-                            Some(object),
                             false,
                             name,
+                            true,
                         )?;
 
-                        Ok(Some(Expr::call_dyn(ty.as_adt(), index, args)))
+                        Ok(Expr::call_dyn(obj_ty.as_adt(), index, args))
                     }
+
+                    // Proto method call with inferred generics
+                    (ASTExpr::Get { name, .. }, AssociatedMethod::Proto(ref proto)) => {
+                        proto.try_infer_call(args, arguments, name, Rc::clone(&proto))
+                    }
+
+                    // Proto method call with explicit generics
+                    (ASTExpr::GetGeneric { params, .. }, AssociatedMethod::Proto(ref proto)) => {
+                        let proto_args = params
+                            .iter()
+                            .map(|ty| self.builder.find_type(&ty))
+                            .collect::<Res<Vec<Type>>>()?;
+
+                        let func = proto.build_with_parent_context(
+                            proto_args,
+                            name,
+                            Rc::clone(&proto),
+                            &obj_ty.context().unwrap_or_else(Context::default),
+                        )?;
+                        let func_rc = self
+                            .builder
+                            .module
+                            .borrow()
+                            .find_global(&func.as_function().borrow().name)
+                            .unwrap();
+                        self.check_func_args_(&func, &mut args, arguments, name, true)?;
+
+                        Ok(Expr::call(Expr::load(&func_rc), args))
+                    }
+
+                    // Generic parameters on something else, invalid
+                    _ => Err(self.err(name, "This method does not take generic parameters")),
                 }
             }
 
-            ASTExpr::GetGeneric {
-                object,
-                name,
-                params,
-            } => {
-                if !self.uninitialized_this_members.is_empty() {
-                    return Err(self.err(
-                        name,
-                        "Cannot call methods in constructors until all class members are initialized.",
-                    ));
-                }
-
-                let object = self.expression(object)?;
-                let ty = object.get_type();
-
-                let adt = if let Type::Adt(adt) = &ty {
-                    adt
-                } else {
-                    return Err(self.err(name, "This type does not support generic methods."));
-                };
-                let adt = adt.borrow();
-                let proto = adt.proto_methods.get(&name.lexeme).cloned().or_err(
-                    &self.builder.path,
-                    name,
-                    "Unknown field or method.",
-                )?;
-
-                let args = params
-                    .iter()
-                    .map(|ty| self.builder.find_type(&ty))
-                    .collect::<Res<Vec<Type>>>()?;
-
-                let func =
-                    proto.build_with_parent_context(args, name, Rc::clone(&proto), &adt.context)?;
-                let func_rc = self
-                    .builder
-                    .module
-                    .borrow()
-                    .find_global(&func.as_function().borrow().name)
-                    .unwrap();
-                let args = self.generate_func_args(
-                    func.as_function()
-                        .borrow()
-                        .parameters
-                        .iter()
-                        .map(|p| &p.type_),
-                    arguments,
-                    Some(object),
-                    false,
-                    name,
-                )?;
-
-                Ok(Some(Expr::call(Expr::load(&func_rc), args)))
+            // Prototype call with inferred types
+            // TODO: Kinda ugly double find call
+            ASTExpr::Variable(tok)
+                if self.module.borrow().find_prototype(&tok.lexeme).is_some() =>
+            {
+                let proto = self.module.borrow().find_prototype(&tok.lexeme).unwrap();
+                proto.try_infer_call(args, arguments, tok, Rc::clone(&proto))
             }
 
-            _ => Ok(None),
-        }
-    }
+            // Can be either a constructor or function call
+            _ => {
+                let callee_mir = self.expression(callee)?;
+                let callee_type = callee_mir.get_type();
 
-    fn try_constructor_call(
-        &mut self,
-        callee: &Expr,
-        args: &[ASTExpr],
-        err_tok: &Token,
-    ) -> Res<Option<Expr>> {
-        let callee_type = callee.get_type();
-        if let Some(constructors) = callee.get_type().get_constructors() {
-            let args = args
-                .iter()
-                .map(|arg| self.expression(arg))
-                .collect::<Res<Vec<Expr>>>()?;
+                match (callee_type.get_constructors(), &callee_type) {
+                    // Constructor
+                    (Some(constructors), _) => {
+                        let constructor: &Rc<Variable> = constructors
+                            .iter()
+                            .find(|constructor| {
+                                let constructor = constructor.type_.as_function().borrow();
+                                // If args count and types match
+                                (constructor.parameters.len() - 1 == args.len())
+                                    && constructor
+                                        .parameters
+                                        .iter()
+                                        .skip(1)
+                                        .zip(args.iter())
+                                        .all(|(param, arg)| param.type_ == arg.get_type())
+                            })
+                            .or_err(
+                                &self.builder.path,
+                                callee.get_token(),
+                                "No matching constructor found for arguments.",
+                            )?;
 
-            let constructor: &Rc<Variable> = constructors
-                .iter()
-                .find(|constructor| {
-                    let constructor = constructor.type_.as_function().borrow();
-                    if constructor.parameters.len() - 1 != args.len() {
-                        return false;
+                        Ok(Expr::alloc_type(callee_type, constructor, args))
                     }
-                    for (param, arg) in constructor.parameters.iter().skip(1).zip(args.iter()) {
-                        if param.type_ != arg.get_type() {
-                            return false;
-                        }
-                    }
-                    true
-                })
-                .or_err(
-                    &self.builder.path,
-                    err_tok,
-                    "No matching constructor found for arguments.",
-                )?;
 
-            Ok(Some(Expr::alloc_type(callee_type, constructor, args)))
-        } else {
-            Ok(None)
+                    _ => {
+                        self.check_func_args_(
+                            &callee_type,
+                            &mut args,
+                            arguments,
+                            callee.get_token(),
+                            false,
+                        )?;
+                        Ok(Expr::call(callee_mir, args))
+                    }
+                }
+            }
         }
     }
 
@@ -616,22 +566,17 @@ impl MIRGenerator {
                 .as_adt(),
         );
 
-        let dummy_tok = Token::generic_token(TType::Var);
         let push_method = {
             let arr = array_type.borrow();
             Rc::clone(arr.methods.get(&Rc::new("push".to_string())).unwrap())
         };
 
-        let array = self
-            .try_constructor_call(
-                &Expr::type_get(Type::Adt(array_type)),
-                &[ASTExpr::Literal(
-                    Literal::I64(values_mir.len() as u64),
-                    dummy_tok.clone(),
-                )],
-                &dummy_tok,
-            )?
-            .unwrap();
+        let constructor = &array_type.borrow().constructors[0];
+        let array = Expr::alloc_type(
+            Type::Adt(Rc::clone(&array_type)),
+            constructor,
+            vec![Expr::Literal(Literal::I64(values_mir.len() as u64))],
+        );
 
         for value in values_mir {
             self.insert_at_ptr(Expr::call(
@@ -704,10 +649,11 @@ impl MIRGenerator {
             .unwrap_or_else(Expr::none_const);
 
         let ret_type = self.cur_fn().borrow().ret_type.clone();
-        let value = self.try_cast(value, &ret_type);
-        if value.get_type() != ret_type {
-            Err(self.err(err_tok, "Return expression in function has wrong type"))?
-        }
+        let value = self.cast_or_none(value, &ret_type).or_err(
+            &self.builder.path,
+            err_tok,
+            "Return expression in function has wrong type",
+        )?;
 
         Ok(Expr::ret(value))
     }

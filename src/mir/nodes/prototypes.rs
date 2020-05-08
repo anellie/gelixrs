@@ -8,7 +8,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
     ast,
-    ast::declaration::GenericParam,
+    ast::{declaration::GenericParam, Expression},
     error::{Error, Res},
     lexer::token::Token,
     mir::{
@@ -22,7 +22,7 @@ use crate::{
             MIRGenerator,
         },
         get_iface_impls,
-        nodes::{Type, Variable, ADT},
+        nodes::{Expr, Type, Variable, ADT},
         MModule, MutRc,
     },
 };
@@ -122,6 +122,19 @@ impl Prototype {
         }
 
         Ok(ty)
+    }
+
+    /// Will take arguments of a call invocation on this prototype
+    /// and try to infer types from the arguments.
+    /// Return value is the expression of the finished call.
+    pub fn try_infer_call(
+        &self,
+        _arguments: Vec<Expr>,
+        _ast_args: &[Expression],
+        _err_tok: &Token,
+        _self_ref: Rc<Prototype>,
+    ) -> Res<Expr> {
+        unimplemented!("Prototype inference");
     }
 }
 
