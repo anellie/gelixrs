@@ -272,6 +272,7 @@ impl MIRGenerator {
                             name,
                             Rc::clone(&proto),
                             obj_ty.context(),
+                            None,
                         ),
 
                     // Proto method call with explicit generics
@@ -309,7 +310,33 @@ impl MIRGenerator {
                 if self.module.borrow().find_prototype(&tok.lexeme).is_some() =>
             {
                 let proto = self.module.borrow().find_prototype(&tok.lexeme).unwrap();
-                proto.try_infer_call(self, args, arguments, tok, Rc::clone(&proto), None)
+                proto.try_infer_call(self, args, arguments, tok, Rc::clone(&proto), None, None)
+            }
+
+            // Enum prototype call with inferred types
+            // TODO: Kinda ugly
+            ASTExpr::GetStatic { object, name }
+                if object.is_variable()
+                    && self
+                        .module
+                        .borrow()
+                        .find_prototype(&object.get_token().lexeme)
+                        .is_some() =>
+            {
+                let proto = self
+                    .module
+                    .borrow()
+                    .find_prototype(&object.get_token().lexeme)
+                    .unwrap();
+                proto.try_infer_call(
+                    self,
+                    args,
+                    arguments,
+                    object.get_token(),
+                    Rc::clone(&proto),
+                    None,
+                    Some(&name.lexeme),
+                )
             }
 
             // Can be either a constructor or function call

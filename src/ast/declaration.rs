@@ -49,6 +49,14 @@ impl ADT {
         }
     }
 
+    /// Returns case name if this is an enum case, regular name otherwise.
+    pub fn case_name(&self) -> Rc<String> {
+        Rc::clone(match &self.ty {
+            ADTType::EnumCase { case_name, .. } => case_name,
+            _ => &self.name.lexeme,
+        })
+    }
+
     /// This is only called on prototypes and used to replace their name with
     /// the name of an instance. For EnumCase, it is assumed the name
     /// is for the parent, since only Enum prototypes exist

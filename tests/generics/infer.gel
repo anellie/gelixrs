@@ -14,6 +14,7 @@ func main() {
     advanced((a: i64) -> {})
     advanced2(() -> 123)
     print(Test(23).echo("hello!"))
+    Opt:Some("owo")
 }
 
 func echo<T>(a: T) -> T {

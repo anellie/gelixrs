@@ -10,7 +10,7 @@ use crate::{
 };
 use inkwell::{
     types::{BasicType, BasicTypeEnum},
-    values::FunctionValue,
+    values::{BasicValue, FunctionValue},
     AddressSpace::Generic,
     IntPredicate,
 };
@@ -61,6 +61,32 @@ impl IRGenerator {
                     .build_return(Some(&self.builder.build_ptr_to_int(ptr_size, i, "sizeI")));
             }
 
+            "ptr_to_int" => {
+                self.builder.build_return(Some(
+                    &self
+                        .builder
+                        .build_ptr_to_int(
+                            ir.get_first_param().unwrap().into_pointer_value(),
+                            self.context.i64_type(),
+                            "cast",
+                        )
+                        .as_basic_value_enum(),
+                ));
+            }
+
+            "int_to_ptr" => {
+                self.builder.build_return(Some(
+                    &self
+                        .builder
+                        .build_int_to_ptr(
+                            ir.get_first_param().unwrap().into_int_value(),
+                            ir.get_type().get_return_type().unwrap().into_pointer_type(),
+                            "cast",
+                        )
+                        .as_basic_value_enum(),
+                ));
+            }
+
             // Take a pointer and return the value behind it.
             // ADTs are already pointers, so they are no-op.
             "deref_ptr" => {
@@ -76,6 +102,15 @@ impl IRGenerator {
                     self.builder.build_load(ptr, "load-ptr")
                 };
                 self.builder.build_return(Some(&ret_val));
+            }
+
+            // Write a value to a pointer.
+            "write_ptr" => {
+                let value = ir.get_last_param().unwrap();
+                let pointer = ir.get_first_param().unwrap();
+                self.builder
+                    .build_store(pointer.into_pointer_value(), value);
+                self.builder.build_return(None);
             }
 
             // Dereference a pointer and set the value at its location

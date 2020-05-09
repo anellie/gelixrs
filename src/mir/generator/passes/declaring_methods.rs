@@ -161,7 +161,7 @@ fn generic_method(
         impls: RefCell::new(vec![]),
         module: Rc::clone(&builder.module),
         ast: ProtoAST::Function(Rc::new(ast)),
-        call_parameters: vec![call_parameters],
+        call_parameters: vec![(call_parameters, None)],
     });
 
     builder

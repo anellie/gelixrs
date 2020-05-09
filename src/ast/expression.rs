@@ -181,4 +181,14 @@ impl Expression {
             Expression::VarDef(var) => &var.name,
         }
     }
+
+    /// Simple helper for gen_expr call match arms.
+    /// Done instead of deriving EnumIsA to save compilation time.
+    pub fn is_variable(&self) -> bool {
+        if let Expression::Variable(_) = self {
+            true
+        } else {
+            false
+        }
+    }
 }

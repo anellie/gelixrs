@@ -10,7 +10,7 @@ use crate::{
     ast,
     ast::{
         declaration::{FunctionParam, GenericParam},
-        Expression,
+        ADTMember, Constructor, Expression,
     },
     error::{Error, Res},
     lexer::token::Token,
@@ -25,7 +25,7 @@ use crate::{
             MIRGenerator,
         },
         get_iface_impls,
-        nodes::{Expr, Type, Variable, ADT},
+        nodes::{ADTType, Expr, Type, Variable, ADT},
         result::ToMIRResult,
         MModule, MutRc,
     },
@@ -67,7 +67,12 @@ pub struct Prototype {
     /// A list of all possible argument types to call this prototype.
     /// Used for type inference; kept in memory since
     /// constructors make looking it up not free.
-    pub call_parameters: Vec<Vec<FunctionParam>>,
+    ///
+    /// The option is for special handling on enums -
+    /// they contain all child case constructors, with the option
+    /// containing (CaseName, CaseConstructorIndex).
+    /// For non-enums, it's just always None.
+    pub call_parameters: Vec<(Vec<FunctionParam>, Option<(Rc<String>, usize)>)>,
 }
 
 impl Prototype {
@@ -144,23 +149,23 @@ impl Prototype {
         err_tok: &Token,
         self_ref: Rc<Prototype>,
         parent_context: Option<Context>,
+        enum_case: Option<&Rc<String>>,
     ) -> Res<Expr> {
         let mut index = 0;
         let mut search_res = None;
-        for (i, call) in self
-            .call_parameters
-            .iter()
-            .enumerate()
-            .filter(|p| p.1.len() == arguments.len())
-        {
+        let mut enum_info = None;
+        for (i, call) in self.call_parameters.iter().enumerate().filter(|(_, p)| {
+            p.0.len() == arguments.len() && p.1.as_ref().map(|e| &e.0) == enum_case
+        }) {
             index = i;
             search_res = self
                 .ast
                 .get_parameters()
                 .iter()
-                .map(|param| self.resolve_param(param, call, &arguments))
+                .map(|param| self.resolve_param(param, &call.0, &arguments))
                 .collect::<Option<Vec<Type>>>();
             if search_res.is_some() {
+                enum_info = call.1.clone();
                 break;
             }
         }
@@ -194,8 +199,21 @@ impl Prototype {
             }
 
             Type::Adt(adt) => {
-                let constructor = Rc::clone(&adt.borrow().constructors[index]);
-                Ok(Expr::alloc_type(ty, &constructor, arguments))
+                let adt_borrow = adt.borrow();
+                if let ADTType::Enum { cases } = &adt_borrow.ty {
+                    let info = enum_info.unwrap();
+                    let case = cases.get(&info.0).cloned().or_err(
+                        &self.module.borrow().path,
+                        err_tok,
+                        "Unknown case.",
+                    )?;
+                    let constructor = Rc::clone(&case.borrow().constructors[info.1]);
+                    Ok(Expr::alloc_type(Type::Adt(case), &constructor, arguments))
+                } else {
+                    drop(adt_borrow); // Required to make destructor run early and borrowck happy
+                    let constructor = Rc::clone(&adt.borrow().constructors[index]);
+                    Ok(Expr::alloc_type(ty, &constructor, arguments))
+                }
             }
 
             _ => panic!("Unexpected prototype instance type"),
@@ -294,55 +312,82 @@ impl ProtoAST {
     }
 
     // TODO: I am so, so sorry for making this abomination
-    pub fn get_call_parameters(&self) -> Result<Vec<Vec<FunctionParam>>, (String, Token)> {
+    pub fn get_call_parameters(
+        &self,
+    ) -> Result<Vec<(Vec<FunctionParam>, Option<(Rc<String>, usize)>)>, (String, Token)> {
         match self {
             ProtoAST::ADT(adt) => {
                 if let (Some(constructors), Some(members)) = (adt.constructors(), adt.members()) {
                     constructors
                         .iter()
-                        .map(|c| {
-                            c.parameters
+                        .map(|c| self.constructor_to_call_format(c, members.iter(), None))
+                        .collect::<Result<_, _>>()
+                } else if let ast::ADTType::Enum { cases, variables } = &adt.ty {
+                    cases
+                        .iter()
+                        .map(|case| {
+                            let members = case.members().unwrap();
+                            case.constructors()
+                                .unwrap()
                                 .iter()
-                                .map(|(name, ty)| {
-                                    Ok(FunctionParam {
-                                        type_: {
-                                            if let Some(ty) = ty {
-                                                Ok(ty.clone())
-                                            } else {
-                                                members
-                                                    .iter()
-                                                    .find(|i| i.name.lexeme == name.lexeme)
-                                                    .ok_or((
-                                                        format!(
-                                                            "Unknown member '{}'.",
-                                                            name.lexeme
-                                                        ),
-                                                        name.clone(),
-                                                    ))?
-                                                    .ty
-                                                    .clone()
-                                                    .ok_or((
-                                                        format!(
-                                                            "Missing type on member '{}'.",
-                                                            name.lexeme
-                                                        ),
-                                                        name.clone(),
-                                                    ))
-                                            }
-                                        }?,
-                                        name: name.clone(),
-                                    })
+                                .enumerate()
+                                .map(move |(c_i, c)| {
+                                    self.constructor_to_call_format(
+                                        c,
+                                        variables.iter().chain(members.iter()),
+                                        Some((case.case_name(), c_i)),
+                                    )
                                 })
-                                .collect::<Result<Vec<FunctionParam>, (String, Token)>>()
                         })
-                        .collect()
+                        .flatten()
+                        .collect::<Result<_, _>>()
                 } else {
                     Ok(vec![])
                 }
             }
 
-            ProtoAST::Function(func) => Ok(vec![func.sig.parameters.clone()]),
+            ProtoAST::Function(func) => Ok(vec![(func.sig.parameters.clone(), None)]),
         }
+    }
+
+    fn constructor_to_call_format<'a, T: Iterator<Item = &'a ADTMember>>(
+        &self,
+        constructor: &Constructor,
+        mut members: T,
+        enum_info: Option<(Rc<String>, usize)>,
+    ) -> Result<(Vec<FunctionParam>, Option<(Rc<String>, usize)>), (String, Token)> {
+        Ok((
+            constructor
+                .parameters
+                .iter()
+                .map(|(name, ty)| {
+                    Ok({
+                        FunctionParam {
+                            type_: {
+                                if let Some(ty) = ty {
+                                    Ok(ty.clone())
+                                } else {
+                                    members
+                                        .find(|i| i.name.lexeme == name.lexeme)
+                                        .ok_or((
+                                            format!("Unknown member '{}'.", name.lexeme),
+                                            name.clone(),
+                                        ))?
+                                        .ty
+                                        .clone()
+                                        .ok_or((
+                                            format!("Missing type on member '{}'.", name.lexeme),
+                                            name.clone(),
+                                        ))
+                                }
+                            }?,
+                            name: name.clone(),
+                        }
+                    })
+                })
+                .collect::<Result<_, (String, Token)>>()?,
+            enum_info,
+        ))
     }
 
     fn create_mir(
