@@ -71,7 +71,7 @@ fn declare_lifecycle_methods(builder: &mut MIRBuilder, adt: &MutRc<ADT>) -> Res<
     let init_fn_sig = get_instantiator_fn_sig(&ast, this_param.clone());
     adt.borrow_mut().instantiator =
         Some(create_function(builder, Left(&init_fn_sig), false, None)?);
-    let free_fn_sig = get_destructor_fn_sig(&ast, this_param.clone());
+    let free_fn_sig = get_destructor_fn_sig(&ast, this_param);
     adt.borrow_mut().destructor = Some(create_function(builder, Left(&free_fn_sig), false, None)?);
     Ok(())
 }
@@ -113,7 +113,7 @@ fn declare_user_methods(builder: &mut MIRBuilder, adt: &MutRc<ADT>) -> Res<()> {
         };
 
         let mut parameters = Vec::with_capacity(method.parameters.len());
-        for param in method.parameters.iter() {
+        for param in &method.parameters {
             parameters.push(builder.find_type(&param.type_)?);
         }
 
@@ -290,7 +290,7 @@ fn get_constructor_sig(
 fn get_field_by_name(adt: &ast::ADT, name: &Token) -> Option<(usize, Option<ASTType>)> {
     adt.members()
         .unwrap()
-        .into_iter()
+        .iter()
         .enumerate()
         .find(|(_, mem)| mem.name.lexeme == name.lexeme)
         .map(|(i, mem)| (i, mem.ty.clone()))

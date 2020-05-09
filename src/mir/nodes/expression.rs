@@ -305,7 +305,7 @@ impl Expr {
         Expr::Literal(Literal::None)
     }
 
-    /// Returns the type of this MIRExpression.
+    /// Returns the type of this `MIRExpression`.
     /// Note that this function does not do type validation, and calling this function
     /// on malformed expressions is undefined behavior that can lead to panics.
     pub fn get_type(&self) -> Type {
@@ -325,7 +325,7 @@ impl Expr {
 
             Expr::Break(_) | Expr::Return(_) | Expr::Free(_) => Type::Any,
 
-            Expr::Block(exprs) => exprs.last().map_or(Type::None, |l| l.get_type()),
+            Expr::Block(exprs) => exprs.last().map_or(Type::None, Expr::get_type),
 
             Expr::Call { callee, .. } => match callee.get_type() {
                 Type::Function(func) => func.borrow().ret_type.clone(),

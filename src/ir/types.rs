@@ -16,8 +16,8 @@ use inkwell::{
 use std::{cell::Ref, rc::Rc};
 
 impl IRGenerator {
-    /// Converts a MIRType to the corresponding LLVM type.
-    /// Structs are returned as PointerType<StructType>.
+    /// Converts a `MIRType` to the corresponding LLVM type.
+    /// Structs are returned as `PointerType<StructType>`.
     pub fn ir_ty_ptr(&mut self, mir: &Type) -> BasicTypeEnum {
         if mir == &Type::None {
             return self.none_const.get_type();
@@ -36,12 +36,12 @@ impl IRGenerator {
         }
     }
 
-    /// Converts a MIRType to the corresponding LLVM type.
+    /// Converts a `MIRType` to the corresponding LLVM type.
     pub fn ir_ty(&mut self, mir: &Type) -> BasicTypeEnum {
         self.ir_ty_full(mir).0
     }
 
-    /// Converts a MIRType to the corresponding LLVM type info global struct.
+    /// Converts a `MIRType` to the corresponding LLVM type info global struct.
     pub fn ir_ty_info(&mut self, mir: &Type) -> PointerValue {
         self.ir_ty_full(mir).1
     }
@@ -185,10 +185,10 @@ impl IRGenerator {
         struc_val.into()
     }
 
-    /// Generates the LLVM FunctionType of a MIR function.
-    pub(super) fn build_fn_type(&mut self, func: Ref<Function>) -> FunctionType {
+    /// Generates the LLVM `FunctionType` of a MIR function.
+    pub fn build_fn_type(&mut self, func: Ref<Function>) -> FunctionType {
         let params = func.parameters.iter().map(|param| &param.type_);
-        let variadic = func.ast.as_ref().map(|a| a.sig.variadic).unwrap_or(false);
+        let variadic = func.ast.as_ref().map_or(false, |a| a.sig.variadic);
         self.fn_type_from_raw(params, &func.ret_type, variadic)
     }
 

@@ -30,7 +30,7 @@ use crate::{
 /// It only creates a signature and inserts it into the module;
 /// no actual body/code is generated at this stage.
 /// Since it requires types for its signature, this pass has to run
-/// after [DeclareTypes].
+/// after `DeclareTypes`.
 pub struct DeclareGlobals();
 
 impl PreMIRPass for DeclareGlobals {
@@ -59,7 +59,7 @@ impl PreMIRPass for DeclareGlobals {
 }
 
 /// Creates a function.
-/// this_arg indicates that the function is a method
+/// `this_arg` indicates that the function is a method
 /// with some kind of receiver, with the 'this' parameter
 /// added to the 0th position of the parameters and the
 /// function renamed to '$receiver-$name'.
@@ -104,10 +104,10 @@ fn get_and_reserve_func_name(
 }
 
 pub fn get_function_name(path: &Rc<ModulePath>, func_name: &Rc<String>) -> String {
-    if func_name.as_ref() != "main" {
-        format!("{}:{}", path, func_name)
-    } else {
+    if func_name.as_ref() == "main" {
         func_name.to_string()
+    } else {
+        format!("{}:{}", path, func_name)
     }
 }
 
@@ -125,8 +125,7 @@ pub fn generate_mir_fn(
     let ret_type = func_sig
         .return_type
         .as_ref()
-        .map(|ty| builder.find_type(ty))
-        .unwrap_or(Ok(Type::None))?;
+        .map_or(Ok(Type::None), |ty| builder.find_type(ty))?;
 
     let mut parameters = Vec::with_capacity(func_sig.parameters.len());
     for param in this_arg.iter().chain(func_sig.parameters.iter()) {

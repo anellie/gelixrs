@@ -34,17 +34,18 @@ pub struct ADT {
 impl ADT {
     pub fn members(&self) -> Option<&[ADTMember]> {
         match &self.ty {
-            ADTType::Class { variables, .. } => Some(&variables),
+            ADTType::Enum { variables, .. }
+            | ADTType::Class { variables, .. }
+            | ADTType::EnumCase { variables, .. } => Some(&variables),
             ADTType::Interface => None,
-            ADTType::Enum { variables, .. } => Some(&variables),
-            ADTType::EnumCase { variables, .. } => Some(&variables),
         }
     }
 
     pub fn constructors(&self) -> Option<&[Constructor]> {
         match &self.ty {
-            ADTType::Class { constructors, .. } => Some(&constructors),
-            ADTType::EnumCase { constructors, .. } => Some(&constructors),
+            ADTType::Class { constructors, .. } | ADTType::EnumCase { constructors, .. } => {
+                Some(&constructors)
+            }
             _ => None,
         }
     }
@@ -58,7 +59,7 @@ impl ADT {
     }
 
     /// This is only called on prototypes and used to replace their name with
-    /// the name of an instance. For EnumCase, it is assumed the name
+    /// the name of an instance. For `EnumCase`, it is assumed the name
     /// is for the parent, since only Enum prototypes exist
     pub fn replace_proto_name(&mut self, new: &Rc<String>) {
         match &mut self.ty {

@@ -23,7 +23,7 @@ use indexmap::map::IndexMap;
 /// all types have been declared. It can be used for
 /// resolving types and similar tasks.
 ///
-/// It is also used by the [MIRGenerator].
+/// It is also used by the `MIRGenerator`.
 #[derive(Clone)]
 pub struct MIRBuilder {
     /// The path of the current module.
@@ -41,7 +41,7 @@ impl MIRBuilder {
     /// Returns the MIR type of the AST type passed.
     /// Will search for the type in the scope of the module
     /// and return an error if no such type exists.
-    /// Note that this function can call borrow_mut() on the module.
+    /// Note that this function can call `borrow_mut()` on the module.
     pub fn find_type(&self, ast: &ASTType) -> Res<Type> {
         match ast {
             ASTType::Ident(tok) => {
@@ -81,8 +81,7 @@ impl MIRBuilder {
                     .collect::<Res<Vec<_>>>()?;
                 let ret_type = ret_type
                     .as_ref()
-                    .map(|t| self.find_type(t))
-                    .unwrap_or(Ok(Type::None))?;
+                    .map_or(Ok(Type::None), |t| self.find_type(t))?;
                 Ok(Type::Closure(Rc::new(ClosureType {
                     parameters,
                     ret_type,

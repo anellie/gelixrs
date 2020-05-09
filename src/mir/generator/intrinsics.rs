@@ -67,7 +67,7 @@ impl Intrinsics {
     /// Only call this with the std/ops module, containing all operator interfaces;
     /// fills self.ops
     pub fn fill_ops_table(&mut self, module: Ref<MModule>) {
-        for (name, iface) in module.protos.iter() {
+        for (name, iface) in &module.protos {
             let iface = Rc::clone(iface);
             match &name[..] {
                 "Add" => self.ops.insert(TType::Plus, iface),
@@ -88,12 +88,11 @@ impl Intrinsics {
     /// Sets the main fn. Returns success, None indicates that
     /// a main function already existed
     pub fn set_main_fn(&mut self, func: &Rc<Variable>) -> Option<()> {
-        match self.main_fn {
-            Some(_) => None,
-            None => {
-                self.main_fn = Some(Rc::clone(func));
-                Some(())
-            }
+        if self.main_fn.is_some() {
+            None
+        } else {
+            self.main_fn = Some(Rc::clone(func));
+            Some(())
         }
     }
 

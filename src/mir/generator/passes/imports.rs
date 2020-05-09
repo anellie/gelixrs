@@ -51,39 +51,31 @@ impl PreMIRPass for ImportTypes {
                 let src_module_rc = find_module(module, modules, import)?;
                 let src_module = src_module_rc.borrow();
 
-                match &import.symbol.lexeme[..] {
-                    "+" => {
-                        for name in &src_module.local_names {
-                            module.try_reserve_name_rc(name, &import.symbol, false)?;
-                        }
-
-                        get_imports(module, is_export)
-                            .modules
-                            .insert(Rc::clone(&src_module.path), Rc::clone(src_module_rc));
-                        Ok(false)
+                if &import.symbol.lexeme[..] == "+" {
+                    for name in &src_module.local_names {
+                        module.try_reserve_name_rc(name, &import.symbol, false)?;
                     }
 
-                    _ => {
-                        let name = Rc::clone(&import.symbol.lexeme);
-                        let ty = src_module.find_local_type(&name);
+                    get_imports(module, is_export)
+                        .modules
+                        .insert(Rc::clone(&src_module.path), Rc::clone(src_module_rc));
+                    Ok(false)
+                } else {
+                    let name = Rc::clone(&import.symbol.lexeme);
+                    let ty = src_module.find_local_type(&name);
 
-                        if let Some(ty) = ty {
-                            get_imports(module, is_export)
-                                .types
-                                .insert(name, ty.clone());
-                        } else {
-                            let proto = src_module.find_local_prototype(&name);
-                            match proto {
-                                Some(p) => get_imports(module, is_export)
-                                    .protos
-                                    .insert(name, p.clone()),
-                                None => return Ok(false),
-                            };
-                        }
-
-                        module.try_reserve_name(&import.symbol, false)?;
-                        Ok(true)
+                    if let Some(ty) = ty {
+                        get_imports(module, is_export).types.insert(name, ty);
+                    } else {
+                        let proto = src_module.find_local_prototype(&name);
+                        match proto {
+                            Some(p) => get_imports(module, is_export).protos.insert(name, p),
+                            None => return Ok(false),
+                        };
                     }
+
+                    module.try_reserve_name(&import.symbol, false)?;
+                    Ok(true)
                 }
             },
         )
@@ -107,27 +99,23 @@ impl PreMIRPass for ImportGlobals {
                 let src_module_rc = find_module(module, modules, import)?;
                 let src_module = src_module_rc.borrow();
 
-                match &import.symbol.lexeme[..] {
-                    "+" => Ok(true),
+                if &import.symbol.lexeme[..] == "+" {
+                    Ok(true)
+                } else {
+                    module.try_reserve_name(&import.symbol, false)?;
+                    let name = Rc::clone(&import.symbol.lexeme);
+                    let global = src_module.find_local_global(&name);
 
-                    _ => {
-                        module.try_reserve_name(&import.symbol, false)?;
-                        let name = Rc::clone(&import.symbol.lexeme);
-                        let global = src_module.find_local_global(&name);
-
-                        if let Some(global) = global {
-                            get_imports(module, is_export)
-                                .globals
-                                .insert(name, global.clone());
-                            Ok(true)
-                        } else {
-                            Err(Error::new(
-                                &import.symbol,
-                                "MIR",
-                                "Unknown module member.".to_string(),
-                                &module.path,
-                            ))
-                        }
+                    if let Some(global) = global {
+                        get_imports(module, is_export).globals.insert(name, global);
+                        Ok(true)
+                    } else {
+                        Err(Error::new(
+                            &import.symbol,
+                            "MIR",
+                            "Unknown module member.".to_string(),
+                            &module.path,
+                        ))
                     }
                 }
             },
@@ -135,7 +123,7 @@ impl PreMIRPass for ImportGlobals {
     }
 }
 
-/// This function runs drain_filter on all imports in the given module, using the given function as a filter.
+/// This function runs `drain_filter` on all imports in the given module, using the given function as a filter.
 /// If the filter returns Err, the function exits prematurely and returns the error.
 fn drain_mod_imports(
     modules: &[MutRc<MModule>],
@@ -159,7 +147,7 @@ fn drain_mod_imports(
         }
     }
 
-    let mut i = 0;
+    i = 0;
     while i != module.exports.ast.len() {
         let export = module.exports.ast.remove(i);
         if !cond(modules, &mut module, &export, true)

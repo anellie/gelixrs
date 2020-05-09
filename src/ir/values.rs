@@ -73,8 +73,7 @@ impl IRGenerator {
             AnyTypeEnum::StructType(str)
                 if str
                     .get_name()
-                    .map(|n| !n.to_str().unwrap().starts_with("iface"))
-                    .unwrap_or(true) =>
+                    .map_or(true, |n| !n.to_str().unwrap().starts_with("iface")) =>
             {
                 BasicValueEnum::PointerValue(ptr)
             }

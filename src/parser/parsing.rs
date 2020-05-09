@@ -1026,7 +1026,7 @@ impl Parser {
     fn get_visibility(&mut self) -> Option<Visibility> {
         let mut count = 0;
         let mut visibility = Visibility::Module;
-        for tok in self.modifiers.iter() {
+        for tok in &self.modifiers {
             let vis = match tok.t_type {
                 TType::Public => Visibility::Public,
                 TType::Private => Visibility::Private,

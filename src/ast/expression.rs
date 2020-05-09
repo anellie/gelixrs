@@ -159,31 +159,33 @@ impl Expression {
     /// Returns a token that is part of the expression to be used for error display.
     pub fn get_token(&self) -> &Token {
         match self {
-            Expression::Assignment { name, .. } => name,
-            Expression::Binary { operator, .. } => operator,
-            Expression::Block(_, tok) => tok,
-            Expression::Break(_, tok) => tok,
-            Expression::Call { callee, .. } => callee.get_token(),
-            Expression::For { condition, .. } => condition.get_token(),
-            Expression::Get { name, .. } => name,
-            Expression::GetGeneric { name, .. } => name,
-            Expression::GetStatic { name, .. } => name,
-            Expression::If { condition, .. } => condition.get_token(),
-            Expression::IndexGet { bracket, .. } => &bracket,
-            Expression::IndexSet { index, .. } => index.get_token(),
-            Expression::Literal(_, tok) => tok,
-            Expression::Return(_, tok) => tok,
-            Expression::Set { name, .. } => name,
-            Expression::Unary { operator, .. } => operator,
-            Expression::Variable(name) => name,
-            Expression::VarWithGenerics { name, .. } => name,
-            Expression::When { value, .. } => value.get_token(),
+            Expression::Assignment { name: tok, .. }
+            | Expression::Binary { operator: tok, .. }
+            | Expression::Block(_, tok)
+            | Expression::Break(_, tok)
+            | Expression::Get { name: tok, .. }
+            | Expression::GetGeneric { name: tok, .. }
+            | Expression::GetStatic { name: tok, .. }
+            | Expression::IndexGet { bracket: tok, .. }
+            | Expression::Literal(_, tok)
+            | Expression::Return(_, tok)
+            | Expression::Set { name: tok, .. }
+            | Expression::Unary { operator: tok, .. }
+            | Expression::Variable(tok)
+            | Expression::VarWithGenerics { name: tok, .. } => tok,
+
+            Expression::Call { callee: ex, .. }
+            | Expression::For { condition: ex, .. }
+            | Expression::If { condition: ex, .. }
+            | Expression::IndexSet { index: ex, .. }
+            | Expression::When { value: ex, .. } => ex.get_token(),
+
             Expression::VarDef(var) => &var.name,
         }
     }
 
-    /// Simple helper for gen_expr call match arms.
-    /// Done instead of deriving EnumIsA to save compilation time.
+    /// Simple helper for `gen_expr` call match arms.
+    /// Done instead of deriving `EnumIsA` to save compilation time.
     pub fn is_variable(&self) -> bool {
         if let Expression::Variable(_) = self {
             true

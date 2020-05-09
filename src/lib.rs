@@ -5,6 +5,27 @@
  */
 
 #![feature(drain_filter)]
+#![warn(clippy::pedantic)]
+#![allow(clippy::needless_pass_by_value)]
+#![allow(clippy::unneeded_field_pattern)] // Causes false positives with enum_method derives
+#![allow(clippy::ptr_arg)] // Causes false positives with hash map string keys
+
+// Too pedantic:
+#![allow(clippy::must_use_candidate)]
+#![allow(clippy::use_self)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::too_many_lines)]
+#![allow(clippy::similar_names)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::cast_lossless)]
+#![allow(clippy::new_without_default)]
+#![allow(clippy::if_not_else)]
+#![allow(clippy::default_trait_access)]
+#![allow(clippy::try_err)]
+#![allow(clippy::unused_self)]
+#![allow(clippy::option_map_unit_fn)]
+#![allow(clippy::find_map)]
+#![allow(clippy::inline_always)]
 
 #[macro_use]
 extern crate enum_methods;

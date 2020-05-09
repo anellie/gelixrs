@@ -70,10 +70,10 @@ fn build_adt(gen: &mut MIRGenerator, adt: &MutRc<ADT>) -> Res<()> {
             Some(v) => Some(v?),
             None => None,
         };
-        let type_ = value
-            .as_ref()
-            .map(|v| Ok(v.get_type()))
-            .unwrap_or_else(|| gen.builder.find_type(field.ty.as_ref().unwrap()))?;
+        let type_ = value.as_ref().map_or_else(
+            || gen.builder.find_type(field.ty.as_ref().unwrap()),
+            |v| Ok(v.get_type()),
+        )?;
 
         let member = Rc::new(ADTMember {
             mutable: field.mutable,

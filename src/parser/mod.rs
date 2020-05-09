@@ -52,7 +52,7 @@ impl Parser {
         matches
     }
 
-    /// Same as [match_token], but checks for multiple types. Returns the token consumed.
+    /// Same as `match_token`, but checks for multiple types. Returns the token consumed.
     fn match_tokens(&mut self, types: &[TType]) -> Option<Token> {
         if types.iter().any(|&t| self.check(t)) {
             Some(self.advance())
@@ -85,8 +85,8 @@ impl Parser {
     }
 
     /// Sets self.current to the next token and returns the last token.
-    /// If at the end of tokens, self.current is set to an EndOfFile token.
-    /// Advancing after the end will simply return EndOfFile tokens indefinitely.
+    /// If at the end of tokens, self.current is set to an `EndOfFile` token.
+    /// Advancing after the end will simply return `EndOfFile` tokens indefinitely.
     fn advance(&mut self) -> Token {
         self.previous_line = self.current.line;
 

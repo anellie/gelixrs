@@ -36,7 +36,7 @@ pub trait PreMIRPass {
 /// A pass that takes a MIR module and performs some kind of transformation
 /// on the module.
 /// The way these modules are called depends on their type,
-/// see the PassType struct.
+/// see the `PassType` struct.
 /// These modules are collected and executed in order inside mir/generator/module.rs.
 pub trait ModulePass {
     fn get_type(&self) -> PassType;

@@ -52,7 +52,7 @@ impl Module {
         Self {
             path: Rc::new(path.clone()),
             src: Rc::clone(src),
-            ..Default::default()
+            ..Self::default()
         }
     }
 }

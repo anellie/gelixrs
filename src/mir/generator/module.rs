@@ -144,10 +144,10 @@ impl PassRunner {
             }
         }
 
-        if !errors.is_empty() {
-            Err(errors)
-        } else {
+        if errors.is_empty() {
             Ok(())
+        } else {
+            Err(errors)
         }
     }
 

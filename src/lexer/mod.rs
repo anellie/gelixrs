@@ -234,7 +234,7 @@ impl Lexer {
         }
     }
 
-    /// Creates a ScanError token with the given message at the current location
+    /// Creates a `ScanError` token with the given message at the current location
     fn error_token(&mut self, message: &'static str) -> Token {
         Token {
             t_type: TType::ScanError,

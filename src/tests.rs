@@ -52,7 +52,7 @@ extern "C" fn test_malloc(size: i64) -> i64 {
     ptr
 }
 
-static ERROR_STR: &'static str = "USE AFTER FREE";
+static ERROR_STR: &str = "USE AFTER FREE";
 
 extern "C" fn test_free(ptr: i64) {
     MALLOC_LIST.lock().unwrap().remove(&ptr);

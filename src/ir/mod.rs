@@ -36,7 +36,7 @@ mod values;
 /// A generator that creates LLVM IR out of Gelix mid-level IR (MIR).
 ///
 /// Will panic when encountering invalid code; this should not happen however thanks to the
-/// MIRGenerator validating the MIR it generates.
+/// `MIRGenerator` validating the MIR it generates.
 pub struct IRGenerator {
     context: Context,
     builder: Builder,
@@ -98,8 +98,8 @@ impl IRGenerator {
 
         for module in mir {
             let module = module.borrow_mut();
-            for function in module.globals.values().cloned() {
-                self.function(function);
+            for function in module.globals.values() {
+                self.function(&function);
             }
         }
 
@@ -131,7 +131,7 @@ impl IRGenerator {
     }
 
     /// Generates a function, should it have a body.
-    fn function(&mut self, func_var: Rc<Variable>) {
+    fn function(&mut self, func_var: &Rc<Variable>) {
         let func_ty = func_var.type_.as_function();
         let func = func_ty.borrow_mut();
         if !func.exprs.is_empty() {
@@ -147,7 +147,7 @@ impl IRGenerator {
 
         self.prepare_function(&func, func_val);
 
-        for (name, var) in func.variables.iter() {
+        for (name, var) in &func.variables {
             let alloc_ty = self.ir_ty_ptr(&var.type_);
             let alloca = self.builder.build_alloca(alloc_ty, &name);
             self.variables.insert(PtrEqRc::new(var), alloca);
@@ -306,7 +306,7 @@ pub struct LoopData {
 }
 
 /// A Rc that can be compared by checking for pointer equality.
-/// Used as a HashMap key to allow unique keys with the same data.
+/// Used as a `HashMap` key to allow unique keys with the same data.
 #[derive(Debug)]
 pub struct PtrEqRc<T: Hash>(Rc<T>);
 

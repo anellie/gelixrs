@@ -118,15 +118,15 @@ impl MIRGenerator {
 
         if val_ty == var.type_ && var.mutable {
             Ok(Expr::store(&var, value, false))
-        } else if !var.mutable {
+        } else if var.mutable {
             Err(self.err(
                 &name,
-                &format!("Variable {} is a different type", name.lexeme),
+                &format!("Variable {} is not assignable (val)", name.lexeme),
             ))
         } else {
             Err(self.err(
                 &name,
-                &format!("Variable {} is not assignable (val)", name.lexeme),
+                &format!("Variable {} is a different type", name.lexeme),
             ))
         }
     }
@@ -146,7 +146,7 @@ impl MIRGenerator {
             || (operator.t_type == TType::Is && right_ty.is_type())
         {
             if operator.t_type == TType::And || operator.t_type == TType::Or {
-                Ok(self.binary_logic(left, operator.t_type, right))
+                Ok(Self::binary_logic(left, operator.t_type, right))
             } else {
                 let (_, left, right) = self.try_unify_type(left, right);
                 Ok(Expr::binary(left, operator.t_type, right))
@@ -169,7 +169,7 @@ impl MIRGenerator {
     }
 
     /// Logic operators need special treatment for shortcircuiting behavior
-    fn binary_logic(&mut self, left: Expr, operator: TType, right: Expr) -> Expr {
+    fn binary_logic(left: Expr, operator: TType, right: Expr) -> Expr {
         if operator == TType::And {
             // a and b --> if (a) b else false
             Expr::if_(left, right, Expr::Literal(Literal::Bool(false)), true)
@@ -344,41 +344,36 @@ impl MIRGenerator {
                 let callee_mir = self.expression(callee)?;
                 let callee_type = callee_mir.get_type();
 
-                match (callee_type.get_constructors(), &callee_type) {
-                    // Constructor
-                    (Some(constructors), _) => {
-                        let constructor: &Rc<Variable> = constructors
-                            .iter()
-                            .find(|constructor| {
-                                let constructor = constructor.type_.as_function().borrow();
-                                // If args count and types match
-                                (constructor.parameters.len() - 1 == args.len())
-                                    && constructor
-                                        .parameters
-                                        .iter()
-                                        .skip(1)
-                                        .zip(args.iter())
-                                        .all(|(param, arg)| param.type_ == arg.get_type())
-                            })
-                            .or_err(
-                                &self.builder.path,
-                                callee.get_token(),
-                                "No matching constructor found for arguments.",
-                            )?;
-
-                        Ok(Expr::alloc_type(callee_type, constructor, args))
-                    }
-
-                    _ => {
-                        self.check_func_args_(
-                            &callee_type,
-                            &mut args,
-                            arguments,
+                if let Some(constructors) = callee_type.get_constructors() {
+                    let constructor: &Rc<Variable> = constructors
+                        .iter()
+                        .find(|constructor| {
+                            let constructor = constructor.type_.as_function().borrow();
+                            // If args count and types match
+                            (constructor.parameters.len() - 1 == args.len())
+                                && constructor
+                                    .parameters
+                                    .iter()
+                                    .skip(1)
+                                    .zip(args.iter())
+                                    .all(|(param, arg)| param.type_ == arg.get_type())
+                        })
+                        .or_err(
+                            &self.builder.path,
                             callee.get_token(),
-                            false,
+                            "No matching constructor found for arguments.",
                         )?;
-                        Ok(Expr::call(callee_mir, args))
-                    }
+
+                    Ok(Expr::alloc_type(callee_type, constructor, args))
+                } else {
+                    self.check_func_args_(
+                        &callee_type,
+                        &mut args,
+                        arguments,
+                        callee.get_token(),
+                        false,
+                    )?;
+                    Ok(Expr::call(callee_mir, args))
                 }
             }
         }
@@ -469,8 +464,9 @@ impl MIRGenerator {
 
         let else_val = else_branch
             .as_ref()
-            .map(|else_branch| self.expression(&else_branch))
-            .unwrap_or(Ok(Expr::none_const()))?;
+            .map_or(Ok(Expr::none_const()), |else_branch| {
+                self.expression(&else_branch)
+            })?;
         let then_ty = then_val.get_type();
         let else_ty = else_val.get_type();
 
@@ -545,10 +541,10 @@ impl MIRGenerator {
                 "No implementation of operator found for types.",
             )?;
 
-        if value.get_type() != method.type_.as_function().borrow().parameters[2].type_ {
-            Err(self.err(ast_value.get_token(), "Setter is of wrong type."))
-        } else {
+        if value.get_type() == method.type_.as_function().borrow().parameters[2].type_ {
             Ok(Expr::call(Expr::load(&method), vec![obj, index, value]))
+        } else {
+            Err(self.err(ast_value.get_token(), "Setter is of wrong type."))
         }
     }
 
@@ -730,7 +726,7 @@ impl MIRGenerator {
             self.module
                 .borrow()
                 .find_type(&var.lexeme)
-                .map(|t| Expr::type_get(t))
+                .map(Expr::type_get)
                 .or_err(
                     &self.builder.path,
                     var,
@@ -775,8 +771,7 @@ impl MIRGenerator {
             // There are no branches, just return else branch or nothing
             return else_branch
                 .as_ref()
-                .map(|br| self.expression(br))
-                .unwrap_or(Ok(Expr::none_const()));
+                .map_or(Ok(Expr::none_const()), |br| self.expression(br));
         }
 
         let (first_cond, mut first_val) =

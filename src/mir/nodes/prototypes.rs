@@ -33,6 +33,13 @@ use crate::{
 use either::Either::Right;
 use indexmap::map::IndexMap;
 
+type CallParameters = (Vec<FunctionParam>, Option<EnumInfo>);
+/// This is for special handling on enums -
+/// they contain all child case constructors, with `EnumInfo`
+/// containing `(CaseName, CaseConstructorIndex)`.
+/// For non-enums, it's just always `None`.
+type EnumInfo = (Rc<String>, usize);
+
 /// A prototype that ADTs or functions can be instantiated from.
 /// This prototype is kept in AST form,
 /// as all other MIR codegen would have to handle lots of
@@ -67,12 +74,7 @@ pub struct Prototype {
     /// A list of all possible argument types to call this prototype.
     /// Used for type inference; kept in memory since
     /// constructors make looking it up not free.
-    ///
-    /// The option is for special handling on enums -
-    /// they contain all child case constructors, with the option
-    /// containing (CaseName, CaseConstructorIndex).
-    /// For non-enums, it's just always None.
-    pub call_parameters: Vec<(Vec<FunctionParam>, Option<(Rc<String>, usize)>)>,
+    pub call_parameters: Vec<CallParameters>,
 }
 
 impl Prototype {
@@ -312,9 +314,7 @@ impl ProtoAST {
     }
 
     // TODO: I am so, so sorry for making this abomination
-    pub fn get_call_parameters(
-        &self,
-    ) -> Result<Vec<(Vec<FunctionParam>, Option<(Rc<String>, usize)>)>, (String, Token)> {
+    pub fn get_call_parameters(&self) -> Result<Vec<CallParameters>, (String, Token)> {
         match self {
             ProtoAST::ADT(adt) => {
                 if let (Some(constructors), Some(members)) = (adt.constructors(), adt.members()) {
@@ -325,7 +325,7 @@ impl ProtoAST {
                 } else if let ast::ADTType::Enum { cases, variables } = &adt.ty {
                     cases
                         .iter()
-                        .map(|case| {
+                        .flat_map(|case| {
                             let members = case.members().unwrap();
                             case.constructors()
                                 .unwrap()
@@ -339,7 +339,6 @@ impl ProtoAST {
                                     )
                                 })
                         })
-                        .flatten()
                         .collect::<Result<_, _>>()
                 } else {
                     Ok(vec![])
@@ -354,8 +353,8 @@ impl ProtoAST {
         &self,
         constructor: &Constructor,
         mut members: T,
-        enum_info: Option<(Rc<String>, usize)>,
-    ) -> Result<(Vec<FunctionParam>, Option<(Rc<String>, usize)>), (String, Token)> {
+        enum_info: Option<EnumInfo>,
+    ) -> Result<CallParameters, (String, Token)> {
         Ok((
             constructor
                 .parameters

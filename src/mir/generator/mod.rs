@@ -39,7 +39,7 @@ pub mod passes;
 
 pub type Environment = HashMap<Rc<String>, Rc<Variable>>;
 
-/// The MIRGenerator turns a list of declarations produced by the parser
+/// The `MIRGenerator` turns a list of declarations produced by the parser
 /// into their MIR representation.
 ///
 /// MIR is an intermediate format between the AST and LLVM IR.
@@ -152,7 +152,7 @@ impl MIRGenerator {
         ) {
             self.prepare_function(
                 mir_fn,
-                constructor.parameters.get(0).map(|l| l.0.line).unwrap_or(0),
+                constructor.parameters.get(0).map_or(0, |l| l.0.line),
             )?;
             self.set_uninitialized_members(constructor, &adt_rc.borrow().members);
             if let Some(body) = &constructor.body {
@@ -203,7 +203,7 @@ impl MIRGenerator {
 
         self.set_pointer(Rc::clone(function));
         self.begin_scope();
-        for param in func.parameters.iter() {
+        for param in &func.parameters {
             self.insert_variable(&param, false, err_line)?;
         }
 
@@ -285,15 +285,15 @@ impl MIRGenerator {
         });
         self.cur_loop().result_var = Some(Rc::clone(&var));
 
-        if &var.type_ != type_ {
+        if &var.type_ == type_ {
+            Ok(var)
+        } else {
             Err(Error::new(
                 &Token::generic_token(TType::Break),
                 "MIR",
                 "Break expressions and for body must have same type".to_string(),
                 &self.builder.path,
             ))
-        } else {
-            Ok(var)
         }
     }
 
@@ -315,7 +315,7 @@ impl MIRGenerator {
             }
         }
 
-        self.find_associated_method(ty, name)
+        Self::find_associated_method(&ty, name)
             .map(|m| (object, Either::Right(m)))
             .or_err(&self.builder.path, name, "Unknown field or method.")
     }
@@ -382,7 +382,7 @@ impl MIRGenerator {
     }
 
     /// Same as above, but takes a function instead.
-    /// `func` should be Type::Function or Type::Closure, otherwise returns an error.
+    /// `func` should be `Type::Function` or `Type::Closure`, otherwise returns an error.
     pub fn check_func_args_(
         &mut self,
         func: &Type,
@@ -396,11 +396,7 @@ impl MIRGenerator {
                 func.borrow().parameters.iter().map(|p| &p.type_),
                 args,
                 ast_args,
-                func.borrow()
-                    .ast
-                    .as_ref()
-                    .map(|a| a.sig.variadic)
-                    .unwrap_or(false),
+                func.borrow().ast.as_ref().map_or(false, |a| a.sig.variadic),
                 err_tok,
                 is_method,
             ),
@@ -420,7 +416,7 @@ impl MIRGenerator {
 
     /// Searches for an associated method on a type. Can be either an interface
     /// method or a class method.
-    fn find_associated_method(&self, ty: Type, name: &Token) -> Option<AssociatedMethod> {
+    fn find_associated_method(ty: &Type, name: &Token) -> Option<AssociatedMethod> {
         let method = if let Type::Adt(adt) = &ty {
             let adt = adt.borrow();
             adt.methods
@@ -456,7 +452,7 @@ impl MIRGenerator {
     /// Returns the method that corresponds to the operator given (operator overloading).
     /// Returns None if the given class does not implement overloading.
     fn get_operator_overloading_method(
-        &mut self,
+        &self,
         op: TType,
         left_ty: &Type,
         right_ty: &Type,
@@ -493,7 +489,7 @@ impl MIRGenerator {
     /// Checks if the value is of the given type ty.
     /// Will do casts if needed to make the types match;
     /// returns the new expression that should be used in case a cast happened.
-    /// If there is no way to make value.get_type() == ty,
+    /// If there is no way to make `value.get_type() == ty`,
     /// this function just returns value unmodified.
     fn try_cast(&self, value: Expr, ty: &Type) -> Expr {
         let val_ty = value.get_type();
@@ -525,7 +521,7 @@ impl MIRGenerator {
     }
 
     /// Will try to make left and right be of the same type.
-    /// Return value is (NewType, left, right).
+    /// Return value is `(NewType, left, right)`.
     /// If both are already the same type, this will just return the original type.
     /// If they cannot be made to match, it returns None as type.
     fn try_unify_type(&self, mut left: Expr, mut right: Expr) -> (Option<Type>, Expr, Expr) {
@@ -654,11 +650,11 @@ impl MIRGenerator {
         }
     }
 
-    /// Produces a MIRGenerator usable for generating a closure literal,
+    /// Produces a `MIRGenerator` usable for generating a closure literal,
     /// temporarily making the outer generator unusable.
     /// It takes the outer environments to allow for capturing variables,
     /// and also records some other required closure data.
-    /// This data is then retried with self.end_closure.
+    /// This data is then retried with `self.end_closure`.
     pub fn for_closure(outer: &mut MIRGenerator) -> Self {
         MIRGenerator {
             module: Rc::clone(&outer.module),

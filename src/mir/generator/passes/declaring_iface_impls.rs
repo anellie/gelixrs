@@ -56,9 +56,8 @@ pub fn declare_impl(
     override_implementor: Option<Type>,
 ) -> Res<()> {
     let err_token = iface_impl.iface.get_token().clone();
-    let implementor = override_implementor
-        .map(Ok)
-        .unwrap_or_else(|| builder.find_type(&iface_impl.implementor));
+    let implementor =
+        override_implementor.map_or_else(|| builder.find_type(&iface_impl.implementor), Ok);
     if implementor.is_err() && iface_impl.implementor.is_generic() {
         return add_impl_to_proto(iface_impl, builder);
     }

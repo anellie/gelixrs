@@ -9,6 +9,7 @@ use std::{collections::HashMap, mem, rc::Rc};
 use either::Either::Left;
 
 use crate::{
+    ast,
     ast::declaration::{Function, FunctionParam},
     error::{Error, Res},
     mir::{
@@ -46,7 +47,7 @@ impl ModulePass for FillIfaceImpls {
             let iface = Rc::clone(&iface_impl.iface);
             let this_arg = FunctionParam::this_param_(&ast.implementor);
 
-            for method in ast.methods.iter() {
+            for method in &ast.methods {
                 let iface = iface.borrow();
                 let iface_method = iface.dyn_methods.get(&method.sig.name.lexeme).or_err(
                     &gen.builder.path,
@@ -102,8 +103,7 @@ fn check_equal_signature(
             .sig
             .return_type
             .as_ref()
-            .map(|t| t.get_token())
-            .unwrap_or(&method.sig.name);
+            .map_or(&method.sig.name, ast::Type::get_token);
         return Err(Error::new(
             tok,
             "MIR",

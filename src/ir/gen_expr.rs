@@ -383,16 +383,14 @@ impl IRGenerator {
             }
 
             Type::Adt(adt) => {
-                match adt.borrow().ty {
-                    ADTType::Interface { .. } => self.cast_to_interface(object, to),
-
-                    _ => {
-                        // This should be an enum cast;
-                        // simply a bitcast is sufficient
-                        let obj = self.expression(object);
-                        let cast_ty = self.ir_ty_ptr(to);
-                        self.builder.build_bitcast(obj, cast_ty, "cast")
-                    }
+                if let ADTType::Interface { .. } = adt.borrow().ty {
+                    self.cast_to_interface(object, to)
+                } else {
+                    // This should be an enum cast;
+                    // simply a bitcast is sufficient
+                    let obj = self.expression(object);
+                    let cast_ty = self.ir_ty_ptr(to);
+                    self.builder.build_bitcast(obj, cast_ty, "cast")
                 }
             }
 
@@ -408,7 +406,7 @@ impl IRGenerator {
             .get_element_type()
             .into_struct_type();
 
-        let vtable = self.get_vtable(object.get_type(), to, vtable_ty);
+        let vtable = self.get_vtable(&object.get_type(), to, vtable_ty);
         let store = self.create_alloc(iface_ty.into(), false);
         self.write_struct(store, [self.coerce_to_void_ptr(obj), vtable].iter());
         self.builder.build_load(store, "ifaceload")
@@ -418,7 +416,7 @@ impl IRGenerator {
     /// Will generate functions as needed to fill the vtable.
     fn get_vtable(
         &mut self,
-        implementor: Type,
+        implementor: &Type,
         iface: &Type,
         vtable: StructType,
     ) -> BasicValueEnum {
@@ -483,7 +481,7 @@ impl IRGenerator {
         alloc.into()
     }
 
-    /// Takes a PointerValue<FunctionValue> and casts its type
+    /// Takes a `PointerValue<FunctionValue>` and casts its type
     /// to have the first parameter type be replaced with i64.
     fn cast_first_param_to_i64(&self, val: PointerValue) -> BasicValueEnum {
         let func_ty = val.get_type().get_element_type().into_function_type();

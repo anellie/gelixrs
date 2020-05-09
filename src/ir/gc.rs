@@ -66,8 +66,7 @@ impl IRGenerator {
     fn needs_gc(struc: StructType) -> bool {
         !struc
             .get_name()
-            .map(|name| name.to_str().unwrap().starts_with("vtable"))
-            .unwrap_or(true)
+            .map_or(true, |name| name.to_str().unwrap().starts_with("vtable"))
     }
 
     fn mod_refcount(&self, value: BasicValueEnum, decrement: bool) {
@@ -164,7 +163,7 @@ impl IRGenerator {
     }
 
     /// Will insert a free check at the current insert position.
-    /// free_closure should generate the code that runs when the value
+    /// `free_closure` should generate the code that runs when the value
     /// is to be freed.
     fn build_maybe_free(
         &self,

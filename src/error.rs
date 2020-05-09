@@ -18,7 +18,7 @@ pub struct Errors(pub Vec<Error>, pub Rc<String>);
 
 impl Display for Errors {
     fn fmt(&self, f: &mut Formatter) -> Result<(), FmtErr> {
-        for err in self.0.iter() {
+        for err in &self.0 {
             writeln!(f, "{}\n", err.to_string(&self.1))?;
         }
         Ok(())
