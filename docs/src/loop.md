@@ -30,7 +30,7 @@ for (i from 0 to 5) print(i)
 
 This code is equivalent to the conditional looping example above, but much more concise.
 
-### Iterators
+### Iterators (Not implemented yet)
 
 Some data types like arrays implement the `Iterator<I>` interface 
 (you will learn more about interfaces later).

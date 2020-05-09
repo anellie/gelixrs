@@ -28,3 +28,14 @@ func numbers(fn: (i64): i64) {
     for (num in 0 to 4) print(fn(num))
 }
 ```
+
+Planned (TODO), but not yet implemented: 
+Additionally, you can also use functions like closures.
+This can make your code more readable and allows potential reuse.
+
+```java
+func square(a: i64) -> i64 = a * a
+
+// In a function...
+numbers(square)
+``` 

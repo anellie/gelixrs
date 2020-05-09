@@ -30,16 +30,23 @@ class Wrapper<T> {
 
 
 func main() {
-    // To instanciate any generic type, use ::<>:
-    print(echo::<bool>(true)) // "true"
-    // (Type inference is not implemented yet, but planned!)
+    // To use a generic function, simply call it normally:
+    print(echo(42)) // "42"
+    // Gelix will automatically infer the generics from the arguments
+    // you pass.
 
-    val wrapper = Wrapper::<i64>(2)
+    // If gelix can't infer all types, you need to specify them 
+    // explicitly or the compiler will throw an error.
+    // To do so, use ::<>:
+    print(echo::<bool>(true)) // "true"
+    // (Would not be needed here, just an example!)
+
+    val wrapper = Wrapper(2)
     print(wrapper.value) // "2"
-    print(wrapper.echo::<String>("hello!")) // "hello!"
+    print(wrapper.echo("hello!")) // "hello!"
 }
 
-// When using generic types as function arguments, you omit the "::":
+// When using generic types as function arguments:
 func test(a: Wrapper<i64>) {
     print(a.value)
 }
