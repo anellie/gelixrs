@@ -11,7 +11,7 @@ use inkwell::{execution_engine::JitFunction, OptimizationLevel};
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug, Default)]
-#[structopt(name = "gelixrs")]
+#[structopt(name = "gelixrs", about = "A compiler for the gelix language.")]
 struct Opt {
     /// Run in-place instead of compiling
     #[structopt(short, long)]
@@ -40,6 +40,10 @@ struct Opt {
     /// Path of the resulting executable
     #[structopt(short, long)]
     output: Option<PathBuf>,
+
+    /// The level of optimization to use with clang
+    #[structopt(short = "O", default_value = "3")]
+    optimize_level: usize,
 
     /// File to compile
     #[structopt(parse(from_os_str))]
@@ -133,11 +137,14 @@ fn run(args: Opt) -> Result<(), &'static str> {
     module_file.push("out.bc");
     module.write_bitcode_to_path(&module_file);
 
+    if args.optimize_level > 3 {
+        Err("Invalid optimize level.")?;
+    }
     let status = process::Command::new("clang")
         .arg("-o")
         .arg(&args.output.ok_or("Output location required.")?)
         .arg(module_file)
-        .arg("-O3")
+        .arg(format!("-O{}", args.optimize_level))
         .output()
         .expect("Evoking clang failed.")
         .status;
