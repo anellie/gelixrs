@@ -58,13 +58,19 @@ impl Error {
             "[{}] {}\n--> {} L{}:{}",
             self.producer, self.message, self.module, self.line, self.start
         );
+        let prev_line = source
+            .lines()
+            .nth(self.line.wrapping_sub(2))
+            .unwrap_or("");
         let line = source
             .lines()
             .nth(self.line.wrapping_sub(1))
             .unwrap_or("<unexpected end of file>");
         format!(
-            "{}\n     |\n{:04} | {}\n     |{}{}",
+            "{}\n     |\n{:04} | {}\n{:04} | {}\n     |{}{}",
             result,
+            self.line - 1,
+            prev_line,
             self.line,
             line,
             std::iter::repeat(' ').take(self.start).collect::<String>(),
