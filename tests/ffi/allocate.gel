@@ -1,0 +1,9 @@
+/*
+*/
+
+import std/memory/+
+
+func main() {
+    val a = allocate::<String>(5)
+    drop(a)
+}

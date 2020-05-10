@@ -55,8 +55,10 @@ pub struct IRGenerator {
     /// This also includes locally declared variables.
     /// This is a vector to account for local variables that are not available
     /// during all parts of the function - locals declared inside of an if clause for example.
-    /// Pushing/Popping local vectors from this stack is done using mir::Expr.
-    locals: Vec<Vec<BasicValueEnum>>,
+    ///
+    /// The `bool` specifies if the value is a pointer or a value in
+    /// the context of the MIR type system.
+    locals: Vec<Vec<(BasicValueEnum, bool)>>,
     /// All blocks in the current function.
     blocks: Vec<BasicBlock>,
     last_block: Option<BasicBlock>,

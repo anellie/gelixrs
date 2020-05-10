@@ -22,36 +22,42 @@ impl IRGenerator {
     /// Build a store; will do required refcount modification.
     pub fn build_store(&self, ptr: PointerValue, value: BasicValueEnum, is_null: bool) {
         if !is_null {
-            self.decrement_refcount(ptr.into());
+            self.decrement_refcount(ptr.into(), true);
         }
         self.builder.build_store(ptr, value);
-        self.increment_refcount(ptr.into());
+        self.increment_refcount(ptr.into(), true);
     }
 
-    /// Increment the refcount of a value
-    pub fn increment_refcount(&self, value: BasicValueEnum) {
-        if let Some(val) = self.get_rc_value(value) {
+    /// Increment the refcount of a value.
+    /// is_ptr specifies if the value is a pointer or a value in
+    /// the context of the MIR type system.
+    pub fn increment_refcount(&self, value: BasicValueEnum, is_ptr: bool) {
+        if let Some(val) = self.get_rc_value(value, is_ptr) {
             self.mod_refcount(val, false)
         }
     }
 
     /// Decrement the refcount of a value, and check if it needs to be freed
-    pub fn decrement_refcount(&self, value: BasicValueEnum) {
-        if let Some(val) = self.get_rc_value(value) {
+    /// is_ptr specifies if the value is a pointer or a value in
+    /// the context of the MIR type system.
+    pub fn decrement_refcount(&self, value: BasicValueEnum, is_ptr: bool) {
+        if let Some(val) = self.get_rc_value(value, is_ptr) {
             self.mod_refcount(val, true)
         }
     }
 
     /// Returns a modified version of the value ready for modifying the refcount,
     /// should the value be refcounted.
-    fn get_rc_value(&self, value: BasicValueEnum) -> Option<BasicValueEnum> {
+    /// is_ptr specifies if the value is a pointer or a value in
+    /// the context of the MIR type system.
+    fn get_rc_value(&self, value: BasicValueEnum, is_ptr: bool) -> Option<BasicValueEnum> {
         if value.get_type() == self.none_const.get_type().ptr_type(Generic).into() {
             return None;
         }
 
         match value {
             BasicValueEnum::PointerValue(ptr) => match ptr.get_type().get_element_type() {
-                AnyTypeEnum::PointerType(_) => self.get_rc_value(self.load_ptr(ptr)),
+                AnyTypeEnum::PointerType(_) if is_ptr => self.get_rc_value(self.load_ptr(ptr), false),
                 AnyTypeEnum::StructType(struc) if Self::needs_gc(struc) => Some(self.load_ptr(ptr)),
                 _ => None,
             },

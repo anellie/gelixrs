@@ -59,10 +59,10 @@ impl PassRunner {
             Box::new(DeclareTypes()),
             Box::new(PopulateIntrinsics()),
             Box::new(ImportTypes()),
+            Box::new(DeclareIfaceImpls()),
             Box::new(DeclareGlobals()),
             Box::new(PopulateIntrinsicsFunctions()),
             Box::new(ImportGlobals()),
-            Box::new(DeclareIfaceImpls()),
         ];
 
         for mut pass in passes.drain(..) {

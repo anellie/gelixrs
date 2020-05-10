@@ -147,12 +147,12 @@ impl IRGenerator {
             }
 
             "inc_ref" => {
-                self.increment_refcount(ir.get_first_param().unwrap());
+                self.increment_refcount(ir.get_first_param().unwrap(), false);
                 self.builder.build_return(None);
             }
 
             "dec_ref" => {
-                self.decrement_refcount(ir.get_first_param().unwrap());
+                self.decrement_refcount(ir.get_first_param().unwrap(), false);
                 self.builder.build_return(None);
             }
 

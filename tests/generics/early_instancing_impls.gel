@@ -1,0 +1,24 @@
+/*
+hi!
+*/
+
+// An explanation:
+// This test covers a regression where prototypes could
+// be instanced before their iface impls were attached,
+// resulting in the instance missing the impl.
+
+func main() {
+    A::<String>().a()
+}
+
+func a(a: A<String>) {}
+
+class A<A>{}
+
+interface Test {
+    func a()
+}
+
+impl Test for A<A> {
+    func a() = print("hi!")
+}

@@ -16,4 +16,3 @@ func main() {
     print(a)
     print(b)
 }
-TODO: SIGSEGV

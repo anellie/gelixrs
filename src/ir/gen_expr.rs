@@ -135,7 +135,7 @@ impl IRGenerator {
 
             Expr::Return(value) => {
                 let value = self.expression(value);
-                self.increment_refcount(value);
+                self.increment_refcount(value, false);
                 self.decrement_all_locals();
 
                 if value.get_type() == self.none_const.get_type() {
@@ -184,7 +184,7 @@ impl IRGenerator {
                 let val = self.expression(value);
                 self.build_store(var, val, *first_store);
                 if *first_store {
-                    self.locals().push(var.into());
+                    self.locals().push((var.into(), true));
                 }
 
                 val
@@ -227,7 +227,7 @@ impl IRGenerator {
         constructor: PointerValue,
         constructor_args: &[Expr],
     ) -> BasicValueEnum {
-        self.increment_refcount(alloc.into());
+        self.increment_refcount(alloc.into(), true);
         self.builder
             .build_call(instantiator, &[alloc.into()], "inst");
 
@@ -236,15 +236,15 @@ impl IRGenerator {
             .map(|a| self.expression(a))
             .collect();
         for arg in &arguments {
-            self.increment_refcount(*arg);
+            self.increment_refcount(*arg, false);
         }
         arguments.insert(0, alloc.into());
         self.builder.build_call(constructor, &arguments, "constr");
         for arg in arguments.iter().skip(1) {
-            self.decrement_refcount(*arg);
+            self.decrement_refcount(*arg, false);
         }
 
-        self.locals().push(alloc.into());
+        self.locals().push((alloc.into(), true));
         alloc.into()
     }
 
@@ -347,7 +347,7 @@ impl IRGenerator {
             .collect();
 
         for arg in &arguments {
-            self.increment_refcount(*arg);
+            self.increment_refcount(*arg, false);
         }
 
         let ret = self
@@ -355,10 +355,10 @@ impl IRGenerator {
             .build_call(ptr, &arguments, "call")
             .try_as_basic_value();
         let ret = ret.left().unwrap_or(self.none_const);
-        self.locals().push(ret);
+        self.locals().push((ret, false));
 
         for arg in &arguments {
-            self.decrement_refcount(*arg);
+            self.decrement_refcount(*arg, false);
         }
 
         ret
@@ -558,7 +558,7 @@ impl IRGenerator {
             .enumerate()
         {
             let val = unsafe { self.builder.build_struct_gep(captured, i as u32, "Cgep") };
-            self.decrement_refcount(self.load_ptr(val))
+            self.decrement_refcount(self.load_ptr(val), false)
         }
         self.builder.build_free(captured);
         self.builder.build_free(closure);
@@ -676,9 +676,9 @@ impl IRGenerator {
     fn modify_ref_count(&mut self, object: &Expr, dec: bool) -> BasicValueEnum {
         let object = self.expression(object);
         if dec {
-            self.decrement_refcount(object);
+            self.decrement_refcount(object, false); // TODO: is false correct?
         } else {
-            self.increment_refcount(object);
+            self.increment_refcount(object, false);
         }
         object
     }
@@ -729,7 +729,7 @@ impl IRGenerator {
                         .try_as_basic_value()
                         .left()
                         .unwrap();
-                    self.locals().push(st);
+                    self.locals().push((st, false));
                     st
                 }
             }

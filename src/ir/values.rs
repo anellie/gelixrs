@@ -205,7 +205,7 @@ impl IRGenerator {
         ptr
     }
 
-    pub fn locals(&mut self) -> &mut Vec<BasicValueEnum> {
+    pub fn locals(&mut self) -> &mut Vec<(BasicValueEnum, bool)> {
         self.locals.last_mut().unwrap()
     }
 
@@ -222,8 +222,8 @@ impl IRGenerator {
         let locals = self.locals.pop().unwrap();
 
         if !locals.is_empty() {
-            self.increment_refcount(lift);
-            self.locals().push(lift);
+            self.increment_refcount(lift, false);
+            self.locals().push((lift, false));
         }
 
         self.decrement_locals(&locals);
@@ -231,7 +231,7 @@ impl IRGenerator {
 
     pub fn pop_locals_remove(&mut self, lift: BasicValueEnum) {
         let locals = self.locals.pop().unwrap();
-        self.increment_refcount(lift);
+        self.increment_refcount(lift, false);
         self.decrement_locals(&locals);
     }
 
@@ -241,10 +241,10 @@ impl IRGenerator {
         }
     }
 
-    fn decrement_locals(&self, locals: &[BasicValueEnum]) {
+    fn decrement_locals(&self, locals: &[(BasicValueEnum, bool)]) {
         if self.builder.get_insert_block().is_some() {
-            for local in locals {
-                self.decrement_refcount(*local);
+            for (local, is_ptr) in locals {
+                self.decrement_refcount(*local, *is_ptr);
             }
         }
     }
@@ -262,7 +262,7 @@ impl IRGenerator {
         match nodes.len() {
             0 => self.none_const,
             1 => {
-                self.locals().push(nodes[0].0);
+                self.locals().push((nodes[0].0, false));
                 nodes[0].0
             }
             _ => {
@@ -273,7 +273,7 @@ impl IRGenerator {
                     .collect::<Vec<_>>();
                 let phi = self.builder.build_phi(ty, "phi");
                 phi.add_incoming(&nodes);
-                self.locals().push(phi.as_basic_value());
+                self.locals().push((phi.as_basic_value(), false));
                 phi.as_basic_value()
             }
         }
