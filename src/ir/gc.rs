@@ -57,7 +57,9 @@ impl IRGenerator {
 
         match value {
             BasicValueEnum::PointerValue(ptr) => match ptr.get_type().get_element_type() {
-                AnyTypeEnum::PointerType(_) if is_ptr => self.get_rc_value(self.load_ptr(ptr), false),
+                AnyTypeEnum::PointerType(_) if is_ptr => {
+                    self.get_rc_value(self.load_ptr(ptr), false)
+                }
                 AnyTypeEnum::StructType(struc) if Self::needs_gc(struc) => Some(self.load_ptr(ptr)),
                 _ => None,
             },

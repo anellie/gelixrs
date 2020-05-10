@@ -243,7 +243,13 @@ impl Prototype {
         match &param {
             ast::Type::Ident(_) if goal == param => Some(mir),
 
-            ast::Type::Pointer(inner) if goal == &**inner => Some(*mir.into_pointer()),
+            ast::Type::Pointer(inner) if goal == &**inner => {
+                if let Type::Pointer(mir) = mir {
+                    Some(*mir)
+                } else {
+                    Some(Type::Value(Box::new(mir)))
+                }
+            }
 
             ast::Type::Value(inner) if goal == &**inner => {
                 // This is required since primitives do not actually get wrapped in MIR

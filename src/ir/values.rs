@@ -6,7 +6,7 @@
 
 use crate::{
     ir::{IRGenerator, PtrEqRc},
-    mir::nodes::Variable,
+    mir::nodes::{Type, Variable},
 };
 use inkwell::{
     basic_block::BasicBlock,
@@ -15,7 +15,6 @@ use inkwell::{
     AddressSpace::Generic,
 };
 use std::rc::Rc;
-use crate::mir::nodes::Type;
 
 impl IRGenerator {
     /// Force any type to be turned into a void pointer.
@@ -88,8 +87,12 @@ impl IRGenerator {
     pub fn load_ptr_mir(&self, ptr: PointerValue, mir_ty: &Type) -> BasicValueEnum {
         match (ptr.get_type().get_element_type(), mir_ty) {
             (AnyTypeEnum::IntType(_), Type::Pointer(_)) => ptr.into(),
-            (AnyTypeEnum::PointerType(inner), Type::Pointer(_)) if inner.get_element_type().is_struct_type() => ptr.into(),
-            _ => self.load_ptr(ptr)
+            (AnyTypeEnum::PointerType(inner), Type::Pointer(_))
+                if inner.get_element_type().is_struct_type() =>
+            {
+                ptr.into()
+            }
+            _ => self.load_ptr(ptr),
         }
     }
 

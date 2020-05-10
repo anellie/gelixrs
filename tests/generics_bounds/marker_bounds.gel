@@ -34,18 +34,17 @@ func pointer<T: IsPointer>(a: T) {}
 func value<T: IsValue>(a: T) {}
 
 func main() {
-    number::<i64>(34)
+    number(34)
 
     class_(Class("hi"))
 
     val ex = ExtClass()
-    ext_class::<ExtClass>(ex)
-    free::<ExtClass>(ex)
+    ext_class(ex)
+    drop(ex)
 
     iface::<Iface>(IImpl())
 
-    pointer::<Class>(Class("hm"))
+    pointer(Class("hm"))
 
-    TODO: This causes a stack overflow?
-    value::<^Class>(load_value::<Class>(Class("ok")))
+    value(load_value(Class("ok")))
 }

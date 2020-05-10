@@ -12,6 +12,7 @@ use std::{
 
 use crate::mir::{
     generator::builder::Context,
+    get_iface_impls,
     nodes::{ADTType, Function, Variable, ADT},
     MutRc,
 };
@@ -190,8 +191,36 @@ impl Type {
         match self {
             Type::Pointer(inner) if inner.is_value() => *inner.into_value(),
             Type::Value(inner) if inner.is_pointer() => *inner.into_pointer(),
-            _ => self
+            _ => self,
         }
+    }
+
+    pub fn can_cast_to(&self, other: &Type) -> bool {
+        match self {
+            _ if self == other => return true,
+
+            // Enum case to enum cast
+            Type::Adt(adt) => match (&adt.borrow().ty, other) {
+                (ADTType::EnumCase { parent }, Type::Adt(adt)) if Rc::ptr_eq(parent, adt) => {
+                    return true
+                }
+                _ => (),
+            },
+
+            // Number cast
+            _ if self.is_number() && other.is_number() => return true,
+
+            _ => (),
+        }
+
+        // Interface cast
+        if let Some(impls) = get_iface_impls(&self) {
+            if impls.borrow().interfaces.get(other).is_some() {
+                return true;
+            }
+        }
+
+        false
     }
 
     pub fn display_full(&self, f: &mut Formatter) -> Result<(), Error> {

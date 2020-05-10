@@ -134,7 +134,11 @@ pub enum Expr {
     Return(Box<Expr>),
 
     /// Gets a member of a class struct.
-    StructGet { object: Box<Expr>, index: usize, val_ty: Type },
+    StructGet {
+        object: Box<Expr>,
+        index: usize,
+        val_ty: Type,
+    },
 
     /// Sets a member of a class struct.
     StructSet {
@@ -202,6 +206,14 @@ impl Expr {
         }
     }
 
+    pub fn maybe_cast(obj: Expr, obj_ty: &Type, ty: &Type) -> Expr {
+        if obj_ty == ty {
+            obj
+        } else {
+            Self::cast(obj, ty)
+        }
+    }
+
     pub fn construct_closure(global: &Rc<Variable>, captured: Rc<Vec<Rc<Variable>>>) -> Expr {
         Expr::ConstructClosure {
             function: Rc::clone(global.type_.as_function()),
@@ -258,7 +270,7 @@ impl Expr {
         Expr::StructGet {
             object: Box::new(object),
             index: field.index,
-            val_ty: field.type_.clone()
+            val_ty: field.type_.clone(),
         }
     }
 

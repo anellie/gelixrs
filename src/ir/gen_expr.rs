@@ -148,7 +148,11 @@ impl IRGenerator {
                 self.none_const
             }
 
-            Expr::StructGet { object, index, val_ty } => {
+            Expr::StructGet {
+                object,
+                index,
+                val_ty,
+            } => {
                 let struc = self.expression(object);
                 let ptr = self.struct_gep(struc.into_pointer_value(), *index);
                 self.load_ptr_mir(ptr, val_ty)

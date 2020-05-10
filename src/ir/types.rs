@@ -22,7 +22,7 @@ impl IRGenerator {
         match mir {
             Type::None => return self.none_const.get_type(),
             Type::Pointer(inner) => return self.ir_ty_ptr(inner).ptr_type(Generic).into(),
-            _ => ()
+            _ => (),
         }
         let ir = self.ir_ty(mir);
         match (ir, mir) {

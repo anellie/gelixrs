@@ -355,14 +355,23 @@ impl MIRGenerator {
                                     .parameters
                                     .iter()
                                     .skip(1)
-                                    .zip(args.iter())
-                                    .all(|(param, arg)| param.type_ == arg.get_type())
+                                    .zip(args.iter_mut())
+                                    .all(|(param, arg)| arg.get_type().can_cast_to(&param.type_))
                         })
                         .or_err(
                             &self.builder.path,
                             callee.get_token(),
                             "No matching constructor found for arguments.",
                         )?;
+
+                    {
+                        let constructor = constructor.type_.as_function().borrow();
+                        for (param, arg) in
+                            constructor.parameters.iter().skip(1).zip(args.iter_mut())
+                        {
+                            self.try_cast_in_place(arg, &param.type_)
+                        }
+                    }
 
                     Ok(Expr::alloc_type(callee_type, constructor, args))
                 } else {

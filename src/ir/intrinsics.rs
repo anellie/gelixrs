@@ -9,13 +9,12 @@ use crate::{
     mir::{nodes::Function, MModule, MutRc},
 };
 use inkwell::{
-    types::{BasicType, BasicTypeEnum},
+    types::{AnyTypeEnum, BasicType, BasicTypeEnum},
     values::{BasicValue, FunctionValue},
     AddressSpace::Generic,
     IntPredicate,
 };
 use std::cell::RefMut;
-use inkwell::types::AnyTypeEnum;
 
 impl IRGenerator {
     pub(super) fn fill_intrinsic_functions(&mut self, module: &MutRc<MModule>) {
@@ -91,11 +90,12 @@ impl IRGenerator {
             "gep" => {
                 let ptr = ir.get_first_param().unwrap().into_pointer_value();
                 let index = ir.get_last_param().unwrap().into_int_value();
-                self.builder.build_return(Some(
-                    unsafe {
-                        &self.builder.build_gep(ptr, &[index], "gep").as_basic_value_enum()
-                    }
-                ));
+                self.builder.build_return(Some(unsafe {
+                    &self
+                        .builder
+                        .build_gep(ptr, &[index], "gep")
+                        .as_basic_value_enum()
+                }));
             }
 
             // Take a pointer and return the value behind it.
@@ -158,10 +158,7 @@ impl IRGenerator {
 
             "free_type" => {
                 let value = ir.get_first_param().unwrap();
-                let elem = value
-                    .into_pointer_value()
-                    .get_type()
-                    .get_element_type();
+                let elem = value.into_pointer_value().get_type().get_element_type();
 
                 match elem {
                     AnyTypeEnum::StructType(struct_type) => {
@@ -170,7 +167,8 @@ impl IRGenerator {
                             .get(struct_type.get_name().unwrap().to_str().unwrap())
                             .unwrap()
                             .as_adt();
-                        let destructor = self.get_variable(&adt.borrow().destructor.as_ref().unwrap());
+                        let destructor =
+                            self.get_variable(&adt.borrow().destructor.as_ref().unwrap());
                         self.builder.build_call(
                             destructor,
                             &[value, self.context.bool_type().const_int(1, false).into()],

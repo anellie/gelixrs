@@ -493,31 +493,19 @@ impl MIRGenerator {
     /// this function just returns value unmodified.
     fn try_cast(&self, value: Expr, ty: &Type) -> Expr {
         let val_ty = value.get_type();
-        match &val_ty {
-            _ if &val_ty == ty => return value,
-
-            // Enum case to enum cast
-            Type::Adt(adt) => match (&adt.borrow().ty, ty) {
-                (ADTType::EnumCase { parent }, Type::Adt(adt)) if Rc::ptr_eq(parent, adt) => {
-                    return Expr::cast(value, ty)
-                }
-                _ => (),
-            },
-
-            // Number cast
-            _ if val_ty.is_number() && ty.is_number() => return Expr::cast(value, ty),
-
-            _ => (),
+        if val_ty.can_cast_to(ty) {
+            Expr::maybe_cast(value, &val_ty, ty)
+        } else {
+            value
         }
+    }
 
-        // Interface cast
-        if let Some(impls) = get_iface_impls(&val_ty) {
-            if impls.borrow().interfaces.get(ty).is_some() {
-                return Expr::cast(value, ty);
-            }
-        }
-
-        value
+    /// Same as above but utilizing `std::mem::replace` to only
+    /// require a mutable reference at the cost of a slight performance penalty.
+    /// Returns if the cast was successful.
+    fn try_cast_in_place(&self, value_ref: &mut Expr, ty: &Type) {
+        let value = mem::replace(value_ref, Expr::none_const());
+        mem::replace(value_ref, self.try_cast(value, ty));
     }
 
     /// Will try to make left and right be of the same type.
