@@ -15,6 +15,7 @@ use inkwell::{
     IntPredicate,
 };
 use std::cell::RefMut;
+use inkwell::types::AnyTypeEnum;
 
 impl IRGenerator {
     pub(super) fn fill_intrinsic_functions(&mut self, module: &MutRc<MModule>) {
@@ -87,6 +88,16 @@ impl IRGenerator {
                 ));
             }
 
+            "gep" => {
+                let ptr = ir.get_first_param().unwrap().into_pointer_value();
+                let index = ir.get_last_param().unwrap().into_int_value();
+                self.builder.build_return(Some(
+                    unsafe {
+                        &self.builder.build_gep(ptr, &[index], "gep").as_basic_value_enum()
+                    }
+                ));
+            }
+
             // Take a pointer and return the value behind it.
             // ADTs are already pointers, so they are no-op.
             "deref_ptr" => {
@@ -147,22 +158,31 @@ impl IRGenerator {
 
             "free_type" => {
                 let value = ir.get_first_param().unwrap();
-                let struct_type = value
+                let elem = value
                     .into_pointer_value()
                     .get_type()
-                    .get_element_type()
-                    .into_struct_type();
-                let adt = self
-                    .types_bw
-                    .get(struct_type.get_name().unwrap().to_str().unwrap())
-                    .unwrap()
-                    .as_adt();
-                let destructor = self.get_variable(&adt.borrow().destructor.as_ref().unwrap());
-                self.builder.build_call(
-                    destructor,
-                    &[value, self.context.bool_type().const_int(1, false).into()],
-                    "free",
-                );
+                    .get_element_type();
+
+                match elem {
+                    AnyTypeEnum::StructType(struct_type) => {
+                        let adt = self
+                            .types_bw
+                            .get(struct_type.get_name().unwrap().to_str().unwrap())
+                            .unwrap()
+                            .as_adt();
+                        let destructor = self.get_variable(&adt.borrow().destructor.as_ref().unwrap());
+                        self.builder.build_call(
+                            destructor,
+                            &[value, self.context.bool_type().const_int(1, false).into()],
+                            "free",
+                        );
+                    }
+
+                    // Primitive, simply calling free is enough
+                    _ => {
+                        self.builder.build_free(value.into_pointer_value());
+                    }
+                }
 
                 self.builder.build_return(None);
             }

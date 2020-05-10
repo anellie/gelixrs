@@ -1,8 +1,8 @@
 import std/intrinsics/build_string_literal
 import std/intrinsics/sprintf
 import std/math/max
+import std/memory/+
 import std/ops/Add
-import std/ptr/+
 
 /// A UTF-8 string.
 /// Currently, strings are null-terminated.
@@ -10,7 +10,7 @@ class String {
 
     var length = 0
     var capacity: i64
-    var ptr: Ptr<i8>
+    var ptr: *i8
 
     /// Construct an empty string with the given capacity.
     /// Will allocate the amount given on the heap (malloc),
@@ -38,8 +38,8 @@ class String {
     /// index of its pointer.
     func clear() {
         if (this.length == 0) return
-        val null_char = this.ptr.element_at_index(this.length - 1)
-        this.ptr.set(0, null_char)
+        val null_char = load_value_index(this.ptr, this.length - 1)
+        write_value(this.ptr, null_char)
         this.length = 1
     }
 
@@ -48,7 +48,7 @@ class String {
     /// Returns itself for easy chaining.
     func append(other: String) -> String {
         this.reserve(other.length)
-        copy_ptr::<i8>(other.ptr, this.ptr.ptr_at_index(this.len()), other.length)
+        copy_ptr(other.ptr, index_ptr(this.ptr, this.len()), other.length)
         this.length = this.length + other.len()
         this
     }
@@ -59,8 +59,14 @@ class String {
         if (this.capacity > (this.length + amount)) return
         this.capacity = this.length + amount
         val new_ptr = allocate::<i8>(this.capacity)
-        copy_ptr::<i8>(this.ptr, new_ptr, this.length)
+        copy_ptr(this.ptr, new_ptr, this.length)
         this.ptr = new_ptr
+    }
+}
+
+impl Free for String {
+    func free() {
+        drop(this.ptr)
     }
 }
 
@@ -68,8 +74,9 @@ impl ToString for String {
     func to_string() -> String = this
 }
 
-impl Add<String, String> for String {
-    func add(other: String) -> String {
+impl Add<ToString, String> for String {
+    func add(other: ToString) -> String {
+        val other = other.to_string()
         // +1 to account for the null terminator
         val new = String(this.len() + other.len() + 1)
         new.append(this)
@@ -97,7 +104,7 @@ impl ToString for bool {
 impl ToString for i64 {
     func to_string() -> String {
         var buffer = String(21)
-        sprintf(buffer.ptr.pointer, "%ld".ptr.pointer, this)
+        sprintf(buffer.ptr, "%ld".ptr, this)
         buffer
     }
 }
@@ -105,7 +112,7 @@ impl ToString for i64 {
 impl ToString for i32 {
     func to_string() -> String {
         var buffer = String(12)
-        sprintf(buffer.ptr.pointer, "%d".ptr.pointer, this)
+        sprintf(buffer.ptr, "%d".ptr, this)
         buffer
     }
 }
@@ -113,7 +120,7 @@ impl ToString for i32 {
 impl ToString for i16 {
     func to_string() -> String {
         var buffer = String(6)
-        sprintf(buffer.ptr.pointer, "%d".ptr.pointer, this)
+        sprintf(buffer.ptr, "%d".ptr, this)
         buffer
     }
 }
@@ -121,7 +128,7 @@ impl ToString for i16 {
 impl ToString for i8 {
     func to_string() -> String {
         var buffer = String(4)
-        sprintf(buffer.ptr.pointer, "%d".ptr.pointer, this)
+        sprintf(buffer.ptr, "%d".ptr, this)
         buffer
     }
 }
@@ -129,7 +136,7 @@ impl ToString for i8 {
 impl ToString for f64 {
     func to_string() -> String {
         var buffer = String(40)
-        sprintf(buffer.ptr.pointer, "%g".ptr.pointer, this)
+        sprintf(buffer.ptr, "%g".ptr, this)
         buffer
     }
 }
@@ -137,7 +144,7 @@ impl ToString for f64 {
 impl ToString for f32 {
     func to_string() -> String {
         var buffer = String(40)
-        sprintf(buffer.ptr.pointer, "%g".ptr.pointer, this)
+        sprintf(buffer.ptr, "%g".ptr, this)
         buffer
     }
 }

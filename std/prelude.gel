@@ -5,7 +5,7 @@ import std/string/ToString
 export std/collections/Array
 export std/string/String
 
-func print(a: ToString) = puts(a.to_string().ptr.pointer)
+func print(a: ToString) = puts(a.to_string().ptr)
 
 func cast<T>(value: T) -> T = value
 

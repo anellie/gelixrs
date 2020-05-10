@@ -148,10 +148,10 @@ impl IRGenerator {
                 self.none_const
             }
 
-            Expr::StructGet { object, index } => {
+            Expr::StructGet { object, index, val_ty } => {
                 let struc = self.expression(object);
                 let ptr = self.struct_gep(struc.into_pointer_value(), *index);
-                self.load_ptr(ptr)
+                self.load_ptr_mir(ptr, val_ty)
             }
 
             Expr::StructSet {
@@ -173,7 +173,7 @@ impl IRGenerator {
 
             Expr::Unary { right, operator } => self.unary(right, *operator),
 
-            Expr::VarGet(var) => self.load_ptr(self.get_variable(var)),
+            Expr::VarGet(var) => self.load_ptr_mir(self.get_variable(var), &var.type_),
 
             Expr::VarStore {
                 var,
@@ -709,11 +709,6 @@ impl IRGenerator {
                     self.none_const
                 } else {
                     let const_str = self.builder.build_global_string_ptr(&string, "str");
-                    let const_str = self.builder.build_ptr_to_int(
-                        const_str.as_pointer_value(),
-                        self.context.i64_type(),
-                        "strtoint",
-                    );
                     let string_builder = self
                         .module
                         .get_function("std/intrinsics:build_string_literal")
@@ -723,7 +718,7 @@ impl IRGenerator {
                         .build_call(
                             string_builder,
                             &[
-                                const_str.into(),
+                                const_str.as_pointer_value().into(),
                                 self.context
                                     .i64_type()
                                     .const_int((string.len() + 1) as u64, false)

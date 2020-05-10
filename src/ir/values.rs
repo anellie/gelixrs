@@ -15,6 +15,7 @@ use inkwell::{
     AddressSpace::Generic,
 };
 use std::rc::Rc;
+use crate::mir::nodes::Type;
 
 impl IRGenerator {
     /// Force any type to be turned into a void pointer.
@@ -75,9 +76,20 @@ impl IRGenerator {
                     .get_name()
                     .map_or(true, |n| !n.to_str().unwrap().starts_with("iface")) =>
             {
-                BasicValueEnum::PointerValue(ptr)
+                ptr.into()
             }
             _ => self.builder.build_load(ptr, "var"),
+        }
+    }
+
+    /// Similar to the function above, but with MIR type info.
+    /// This is sometimes required to prevent unintentionally loading
+    /// a value, for example when dealing with primitive pointers.
+    pub fn load_ptr_mir(&self, ptr: PointerValue, mir_ty: &Type) -> BasicValueEnum {
+        match (ptr.get_type().get_element_type(), mir_ty) {
+            (AnyTypeEnum::IntType(_), Type::Pointer(_)) => ptr.into(),
+            (AnyTypeEnum::PointerType(inner), Type::Pointer(_)) if inner.get_element_type().is_struct_type() => ptr.into(),
+            _ => self.load_ptr(ptr)
         }
     }
 

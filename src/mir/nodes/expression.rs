@@ -134,7 +134,7 @@ pub enum Expr {
     Return(Box<Expr>),
 
     /// Gets a member of a class struct.
-    StructGet { object: Box<Expr>, index: usize },
+    StructGet { object: Box<Expr>, index: usize, val_ty: Type },
 
     /// Sets a member of a class struct.
     StructSet {
@@ -258,6 +258,7 @@ impl Expr {
         Expr::StructGet {
             object: Box::new(object),
             index: field.index,
+            val_ty: field.type_.clone()
         }
     }
 
@@ -391,19 +392,9 @@ impl Expr {
 
             Expr::TypeGet(ty) => ty.clone(),
 
-            Expr::StructGet { object, index } | Expr::StructSet { object, index, .. } => {
-                let object = object.get_type();
-                object
-                    .into_adt()
-                    .borrow()
-                    .members
-                    .iter()
-                    .find(|(_, mem)| mem.index == *index)
-                    .unwrap()
-                    .1
-                    .type_
-                    .clone()
-            }
+            Expr::StructGet { val_ty, .. } => val_ty.clone(),
+
+            Expr::StructSet { value, .. } => value.get_type(),
 
             Expr::VarGet(var) | Expr::VarStore { var, .. } => var.type_.clone(),
 
@@ -467,7 +458,7 @@ impl Display for Expr {
 
             Expr::ModifyRefCount { object, dec } => write!(f, "rc+{} on {}", !dec, object),
 
-            Expr::StructGet { object, index } => write!(f, "get {} from ({})", index, object),
+            Expr::StructGet { object, index, .. } => write!(f, "get {} from ({})", index, object),
 
             Expr::StructSet {
                 object,

@@ -52,7 +52,7 @@ impl MIRBuilder {
 
             ASTType::Pointer(inner) => {
                 let inner = self.find_type(inner)?;
-                Ok(Type::Pointer(Box::new(inner)))
+                Ok(Type::Pointer(Box::new(inner)).maybe_simplify())
             }
 
             ASTType::Value(inner) => {
@@ -61,7 +61,7 @@ impl MIRBuilder {
                 // Primitives are already values so it would
                 // be unnecessary to wrap them
                 Ok(if !inner.is_primitive() {
-                    Type::Value(Box::new(inner))
+                    Type::Value(Box::new(inner)).maybe_simplify()
                 } else {
                     inner
                 })

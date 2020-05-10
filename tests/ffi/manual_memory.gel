@@ -15,5 +15,5 @@ extern class Test {
 
 func main() {
     val a = Test()
-    free::<Test>(a)
+    drop(a)
 }

@@ -36,7 +36,7 @@ func value<T: IsValue>(a: T) {}
 func main() {
     number::<i64>(34)
 
-    class_::<Class>(Class("hi"))
+    class_(Class("hi"))
 
     val ex = ExtClass()
     ext_class::<ExtClass>(ex)
@@ -46,5 +46,6 @@ func main() {
 
     pointer::<Class>(Class("hm"))
 
+    TODO: This causes a stack overflow?
     value::<^Class>(load_value::<Class>(Class("ok")))
 }

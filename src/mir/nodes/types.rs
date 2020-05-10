@@ -186,6 +186,14 @@ impl Type {
         }
     }
 
+    pub fn maybe_simplify(self) -> Self {
+        match self {
+            Type::Pointer(inner) if inner.is_value() => *inner.into_value(),
+            Type::Value(inner) if inner.is_pointer() => *inner.into_pointer(),
+            _ => self
+        }
+    }
+
     pub fn display_full(&self, f: &mut Formatter) -> Result<(), Error> {
         match self {
             Type::Function(func) => write!(f, "{}", func.borrow()),

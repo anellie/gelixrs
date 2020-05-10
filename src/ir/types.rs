@@ -19,9 +19,11 @@ impl IRGenerator {
     /// Converts a `MIRType` to the corresponding LLVM type.
     /// Structs are returned as `PointerType<StructType>`.
     pub fn ir_ty_ptr(&mut self, mir: &Type) -> BasicTypeEnum {
-        if mir == &Type::None {
-            return self.none_const.get_type();
-        };
+        match mir {
+            Type::None => return self.none_const.get_type(),
+            Type::Pointer(inner) => return self.ir_ty_ptr(inner).ptr_type(Generic).into(),
+            _ => ()
+        }
         let ir = self.ir_ty(mir);
         match (ir, mir) {
             // If the type does not need lifecycle (currently only interfaces), then it is passed by value
@@ -89,6 +91,8 @@ impl IRGenerator {
                     )
                     .into(),
             },
+
+            Type::Pointer(inner) => self.ir_ty(inner).ptr_type(Generic).into(),
 
             Type::Value(inner) => self.ir_ty(inner),
 

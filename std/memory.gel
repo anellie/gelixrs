@@ -1,5 +1,8 @@
 import std/intrinsics/+
 
+/// Returns the size of a type, in bytes. Equivalent to C's sizeof()
+public func size_of<T>() -> i64 = gelixrs_get_type_size::<T>()
+
 /// This interface allows implementing custom behavior
 /// when a value is freed.
 /// This can be used for multiple purposes like
@@ -11,19 +14,53 @@ interface Free {
     func free()
 }
 
+/// Allocates on the heap, where the amount
+/// of bytes allocated is the size of the type parameter times `size`.
+/// The returned pointer is not memory-managed, use Gc if you need it to be.
+public func allocate<T>(size: i64) -> *T {
+    var ptr = if (size == 0) 0 else malloc(size_of::<T>() * size)
+    gelixrs_int_to_ptr::<T>(ptr)
+}
+
 /// Will run the given value's destructor, causing it to be deallocated
 /// immediately. Can be very unsafe - does not check for dangling references!
 ///
-/// Mainly intended to be used with extern classes, as they require manual
-/// memory management.
-///
-/// TODO: This should require an extern class once interface bounds are implemented,
-/// it currently does nothing on non-class types
-func free<T>(value: T) = gelixrs_free_type::<T>(value)
+/// Mainly intended to be used with extern classes or raw pointers,
+/// as they require manual memory management.
+func drop<T: IsPointer>(value: T) = gelixrs_free_type(value)
+
+/// Will increment the reference count on a value by 1.
+/// Will cause memory leaks if not careful!
+public func inc_ref<T>(value: T) {
+    gelixrs_inc_ref(value)
+}
+
+/// Will decrement the reference count on a value by 1.
+/// Will cause use-after-free bugs if not careful!
+public func dec_ref<T>(value: T) {
+    gelixrs_dec_ref(value)
+}
 
 /// Will simply load the given value.
-/// TODO: Same interface bounds note as free above
-func load_value<T>(value: T) -> ^T = gelixrs_load_value::<T>(value)
+func load_value<T>(value: *T) -> T = gelixrs_load_value(value)
+/// Will simply load the given value, with an index.
+func load_value_index<T>(value: *T, index: i64) -> T = gelixrs_load_value(index_ptr(value, index))
+
+/// Will write the given value to the pointer at the given address.
+func write_value<T>(ptr: *T, value: T) = gelixrs_write_ptr(ptr, value)
+/// Will write the given value to the pointer at the given address, with an index.
+func write_value_index<T>(ptr: *T, index: i64, value: T) = gelixrs_write_ptr(index_ptr(ptr, index), value)
+
+func index_ptr<T>(value: *T, index: i64) -> *T = gelixrs_gep(value, index)
+
+/// Copies elements in memory at `src` to `dst`,
+/// copying from index 0 until `len`.
+/// Does not do any memory safety checks.
+public func copy_ptr<T>(src: *T, dst: *T, len: i64) {
+    for (i from 0 to len) {
+        write_value_index(dst, i, load_value_index(src, i))
+    }
+}
 
 /// A wrapper intended for extern classes to allow them to be automatically managed.
 /// Whenever this wrapper gets GC'd, it will free its inner value as well.
@@ -33,5 +70,5 @@ class Gc<T> {
 }
 
 impl Free for Gc<T> {
-    func free() = free::<T>(this.inner)
+    func free() = free(this.inner)
 }

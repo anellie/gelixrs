@@ -5,7 +5,8 @@ import std/memory/+
 
 func main() {
     val t = Test()
-    hm(load_value::<Test>(t))
+    TODO: This causes a stack overflow?
+    hm(load_value(t))
     free::<Test>(t)
 }
 
