@@ -98,8 +98,6 @@ impl Prototype {
             return Ok(inst.clone());
         }
 
-        check_generic_arguments(&self.module, self.ast.get_parameters(), &arguments, err_tok)?;
-
         let name = get_name(&self.name, &arguments);
         let ty = self.ast.create_mir(&name, &arguments, self_ref, context)?;
         let mut generator = MIRGenerator::new(MIRBuilder::new(&self.module));
@@ -108,9 +106,15 @@ impl Prototype {
             .borrow_mut()
             .types
             .insert(Rc::clone(&name), ty.clone());
-        self.instances.borrow_mut().insert(arguments, ty.clone());
 
         generator.builder.context = ty.context().unwrap();
+        check_generic_arguments(
+            &mut generator,
+            self.ast.get_parameters(),
+            &arguments,
+            err_tok,
+        )?;
+        self.instances.borrow_mut().insert(arguments, ty.clone());
         attach_impls(&mut generator.builder, &ty, &name, &self.impls.borrow())?;
 
         // Enums require special handling because of their child cases
@@ -452,21 +456,19 @@ fn get_context(context: &Context, params: &[GenericParam], args: &[Type]) -> Con
 }
 
 fn check_generic_arguments(
-    module: &MutRc<MModule>,
+    gen: &mut MIRGenerator,
     parameters: &[GenericParam],
     arguments: &[Type],
     err_tok: &Token,
 ) -> Result<(), Error> {
     if parameters.len() != arguments.len() {
-        return Err(Error::new(
+        return Err(gen.err(
             err_tok,
-            "MIR",
-            format!(
+            &format!(
                 "Wrong amount of generic arguments (expected {}; got {})",
                 parameters.len(),
                 arguments.len()
             ),
-            &module.borrow().path,
         ));
     }
 
@@ -476,26 +478,24 @@ fn check_generic_arguments(
         .zip(arguments.iter())
         .filter_map(|(param, arg)| param.bound.as_ref().map(|bound| (param, bound, arg)))
     {
-        if arg.has_marker(&bound.lexeme) {
+        if arg.has_marker(&bound) {
             continue; // Valid marker, all good
         }
 
-        let iface = module.borrow().find_type(&bound.lexeme);
-        if let (Some(iface), Some(impls)) = (iface, get_iface_impls(arg)) {
+        let iface = gen.builder.find_type(bound);
+        if let (Ok(iface), Some(impls)) = (iface, get_iface_impls(arg)) {
             if impls.borrow().interfaces.contains_key(&iface) {
                 continue; // Valid interface bound, all good
             }
         }
 
         // Not a valid bound!
-        return Err(Error::new(
+        return Err(gen.err(
             err_tok,
-            "MIR",
-            format!(
+            &format!(
                 "Generic argument '{}' does not fulfill bound '{}' on parameter '{}'.",
-                arg, bound.lexeme, param.name.lexeme
+                arg, bound, param.name.lexeme
             ),
-            &module.borrow().path,
         ));
     }
 

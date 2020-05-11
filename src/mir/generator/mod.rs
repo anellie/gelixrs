@@ -625,7 +625,7 @@ impl MIRGenerator {
         self.current_loop.as_mut().unwrap()
     }
 
-    fn err(&self, tok: &Token, msg: &str) -> Error {
+    pub fn err(&self, tok: &Token, msg: &str) -> Error {
         Error::new(tok, "MIR", msg.to_string(), &self.builder.path)
     }
 

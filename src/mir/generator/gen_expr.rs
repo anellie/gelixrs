@@ -845,9 +845,7 @@ impl MIRGenerator {
     ) -> Res<(Expr, Expr)> {
         // See note on `binary` about this
         let br_cond = match &branch.0 {
-            ASTExpr::GetStatic { object, name } => {
-                self.get_static(object, name, false)
-            }
+            ASTExpr::GetStatic { object, name } => self.get_static(object, name, false),
             _ => self.expression(&branch.0),
         }?;
         let br_type = br_cond.get_type();

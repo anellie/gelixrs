@@ -10,11 +10,14 @@ use std::{
     rc::Rc,
 };
 
-use crate::mir::{
-    generator::builder::Context,
-    get_iface_impls,
-    nodes::{ADTType, Function, Variable, ADT},
-    MutRc,
+use crate::{
+    ast,
+    mir::{
+        generator::builder::Context,
+        get_iface_impls,
+        nodes::{ADTType, Function, Variable, ADT},
+        MutRc,
+    },
 };
 
 /// All types in Gelix.
@@ -158,8 +161,12 @@ impl Type {
         }
     }
 
-    pub fn has_marker(&self, marker: &str) -> bool {
-        match &marker[..] {
+    pub fn has_marker(&self, marker: &ast::Type) -> bool {
+        if !marker.is_ident() {
+            return false;
+        }
+        let lexeme = &marker.get_token().lexeme;
+        match &lexeme[..] {
             "Primitive" => self.is_primitive(),
             "Number" => self.is_number(),
             "Integer" => self.is_int(),
@@ -170,7 +177,7 @@ impl Type {
 
             _ if self.is_adt() => {
                 let adt = self.as_adt().borrow();
-                match (&marker[..], &adt.ty) {
+                match (&lexeme[..], &adt.ty) {
                     ("Class", ADTType::Class { .. })
                     | ("Interface", ADTType::Interface { .. })
                     | ("Enum", ADTType::Enum { .. })

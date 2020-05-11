@@ -289,5 +289,5 @@ pub struct GenericParam {
     /// The name of the parameter
     pub name: Token,
     /// Optional bounds of types substituting it
-    pub bound: Option<Token>,
+    pub bound: Option<Type>,
 }

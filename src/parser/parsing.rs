@@ -988,7 +988,7 @@ impl Parser {
                 if self.matches(TType::Colon) {
                     generics_vec.push(GenericParam {
                         name: type_,
-                        bound: Some(self.consume(TType::Identifier, "Expected bound after ':'.")?),
+                        bound: Some(self.type_("Expected bound after ':'.")?),
                     });
                 } else {
                     generics_vec.push(GenericParam {
