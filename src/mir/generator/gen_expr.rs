@@ -146,7 +146,7 @@ impl MIRGenerator {
         self.binary_mir(left, operator, right)
     }
 
-    fn binary_mir(&mut self, left: Expr, operator: &Token, right: Expr) -> Res<Expr> {
+    fn binary_mir(&mut self, left: Expr, operator: &Token, mut right: Expr) -> Res<Expr> {
         let left_ty = left.get_type();
         let right_ty = right.get_type();
 
@@ -162,7 +162,7 @@ impl MIRGenerator {
             }
         } else {
             let method_var = self
-                .get_operator_overloading_method(operator.t_type, &left_ty, &right_ty)
+                .get_operator_overloading_method(operator.t_type, &left_ty, &mut right)
                 .or_err(
                     &self.builder.path,
                     operator,
@@ -549,13 +549,13 @@ impl MIRGenerator {
         ast_value: &ASTExpr,
     ) -> Res<Expr> {
         let obj = self.expression(indexed)?;
-        let index = self.expression(ast_index)?;
+        let mut index = self.expression(ast_index)?;
         let value = self.expression(ast_value)?;
         let method = self
             .get_operator_overloading_method(
                 TType::RightBracket,
                 &obj.get_type(),
-                &index.get_type(),
+                &mut index,
             )
             .or_err(
                 &self.builder.path,

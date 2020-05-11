@@ -455,7 +455,7 @@ impl MIRGenerator {
         &self,
         op: TType,
         left_ty: &Type,
-        right_ty: &Type,
+        right: &mut Expr,
     ) -> Option<Rc<Variable>> {
         let proto = INTRINSICS.with(|i| i.borrow().get_op_iface(op))?;
         let iface_impls = get_iface_impls(left_ty)?;
@@ -465,7 +465,9 @@ impl MIRGenerator {
             match im.iface.borrow().ty {
                 ADTType::Interface { proto: Some(ref p) } if Rc::ptr_eq(&proto, &p) => {
                     let method = im.methods.get_index(0).unwrap().1;
-                    if &method.type_.as_function().borrow().parameters[1].type_ == right_ty {
+                    let ty = &method.type_.as_function().borrow().parameters[1].type_;
+                    self.try_cast_in_place(right, ty);
+                    if *ty == right.get_type() {
                         return Some(method).cloned();
                     }
                 }

@@ -1,5 +1,4 @@
-import std/intrinsics/build_string_literal
-import std/intrinsics/sprintf
+import std/intrinsics/+
 import std/math/max
 import std/memory/+
 import std/ops/Add
@@ -48,7 +47,7 @@ class String {
     /// Returns itself for easy chaining.
     func append(other: String) -> String {
         this.reserve(other.length)
-        copy_ptr(other.ptr, index_ptr(this.ptr, this.len()), other.length)
+        copy_ptr(other.ptr, index_ptr(this.ptr, this.length), other.length)
         this.length = this.length + other.len()
         this
     }
@@ -60,6 +59,7 @@ class String {
         this.capacity = this.length + amount
         val new_ptr = allocate::<i8>(this.capacity)
         copy_ptr(this.ptr, new_ptr, this.length)
+        drop(this.ptr)
         this.ptr = new_ptr
     }
 }
@@ -104,7 +104,7 @@ impl ToString for bool {
 impl ToString for i64 {
     func to_string() -> String {
         var buffer = String(21)
-        sprintf(buffer.ptr, "%ld".ptr, this)
+        buffer.length = sprintf(buffer.ptr, "%ld".ptr, this)
         buffer
     }
 }
@@ -112,7 +112,7 @@ impl ToString for i64 {
 impl ToString for i32 {
     func to_string() -> String {
         var buffer = String(12)
-        sprintf(buffer.ptr, "%d".ptr, this)
+        buffer.length = sprintf(buffer.ptr, "%d".ptr, this)
         buffer
     }
 }
@@ -120,7 +120,7 @@ impl ToString for i32 {
 impl ToString for i16 {
     func to_string() -> String {
         var buffer = String(6)
-        sprintf(buffer.ptr, "%d".ptr, this)
+        buffer.length = sprintf(buffer.ptr, "%d".ptr, this)
         buffer
     }
 }
@@ -128,7 +128,7 @@ impl ToString for i16 {
 impl ToString for i8 {
     func to_string() -> String {
         var buffer = String(4)
-        sprintf(buffer.ptr, "%d".ptr, this)
+        buffer.length = sprintf(buffer.ptr, "%d".ptr, this)
         buffer
     }
 }
@@ -136,7 +136,7 @@ impl ToString for i8 {
 impl ToString for f64 {
     func to_string() -> String {
         var buffer = String(40)
-        sprintf(buffer.ptr, "%g".ptr, this)
+        buffer.length = snprintf(buffer.ptr, 40, "%g".ptr, this)
         buffer
     }
 }
@@ -144,7 +144,7 @@ impl ToString for f64 {
 impl ToString for f32 {
     func to_string() -> String {
         var buffer = String(40)
-        sprintf(buffer.ptr, "%g".ptr, this)
+        buffer.length = snprintf(buffer.ptr, 40, "%g".ptr, this)
         buffer
     }
 }

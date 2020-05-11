@@ -61,6 +61,9 @@ extern func puts(s: *i8)
 /// libc sprintf
 extern variadic func sprintf(buf: *i8, format: *i8) -> i64
 
+/// libc snprintf
+extern variadic func snprintf(buf: *i8, max: i64, format: *i8) -> i64
+
 /// regular malloc, allocating the given amount of bytes
 /// on the heap and returning a pointer.
 extern func malloc(size: i64) -> i64
