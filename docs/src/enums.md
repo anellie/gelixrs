@@ -1,6 +1,6 @@
 # Enums
 
-The last and most powerful data type is enums.
+The most powerful data type in gelix is enums.
 
 Compared to simple enums in languages like Java or C++, gelix enums can contain data,
 which makes them incredibly powerful.
@@ -69,3 +69,24 @@ func print_values(a: Value, b: Value:Int) {
     }
     // Since all cases are covered, this will evalute to a string!
 }
+```
+
+### Simple Cases
+
+Lastly, sometimes when instancing emum cases you need to omit the `()`. This is the case when:
+- The enum itself does not have any members
+- The case is empty (like `Value:None` above)
+
+When this is the case, simply omit the parenthesis:
+
+```java
+enum Maybe {
+    case Some(val a: String) 
+    case None
+}
+
+func main() {
+    val a = Maybe:None
+    if (a is Maybe:None) print("OK!")
+}
+```

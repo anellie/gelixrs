@@ -158,7 +158,7 @@ impl ADT {
                             Rc::clone(&case_name),
                             Self::enum_parent(
                                 Self::from_ast(c, context.clone(), None),
-                                no_body,
+                                no_body && mem_size == 0,
                                 &adt,
                             ),
                         )
@@ -170,16 +170,16 @@ impl ADT {
         adt
     }
 
-    fn enum_parent(child: MutRc<ADT>, no_body: bool, parent: &MutRc<ADT>) -> MutRc<ADT> {
+    fn enum_parent(child: MutRc<ADT>, simple: bool, parent: &MutRc<ADT>) -> MutRc<ADT> {
         child.borrow_mut().ty = ADTType::EnumCase {
             parent: Rc::clone(parent),
-            no_body,
+            simple,
         };
         child
     }
 
     pub fn get_singleton_inst(inst: &MutRc<ADT>) -> Option<Expr> {
-        if let ADTType::EnumCase { no_body, .. } = &inst.borrow().ty {
+        if let ADTType::EnumCase { simple: no_body, .. } = &inst.borrow().ty {
             if *no_body {
                 Some(Expr::alloc_type(
                     Type::Adt(Rc::clone(inst)),
@@ -245,7 +245,7 @@ pub enum ADTType {
     },
 
     /// An enum with known case.
-    EnumCase { parent: MutRc<ADT>, no_body: bool },
+    EnumCase { parent: MutRc<ADT>, simple: bool },
 }
 
 impl ADTType {

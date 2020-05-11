@@ -1,0 +1,23 @@
+// C-ERR
+
+func main() {
+    val a = A:A
+    if (a is A:B) print("bad")
+    if (a is A:A) print("good")
+
+    when (a) {
+        A:A -> print("good")
+        A:B -> print("no")
+        else -> print("bad")
+    }
+}
+
+enum A {
+
+    val a: i64
+
+    case A
+    case B
+    case C
+
+}

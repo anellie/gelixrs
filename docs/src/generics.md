@@ -52,6 +52,37 @@ func test(a: Wrapper<i64>) {
 }
 ```
 
+### Generic Bounds
+
+While generics on their own are quite useful, you sometimes want to restrict the 
+types you can use for generic arguments. For this, gelix has generic bounds.
+
+These bounds allow you to set an interface a type must implement.
+
+```java
+// Imports are discussed in more detail later.
+import std/string/ToString
+
+// Generic bounds go after the name, separated by a colon:
+func say<T: ToString>(a: T) {
+    // (This works because strings allow adding implementors of ToString to them.)
+    print("it says: " + a)
+}
+
+class A {}
+
+func main() {
+    say("Hello!")
+    say(34)
+
+    // This would cause a compile error, as `A` does not implement ToString:
+    say(A())
+}
+``` 
+
+Additionally to interface bounds, there are also markers that can be used as 
+generic bounds, like `Primitive` or `Class`. See [here](gen_markers.md) for a full list.
+
 This is basically all there is to gelix generics - because gelix compiles down to machine code,
 generic type instances are considered entirely different and behave closer to C++ templates
 than to generics like Java's.

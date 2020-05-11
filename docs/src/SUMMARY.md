@@ -22,3 +22,4 @@
 - [Appendix](appendix.md)
     - [Builtin Types](native_types.md)
     - [Operators](operators.md)
+    - [Generic Markers](gen_markers.md)
