@@ -201,7 +201,7 @@ impl Type {
 
             // Enum case to enum cast
             Type::Adt(adt) => match (&adt.borrow().ty, other) {
-                (ADTType::EnumCase { parent }, Type::Adt(adt)) if Rc::ptr_eq(parent, adt) => {
+                (ADTType::EnumCase { parent, .. }, Type::Adt(adt)) if Rc::ptr_eq(parent, adt) => {
                     return true
                 }
                 _ => (),

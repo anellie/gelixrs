@@ -61,7 +61,7 @@ impl MIRGenerator {
                 Err(self.err(name, "Can only call generic methods directly"))
             }
 
-            ASTExpr::GetStatic { object, name } => self.get_static(object, name),
+            ASTExpr::GetStatic { object, name } => self.get_static(object, name, true),
 
             ASTExpr::If {
                 condition,
@@ -133,7 +133,16 @@ impl MIRGenerator {
 
     fn binary(&mut self, left: &ASTExpr, operator: &Token, right: &ASTExpr) -> Res<Expr> {
         let left = self.expression(left)?;
-        let right = self.expression(right)?;
+
+        // Account for an edge case with simple enums, where `A:A` incorrectly gets
+        // turned into a regular value instead of a type get.
+        let right = match right {
+            ASTExpr::GetStatic { object, name } if operator.t_type == TType::Is => {
+                self.get_static(object, name, false)
+            }
+            _ => self.expression(right),
+        }?;
+
         self.binary_mir(left, operator, right)
     }
 
@@ -437,12 +446,16 @@ impl MIRGenerator {
         Ok(Expr::struct_get(object, &field))
     }
 
-    fn get_static(&mut self, object: &ASTExpr, name: &Token) -> Res<Expr> {
+    // See `binary` for info on `allow_simple`
+    fn get_static(&mut self, object: &ASTExpr, name: &Token, allow_simple: bool) -> Res<Expr> {
         let obj = self.expression(object)?;
         if let Type::Type(ty) = obj.get_type() {
             if let ADTType::Enum { cases, .. } = &ty.as_adt().borrow().ty {
                 if let Some(case) = cases.get(&name.lexeme) {
-                    Ok(Expr::type_get(Type::Adt(Rc::clone(case))))
+                    match ADT::get_singleton_inst(case) {
+                        Some(inst) if allow_simple => Ok(inst),
+                        _ => Ok(Expr::type_get(Type::Adt(Rc::clone(case)))),
+                    }
                 } else {
                     Err(self.err(name, "Unknown enum case."))
                 }
@@ -830,7 +843,13 @@ impl MIRGenerator {
         cond_type: &Type,
         branch: &(ASTExpr, ASTExpr),
     ) -> Res<(Expr, Expr)> {
-        let br_cond = self.expression(&branch.0)?;
+        // See note on `binary` about this
+        let br_cond = match &branch.0 {
+            ASTExpr::GetStatic { object, name } => {
+                self.get_static(object, name, false)
+            }
+            _ => self.expression(&branch.0),
+        }?;
         let br_type = br_cond.get_type();
         if &br_type != cond_type && !br_type.is_type() {
             return Err(self.err(

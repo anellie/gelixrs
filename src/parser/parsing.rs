@@ -219,7 +219,7 @@ impl Parser {
         let mut variables: Vec<ADTMember> = Vec::new();
         let mut constructors: Vec<Constructor> = Vec::new();
 
-        if self.matches(TType::LeftBrace) {
+        let no_body = if self.matches(TType::LeftBrace) {
             while !self.check(TType::RightBrace) && !self.is_at_end() {
                 self.consume_mods();
                 match self.advance().t_type {
@@ -234,6 +234,7 @@ impl Parser {
                 }
             }
             self.consume(TType::RightBrace, "Expected '}' after case body.")?;
+            false
         } else if self.matches(TType::LeftParen) {
             while !self.check(TType::RightParen) && !self.is_at_end() {
                 self.consume_mods();
@@ -267,8 +268,12 @@ impl Parser {
                 visibility: Visibility::Public,
                 parameters: variables.iter().map(|m| (m.name.clone(), None)).collect(),
                 body: None,
-            })
-        }
+            });
+
+            false
+        } else {
+            true
+        };
 
         Some(ADT {
             name,
@@ -279,6 +284,7 @@ impl Parser {
                 variables,
                 constructors,
                 case_name,
+                no_body,
             },
         })
     }

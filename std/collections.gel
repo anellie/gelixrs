@@ -65,7 +65,7 @@ class Array<E> {
     }
 
     func pop() -> Opt<E> {
-        if (this.len == 0) return Opt::<E>:None()
+        if (this.len == 0) return Opt::<E>:None
 
         this.len = this.len - 1
         val value = this.get(this.len)

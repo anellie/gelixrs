@@ -4,7 +4,7 @@ good
 */
 
 func main() {
-    val a = A:A()
+    val a = A:A
     if (a is A:B) print("bad")
     if (a is A:A) print("good")
 

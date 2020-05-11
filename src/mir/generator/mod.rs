@@ -536,7 +536,10 @@ impl MIRGenerator {
 
                 if left_ty == right_ty {
                     return (Some(left_ty), left, right);
-                } else if let (ADTType::EnumCase { parent: p1 }, ADTType::EnumCase { parent: p2 }) = (
+                } else if let (
+                    ADTType::EnumCase { parent: p1, .. },
+                    ADTType::EnumCase { parent: p2, .. },
+                ) = (
                     &left_ty.as_adt().borrow().ty,
                     &right_ty.as_adt().borrow().ty,
                 ) {

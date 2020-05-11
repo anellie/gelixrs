@@ -145,14 +145,22 @@ impl ADT {
                 cases: cases
                     .into_iter()
                     .map(|c| {
-                        let case_name = if let ast::ADTType::EnumCase { case_name, .. } = &c.ty {
-                            case_name
-                        } else {
-                            panic!()
-                        };
+                        let (case_name, no_body) =
+                            if let ast::ADTType::EnumCase {
+                                case_name, no_body, ..
+                            } = &c.ty
+                            {
+                                (case_name, *no_body)
+                            } else {
+                                panic!()
+                            };
                         (
                             Rc::clone(&case_name),
-                            Self::enum_parent(Self::from_ast(c, context.clone(), None), &adt),
+                            Self::enum_parent(
+                                Self::from_ast(c, context.clone(), None),
+                                no_body,
+                                &adt,
+                            ),
                         )
                     })
                     .collect(),
@@ -162,11 +170,28 @@ impl ADT {
         adt
     }
 
-    fn enum_parent(child: MutRc<ADT>, parent: &MutRc<ADT>) -> MutRc<ADT> {
+    fn enum_parent(child: MutRc<ADT>, no_body: bool, parent: &MutRc<ADT>) -> MutRc<ADT> {
         child.borrow_mut().ty = ADTType::EnumCase {
             parent: Rc::clone(parent),
+            no_body,
         };
         child
+    }
+
+    pub fn get_singleton_inst(inst: &MutRc<ADT>) -> Option<Expr> {
+        if let ADTType::EnumCase { no_body, .. } = &inst.borrow().ty {
+            if *no_body {
+                Some(Expr::alloc_type(
+                    Type::Adt(Rc::clone(inst)),
+                    &inst.borrow().constructors[0],
+                    vec![],
+                ))
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 }
 
@@ -220,7 +245,7 @@ pub enum ADTType {
     },
 
     /// An enum with known case.
-    EnumCase { parent: MutRc<ADT> },
+    EnumCase { parent: MutRc<ADT>, no_body: bool },
 }
 
 impl ADTType {
@@ -238,6 +263,7 @@ impl ADTType {
             _ => true,
         }
     }
+
     /// Returns the cases of an enum type.
     /// Use on any other type will result in a panic.
     pub fn cases(&self) -> &HashMap<Rc<String>, MutRc<ADT>> {

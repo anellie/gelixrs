@@ -107,6 +107,8 @@ pub enum ADTType {
         constructors: Vec<Constructor>,
         // The name of the case without the parent before it
         case_name: Rc<String>,
+        // If this case has no body, and is simply `case Name`
+        no_body: bool,
     },
 }
 
