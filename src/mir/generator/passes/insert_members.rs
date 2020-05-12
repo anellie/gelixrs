@@ -7,7 +7,9 @@
 use std::rc::Rc;
 
 use crate::{
+    ast::Literal,
     error::Res,
+    lexer::token::TType,
     mir::{
         generator::{
             intrinsics::INTRINSICS,
@@ -15,10 +17,11 @@ use crate::{
             MIRGenerator,
         },
         get_iface_impls,
-        nodes::{ADTMember, Expr, Type, ADT},
+        nodes::{ADTMember, ADTType, Expr, Type, ADT},
         MutRc,
     },
 };
+use std::collections::HashMap;
 
 /// This pass fills all ADTs with their members
 /// and creates their internal init function.
@@ -148,13 +151,17 @@ fn build_destructor(gen: &mut MIRGenerator, adt: &MutRc<ADT>) {
     }
 
     let adt = adt.borrow();
-    for field in adt.members.values() {
-        if_free_exprs.push(Expr::mod_rc(
-            Expr::struct_get(Expr::load(&adt_variable), field),
-            true,
-        ));
+    if let ADTType::Enum { cases } = &adt.ty {
+        if_free_exprs.push(build_enum_destructor(Expr::load(&adt_variable), cases))
+    } else {
+        for field in adt.members.values() {
+            if_free_exprs.push(Expr::mod_rc(
+                Expr::struct_get(Expr::load(&adt_variable), field),
+                true,
+            ));
+        }
+        if_free_exprs.push(Expr::Free(Box::new(Expr::load(&adt_variable))));
     }
-    if_free_exprs.push(Expr::Free(Box::new(Expr::load(&adt_variable))));
 
     gen.insert_at_ptr(Expr::if_(
         Expr::load(&dealloc_var),
@@ -162,6 +169,24 @@ fn build_destructor(gen: &mut MIRGenerator, adt: &MutRc<ADT>) {
         Expr::none_const(),
         false,
     ));
+}
+
+/// Builds an enum destrructor. Instead of just decrementing all
+/// members, an enum destructor must instead switch on itself
+/// to figure out which case destructor to call.
+fn build_enum_destructor(enu: Expr, cases: &HashMap<Rc<String>, MutRc<ADT>>) -> Expr {
+    let mut when_brs = Vec::with_capacity(cases.len());
+    for case in cases.values() {
+        let case_ty = Type::Adt(Rc::clone(&case));
+        // `then` and `cond` are in reverse order to prevent a "use after move" borrowck error
+        let then = Expr::call(
+            Expr::load(case.borrow().destructor.as_ref().unwrap()),
+            vec![Expr::cast(enu.clone(), &case_ty), Expr::Literal(Literal::Bool(true))],
+        );
+        let cond = Expr::binary(enu.clone(), TType::Is, Expr::type_get(case_ty));
+        when_brs.push((cond, then))
+    }
+    Expr::when(when_brs, None, Type::None)
 }
 
 fn check_duplicate(gen: &mut MIRGenerator, adt: &MutRc<ADT>) -> Res<()> {

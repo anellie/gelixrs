@@ -4,9 +4,16 @@ import std/intrinsics/+
 public func size_of<T>() -> i64 = gelixrs_get_type_size::<T>()
 
 /// This interface allows implementing custom behavior
-/// when a value is freed.
+/// right before a value is freed by the GC.
 /// This can be used for multiple purposes like
 /// RAII locks or freeing memory not tracked by gelix.
+///
+/// Since gelix's GC uses reference counting, a value
+/// is immediately deallocated once unreachable.
+///
+/// A note for enums: If both an enum and a child case
+/// implement this interface, the order is:
+/// enum.free() -> enum_case.free() -> deallocation
 interface Free {
     /// This method is called before a value is deallocated.
     /// When implemented on aggregate value types like classes,

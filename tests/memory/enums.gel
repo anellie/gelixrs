@@ -1,0 +1,22 @@
+/*
+Hello
+*/
+
+enum E {
+
+    val a = "Hello"
+
+    case A(var b: String)
+}
+
+func main() {
+    a(c(E:A("Goodbye")))
+}
+
+func a(a: E) {
+    print(a.a)
+}
+
+func c(a: E) -> E {
+    a
+}
