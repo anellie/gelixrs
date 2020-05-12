@@ -125,7 +125,7 @@ Lastly, a few notes:
 
 - If you need to cast `Thing` to `^Thing`, use `std/memory/load_value`.
 - If you need a `*Thing`, you can use `std/ptr/allocate`.
-
+- If you need to define a variadic function, use the `variadic` modifier.
 
 With this, you should hopefully be able to efficiently use C code in your
 gelix application.

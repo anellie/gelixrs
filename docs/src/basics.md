@@ -39,6 +39,14 @@ To call your function, you can simply use regular C-style syntax:
 add(2, 7) // returns 9
 ```
 
+Since the above `add` function is a little verbose, you can use single expression
+function syntax for a smaller function:
+
+```java
+// Equal to the add function above
+func add(a: i64, b: i64) -> i64 = a + b
+```
+
 Lastly, note that `main` is a special function name - you may not have more than one main function
 in your code. `main` must not have any parameters or a return type. 
 It is the function that is called when your program starts.
@@ -63,4 +71,3 @@ func main() {
     print(name)
 }
 ```
-
