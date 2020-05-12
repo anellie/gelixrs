@@ -19,8 +19,8 @@ import std/ops/+
 // print([2, 123, 312][1]) // prints 123
 class Array<E> {
 
-    var len = 0
-    var capacity: i64
+    var len: usize
+    var capacity: usize
     var ptr: *E
 
     /// Construct an empty array with the given capacity.
@@ -28,20 +28,19 @@ class Array<E> {
     /// capacity of 0 results in no allocation until first insertion.
     construct(capacity) {
         this.ptr = allocate::<E>(capacity)
+        this.len = 0
     }
 
     /// Simply construct an array out of raw parts.
     /// Rarely useful, unless dealing with low-level code.
-    construct(len: i64, capacity, ptr) {
-        this.len = len
-    }
+    construct(len, capacity, ptr)
 
-    func get(index: i64) -> E {
+    func get(index: usize) -> E {
         if (index >= this.len) panic("Array index out of bounds!")
         load_value_index(this.ptr, index)
     }
 
-    func set(index: i64, element: E) -> E {
+    func set(index: usize, element: E) -> E {
         if (index >= this.len) panic("Array index out of bounds!")
 
         val old_elem = this.get(index)
@@ -96,14 +95,14 @@ impl Free for Array<E> {
     }
 }
 
-impl IndexGet<i64, E> for Array<E> {
-    func index_get(index: i64) -> E {
+impl IndexGet<usize, E> for Array<E> {
+    func index_get(index: usize) -> E {
         this.get(index)
     }
 }
 
-impl IndexSet<i64, E> for Array<E> {
-    func index_set(index: i64, value: E) {
+impl IndexSet<usize, E> for Array<E> {
+    func index_set(index: usize, value: E) {
         this.set(index, value)
     }
 }

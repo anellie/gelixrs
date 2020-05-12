@@ -8,8 +8,9 @@ Notes:
 
 - "Overload" in the below tables refers to the interface in `std/ops` 
 that allows implementing the operator on custom types
-- `int` refers to all integer types, `float` to all floating point types
 - `num` refers to booleans and all integer and floating point types
+- `snum` refers to signed integers
+- `float` refers to all float types
 
 ## Binary operators
 
@@ -34,5 +35,6 @@ Logic Or [1] | or | `bool` | `true or false == true` | ---
 Name | S | Types | Example | Overload
 --- | --- | --- | --- | ---
 Not | ! | `bool` | `!true == false` | ---
+Negate | - | `snum` `float` | `-(4) == -4` | ---
 IndexGet | [] | --- | `a[b]` | `IndexGet<I, T>`
 IndexSet | [] = | --- | `a[b] = c` | `IndexSet<I, T>`

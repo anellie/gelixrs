@@ -114,6 +114,19 @@ impl MIRBuilder {
             "i16" => Type::I16,
             "i32" => Type::I32,
             "i64" => Type::I64,
+            #[cfg(target_pointer_width = "64")]
+            "isize" => Type::I64,
+            #[cfg(not(target_pointer_width = "64"))]
+            "isize" => Type::I32,
+
+            "u8" => Type::U8,
+            "u16" => Type::U16,
+            "u32" => Type::U32,
+            "u64" => Type::U64,
+            #[cfg(target_pointer_width = "64")]
+            "usize" => Type::U64,
+            #[cfg(not(target_pointer_width = "64"))]
+            "usize" => Type::U32,
 
             "f32" => Type::F32,
             "f64" => Type::F64,

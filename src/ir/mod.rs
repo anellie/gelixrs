@@ -258,6 +258,10 @@ impl IRGenerator {
         Self::insert_primitive(&mut types, Type::I16, context.i16_type().into(), null_ptr);
         Self::insert_primitive(&mut types, Type::I32, context.i32_type().into(), null_ptr);
         Self::insert_primitive(&mut types, Type::I64, context.i64_type().into(), null_ptr);
+        Self::insert_primitive(&mut types, Type::U8, context.i8_type().into(), null_ptr);
+        Self::insert_primitive(&mut types, Type::U16, context.i16_type().into(), null_ptr);
+        Self::insert_primitive(&mut types, Type::U32, context.i32_type().into(), null_ptr);
+        Self::insert_primitive(&mut types, Type::U64, context.i64_type().into(), null_ptr);
 
         Self::insert_primitive(&mut types, Type::F32, context.f32_type().into(), null_ptr);
         Self::insert_primitive(&mut types, Type::F64, context.f64_type().into(), null_ptr);

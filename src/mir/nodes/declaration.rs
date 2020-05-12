@@ -179,7 +179,10 @@ impl ADT {
     }
 
     pub fn get_singleton_inst(inst: &MutRc<ADT>) -> Option<Expr> {
-        if let ADTType::EnumCase { simple: no_body, .. } = &inst.borrow().ty {
+        if let ADTType::EnumCase {
+            simple: no_body, ..
+        } = &inst.borrow().ty
+        {
             if *no_body {
                 Some(Expr::alloc_type(
                     Type::Adt(Rc::clone(inst)),

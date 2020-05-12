@@ -141,8 +141,8 @@ impl Lexer {
             self.match_next('f');
             self.make_token(TType::Float)
         } else {
-            if self.match_next('i') {
-                while self.peek().is_ascii_digit() {
+            if self.match_next('i') || self.match_next('u') {
+                while self.peek().is_ascii_alphanumeric() {
                     self.advance();
                 }
             }

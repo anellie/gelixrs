@@ -1,0 +1,9 @@
+/*
+false
+-4
+*/
+
+func main() {
+    print(!true)
+    print(-(4))
+}

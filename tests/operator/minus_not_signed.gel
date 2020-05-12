@@ -1,0 +1,6 @@
+// C-ERR
+
+func main() {
+    print(!true)
+    print(-(4usize))
+}

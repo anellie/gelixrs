@@ -1,9 +1,9 @@
-/// Returns the maximum of the 2 given integers.
-func max(a: i64, b: i64) -> i64 {
+/// Returns the maximum of the 2 given values.
+func max<T: Number>(a: T, b: T) -> T {
     if (a > b) a else b
 }
 
-/// Returns the minimum of the 2 given integers.
-func min(a: i64, b: i64) -> i64 {
+/// Returns the minimum of the 2 given value.
+func min<T: Number>(a: T, b: T) -> T {
     if (a < b) a else b
 }

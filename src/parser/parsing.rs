@@ -941,18 +941,48 @@ impl Parser {
 
     fn integer(&mut self) -> Option<Expression> {
         let token = self.advance();
-        let clone = (*token.lexeme).clone();
-        let mut split = clone.split('i');
-        self.make_int_literal(split.next().unwrap(), split.next().unwrap_or("64"), token)
+        let clone = Rc::clone(&token.lexeme);
+
+        // Search for 'i' or 'u' indicating literal type
+        let search = clone
+            .chars()
+            .enumerate()
+            .find(|(_, c)| *c == 'i' || *c == 'u')
+            .unwrap_or((clone.len(), 'i'));
+        let signed = search.1 == 'i';
+        let int = &clone[0..search.0];
+        let width = clone.get((search.0 + 1)..);
+
+        self.make_int_literal(int, width.unwrap_or("size"), signed, token)
     }
 
-    fn make_int_literal(&mut self, num: &str, type_: &str, tok: Token) -> Option<Expression> {
+    fn make_int_literal(
+        &mut self,
+        num: &str,
+        type_: &str,
+        signed: bool,
+        tok: Token,
+    ) -> Option<Expression> {
         Some(Expression::Literal(
-            match &type_[..] {
-                "8" => Literal::I8(num.parse().ok()?),
-                "16" => Literal::I16(num.parse().ok()?),
-                "32" => Literal::I32(num.parse().ok()?),
-                "64" => Literal::I64(num.parse().ok()?),
+            match (&type_[..], signed) {
+                ("8", true) => Literal::I8(num.parse().ok()?),
+                ("16", true) => Literal::I16(num.parse().ok()?),
+                ("32", true) => Literal::I32(num.parse().ok()?),
+                ("64", true) => Literal::I64(num.parse().ok()?),
+                #[cfg(target_pointer_width = "64")]
+                ("size", true) => Literal::I64(num.parse().ok()?),
+                #[cfg(not(target_pointer_width = "64"))]
+                ("size", true) => Literal::I32(num.parse().ok()?),
+
+                ("8", false) => Literal::U8(num.parse().ok()?),
+                ("16", false) => Literal::U16(num.parse().ok()?),
+                ("32", false) => Literal::U32(num.parse().ok()?),
+                ("64", false) => Literal::U64(num.parse().ok()?),
+                #[cfg(target_pointer_width = "64")]
+                ("size", false) => Literal::U64(num.parse().ok()?),
+                #[cfg(not(target_pointer_width = "64"))]
+                ("size", false) => Literal::U32(num.parse().ok()?),
+
                 _ => {
                     self.error_at_current("Invalid integer size.")?;
                     return None;

@@ -1,0 +1,11 @@
+/*
+*/
+
+class A {
+    var a = 4
+}
+
+func main() {
+    val a = A()
+    a.a = 4i32
+}

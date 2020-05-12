@@ -46,6 +46,12 @@ pub enum Type {
     I32,
     I64,
 
+    /// Unsigned integer types from 8 to 64 bit width.
+    U8,
+    U16,
+    U32,
+    U64,
+
     /// Floating-point numbers with 32 and 64 bit width.
     F32,
     F64,
@@ -87,7 +93,7 @@ pub enum Type {
 impl Type {
     /// A list of all primitive types that are not defined in any gelix code,
     /// but are instead indirectly globally defined.
-    pub fn primitives() -> [Type; 8] {
+    pub fn primitives() -> [Type; 12] {
         [
             Type::None,
             Type::Bool,
@@ -95,6 +101,10 @@ impl Type {
             Type::I16,
             Type::I32,
             Type::I64,
+            Type::U8,
+            Type::U16,
+            Type::U32,
+            Type::U64,
             Type::F32,
             Type::F64,
         ]
@@ -120,8 +130,21 @@ impl Type {
 
     /// Is this type an integer?
     pub fn is_int(&self) -> bool {
+        self.is_signed_int() || self.is_unsigned_int() || self.is_bool()
+    }
+
+    /// Is this type a signed integer?
+    pub fn is_signed_int(&self) -> bool {
         match self {
-            Type::Bool | Type::I8 | Type::I16 | Type::I32 | Type::I64 => true,
+            Type::I8 | Type::I16 | Type::I32 | Type::I64 => true,
+            _ => false,
+        }
+    }
+
+    /// Is this type an unsigned integer?
+    pub fn is_unsigned_int(&self) -> bool {
+        match self {
+            Type::U8 | Type::U16 | Type::U32 | Type::U64 => true,
             _ => false,
         }
     }
@@ -170,6 +193,8 @@ impl Type {
             "Primitive" => self.is_primitive(),
             "Number" => self.is_number(),
             "Integer" => self.is_int(),
+            "SignedInt" => self.is_signed_int(),
+            "UnsignedInt" => self.is_unsigned_int(),
             "Float" => self.is_float(),
 
             "IsPointer" => self.is_ptr(),

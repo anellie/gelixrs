@@ -2,11 +2,9 @@
 5
 */
 
-import std/intrinsics/sprintf
-
 func main() {
     // Variadic can only be on external functions.
-    // ToString on i64 uses sprintf, which is variadic;
-    // so this test will fail if sprintf fails to compile.
+    // ToString on isize uses snprintf, which is variadic;
+    // so this test will fail if snprintf fails to compile.
     print(5)
 }

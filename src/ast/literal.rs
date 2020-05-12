@@ -32,6 +32,11 @@ pub enum Literal {
     I32(u32),
     I64(u64),
 
+    U8(u8),
+    U16(u16),
+    U32(u32),
+    U64(u64),
+
     F32(f32),
     F64(f64),
 
@@ -52,9 +57,13 @@ impl Display for Literal {
             Literal::I8(num) => write!(f, "{}i8", num),
             Literal::I16(num) => write!(f, "{}i16", num),
             Literal::I32(num) => write!(f, "{}i32", num),
-            Literal::I64(num) => write!(f, "{}", num),
-            Literal::F32(num) => write!(f, "{}f", num),
-            Literal::F64(num) => write!(f, "{}d", num),
+            Literal::I64(num) => write!(f, "{}i64", num),
+            Literal::U8(num) => write!(f, "{}u8", num),
+            Literal::U16(num) => write!(f, "{}u16", num),
+            Literal::U32(num) => write!(f, "{}u32", num),
+            Literal::U64(num) => write!(f, "{}u64", num),
+            Literal::F32(num) => write!(f, "{}f32", num),
+            Literal::F64(num) => write!(f, "{}f64", num),
             Literal::Char(ch) => write!(f, "'{}'", ch),
             Literal::String(st) => write!(f, "\"{}\"", st),
             Literal::Array(_) => write!(f, "<array literal>"),

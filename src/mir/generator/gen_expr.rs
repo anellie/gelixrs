@@ -114,6 +114,7 @@ impl MIRGenerator {
             &format!("Variable '{}' is not defined", name.lexeme),
         )?;
         let value = self.expression(value)?;
+        let value = self.try_cast(value, &var.type_);
         let val_ty = value.get_type();
 
         if val_ty == var.type_ && var.mutable {
@@ -121,12 +122,12 @@ impl MIRGenerator {
         } else if var.mutable {
             Err(self.err(
                 &name,
-                &format!("Variable {} is not assignable (val)", name.lexeme),
+                &format!("Variable {} is a different type", name.lexeme),
             ))
         } else {
             Err(self.err(
                 &name,
-                &format!("Variable {} is a different type", name.lexeme),
+                &format!("Variable {} is not assignable (val)", name.lexeme),
             ))
         }
     }
@@ -552,11 +553,7 @@ impl MIRGenerator {
         let mut index = self.expression(ast_index)?;
         let value = self.expression(ast_value)?;
         let method = self
-            .get_operator_overloading_method(
-                TType::RightBracket,
-                &obj.get_type(),
-                &mut index,
-            )
+            .get_operator_overloading_method(TType::RightBracket, &obj.get_type(), &mut index)
             .or_err(
                 &self.builder.path,
                 ast_index.get_token(),
@@ -715,6 +712,7 @@ impl MIRGenerator {
             .left()
             .or_err(&self.builder.path, name, "Cannot set class method")?;
         let value = self.expression(value)?;
+        let value = self.try_cast(value, &field.type_);
 
         if value.get_type() != field.type_ {
             return Err(self.err(name, "Class member is a different type"));
@@ -729,11 +727,17 @@ impl MIRGenerator {
 
     fn unary(&mut self, operator: &Token, right: &ASTExpr) -> Res<Expr> {
         let right = self.expression(right)?;
+        let ty = right.get_type();
 
         match operator.t_type {
-            TType::Bang if right.get_type() != Type::Bool => {
+            TType::Bang if ty != Type::Bool => {
                 Err(self.err(operator, "'!' can only be used on boolean values"))
             }
+
+            TType::Minus if !(ty.is_signed_int() || ty.is_float()) => Err(self.err(
+                operator,
+                "'-' can only be used on signed integers and floats",
+            )),
 
             _ => Ok(()),
         }?;

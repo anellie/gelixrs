@@ -696,10 +696,18 @@ impl IRGenerator {
                 .const_int(*value as u64, false)
                 .into(),
 
-            Literal::I8(num) => self.context.i8_type().const_int(*num as u64, false).into(),
-            Literal::I16(num) => self.context.i16_type().const_int(*num as u64, false).into(),
-            Literal::I32(num) => self.context.i32_type().const_int(*num as u64, false).into(),
-            Literal::I64(num) => self.context.i64_type().const_int(*num as u64, false).into(),
+            Literal::I8(num) | Literal::U8(num) => {
+                self.context.i8_type().const_int(*num as u64, false).into()
+            }
+            Literal::I16(num) | Literal::U16(num) => {
+                self.context.i16_type().const_int(*num as u64, false).into()
+            }
+            Literal::I32(num) | Literal::U32(num) => {
+                self.context.i32_type().const_int(*num as u64, false).into()
+            }
+            Literal::I64(num) | Literal::U64(num) => {
+                self.context.i64_type().const_int(*num as u64, false).into()
+            }
 
             Literal::F32(num) => self.context.f32_type().const_float((*num).into()).into(),
             Literal::F64(num) => self.context.f64_type().const_float(*num).into(),

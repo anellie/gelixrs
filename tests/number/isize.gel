@@ -1,0 +1,11 @@
+/*
+23
+45
+*/
+
+func main() {
+    print(23isize)
+    a(45)
+}
+
+func a(a: isize) = print(a)

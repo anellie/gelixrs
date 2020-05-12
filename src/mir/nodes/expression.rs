@@ -18,7 +18,7 @@ use crate::{
         MutRc,
     },
 };
-use either::Either::Right;
+use either::Either::{Left, Right};
 use std::cell::Cell;
 
 /// All expressions in MIR. All of them produce a value.
@@ -390,14 +390,19 @@ impl Expr {
                 Literal::I16(_) => Type::I16,
                 Literal::I32(_) => Type::I32,
                 Literal::I64(_) => Type::I64,
+                Literal::U8(_) => Type::U8,
+                Literal::U16(_) => Type::U16,
+                Literal::U32(_) => Type::U32,
+                Literal::U64(_) => Type::U64,
                 Literal::F32(_) => Type::F32,
                 Literal::F64(_) => Type::F64,
+                Literal::Char(_) => unimplemented!(),
                 Literal::String(_) => INTRINSICS.with(|i| i.borrow().string_type.clone().unwrap()),
                 Literal::Array(Right(arr)) => INTRINSICS
                     .with(|i| i.borrow().get_array_type(arr.type_.clone(), None))
                     .ok()
                     .unwrap(),
-                _ => panic!("unknown literal"),
+                Literal::Closure(_) | Literal::Array(Left(_)) => panic!("invalid literal"),
             },
 
             Expr::ModifyRefCount { object, .. } => object.get_type(),

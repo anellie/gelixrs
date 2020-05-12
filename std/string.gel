@@ -7,8 +7,8 @@ import std/ops/Add
 /// Currently, strings are null-terminated.
 class String {
 
-    var length = 0
-    var capacity: i64
+    var length: usize
+    var capacity: usize
     var ptr: *i8
 
     /// Construct an empty string with the given capacity.
@@ -16,13 +16,12 @@ class String {
     /// capacity of 0 results in no allocation until first insertion.
     construct(capacity) {
         this.ptr = allocate::<i8>(capacity)
+        this.length = 0
     }
 
     /// Simply construct a string out of raw parts.
     /// Rarely useful, unless dealing with low-level code.
-    construct(len: i64, capacity, ptr) {
-        this.length = len
-    }
+    construct(length, capacity, ptr)
 
     /// The length of the string, in bytes.
     /// Note that byte length in UTF-8 does not
@@ -54,7 +53,7 @@ class String {
 
     /// Allocate enough memory to hold `amount` more elements.
     /// If the string already has the needed capacity, this does nothing.
-    func reserve(amount: i64) {
+    func reserve(amount: usize) {
         if (this.capacity > (this.length + amount)) return
         this.capacity = this.length + amount
         val new_ptr = allocate::<i8>(this.capacity)
@@ -101,50 +100,49 @@ impl ToString for bool {
     }
 }
 
+/// Simply creates a buffer and writes to it with sprintf.
+func sprintf_buf<T: Primitive>(buf_len: usize, format: String, value: T) -> String {
+    var buffer = String(buf_len)
+    buffer.length = snprintf(buffer.ptr, buf_len, format.ptr, value)
+    buffer
+}
+
 impl ToString for i64 {
-    func to_string() -> String {
-        var buffer = String(21)
-        buffer.length = sprintf(buffer.ptr, "%ld".ptr, this)
-        buffer
-    }
+    func to_string() -> String = sprintf_buf(21, "%ld", this)
 }
 
 impl ToString for i32 {
-    func to_string() -> String {
-        var buffer = String(12)
-        buffer.length = sprintf(buffer.ptr, "%d".ptr, this)
-        buffer
-    }
+    func to_string() -> String = sprintf_buf(12, "%d", this)
 }
 
 impl ToString for i16 {
-    func to_string() -> String {
-        var buffer = String(6)
-        buffer.length = sprintf(buffer.ptr, "%d".ptr, this)
-        buffer
-    }
+    func to_string() -> String = sprintf_buf(6, "%d", this)
 }
 
 impl ToString for i8 {
-    func to_string() -> String {
-        var buffer = String(4)
-        buffer.length = sprintf(buffer.ptr, "%d".ptr, this)
-        buffer
-    }
+    func to_string() -> String = sprintf_buf(4, "%d", this)
+}
+
+impl ToString for u64 {
+    func to_string() -> String = sprintf_buf(21, "%u", this)
+}
+
+impl ToString for u32 {
+    func to_string() -> String = sprintf_buf(12, "%u", this)
+}
+
+impl ToString for u16 {
+    func to_string() -> String = sprintf_buf(6, "%u", this)
+}
+
+impl ToString for u8 {
+    func to_string() -> String = sprintf_buf(4, "%u", this)
 }
 
 impl ToString for f64 {
-    func to_string() -> String {
-        var buffer = String(40)
-        buffer.length = snprintf(buffer.ptr, 40, "%g".ptr, this)
-        buffer
-    }
+    func to_string() -> String = sprintf_buf(40, "%g", this)
 }
 
 impl ToString for f32 {
-    func to_string() -> String {
-        var buffer = String(40)
-        buffer.length = snprintf(buffer.ptr, 40, "%g".ptr, this)
-        buffer
-    }
+    func to_string() -> String = sprintf_buf(40, "%g", this)
 }
