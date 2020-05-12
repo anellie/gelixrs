@@ -19,7 +19,7 @@ use crate::{
         generator::{
             builder::Context,
             passes::declaring_globals::{generate_mir_fn, insert_global_and_type},
-            AssociatedMethod, ForLoop, MIRGenerator,
+            AssociatedMethod, ForLoop, MIRGenerator, intrinsics::INTRINSICS
         },
         nodes::{catch_up_passes, ADTType, Expr, Type, Variable, ADT},
         result::ToMIRResult,
@@ -294,6 +294,7 @@ impl MIRGenerator {
 
                         let func = proto.build_with_parent_context(
                             proto_args,
+                            &self.module,
                             name,
                             Rc::clone(&proto),
                             &obj_ty.context().unwrap_or_else(Context::default),
@@ -599,21 +600,8 @@ impl MIRGenerator {
             values_mir.push(mir_val);
         }
 
-        let arr_proto = self
-            .module
-            .borrow()
-            .find_prototype(&"Array".to_string())
-            .unwrap();
-        let array_type: MutRc<ADT> = Rc::clone(
-            arr_proto
-                .build(
-                    vec![elem_type],
-                    &Token::generic_token(TType::RightBracket),
-                    Rc::clone(&arr_proto),
-                )?
-                .as_adt(),
-        );
-
+        let array_type = INTRINSICS.with(|i| i.borrow().get_array_type(elem_type, None))?;
+        let array_type = array_type.as_adt();
         let push_method = {
             let arr = array_type.borrow();
             Rc::clone(arr.methods.get(&Rc::new("push".to_string())).unwrap())

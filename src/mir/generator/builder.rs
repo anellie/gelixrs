@@ -100,7 +100,7 @@ impl MIRBuilder {
                     .map(|ty| self.find_type(&ty))
                     .collect::<Res<Vec<Type>>>()?;
 
-                proto.build(args, token, Rc::clone(&proto))
+                proto.build(args, &self.module, token, Rc::clone(&proto))
             }
         }
     }

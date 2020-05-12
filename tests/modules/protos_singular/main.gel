@@ -1,0 +1,11 @@
+import protos_singular/sub/sub
+import protos_singular/sub/Sub
+
+func main() {
+    val s = Sub("hmm")
+    s.b = "hello!"
+    print(s.b)
+    s.sup()
+
+    print(sub("goose"))
+}

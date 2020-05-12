@@ -57,11 +57,11 @@ impl Intrinsics {
     }
 
     /// Returns the array type for a given array literal,
-    /// building the type if needed
+    /// building the type if needed.
     pub fn get_array_type(&self, ty: Type, tok: Option<Token>) -> Res<Type> {
         let proto = self.array_proto.as_ref().cloned().unwrap();
         let err_tok = tok.unwrap_or_else(|| Token::generic_token(TType::Identifier));
-        proto.build(vec![ty], &err_tok, Rc::clone(&proto))
+        proto.build(vec![ty], &proto.module, &err_tok, Rc::clone(&proto))
     }
 
     /// Only call this with the std/ops module, containing all operator interfaces;

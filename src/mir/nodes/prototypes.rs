@@ -78,18 +78,26 @@ pub struct Prototype {
 }
 
 impl Prototype {
+    /// Build this prototype with the given arguments, returning a type.
+    /// `err_tok` should be a token used for error reporting, `self_ref`
+    /// should be this prototype itself.
+    /// `instancing_module` is a reference to the module that is
+    /// instancing this prototype (which is not always the one the prototype is in
+    /// because of imports).
     pub fn build(
         &self,
         arguments: Vec<Type>,
+        instancing_module: &MutRc<MModule>,
         err_tok: &Token,
         self_ref: Rc<Prototype>,
     ) -> Res<Type> {
-        self.build_with_parent_context(arguments, err_tok, self_ref, &Context::default())
+        self.build_with_parent_context(arguments, instancing_module, err_tok, self_ref, &Context::default())
     }
 
     pub fn build_with_parent_context(
         &self,
         arguments: Vec<Type>,
+        instancing_module: &MutRc<MModule>,
         err_tok: &Token,
         self_ref: Rc<Prototype>,
         context: &Context,
@@ -99,11 +107,16 @@ impl Prototype {
         }
 
         let name = get_name(&self.name, &arguments);
-        let ty = self.ast.create_mir(&name, &arguments, self_ref, context)?;
+        let ty = self.ast.create_mir(&name, &arguments, instancing_module, self_ref, context)?;
         let mut generator = MIRGenerator::new(MIRBuilder::new(&self.module));
 
         self.module
             .borrow_mut()
+            .types
+            .insert(Rc::clone(&name), ty.clone());
+        instancing_module
+            .borrow_mut()
+            .imports
             .types
             .insert(Rc::clone(&name), ty.clone());
 
@@ -184,6 +197,7 @@ impl Prototype {
 
         let ty = self.build_with_parent_context(
             ty_args,
+            &gen.module,
             err_tok,
             self_ref,
             &parent_context.unwrap_or_else(Context::default),
@@ -403,6 +417,7 @@ impl ProtoAST {
         &self,
         name: &Rc<String>,
         arguments: &[Type],
+        instancing_module: &MutRc<MModule>,
         self_ref: Rc<Prototype>,
         context: &Context,
     ) -> Res<Type> {
@@ -427,6 +442,11 @@ impl ProtoAST {
                 let mir_fn = generate_mir_fn(&builder, Right(ast), String::clone(name), None)?;
                 let global = Variable::new(false, Type::Function(Rc::clone(&mir_fn)), name);
                 insert_global_and_type(&builder.module, &global);
+                instancing_module
+                    .borrow_mut()
+                    .imports
+                    .globals
+                    .insert(Rc::clone(&global.name), Rc::clone(&global));
 
                 Type::Function(mir_fn)
             }

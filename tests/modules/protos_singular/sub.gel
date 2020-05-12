@@ -1,0 +1,13 @@
+import protos_singular/main/+
+
+class Sub<A> {
+    var b: A
+
+    construct(b)
+
+    func sup() {
+        print("sup!")
+    }
+}
+
+func sub<A>(a: A) -> A = a
