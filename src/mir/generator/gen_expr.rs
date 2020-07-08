@@ -18,10 +18,11 @@ use crate::{
     mir::{
         generator::{
             builder::Context,
+            intrinsics::INTRINSICS,
             passes::declaring_globals::{generate_mir_fn, insert_global_and_type},
-            AssociatedMethod, ForLoop, MIRGenerator, intrinsics::INTRINSICS
+            AssociatedMethod, ForLoop, MIRGenerator,
         },
-        nodes::{catch_up_passes, ADTType, Expr, Type, Variable, ADT},
+        nodes::{catch_up_passes, ADTType, ArrayLiteral, Expr, Type, Variable, ADT},
         result::ToMIRResult,
         MutRc,
     },
@@ -49,11 +50,18 @@ impl MIRGenerator {
 
             ASTExpr::Call { callee, arguments } => self.call(callee, arguments),
 
-            ASTExpr::For {
+            ASTExpr::ForCond {
                 condition,
                 body,
                 else_b,
-            } => self.for_(condition, body, else_b),
+            } => self.for_cond(condition, body, else_b),
+
+            ASTExpr::ForIter {
+                elem_name,
+                iterator,
+                body,
+                else_b,
+            } => self.for_iter(elem_name, iterator, body, else_b),
 
             ASTExpr::Get { object, name } => self.get(object, name),
 
@@ -399,18 +407,40 @@ impl MIRGenerator {
         }
     }
 
-    fn for_(
+    fn for_cond(
         &mut self,
         condition: &ASTExpr,
         body: &ASTExpr,
         else_b: &Option<Box<ASTExpr>>,
     ) -> Res<Expr> {
-        let prev_loop = std::mem::replace(&mut self.current_loop, Some(ForLoop::default()));
-
         let cond = self.expression(condition)?;
         if cond.get_type() != Type::Bool {
             return Err(self.err(condition.get_token(), "For condition must be a boolean."));
         }
+
+        self.begin_scope();
+        let mut cast_block = self.smart_casts(&cond);
+        let (body, else_, result_store) = self.for_body(body, else_b)?;
+        self.end_scope();
+        cast_block.push(body);
+        Ok(Expr::loop_(
+            cond,
+            Expr::Block(cast_block),
+            else_,
+            result_store,
+        ))
+    }
+
+    /// Return type, in order:
+    /// - for body
+    /// - else branch
+    /// - result store
+    fn for_body(
+        &mut self,
+        body: &ASTExpr,
+        else_b: &Option<Box<ASTExpr>>,
+    ) -> Res<(Expr, Option<Expr>, Option<Rc<Variable>>)> {
+        let prev_loop = std::mem::replace(&mut self.current_loop, Some(ForLoop::default()));
 
         let body = self.expression(body)?;
         let body_type = body.get_type();
@@ -431,7 +461,75 @@ impl MIRGenerator {
         };
 
         self.current_loop = prev_loop;
-        Ok(Expr::loop_(cond, body, else_, result_store))
+
+        Ok((body, else_, result_store))
+    }
+
+    fn for_iter(
+        &mut self,
+        elem_name: &Token,
+        iterator: &ASTExpr,
+        body: &ASTExpr,
+        else_b: &Option<Box<ASTExpr>>,
+    ) -> Res<Expr> {
+        self.begin_scope();
+
+        let iter_mir = self.expression(iterator)?;
+        let (iter_ty, elem_ty, to_iter_ty) = INTRINSICS
+            .with(|i| i.borrow().get_for_iter_type(&iter_mir.get_type()))
+            .or_err(
+                &self.builder.path,
+                iterator.get_token(),
+                "Not an iterator (must implement Iter or ToIter).",
+            )?;
+
+        let iter = if let Some(to_iter_ty) = to_iter_ty {
+            let method = Self::find_associated_method(
+                &to_iter_ty,
+                &Token::generic_identifier("iter".to_string()),
+            )
+            .unwrap()
+            .into_fn();
+            Expr::call(Expr::load(&method), vec![iter_mir])
+        } else {
+            iter_mir
+        };
+
+        let opt_proto = self
+            .module
+            .borrow()
+            .find_prototype(&"Opt".to_string())
+            .unwrap();
+        let opt_ty = opt_proto.build(
+            vec![elem_ty.clone()],
+            &self.module,
+            elem_name,
+            Rc::clone(&opt_proto),
+        )?;
+        let some_ty = {
+            let adt = opt_ty.as_adt();
+            let adt = adt.borrow();
+            let cases = adt.ty.cases();
+            Rc::clone(cases.get(&"Some".to_string()).unwrap())
+        };
+
+        let elem_var = self.define_variable(&elem_name, false, elem_ty.clone());
+        let next_fn =
+            Self::find_associated_method(&iter_ty, &Token::generic_identifier("next".to_string()))
+                .unwrap()
+                .into_fn();
+
+        let (body, else_, result_store) = self.for_body(body, else_b)?;
+        self.end_scope();
+        Ok(Expr::IterLoop {
+            iter: Box::new(iter),
+            next_fn,
+            next_cast_ty: Type::Adt(some_ty),
+            store: elem_var,
+            body: Box::new(body),
+            else_: Box::new(else_.unwrap_or_else(Expr::none_const)),
+            result_store,
+        })
     }
 
     fn get(&mut self, object: &ASTExpr, name: &Token) -> Res<Expr> {
@@ -513,22 +611,22 @@ impl MIRGenerator {
             right,
         } = expr
         {
-            match operator {
-                TType::And => {
+            match (operator, &**left) {
+                (TType::And, _) => {
                     self.find_casts(list, &left);
                     self.find_casts(list, &right);
                 }
 
-                TType::Is if left.is_var_get() => {
+                (TType::Is, Expr::VarGet(var)) | (TType::Is, Expr::VarStore { var, .. }) => {
                     let ty = (&**right.get_type().as_type()).clone();
-                    let var = self.define_variable(
-                        &Token::generic_identifier(left.as_var_get().name.to_string()),
+                    let new_var = self.define_variable(
+                        &Token::generic_identifier(var.name.to_string()),
                         false,
                         ty,
                     );
                     list.push(Expr::store(
-                        &var,
-                        Expr::cast((**left).clone(), &right.get_type().as_type()),
+                        &new_var,
+                        Expr::cast(Expr::load(var), &right.get_type().as_type()),
                         true,
                     ));
                 }
@@ -614,14 +712,12 @@ impl MIRGenerator {
             vec![Expr::Literal(Literal::I64(values_mir.len() as u64))],
         );
 
-        for value in values_mir {
-            self.insert_at_ptr(Expr::call(
-                Expr::load(&push_method),
-                vec![array.clone(), value],
-            ))
-        }
-
-        Ok(array)
+        Ok(Expr::Literal(Literal::Array(Right(ArrayLiteral {
+            alloc: Box::new(array),
+            values: values_mir,
+            push_fn: push_method,
+            type_: Type::Adt(array_type.clone()),
+        }))))
     }
 
     fn closure(&mut self, closure: &Closure, token: &Token) -> Res<Expr> {

@@ -3,6 +3,7 @@ import std/intrinsics/quick_exit
 import std/string/ToString
 
 export std/collections/Array
+export std/iter/Range
 export std/string/String
 
 func print(a: ToString) = puts(a.to_string().ptr)
@@ -15,7 +16,7 @@ func try_cast<T, V>(value: T) -> Opt<V> {
 }
 
 func panic(msg: String) {
-    print("[gelix] Panicked at: ".append(msg))
+    print("[gelix] Panicked at: " + msg)
     print("[gelix] Exiting.")
     quick_exit(1i32)
 }
@@ -25,8 +26,8 @@ enum Opt<T> {
     case None
 
     func map<M>(map_fn: (T): M) -> Opt<M> {
-        if (this is Opt::<T>:Some) return Opt::<M>:Some(map_fn(this.value))
-        Opt::<M>:None()
+        if (this is Opt::<T>:Some) return Opt:Some(map_fn(this.value))
+        Opt::<M>:None
     }
 }
 

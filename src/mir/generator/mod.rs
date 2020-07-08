@@ -375,7 +375,7 @@ impl MIRGenerator {
                         arg_type, parameter
                     ),
                 )?;
-            mem::replace(argument, arg);
+            *argument = arg;
         }
 
         Ok(())
@@ -507,7 +507,7 @@ impl MIRGenerator {
     /// Returns if the cast was successful.
     fn try_cast_in_place(&self, value_ref: &mut Expr, ty: &Type) {
         let value = mem::replace(value_ref, Expr::none_const());
-        mem::replace(value_ref, self.try_cast(value, ty));
+        *value_ref = self.try_cast(value, ty);
     }
 
     /// Will try to make left and right be of the same type.
@@ -686,6 +686,7 @@ struct ForLoop {
 }
 
 /// All types of associated methods on a type.
+#[derive(Debug, EnumIntoGetters)]
 pub enum AssociatedMethod {
     // A simple method that can be called normally
     Fn(Rc<Variable>),

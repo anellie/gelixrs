@@ -32,14 +32,23 @@ impl PreMIRPass for PopulateIntrinsics {
             INTRINSICS.with(|i| {
                 i.borrow_mut().string_type = module.find_type(&"String".to_string());
             })
-        } else if **module.path.0[0] == *"std" && **module.path.0[1] == *"collections" {
-            // This is std/collections, containing the array class
+        } else if **module.path.0[0] == *"std"
+            && **module.path.0[1] == *"collections"
+            && module.path.0.len() == 3
+            && **module.path.0[2] == *"array"
+        {
+            // This is std/collections/array, containing the array class
             INTRINSICS.with(|i| {
                 i.borrow_mut().array_proto = module.find_prototype(&"Array".to_string());
             })
         } else if **module.path.0[0] == *"std" && **module.path.0[1] == *"memory" {
             INTRINSICS.with(|i| {
                 i.borrow_mut().free_iface = module.find_type(&"Free".to_string());
+            })
+        } else if **module.path.0[0] == *"std" && **module.path.0[1] == *"iter" {
+            INTRINSICS.with(|i| {
+                i.borrow_mut().iter_proto = module.find_prototype(&"Iter".to_string());
+                i.borrow_mut().to_iter_proto = module.find_prototype(&"ToIter".to_string());
             })
         }
         Ok(())

@@ -79,7 +79,9 @@ mod bin_macro {
                 while let Some(operator) = self.match_tokens(&$matching) {
                     let right = self.$next()?;
                     left = Expression::Binary {
-                        left: Box::new(left), operator, right: Box::new(right)
+                        left: Box::new(left),
+                        operator,
+                        right: Box::new(right),
                     }
                 }
                 Some(left)
@@ -615,7 +617,7 @@ impl Parser {
                 None
             };
 
-            let for_loop = Expression::For {
+            let for_loop = Expression::ForCond {
                 condition: Box::new(Expression::Binary {
                     left: Box::new(Expression::Variable(variable_name)),
                     operator: Token::generic_token(TType::BangEqual),
@@ -632,6 +634,27 @@ impl Parser {
                 vec![variable, for_loop],
                 Token::generic_token(TType::RightBrace),
             ))
+        } else if self.check_next(TType::In) {
+            // for (item in iterator)
+            let elem_name = self.consume(TType::Identifier, "Expected item name after '('")?;
+            self.advance(); // Consume the `in`
+            let iterator = Box::new(self.expression()?);
+
+            self.consume(TType::RightParen, "Expected ')' after for.")?;
+            let body = Box::new(self.expression()?);
+
+            let else_b = if self.matches(TType::Else) {
+                Some(Box::new(self.expression()?))
+            } else {
+                None
+            };
+
+            Some(Expression::ForIter {
+                elem_name,
+                iterator,
+                body,
+                else_b,
+            })
         } else {
             // for (condition)
             let condition = Box::new(self.expression()?);
@@ -644,7 +667,7 @@ impl Parser {
                 None
             };
 
-            Some(Expression::For {
+            Some(Expression::ForCond {
                 condition,
                 body,
                 else_b,
@@ -731,7 +754,7 @@ impl Parser {
         }
     }
 
-    /// See the macro at the top of the file for info on how this works.
+    // See the macro at the top of the file for info on how this works.
     binary_op!(logic_or, logic_and, [TType::Or]);
     binary_op!(logic_and, equality, [TType::And]);
     binary_op!(equality, comparison, [TType::BangEqual, TType::EqualEqual]);

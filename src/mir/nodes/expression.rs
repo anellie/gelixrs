@@ -108,6 +108,25 @@ pub enum Expr {
         phi: bool,
     },
 
+    /// A loop consuming an iterator.
+    /// Aside from different code generation and the
+    /// condition being switched out for the iterator,
+    /// this behaves very similarly to `Expr::Loop`.
+    IterLoop {
+        /// `iter` is always of type `Iter<T>`.
+        iter: Box<Expr>,
+        /// The `next` function to call with `iter`.
+        next_fn: Rc<Variable>,
+        /// The type that the `next` return value is cast to,
+        /// usually `Opt<T>:Some`
+        next_cast_ty: Type,
+        /// The variabe to store the value in
+        store: Rc<Variable>,
+        body: Box<Expr>,
+        else_: Box<Expr>,
+        result_store: Option<Rc<Variable>>,
+    },
+
     /// Simply produces the literal as value.
     Literal(Literal),
 
@@ -117,6 +136,8 @@ pub enum Expr {
     /// else is simply Expr::none_const()
     /// `result_store` is the value of the expression
     /// if present, otherwise it's Expr::none_const().
+    /// `post_body` is an expression executed after the
+    /// body on each iteration.
     Loop {
         condition: Box<Expr>,
         body: Box<Expr>,
@@ -374,7 +395,7 @@ impl Expr {
                 }
             }
 
-            Expr::Loop { result_store, .. } => {
+            Expr::Loop { result_store, .. } | Expr::IterLoop { result_store, .. } => {
                 if let Some(store) = result_store {
                     store.type_.clone()
                 } else {
@@ -398,10 +419,7 @@ impl Expr {
                 Literal::F64(_) => Type::F64,
                 Literal::Char(_) => unimplemented!(),
                 Literal::String(_) => INTRINSICS.with(|i| i.borrow().string_type.clone().unwrap()),
-                Literal::Array(Right(arr)) => INTRINSICS
-                    .with(|i| i.borrow().get_array_type(arr.type_.clone(), None))
-                    .ok()
-                    .unwrap(),
+                Literal::Array(Right(arr)) => arr.type_.clone(),
                 Literal::Closure(_) | Literal::Array(Left(_)) => panic!("invalid literal"),
             },
 
@@ -423,9 +441,12 @@ impl Expr {
 impl Display for Expr {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         match self {
-            Expr::AllocInst { ty, heap, .. } => {
-                write!(f, "alloc {} (heap: {})", ty.borrow(), heap.get())
-            }
+            Expr::AllocInst { ty, heap, .. } => write!(
+                f,
+                "alloc {} (heap: {})",
+                Type::Adt(Rc::clone(ty)),
+                heap.get()
+            ),
 
             Expr::Binary {
                 left,
@@ -520,6 +541,10 @@ impl Display for Expr {
                 ..
             } => write!(f, "loop ({}) {} else {}", condition, body, else_),
 
+            Expr::IterLoop {
+                iter, body, else_, ..
+            } => write!(f, "iter over ({}) then {} else {}", iter, body, else_),
+
             Expr::Return(expr) => write!(f, "return {}", expr),
 
             Expr::TypeGet(ty) => write!(f, "get_type {}", ty),
@@ -533,6 +558,8 @@ impl Display for Expr {
 /// An array literal in MIR. See ast/literal.rs for usage.
 #[derive(Debug, Clone)]
 pub struct ArrayLiteral {
+    pub alloc: Box<Expr>,
     pub values: Vec<Expr>,
+    pub push_fn: Rc<Variable>,
     pub type_: Type,
 }

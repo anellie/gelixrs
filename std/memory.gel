@@ -38,15 +38,11 @@ func drop<T: IsPointer>(value: T) = gelixrs_free_type(value)
 
 /// Will increment the reference count on a value by 1.
 /// Will cause memory leaks if not careful!
-public func inc_ref<T>(value: T) {
-    gelixrs_inc_ref(value)
-}
+public func inc_ref<T>(value: T) = gelixrs_inc_ref(value)
 
 /// Will decrement the reference count on a value by 1.
 /// Will cause use-after-free bugs if not careful!
-public func dec_ref<T>(value: T) {
-    gelixrs_dec_ref(value)
-}
+public func dec_ref<T>(value: T) = gelixrs_dec_ref(value)
 
 /// Will simply load the given value.
 func load_value<T>(value: *T) -> T = gelixrs_load_value(value)
@@ -58,6 +54,7 @@ func write_value<T>(ptr: *T, value: T) = gelixrs_write_ptr(ptr, value)
 /// Will write the given value to the pointer at the given address, with an index.
 func write_value_index<T>(ptr: *T, index: i64, value: T) = gelixrs_write_ptr(index_ptr(ptr, index), value)
 
+/// Indexes the given pointer at `index`.
 func index_ptr<T>(value: *T, index: i64) -> *T = gelixrs_gep(value, index)
 
 /// Copies elements in memory at `src` to `dst`,

@@ -1,0 +1,99 @@
+/// This interface allows a type to be iterated over using for iterator syntax.
+/// The way it works that as long as `next` returns a `Some`, the
+/// iterator is considered to still contain elements.
+/// Iteration ends as soon as a `None` is encountered.
+///
+/// Generally, to properly implement this interface, you'd create
+/// a class holding the relevant data you need to iterate.
+/// This class should be separate to the class you're iterating over.
+///
+/// For an example of how to properly implement the interface,
+/// check out `std/collections/Array` and `ArrayIter` in the same module.
+interface Iter<E> {
+    func next() -> Opt<E>
+}
+
+/// This interface is a supplement to `Iter`. It is intended to be
+/// implemented by the type to be iterated over.
+///
+/// Implementors of this must return an object implementing
+/// `Iter` that will iterate over all contents of itself.
+///
+/// For an example of how to properly implement the interface,
+/// check out `std/collections/Array` and `ArrayIter` in the same module.
+interface ToIter<E, I: Iter<E>> {
+    func iter() -> I
+}
+
+/// A simple iterator that infinitely returns the same value.
+class Repeat<T> {
+    
+    val value: Opt<T>
+
+    construct(value: T) {
+        this.value = Opt:Some(value)
+    }
+}
+
+impl Iter<T> for Repeat<T> {
+    func next() -> Opt<T> = this.value
+}
+
+/// An iterator that returns the first X values of the inner iter.
+class Take<T, I: Iter<T>> {
+    
+    val inner: I
+    val left: usize
+
+    construct(inner, left)
+}
+
+impl Iter<T> for Take<T> {
+    func next() -> Opt<T> {
+        if (this.left == 0) Opt::<T>:None
+        else {
+            this.left = this.left - 1
+            this.inner.next()
+        }
+    }
+}
+
+/// A simple implementor of `Iter` for integers.
+class Range<T: Integer> {
+
+    // Note that `start` is also used as the current value when iterating.
+    var start: T
+    val end: T
+    val step: T
+
+    construct(end) {
+        this.start = 0
+        this.step = 1
+        this.validate()
+    }
+
+    construct(start, end) {
+        this.step = 1
+        this.validate()
+    }
+
+    construct(start, end, step) {
+        this.validate()
+    }
+
+    func validate() {
+        if (this.step == 0) panic("Step may not be 0.")
+        if ((this.end < this.start) == (this.step > 0)) 
+            panic("Range values may not cause integer overflow.")
+    }
+}
+
+impl Iter<T> for Range<T> {
+    func next() -> Opt<T> {
+        if (this.start >= this.end) Opt::<T>:None
+        else {
+            this.start = this.start + this.step
+            Opt:Some(this.start - this.step)
+        }
+    }
+}

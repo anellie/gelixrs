@@ -181,7 +181,10 @@ fn build_enum_destructor(enu: Expr, cases: &HashMap<Rc<String>, MutRc<ADT>>) -> 
         // `then` and `cond` are in reverse order to prevent a "use after move" borrowck error
         let then = Expr::call(
             Expr::load(case.borrow().destructor.as_ref().unwrap()),
-            vec![Expr::cast(enu.clone(), &case_ty), Expr::Literal(Literal::Bool(true))],
+            vec![
+                Expr::cast(enu.clone(), &case_ty),
+                Expr::Literal(Literal::Bool(true)),
+            ],
         );
         let cond = Expr::binary(enu.clone(), TType::Is, Expr::type_get(case_ty));
         when_brs.push((cond, then))

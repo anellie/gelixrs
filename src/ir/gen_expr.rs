@@ -14,9 +14,10 @@ use crate::{
         MutRc,
     },
 };
+use either::Either::Right;
 use inkwell::{
     types::{AnyTypeEnum, BasicType, BasicTypeEnum, PointerType, StructType},
-    values::{BasicValueEnum, PointerValue},
+    values::{BasicValueEnum, IntValue, PointerValue},
     AddressSpace::Generic,
     FloatPredicate, IntPredicate,
 };
@@ -43,19 +44,7 @@ impl IRGenerator {
             } => {
                 let left = self.expression(left);
                 if operator == &TType::Is {
-                    let ty_info_ptr = self.ir_ty_info(right.get_type().as_type());
-                    let left_ptr = self.get_type_info_field(left.into_pointer_value());
-                    let left_ptr = self.load_ptr(left_ptr).into_pointer_value();
-
-                    let left_int =
-                        self.builder
-                            .build_ptr_to_int(left_ptr, self.context.i64_type(), "conv");
-                    let right_int =
-                        self.builder
-                            .build_ptr_to_int(ty_info_ptr, self.context.i64_type(), "conv");
-                    self.builder
-                        .build_int_compare(IntPredicate::EQ, left_int, right_int, "ident")
-                        .into()
+                    self.binary_is(left, right.get_type().as_type()).into()
                 } else {
                     let right = self.expression(right);
                     self.binary(left, *operator, right)
@@ -121,6 +110,24 @@ impl IRGenerator {
                 else_,
                 phi,
             } => self.if_(condition, then, else_, *phi),
+
+            Expr::IterLoop {
+                iter,
+                next_fn,
+                next_cast_ty,
+                store,
+                body,
+                else_,
+                result_store,
+            } => self.iter_loop(
+                iter,
+                next_fn,
+                next_cast_ty,
+                store,
+                body,
+                else_,
+                result_store,
+            ),
 
             Expr::Literal(literal) => self.literal(literal),
 
@@ -294,6 +301,21 @@ impl IRGenerator {
             // One of the operators is `Any`, so it will branch away; return whatever
             _ => self.context.bool_type().const_int(0, false).into(),
         }
+    }
+
+    fn binary_is(&mut self, left: BasicValueEnum, right: &Type) -> IntValue {
+        let ty_info_ptr = self.ir_ty_info(right);
+        let left_ptr = self.get_type_info_field(left.into_pointer_value());
+        let left_ptr = self.load_ptr(left_ptr).into_pointer_value();
+
+        let left_int = self
+            .builder
+            .build_ptr_to_int(left_ptr, self.context.i64_type(), "conv");
+        let right_int = self
+            .builder
+            .build_ptr_to_int(ty_info_ptr, self.context.i64_type(), "conv");
+        self.builder
+            .build_int_compare(IntPredicate::EQ, left_int, right_int, "ident")
     }
 
     fn function_from_callee(
@@ -614,6 +636,96 @@ impl IRGenerator {
         }
     }
 
+    fn iter_loop(
+        &mut self,
+        iter: &Expr,
+        next_fn: &Rc<Variable>,
+        next_cast_ty: &Type,
+        store_mir: &Rc<Variable>,
+        body: &Expr,
+        else_: &Expr,
+        result_store: &Option<Rc<Variable>>,
+    ) -> BasicValueEnum {
+        let start_block = self.last_block();
+        let get_bb = self.append_block("iter-get");
+        let loop_bb = self.append_block("iter-body");
+        let else_bb = self.append_block("iter-else");
+        let cont_bb = self.append_block("iter-cont");
+
+        let next_fn = self.get_variable(next_fn);
+        let store = self.get_variable(store_mir);
+        let prev_loop = std::mem::replace(
+            &mut self.loop_data,
+            Some(LoopData {
+                end_block: cont_bb,
+                phi_nodes: if result_store.is_some() {
+                    Some(vec![])
+                } else {
+                    None
+                },
+            }),
+        );
+
+        let iter = self.expression(iter);
+        let orig_next_call = self.build_call(next_fn, None.iter(), Some(iter));
+        let cond = self.binary_is(orig_next_call, next_cast_ty);
+        self.builder
+            .build_conditional_branch(cond, &loop_bb, &else_bb);
+
+        self.position_at_block(get_bb);
+        self.push_locals();
+        let get_next_call = self.build_call(next_fn, None.iter(), Some(iter));
+        let cond = self.binary_is(get_next_call, next_cast_ty);
+        let phi_node = if let Some(result_store) = result_store {
+            Some(self.load_ptr(self.get_variable(result_store)))
+        } else {
+            None
+        };
+        self.pop_locals_remove(get_next_call);
+        self.builder
+            .build_conditional_branch(cond, &loop_bb, &cont_bb);
+
+        self.position_at_block(loop_bb);
+        self.push_locals();
+        let value = self.build_phi(&[(orig_next_call, start_block), (get_next_call, get_bb)]);
+        let cast_ty = self.ir_ty_ptr(next_cast_ty);
+        let value_cast = self.builder.build_bitcast(value, cast_ty, "forc");
+        self.build_store(
+            store,
+            self.load_ptr_mir(
+                self.struct_gep(value_cast.into_pointer_value(), 0),
+                &store_mir.type_,
+            ),
+            true,
+        );
+
+        let body = self.expression(body);
+        let loop_end_bb = self.last_block();
+        if let Some(result_store) = result_store {
+            self.build_store(self.get_variable(result_store), body, false);
+        }
+        self.pop_dec_locals();
+        self.builder.build_unconditional_branch(&get_bb);
+
+        self.position_at_block(else_bb);
+        self.push_locals();
+        let else_val = self.expression(else_);
+        let else_bb = self.last_block();
+        self.pop_dec_locals();
+        self.builder.build_unconditional_branch(&cont_bb);
+
+        self.position_at_block(cont_bb);
+        let loop_data = std::mem::replace(&mut self.loop_data, prev_loop).unwrap();
+        if result_store.is_some() {
+            let mut phi_nodes = loop_data.phi_nodes.unwrap();
+            phi_nodes.push((phi_node.unwrap(), loop_end_bb));
+            phi_nodes.push((else_val, else_bb));
+            self.build_phi(&phi_nodes)
+        } else {
+            self.none_const
+        }
+    }
+
     fn loop_(
         &mut self,
         condition: &Expr,
@@ -744,6 +856,18 @@ impl IRGenerator {
                     self.locals().push((st, false));
                     st
                 }
+            }
+
+            Literal::Array(Right(literal)) => {
+                let alloc = self.expression(&literal.alloc);
+                for value in &literal.values {
+                    self.build_call(
+                        self.get_variable(&literal.push_fn),
+                        vec![value].into_iter(),
+                        Some(alloc),
+                    );
+                }
+                alloc
             }
 
             _ => panic!("unknown literal"),

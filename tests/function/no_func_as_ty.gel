@@ -1,0 +1,11 @@
+// C-ERR
+
+func main() {
+}
+
+func a() {
+}
+
+func c() -> a {
+    a
+}

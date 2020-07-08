@@ -91,7 +91,13 @@ impl Prototype {
         err_tok: &Token,
         self_ref: Rc<Prototype>,
     ) -> Res<Type> {
-        self.build_with_parent_context(arguments, instancing_module, err_tok, self_ref, &Context::default())
+        self.build_with_parent_context(
+            arguments,
+            instancing_module,
+            err_tok,
+            self_ref,
+            &Context::default(),
+        )
     }
 
     pub fn build_with_parent_context(
@@ -107,7 +113,9 @@ impl Prototype {
         }
 
         let name = get_name(&self.name, &arguments);
-        let ty = self.ast.create_mir(&name, &arguments, instancing_module, self_ref, context)?;
+        let ty = self
+            .ast
+            .create_mir(&name, &arguments, instancing_module, self_ref, context)?;
         let mut generator = MIRGenerator::new(MIRBuilder::new(&self.module));
 
         self.module

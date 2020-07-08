@@ -61,10 +61,19 @@ pub enum Expression {
         arguments: Vec<Expression>,
     },
 
-    /// A for loop. Only conditional loops are in the AST; iteration loops are unrolled.
+    /// A conditional for loop.
     /// The value produced is the value of the body on the last iteration, or the else branch if the condition was never true.
-    For {
+    ForCond {
         condition: Box<Expression>,
+        body: Box<Expression>,
+        else_b: Option<Box<Expression>>,
+    },
+
+    /// An iterator for loop.
+    /// The value produced is the value of the body on the last iteration, or the else branch if the iterator was empty.
+    ForIter {
+        elem_name: Token,
+        iterator: Box<Expression>,
         body: Box<Expression>,
         else_b: Option<Box<Expression>>,
     },
@@ -163,6 +172,7 @@ impl Expression {
             | Expression::Binary { operator: tok, .. }
             | Expression::Block(_, tok)
             | Expression::Break(_, tok)
+            | Expression::ForIter { elem_name: tok, .. }
             | Expression::Get { name: tok, .. }
             | Expression::GetGeneric { name: tok, .. }
             | Expression::GetStatic { name: tok, .. }
@@ -175,7 +185,7 @@ impl Expression {
             | Expression::VarWithGenerics { name: tok, .. } => tok,
 
             Expression::Call { callee: ex, .. }
-            | Expression::For { condition: ex, .. }
+            | Expression::ForCond { condition: ex, .. }
             | Expression::If { condition: ex, .. }
             | Expression::IndexSet { index: ex, .. }
             | Expression::When { value: ex, .. } => ex.get_token(),

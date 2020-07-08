@@ -25,22 +25,23 @@ Since the above use case of iterating over a range of numbers is rather common,
 gelix has special shortcut syntax for it:
 
 ```java
-for (i from 0 to 5) print(i)
+for (i in Range(0, 5)) print(i)
 ```
 
 This code is equivalent to the conditional looping example above, but much more concise.
 
-### Iterators (Not implemented yet)
+### Iterators
 
-Some data types like arrays implement the `Iterator<I>` interface 
-(you will learn more about interfaces later).
+The example using `Range` above is an example of a type that implements
+the `Iter<T>` interface (you will learn more about interfaces later).
 
-To iterate a type that implements `Iterator`, you can once again use shortcut syntax,
-like here with an integer array:
+The `for (x in y)` syntax simply allows iterating over any
+type that implements `Iter` or `ToIter`. Another example 
+for a class that implements it is `Array`:
 
 ```java
 val values = [12, 45, 36, 2]
-for (value in values) print(value)
+for (value in values) print(value) 
 ```
 
 This will expectedly output `12 45 36 2`.

@@ -4,7 +4,7 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::{collections::HashMap, mem, rc::Rc};
+use std::{collections::HashMap, rc::Rc};
 
 use either::Either::Left;
 
@@ -83,7 +83,7 @@ impl ModulePass for FillIfaceImpls {
             }
         }
 
-        mem::replace(&mut impls.methods, methods);
+        impls.methods = methods;
         Ok(())
     }
 }

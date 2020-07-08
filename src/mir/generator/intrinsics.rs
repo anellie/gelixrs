@@ -20,7 +20,8 @@ use crate::{
     error::{Error, Res},
     lexer::token::{TType, Token},
     mir::{
-        nodes::{Prototype, Type, Variable},
+        generator::passes::declaring_iface_impls::get_or_create_iface_impls,
+        nodes::{ADTType, Prototype, Type, Variable},
         MModule,
     },
 };
@@ -41,6 +42,10 @@ pub struct Intrinsics {
     pub array_proto: Option<Rc<Prototype>>,
     /// String type, used for string literals.
     pub string_type: Option<Type>,
+    /// `std/iter/Iter` prototype
+    pub iter_proto: Option<Rc<Prototype>>,
+    /// `std/iter/ToIter` prototype
+    pub to_iter_proto: Option<Rc<Prototype>>,
     /// The Free interface, used while compiling a class destructor.
     pub free_iface: Option<Type>,
     /// libc free.
@@ -62,6 +67,63 @@ impl Intrinsics {
         let proto = self.array_proto.as_ref().cloned().unwrap();
         let err_tok = tok.unwrap_or_else(|| Token::generic_token(TType::Identifier));
         proto.build(vec![ty], &proto.module, &err_tok, Rc::clone(&proto))
+    }
+
+    /// Takes a type and returns related iterator types.
+    /// In order:
+    /// - The type implementing Iter<T>
+    /// - T
+    /// - The type implementing ToIter<T>; usually `ty`
+    pub fn get_for_iter_type(&self, ty: &Type) -> Option<(Type, Type, Option<Type>)> {
+        let impls = get_or_create_iface_impls(&ty);
+        for im in impls.borrow().interfaces.values() {
+            match im.iface.borrow().ty {
+                ADTType::Interface { proto: Some(ref p) }
+                    if Rc::ptr_eq(&self.iter_proto.as_ref().unwrap(), &p) =>
+                {
+                    return Some((
+                        ty.clone(),
+                        im.iface
+                            .borrow()
+                            .context
+                            .type_aliases
+                            .values()
+                            .next()
+                            .unwrap()
+                            .clone(),
+                        None,
+                    ));
+                }
+
+                ADTType::Interface { proto: Some(ref p) }
+                    if Rc::ptr_eq(&self.to_iter_proto.as_ref().unwrap(), &p) =>
+                {
+                    return Some((
+                        im.methods
+                            .get_index(0)
+                            .unwrap()
+                            .1
+                            .type_
+                            .as_function()
+                            .borrow()
+                            .ret_type
+                            .clone(),
+                        im.iface
+                            .borrow()
+                            .context
+                            .type_aliases
+                            .values()
+                            .next()
+                            .unwrap()
+                            .clone(),
+                        Some(ty.clone()),
+                    ));
+                }
+
+                _ => (),
+            }
+        }
+        None
     }
 
     /// Only call this with the std/ops module, containing all operator interfaces;

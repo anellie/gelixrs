@@ -1,0 +1,7 @@
+func main() {
+    var cursed = [69, 420, 727, 177013]
+
+    for (curse in cursed) {
+        print(curse)
+    }
+}

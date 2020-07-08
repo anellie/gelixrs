@@ -42,7 +42,7 @@ impl Token {
             t_type: TType::Identifier,
             lexeme: Rc::new(lexeme),
             index,
-            line: 0,
+            line: 1,
             len: 0,
         }
     }
@@ -52,7 +52,7 @@ impl Token {
             t_type: token,
             lexeme: Rc::new("".to_string()),
             index: 0,
-            line: 0,
+            line: 1,
             len: 0,
         }
     }

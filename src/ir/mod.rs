@@ -61,6 +61,7 @@ pub struct IRGenerator {
     locals: Vec<Vec<(BasicValueEnum, bool)>>,
     /// All blocks in the current function.
     blocks: Vec<BasicBlock>,
+    /// The block that was last inserted to, or the one still inserting to.
     last_block: Option<BasicBlock>,
 
     /// All functions.
