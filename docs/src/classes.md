@@ -1,6 +1,6 @@
 # Classes
 
-To start with, the most simple: Classes.
+Like many other languages, gelix supports classes and object-oriented programming.
 
 To define a class, use the `class` keyword:
 

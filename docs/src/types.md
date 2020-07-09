@@ -1,10 +1,11 @@
 # Types
 
-Now that you know about most expressions in gelix, it's time to learn about how to
-create your own data types and work with them.
+Now that you know how to manage your memory when using gelix and can
+write simple gelix programs, it's time to learn about more advanced
+datatypes and how to use them.
 
 Gelix implements the following types for you to define:
-- Classes, which behave very similarly to classes in most OOP languages
+- Classes, which you read about in the last chapter
 - Interfaces, which allow defining shared behavior between types
 - Enums, which are used to replace OOP-style inheritance in gelix
 - Closures, which are functions treatable like data
