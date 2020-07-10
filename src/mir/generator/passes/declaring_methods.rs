@@ -71,8 +71,14 @@ fn declare_lifecycle_methods(builder: &mut MIRBuilder, adt: &MutRc<ADT>) -> Res<
     let init_fn_sig = get_instantiator_fn_sig(&ast, this_param.clone());
     adt.borrow_mut().instantiator =
         Some(create_function(builder, Left(&init_fn_sig), false, None)?);
-    let free_fn_sig = get_destructor_fn_sig(&ast, this_param);
+
+    let free_fn_sig = get_destructor_fn_sig(&ast, this_param.clone(), false);
     adt.borrow_mut().destructor = Some(create_function(builder, Left(&free_fn_sig), false, None)?);
+
+    let free_fn_sig = get_destructor_fn_sig(&ast, this_param, true);
+    adt.borrow_mut().destructor_sr =
+        Some(create_function(builder, Left(&free_fn_sig), false, None)?);
+
     Ok(())
 }
 
@@ -187,9 +193,13 @@ fn get_instantiator_fn_sig(adt: &ast::ADT, this_param: FunctionParam) -> FuncSig
 }
 
 /// Returns signature of the ADT destructor.
-fn get_destructor_fn_sig(adt: &ast::ADT, this_param: FunctionParam) -> FuncSignature {
-    let fn_name = Token::generic_identifier(format!("free-{}-instance", &adt.name.lexeme));
-    FuncSignature {
+fn get_destructor_fn_sig(adt: &ast::ADT, this_param: FunctionParam, sr: bool) -> FuncSignature {
+    let fn_name = Token::generic_identifier(format!(
+        "free-{}-{}-instance",
+        if sr { "sr" } else { "wr" },
+        &adt.name.lexeme
+    ));
+    let mut sig = FuncSignature {
         name: fn_name,
         visibility: Visibility::Public,
         generics: None,
@@ -202,7 +212,11 @@ fn get_destructor_fn_sig(adt: &ast::ADT, this_param: FunctionParam) -> FuncSigna
             },
         ],
         variadic: false,
+    };
+    if !sr {
+        sig.parameters.pop();
     }
+    sig
 }
 
 fn declare_constructors(

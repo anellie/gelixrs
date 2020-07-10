@@ -24,7 +24,7 @@ use crate::{
     mir::{
         generator::{builder::MIRBuilder, intrinsics::INTRINSICS},
         get_iface_impls,
-        nodes::{ADTMember, ADTType, Expr, Function, Prototype, Type, Variable},
+        nodes::{ADTMember, ADTType, CastType::NoOp, Expr, Function, Prototype, Type, Variable},
         result::ToMIRResult,
         MModule, MutRc, IFACE_IMPLS,
     },
@@ -495,8 +495,8 @@ impl MIRGenerator {
     /// this function just returns value unmodified.
     fn try_cast(&self, value: Expr, ty: &Type) -> Expr {
         let val_ty = value.get_type();
-        if val_ty.can_cast_to(ty) {
-            Expr::maybe_cast(value, &val_ty, ty)
+        if let (true, Some(cty)) = val_ty.can_cast_to(ty) {
+            Expr::maybe_cast(value, &val_ty, ty, cty)
         } else {
             value
         }
@@ -521,24 +521,9 @@ impl MIRGenerator {
         match (&left_ty, &right_ty) {
             _ if left_ty == right_ty => return (Some(left_ty), left, right),
 
-            // Number cast
-            _ if (left_ty.is_int() && right_ty.is_int())
-                || left_ty.is_float() && right_ty.is_float() =>
-            {
-                let right = self.try_cast(right, &left_ty);
-                return (Some(left_ty), left, right);
-            }
-
-            // Can be either interface and implementor, enum cases or enum and a case
+            // Might be 2 enum cases which need special handling
             (Type::Adt(_), Type::Adt(_)) => {
-                left = self.try_cast(left, &right_ty);
-                right = self.try_cast(right, &left_ty);
-                let left_ty = left.get_type();
-                let right_ty = right.get_type();
-
-                if left_ty == right_ty {
-                    return (Some(left_ty), left, right);
-                } else if let (
+                if let (
                     ADTType::EnumCase { parent: p1, .. },
                     ADTType::EnumCase { parent: p2, .. },
                 ) = (
@@ -549,25 +534,27 @@ impl MIRGenerator {
                         let ty = Type::Adt(Rc::clone(&p1));
                         return (
                             Some(ty.clone()),
-                            Expr::cast(left, &ty),
-                            Expr::cast(right, &ty),
+                            Expr::cast(left, &ty, NoOp),
+                            Expr::cast(right, &ty, NoOp),
                         );
                     }
                 }
             }
 
-            // Can only be interface/implementor
-            (Type::Adt(adt), _) | (_, Type::Adt(adt)) => {
-                let ty = Type::Adt(Rc::clone(&adt));
-                left = self.try_cast(left, &ty);
-                right = self.try_cast(right, &ty);
+            // Simply trying to cast one into the other is enough for all other cases
+            _ => {
+                left = self.try_cast(left, &right_ty);
+                let left_ty = left.get_type();
 
-                if left.get_type() == right.get_type() {
+                if left_ty == right_ty {
+                    return (Some(right_ty), left, right);
+                }
+
+                right = self.try_cast(right, &left_ty);
+                if left_ty == right.get_type() {
                     return (Some(left_ty), left, right);
                 }
             }
-
-            _ => (),
         }
 
         (None, left, right)

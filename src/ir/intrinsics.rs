@@ -132,7 +132,7 @@ impl IRGenerator {
                             self.get_variable(&adt.borrow().destructor.as_ref().unwrap());
                         self.builder.build_call(
                             destructor,
-                            &[value, self.context.bool_type().const_int(1, false).into()],
+                            &[value],
                             "free",
                         );
                     }

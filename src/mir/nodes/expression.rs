@@ -74,14 +74,12 @@ pub enum Expr {
     },
 
     /// A cast to some other type.
-    /// Following casts are currently done:
-    /// - Interface implementor to interface
-    ///   -> Will create a temp alloca in IR to hold the interface struct.
-    ///
-    /// Following casts are simply a noop bitcast in IR:
-    /// - Enum case to parent enum
-    /// - Parent enum to case (unchecked; MIR code does so)
-    Cast { object: Box<Expr>, to: Type },
+    /// See docks on [CastType] for a list of possible casts.
+    Cast {
+        object: Box<Expr>,
+        to: Type,
+        ty: CastType,
+    },
 
     /// Construct a closure from the given function along with the captured
     /// variables. The function must have an additional first parameter
@@ -220,18 +218,19 @@ impl Expr {
         Expr::Break(Box::new(expr.unwrap_or_else(Expr::none_const)))
     }
 
-    pub fn cast(obj: Expr, ty: &Type) -> Expr {
+    pub fn cast(obj: Expr, to: &Type, ty: CastType) -> Expr {
         Expr::Cast {
             object: Box::new(obj),
-            to: ty.clone(),
+            to: to.clone(),
+            ty,
         }
     }
 
-    pub fn maybe_cast(obj: Expr, obj_ty: &Type, ty: &Type) -> Expr {
+    pub fn maybe_cast(obj: Expr, obj_ty: &Type, ty: &Type, cty: CastType) -> Expr {
         if obj_ty == ty {
             obj
         } else {
-            Self::cast(obj, ty)
+            Self::cast(obj, ty, cty)
         }
     }
 
@@ -562,4 +561,24 @@ pub struct ArrayLiteral {
     pub values: Vec<Expr>,
     pub push_fn: Rc<Variable>,
     pub type_: Type,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum CastType {
+    /// Interface implementor to interface
+    /// -> Will create a temp alloca in IR to hold the interface struct.
+    ToIface,
+    /// Direct LLVM IR bitcast with no checks
+    NoOp,
+    /// Numerical cast to int
+    ToInt,
+    /// Numerical cast to float
+    ToFloat,
+    /// Direct value to weak reference
+    DVtoWR,
+    /// WR/SR to DV
+    ToDV,
+    /// SR to WR, will increment SR refcount and mark
+    /// it to be decremented when WR goes out of scope
+    SRtoWR,
 }

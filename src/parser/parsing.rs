@@ -774,7 +774,7 @@ impl Parser {
 
     fn unary(&mut self) -> Option<Expression> {
         Some(
-            if let Some(operator) = self.match_tokens(&[TType::Bang, TType::Minus]) {
+            if let Some(operator) = self.match_tokens(&[TType::Bang, TType::Minus, TType::New]) {
                 let right = Box::new(self.unary()?);
                 Expression::Unary { operator, right }
             } else {
@@ -1125,9 +1125,14 @@ impl Parser {
                 }
             }
 
-            TType::Caret => {
+            TType::Tilde => {
                 let inner = self.type_(msg)?;
                 Type::Value(Box::new(inner))
+            }
+
+            TType::AndSym => {
+                let inner = self.type_(msg)?;
+                Type::Weak(Box::new(inner))
             }
 
             TType::Star => {

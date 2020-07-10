@@ -55,16 +55,31 @@ impl MIRBuilder {
                 Ok(Type::Pointer(Box::new(inner)).maybe_simplify())
             }
 
+            ASTType::Weak(inner) => {
+                let inner = self.find_type(inner)?;
+                if let Type::Adt(adt) = inner {
+                    Ok(Type::Weak(adt))
+                } else {
+                    None.or_type_err(
+                        &self.path,
+                        ast,
+                        &format!("Weak is only applicable to ADTs, not {}.", inner),
+                    )?
+                }
+            }
+
             ASTType::Value(inner) => {
                 let inner = self.find_type(inner)?;
 
-                // Primitives are already values so it would
-                // be unnecessary to wrap them
-                Ok(if !inner.is_primitive() {
-                    Type::Value(Box::new(inner)).maybe_simplify()
-                } else {
-                    inner
-                })
+                match inner {
+                    Type::Adt(adt) => Ok(Type::Value(adt)),
+                    Type::Pointer(inner) => Ok(*inner),
+                    _ => None.or_type_err(
+                        &self.path,
+                        ast,
+                        &format!("Direct Value is only applicable to ADTs, not {}.", inner),
+                    )?,
+                }
             }
 
             ASTType::Array(inner) => {

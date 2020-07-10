@@ -62,6 +62,14 @@ pub fn declare_impl(
         return add_impl_to_proto(iface_impl, builder);
     }
     let implementor = implementor?;
+    if !implementor.can_impl_ifaces() {
+        return Err(Error::new(
+            &err_token,
+            "MIR",
+            "This type cannot implement interfaces".to_string(),
+            &builder.path,
+        ));
+    }
 
     let ty = builder.find_type(&iface_impl.iface)?;
     if !ty.is_adt() || !ty.as_adt().borrow().ty.is_interface() {

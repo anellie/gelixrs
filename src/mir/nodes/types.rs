@@ -15,7 +15,7 @@ use crate::{
     mir::{
         generator::builder::Context,
         get_iface_impls,
-        nodes::{ADTType, Function, Variable, ADT},
+        nodes::{ADTType, CastType, Function, Variable, ADT},
         MutRc,
     },
 };
@@ -76,9 +76,11 @@ pub enum Type {
     /// (looking at you, closures.)
     Adt(MutRc<ADT>),
 
-    /// A value of a type that is usually a pointer, like ADTs.
-    /// This is mainly for C interop.
-    Value(Box<Type>),
+    /// A weak reference to an ADT.
+    Weak(MutRc<ADT>),
+
+    /// A direct value of an ADT.
+    Value(MutRc<ADT>),
 
     /// A pointer to a value that is usually a value (primitives).
     /// This is mainly for C interop.
@@ -159,13 +161,24 @@ impl Type {
 
     /// Is this type a pointer at machine level?
     pub fn is_ptr(&self) -> bool {
-        self.is_adt() || self.is_pointer() || self.is_closure()
+        self.is_adt() || self.is_pointer() || self.is_closure() || self.is_weak()
     }
 
     /// Can this type be assigned to variables?
     /// True for everything but types, as they are static.
     pub fn is_assignable(&self) -> bool {
         !self.is_type()
+    }
+
+    /// Can this type 'escape' the function it is in?
+    /// True for everything except weak references.
+    pub fn can_escape(&self) -> bool {
+        !self.is_weak()
+    }
+
+    /// Can this type implement interfaces?
+    pub fn can_impl_ifaces(&self) -> bool {
+        !self.is_weak() && !self.is_value()
     }
 
     /// Returns a list of available constructors, should self be a
@@ -221,26 +234,26 @@ impl Type {
 
     pub fn maybe_simplify(self) -> Self {
         match self {
-            Type::Pointer(inner) if inner.is_value() => *inner.into_value(),
-            Type::Value(inner) if inner.is_pointer() => *inner.into_pointer(),
+            Type::Pointer(inner) if inner.is_value() => Type::Adt(inner.into_value()),
             _ => self,
         }
     }
 
-    pub fn can_cast_to(&self, other: &Type) -> bool {
+    pub fn can_cast_to(&self, other: &Type) -> (bool, Option<CastType>) {
         match self {
-            _ if self == other => return true,
+            _ if self == other => return (true, None),
 
             // Enum case to enum cast
             Type::Adt(adt) => match (&adt.borrow().ty, other) {
                 (ADTType::EnumCase { parent, .. }, Type::Adt(adt)) if Rc::ptr_eq(parent, adt) => {
-                    return true
+                    return (true, Some(CastType::NoOp))
                 }
                 _ => (),
             },
 
             // Number cast
-            _ if self.is_number() && other.is_number() => return true,
+            _ if self.is_number() && other.is_int() => return (true, Some(CastType::ToInt)),
+            _ if self.is_number() && other.is_float() => return (true, Some(CastType::ToFloat)),
 
             _ => (),
         }
@@ -248,11 +261,11 @@ impl Type {
         // Interface cast
         if let Some(impls) = get_iface_impls(&self) {
             if impls.borrow().interfaces.get(other).is_some() {
-                return true;
+                return (true, Some(CastType::ToIface));
             }
         }
 
-        false
+        (false, None)
     }
 
     pub fn display_full(&self, f: &mut Formatter) -> Result<(), Error> {
@@ -303,7 +316,7 @@ impl PartialEq for Type {
 
             Type::Value(t) => {
                 if let Type::Value(o) = o {
-                    t == o
+                    Rc::ptr_eq(t, o)
                 } else {
                     false
                 }
@@ -338,8 +351,8 @@ impl Hash for Type {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
             Type::Function(v) => v.borrow().name.hash(state),
-            Type::Adt(v) => v.borrow().name.hash(state),
-            Type::Value(v) | Type::Pointer(v) | Type::Type(v) => v.hash(state),
+            Type::Adt(v) | Type::Value(v) => v.borrow().name.hash(state),
+            Type::Pointer(v) | Type::Type(v) => v.hash(state),
             _ => std::mem::discriminant(self).hash(state),
         }
     }
@@ -351,7 +364,7 @@ impl Display for Type {
             Type::Function(func) => write!(f, "{}", func.borrow().to_closure_type()),
             Type::Closure(closure) => write!(f, "{}", closure),
             Type::Adt(adt) => write!(f, "{}", adt.borrow().name),
-            Type::Value(inner) => write!(f, "^{}", inner),
+            Type::Value(inner) => write!(f, "^{}", inner.borrow().name),
             Type::Pointer(inner) => write!(f, "*{}", inner),
             Type::Type(ty) => match **ty {
                 Type::Function(_) => write!(f, "Function"),

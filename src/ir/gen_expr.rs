@@ -10,7 +10,7 @@ use crate::{
     lexer::token::TType,
     mir::{
         get_iface_impls,
-        nodes::{ADTType, Expr, Function, Type, Variable, ADT},
+        nodes::{CastType, Expr, Function, Type, Variable, ADT},
         MutRc,
     },
 };
@@ -90,7 +90,7 @@ impl IRGenerator {
                 index, arguments, ..
             } => self.call_dyn(*index, arguments),
 
-            Expr::Cast { object, to } => self.cast(object, to),
+            Expr::Cast { object, to, ty } => self.cast(object, to, *ty),
 
             Expr::ConstructClosure {
                 function,
@@ -224,7 +224,7 @@ impl IRGenerator {
     }
 
     fn maybe_init_type_info(&mut self, ty: &MutRc<ADT>, alloc: PointerValue) {
-        if ty.borrow().ty.needs_lifecycle() && ty.borrow().ty.has_refcount() {
+        if ty.borrow().ty.needs_lifecycle() && !ty.borrow().ty.is_extern_class() {
             let gep = unsafe { self.builder.build_struct_gep(alloc, 1, "tygep") };
             let val = self.ir_ty_info(&Type::Adt(Rc::clone(ty)));
             self.builder.build_store(gep, val);
@@ -390,9 +390,17 @@ impl IRGenerator {
         ret
     }
 
-    fn cast(&mut self, object: &Expr, to: &Type) -> BasicValueEnum {
-        match to {
-            _ if to.is_int() => {
+    fn cast(&mut self, object: &Expr, to: &Type, ty: CastType) -> BasicValueEnum {
+        match ty {
+            CastType::ToIface => self.cast_to_interface(object, to),
+
+            CastType::NoOp => {
+                let obj = self.expression(object);
+                let cast_ty = self.ir_ty_ptr(to);
+                self.builder.build_bitcast(obj, cast_ty, "cast")
+            }
+
+            CastType::ToInt => {
                 let obj = self.expression(object);
                 let cast_ty = self.ir_ty(to).into_int_type();
                 self.builder
@@ -400,7 +408,7 @@ impl IRGenerator {
                     .into()
             }
 
-            _ if to.is_float() => {
+            CastType::ToFloat => {
                 let obj = self.expression(object);
                 let cast_ty = self.ir_ty(to).into_float_type();
                 self.builder
@@ -408,19 +416,7 @@ impl IRGenerator {
                     .into()
             }
 
-            Type::Adt(adt) => {
-                if let ADTType::Interface { .. } = adt.borrow().ty {
-                    self.cast_to_interface(object, to)
-                } else {
-                    // This should be an enum cast;
-                    // simply a bitcast is sufficient
-                    let obj = self.expression(object);
-                    let cast_ty = self.ir_ty_ptr(to);
-                    self.builder.build_bitcast(obj, cast_ty, "cast")
-                }
-            }
-
-            _ => panic!("Invalid cast"),
+            _ => unimplemented!(),
         }
     }
 
@@ -475,8 +471,8 @@ impl IRGenerator {
 
     fn get_free_function(&self, ty: &Type) -> Option<PointerValue> {
         Some(match ty {
-            Type::Adt(adt) if adt.borrow().destructor.is_some() => self.functions
-                [&PtrEqRc::new(&adt.borrow().destructor.as_ref().unwrap())]
+            Type::Adt(adt) if adt.borrow().destructor_sr.is_some() => self.functions
+                [&PtrEqRc::new(&adt.borrow().destructor_sr.as_ref().unwrap())]
                 .as_global_value()
                 .as_pointer_value(),
             _ => self.void_ptr().const_zero(),

@@ -72,9 +72,9 @@ impl IRGenerator {
 
     /// Checks if a given struct needs to be GC'd.
     fn needs_gc(struc: StructType) -> bool {
-        !struc
+        struc
             .get_name()
-            .map_or(true, |name| name.to_str().unwrap().starts_with("vtable"))
+            .map_or(true, |name| name.to_str().unwrap().starts_with("SR-"))
     }
 
     fn mod_refcount(&self, value: BasicValueEnum, decrement: bool) {
@@ -102,10 +102,10 @@ impl IRGenerator {
     }
 
     fn mod_refcount_adt(&self, ptr: PointerValue, adt: &MutRc<ADT>, decrement: bool) {
-        if !adt.borrow().ty.has_refcount() {
+        if adt.borrow().ty.is_extern_class() {
             return;
         }
-        if let Some(destructor) = &adt.borrow().destructor {
+        if let Some(destructor) = &adt.borrow().destructor_sr {
             let func = self.get_variable(destructor);
             let refcount = unsafe { self.builder.build_struct_gep(ptr, 0, "rcgep") };
             let refcount = self.write_new_refcount(refcount, decrement);

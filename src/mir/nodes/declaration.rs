@@ -56,14 +56,20 @@ pub struct ADT {
     /// Note that not all ADT have this function since not all are intended to be
     /// user-instantiated (for example interfaces or closure capture ADTs)
     pub constructors: Vec<Rc<Variable>>,
-    /// An internal function that is called when the refcount is decremented.
+    /// An internal function that is called when a value goes out of scope.
+    /// It will decrement the reference count of all SR members, and call
+    ///  the destructor of DV members.
+    ///
+    /// Note that not all ADT have this function.
+    pub destructor: Option<Rc<Variable>>,
+    /// An internal function that is called when the refcount is decremented on an SR.
     /// The only other parameter is a boolean indicating if the object is no longer
-    /// reachable and needs to be deallocated. If it is true, it will first decrement
-    /// all members first, then call free(). If not, it'll do nothing.
+    /// reachable and needs to be deallocated. If it is true, it will first call
+    /// the regular destructor, then call free(). If not, it'll do nothing.
     ///
     /// Note that not all ADT have this function since not all are intended to be
     /// garbage-collected.
-    pub destructor: Option<Rc<Variable>>,
+    pub destructor_sr: Option<Rc<Variable>>,
 
     /// The context to be used inside this ADT.
     pub context: Context,
@@ -135,6 +141,7 @@ impl ADT {
             instantiator: None,
             constructors: Vec::with_capacity(const_size),
             destructor: None,
+            destructor_sr: None,
             context: context.clone(),
             ast: Rc::new(ast),
             ty,
@@ -258,12 +265,10 @@ impl ADTType {
         self.is_class() || self.is_enum_case() || self.is_enum()
     }
 
-    /// If this type has a refcount and typeinfo field. Currently true for everything but
-    /// extern classes.
-    pub fn has_refcount(&self) -> bool {
+    pub fn is_extern_class(&self) -> bool {
         match self {
-            ADTType::Class { external } => !external,
-            _ => true,
+            ADTType::Class { external } => *external,
+            _ => false,
         }
     }
 

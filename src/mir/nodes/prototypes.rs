@@ -273,7 +273,7 @@ impl Prototype {
                 if let Type::Pointer(mir) = mir {
                     Some(*mir)
                 } else {
-                    Some(Type::Value(Box::new(mir)))
+                    Some(Type::Value(mir.into_adt())) // TODO: Possibly unsafe cast?
                 }
             }
 
@@ -281,7 +281,7 @@ impl Prototype {
                 // This is required since primitives do not actually get wrapped in MIR
                 // (See MIRBuilder::find_type)
                 if let Type::Value(mir) = mir {
-                    Some(*mir)
+                    Some(Type::Adt(mir))
                 } else {
                     Some(mir)
                 }

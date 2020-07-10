@@ -77,9 +77,9 @@ impl Add<ToString, String> for String {
     func add(other: ToString) -> String {
         val other = other.to_string()
         // +1 to account for the null terminator
-        val new = String(this.len() + other.len() + 1)
-        new.append(this)
-        new.append(other)
+        val new_str = String(this.len() + other.len() + 1)
+        new_str.append(this)
+        new_str.append(other)
     }
 }
 

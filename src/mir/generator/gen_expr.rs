@@ -22,7 +22,7 @@ use crate::{
             passes::declaring_globals::{generate_mir_fn, insert_global_and_type},
             AssociatedMethod, ForLoop, MIRGenerator,
         },
-        nodes::{catch_up_passes, ADTType, ArrayLiteral, Expr, Type, Variable, ADT},
+        nodes::{catch_up_passes, ADTType, ArrayLiteral, CastType, Expr, Type, Variable, ADT},
         result::ToMIRResult,
         MutRc,
     },
@@ -375,7 +375,7 @@ impl MIRGenerator {
                                     .iter()
                                     .skip(1)
                                     .zip(args.iter_mut())
-                                    .all(|(param, arg)| arg.get_type().can_cast_to(&param.type_))
+                                    .all(|(param, arg)| arg.get_type().can_cast_to(&param.type_).0)
                         })
                         .or_err(
                             &self.builder.path,
@@ -626,7 +626,7 @@ impl MIRGenerator {
                     );
                     list.push(Expr::store(
                         &new_var,
-                        Expr::cast(Expr::load(var), &right.get_type().as_type()),
+                        Expr::cast(Expr::load(var), &right.get_type().as_type(), CastType::NoOp),
                         true,
                     ));
                 }

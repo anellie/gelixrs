@@ -33,7 +33,11 @@ impl IRGenerator {
             }
 
             BasicValueEnum::FloatValue(flt) => self.coerce_to_void_ptr(self.builder.build_bitcast(
-                flt,
+                self.builder.build_float_ext(
+                    flt,
+                    self.context.f64_type(),
+                    "fltextend",
+                ),
                 self.context.i64_type(),
                 "flttoint",
             )),

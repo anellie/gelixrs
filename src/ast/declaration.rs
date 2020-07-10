@@ -205,7 +205,10 @@ pub enum Type {
     /// For ADTs, this is a double pointer.
     Pointer(Box<Type>),
 
-    /// A value type, written ^$type.
+    /// A weak reference.
+    Weak(Box<Type>),
+
+    /// A direct value type, written ~$type.
     /// For primitives, this will do nothing (already a value).
     /// For ADTs, this will compile to a direct struct value instead of a pointer.
     Value(Box<Type>),
@@ -234,7 +237,9 @@ impl Type {
                 closing_paren: token,
                 ..
             } => token,
-            Type::Pointer(inner) | Type::Array(inner) | Type::Value(inner) => inner.get_token(),
+            Type::Pointer(inner) | Type::Weak(inner) | Type::Array(inner) | Type::Value(inner) => {
+                inner.get_token()
+            }
         }
     }
 }
@@ -245,6 +250,8 @@ impl fmt::Display for Type {
             Type::Ident(tok) => write!(f, "{}", tok.lexeme),
 
             Type::Pointer(type_) => write!(f, "*{}", type_),
+
+            Type::Weak(type_) => write!(f, "&{}", type_),
 
             Type::Value(type_) => write!(f, "^{}", type_),
 

@@ -15,7 +15,7 @@ use crate::{
         module::ModulePath,
         Module,
     },
-    error::{Errors, Res},
+    error::{Error, Errors, Res},
     lexer::token::Token,
     mir::{
         generator::{builder::MIRBuilder, intrinsics::INTRINSICS, passes::PreMIRPass},
@@ -126,6 +126,15 @@ pub fn generate_mir_fn(
         .return_type
         .as_ref()
         .map_or(Ok(Type::None), |ty| builder.find_type(ty))?;
+
+    if !ret_type.can_escape() {
+        return Err(Error::new(
+            func_sig.return_type.as_ref().unwrap().get_token(),
+            "MIR",
+            "Cannot return a weak reference".to_string(),
+            &builder.path,
+        ));
+    }
 
     let mut parameters = Vec::with_capacity(func_sig.parameters.len());
     for param in this_arg.iter().chain(func_sig.parameters.iter()) {

@@ -14,6 +14,7 @@ use inkwell::{
     AddressSpace::Generic,
 };
 use std::{cell::Ref, rc::Rc};
+use crate::mir::MutRc;
 
 impl IRGenerator {
     /// Converts a `MIRType` to the corresponding LLVM type.
@@ -84,7 +85,7 @@ impl IRGenerator {
 
                 _ => self
                     .build_struct(
-                        &adt.borrow().name,
+                        &format!("SR-{}", &adt.borrow().name),
                         adt.borrow().members.iter().map(|(_, m)| &m.type_),
                         true,
                         true,
@@ -94,7 +95,11 @@ impl IRGenerator {
 
             Type::Pointer(inner) => self.ir_ty(inner).ptr_type(Generic).into(),
 
-            Type::Value(inner) => self.ir_ty(inner),
+            Type::Value(inner) if !inner.borrow().ty.is_extern_class() => self.build_raw_adt(inner, &format!("DV-{}", &inner.borrow().name)),
+            Type::Weak(inner) if !inner.borrow().ty.is_extern_class() => self.build_raw_adt(inner, &format!("WR-{}", &inner.borrow().name)),
+
+            // If the above fell through it's an extern class, so just use the ADT type directly
+            Type::Value(adt) | Type::Weak(adt) => self.ir_ty(&Type::Adt(Rc::clone(adt))),
 
             _ => panic!(format!("Unknown type '{}' to build", ty)),
         };
@@ -103,7 +108,7 @@ impl IRGenerator {
 
         self.types.insert(ty.clone(), (ir_ty, type_info));
         match ir_ty {
-            BasicTypeEnum::StructType(struc) if !ty.is_value() => {
+            BasicTypeEnum::StructType(struc) if !ty.is_value() && !ty.is_weak() => {
                 self.types_bw.insert(
                     struc.get_name().unwrap().to_str().unwrap().to_string(),
                     ty.clone(),
@@ -112,6 +117,17 @@ impl IRGenerator {
             _ => (),
         }
         (ir_ty, type_info)
+    }
+
+    fn build_raw_adt(&mut self, adt: &MutRc<ADT>, name: &str) -> BasicTypeEnum {
+        self
+            .build_struct(
+                name,
+                adt.borrow().members.iter().map(|(_, m)| &m.type_),
+                false,
+                true,
+            )
+            .into()
     }
 
     /// Generates the struct for captured variables, given a list of them.
@@ -178,7 +194,7 @@ impl IRGenerator {
             .into();
         let captured_ty = self.context.i64_type().into();
 
-        let struc_val = self.context.opaque_struct_type("closure");
+        let struc_val = self.context.opaque_struct_type("SR-closure");
         let free_ty = self
             .context
             .void_type()
