@@ -24,7 +24,7 @@ use crate::{
     mir::{
         generator::{builder::MIRBuilder, intrinsics::INTRINSICS},
         get_iface_impls,
-        nodes::{ADTMember, ADTType, CastType::NoOp, Expr, Function, Prototype, Type, Variable},
+        nodes::{ADTMember, ADTType, CastType::Bitcast, Expr, Function, Prototype, Type, Variable},
         result::ToMIRResult,
         MModule, MutRc, IFACE_IMPLS,
     },
@@ -254,23 +254,32 @@ impl MIRGenerator {
     }
 
     /// Searches all scopes for a variable, starting at the top.
-    fn find_var(&mut self, token: &Token) -> Option<Rc<Variable>> {
+    fn find_var(&mut self, token: &Token) -> Res<Rc<Variable>> {
         for env in self.environments.iter().rev() {
             if let Some(var) = env.get(&token.lexeme) {
-                return Some(Rc::clone(var));
+                return Ok(Rc::clone(var));
             }
         }
 
         if let Some(closure_data) = &mut self.closure_data {
             for env in closure_data.outer_env.iter().rev() {
                 if let Some(var) = env.get(&token.lexeme) {
+                    if !var.type_.can_escape() {
+                        return Err(
+                            self.err(&token, "This variable may not be captured (weak reference)")
+                        );
+                    }
                     closure_data.captured.push(Rc::clone(var));
-                    return Some(Rc::clone(var));
+                    return Ok(Rc::clone(var));
                 }
             }
         }
 
-        self.module.borrow().find_global(&token.lexeme)
+        self.module.borrow().find_global(&token.lexeme).or_err(
+            &self.builder.path,
+            token,
+            &format!("Variable '{}' is not defined", token.lexeme),
+        )
     }
 
     /// Returns the variable of the current loop or creates it if it does not exist yet.
@@ -307,7 +316,7 @@ impl MIRGenerator {
         let object = self.expression(object)?;
         let ty = object.get_type();
 
-        if let Type::Adt(adt) = &ty {
+        if let Type::Adt(adt) | Type::Weak(adt) | Type::Value(adt) = &ty {
             let adt = adt.borrow();
             let field = adt.members.get(&name.lexeme);
             if let Some(field) = field {
@@ -417,7 +426,7 @@ impl MIRGenerator {
     /// Searches for an associated method on a type. Can be either an interface
     /// method or a class method.
     fn find_associated_method(ty: &Type, name: &Token) -> Option<AssociatedMethod> {
-        let method = if let Type::Adt(adt) = &ty {
+        let method = if let Type::Adt(adt) | Type::Weak(adt) | Type::Value(adt) = &ty {
             let adt = adt.borrow();
             adt.methods
                 .get(&name.lexeme)
@@ -534,8 +543,8 @@ impl MIRGenerator {
                         let ty = Type::Adt(Rc::clone(&p1));
                         return (
                             Some(ty.clone()),
-                            Expr::cast(left, &ty, NoOp),
-                            Expr::cast(right, &ty, NoOp),
+                            Expr::cast(left, &ty, Bitcast),
+                            Expr::cast(right, &ty, Bitcast),
                         );
                     }
                 }

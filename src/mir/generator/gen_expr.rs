@@ -116,11 +116,7 @@ impl MIRGenerator {
     }
 
     fn assignment(&mut self, name: &Token, value: &ASTExpr) -> Res<Expr> {
-        let var = self.find_var(&name).or_err(
-            &self.builder.path,
-            name,
-            &format!("Variable '{}' is not defined", name.lexeme),
-        )?;
+        let var = self.find_var(&name)?;
         let value = self.expression(value)?;
         let value = self.try_cast(value, &var.type_);
         let val_ty = value.get_type();
@@ -266,7 +262,7 @@ impl MIRGenerator {
 
                     // Interface method call
                     (ASTExpr::Get { .. }, AssociatedMethod::IFace(index)) => {
-                        let adt = obj_ty.as_adt().borrow();
+                        let adt = obj_ty.to_adt().borrow();
                         let params = &adt.dyn_methods.get_index(index).unwrap().1.parameters;
                         self.check_func_args(
                             // 'params' need to have the 'this' parameter, this is the result...
@@ -278,7 +274,7 @@ impl MIRGenerator {
                             true,
                         )?;
 
-                        Ok(Expr::call_dyn(obj_ty.as_adt(), index, args))
+                        Ok(Expr::call_dyn(obj_ty.to_adt(), index, args))
                     }
 
                     // Proto method call with inferred generics
@@ -626,7 +622,11 @@ impl MIRGenerator {
                     );
                     list.push(Expr::store(
                         &new_var,
-                        Expr::cast(Expr::load(var), &right.get_type().as_type(), CastType::NoOp),
+                        Expr::cast(
+                            Expr::load(var),
+                            &right.get_type().as_type(),
+                            CastType::Bitcast,
+                        ),
                         true,
                     ));
                 }
@@ -738,6 +738,7 @@ impl MIRGenerator {
                     })
                     .collect(),
                 variadic: false,
+                modifiers: vec![],
             },
             body: Some(closure.body.clone()),
         };
@@ -830,18 +831,15 @@ impl MIRGenerator {
     }
 
     fn var(&mut self, var: &Token) -> Res<Expr> {
-        if let Some(var) = self.find_var(&var) {
-            Ok(Expr::load(&var))
-        } else {
-            self.module
+        let res = self.find_var(&var);
+        match res {
+            Ok(var) => Ok(Expr::load(&var)),
+            Err(e) => self
+                .module
                 .borrow()
                 .find_type(&var.lexeme)
                 .map(Expr::type_get)
-                .or_err(
-                    &self.builder.path,
-                    var,
-                    &format!("Variable '{}' is not defined", var.lexeme),
-                )
+                .ok_or(e),
         }
     }
 

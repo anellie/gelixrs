@@ -394,7 +394,7 @@ impl IRGenerator {
         match ty {
             CastType::ToIface => self.cast_to_interface(object, to),
 
-            CastType::NoOp => {
+            CastType::Bitcast => {
                 let obj = self.expression(object);
                 let cast_ty = self.ir_ty_ptr(to);
                 self.builder.build_bitcast(obj, cast_ty, "cast")
@@ -416,7 +416,58 @@ impl IRGenerator {
                     .into()
             }
 
-            _ => unimplemented!(),
+            // TODO: A bit verbose...
+            CastType::DVtoWR => {
+                match object {
+                    Expr::StructGet { object, index, .. } => {
+                        let struc = self.expression(object);
+                        let ptr = self.struct_gep(struc.into_pointer_value(), *index);
+                        ptr
+                    }
+
+                    Expr::StructSet {
+                        object,
+                        index,
+                        value,
+                        first_set,
+                    } => {
+                        let struc = self.expression(object);
+                        let ptr = self.struct_gep(struc.into_pointer_value(), *index);
+                        let value = self.expression(value);
+                        self.build_store(ptr, value, *first_set);
+                        ptr
+                    }
+
+                    Expr::VarGet(var) => self.get_variable(var),
+
+                    Expr::VarStore { var, .. } => {
+                        self.expression(object);
+                        self.get_variable(var)
+                    }
+
+                    // No previous allocation we can easily leech off of so just make a new one
+                    _ => {
+                        let obj = self.expression(object);
+                        let alloc = self.create_alloc(obj.get_type(), false);
+                        self.build_store(alloc, obj, true);
+                        alloc
+                    }
+                }
+                .into()
+            }
+
+            CastType::ToDV => {
+                let ptr = self.expression(object).into_pointer_value();
+                self.load_ptr_mir(ptr, to)
+            }
+
+            // Purely semantic MIR cast
+            CastType::SRtoWR => {
+                let to = self.ir_ty_ptr(to);
+                let ptr = self.expression(object).into_pointer_value();
+                let gep = unsafe { self.builder.build_struct_gep(ptr, 1, "srwrgep") };
+                self.builder.build_bitcast(gep, to, "wrcast")
+            }
         }
     }
 
@@ -719,7 +770,8 @@ impl IRGenerator {
             self.build_phi(&phi_nodes)
         } else {
             self.none_const
-        }
+        };
+        panic!("prevent sigsegv");
     }
 
     fn loop_(

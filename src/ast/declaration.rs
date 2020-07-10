@@ -152,6 +152,7 @@ pub struct FuncSignature {
     pub return_type: Option<Type>,
     pub parameters: Vec<FunctionParam>,
     pub variadic: bool,
+    pub modifiers: Vec<Token>,
 }
 
 /// A function argument.

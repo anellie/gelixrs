@@ -176,9 +176,11 @@ impl Type {
         !self.is_weak()
     }
 
-    /// Can this type implement interfaces?
-    pub fn can_impl_ifaces(&self) -> bool {
-        !self.is_weak() && !self.is_value()
+    pub fn to_adt(&self) -> &MutRc<ADT> {
+        match self {
+            Type::Adt(adt) | Type::Weak(adt) | Type::Value(adt) => adt,
+            _ => panic!()
+        }
     }
 
     /// Returns a list of available constructors, should self be a
@@ -240,16 +242,36 @@ impl Type {
     }
 
     pub fn can_cast_to(&self, other: &Type) -> (bool, Option<CastType>) {
-        match self {
+        match (self, other) {
             _ if self == other => return (true, None),
 
-            // Enum case to enum cast
-            Type::Adt(adt) => match (&adt.borrow().ty, other) {
-                (ADTType::EnumCase { parent, .. }, Type::Adt(adt)) if Rc::ptr_eq(parent, adt) => {
-                    return (true, Some(CastType::NoOp))
+            // SR to WR cast
+            (Type::Adt(adt), Type::Weak(weak)) if Rc::ptr_eq(adt, weak) => {
+                return (true, Some(CastType::SRtoWR))
+            }
+
+            // SR/WR to DV cast
+            (Type::Adt(adt), Type::Value(value)) | (Type::Weak(adt), Type::Value(value))
+                if Rc::ptr_eq(adt, value) =>
+            {
+                return (true, Some(CastType::ToDV))
+            }
+
+            // DV to WR cast
+            (Type::Value(adt), Type::Weak(weak)) if Rc::ptr_eq(adt, weak) => {
+                return (true, Some(CastType::DVtoWR))
+            }
+
+            (Type::Adt(adt), Type::Adt(other)) => {
+                match &adt.borrow().ty {
+                    // Enum case to enum cast
+                    ADTType::EnumCase { parent, .. } if Rc::ptr_eq(parent, other) => {
+                        return (true, Some(CastType::Bitcast))
+                    }
+
+                    _ => (),
                 }
-                _ => (),
-            },
+            }
 
             // Number cast
             _ if self.is_number() && other.is_int() => return (true, Some(CastType::ToInt)),
@@ -322,6 +344,14 @@ impl PartialEq for Type {
                 }
             }
 
+            Type::Weak(t) => {
+                if let Type::Weak(o) = o {
+                    Rc::ptr_eq(t, o)
+                } else {
+                    false
+                }
+            }
+
             Type::Pointer(t) => {
                 if let Type::Pointer(o) = o {
                     t == o
@@ -365,6 +395,7 @@ impl Display for Type {
             Type::Closure(closure) => write!(f, "{}", closure),
             Type::Adt(adt) => write!(f, "{}", adt.borrow().name),
             Type::Value(inner) => write!(f, "^{}", inner.borrow().name),
+            Type::Weak(inner) => write!(f, "&{}", inner.borrow().name),
             Type::Pointer(inner) => write!(f, "*{}", inner),
             Type::Type(ty) => match **ty {
                 Type::Function(_) => write!(f, "Function"),

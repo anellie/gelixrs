@@ -569,7 +569,7 @@ pub enum CastType {
     /// -> Will create a temp alloca in IR to hold the interface struct.
     ToIface,
     /// Direct LLVM IR bitcast with no checks
-    NoOp,
+    Bitcast,
     /// Numerical cast to int
     ToInt,
     /// Numerical cast to float

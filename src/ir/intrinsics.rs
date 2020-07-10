@@ -130,11 +130,7 @@ impl IRGenerator {
                             .as_adt();
                         let destructor =
                             self.get_variable(&adt.borrow().destructor.as_ref().unwrap());
-                        self.builder.build_call(
-                            destructor,
-                            &[value],
-                            "free",
-                        );
+                        self.builder.build_call(destructor, &[value], "free");
                     }
 
                     // Primitive, simply calling free is enough

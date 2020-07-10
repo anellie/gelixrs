@@ -1,0 +1,11 @@
+// C-ERR
+
+func main() {
+    a("hmmst")
+}
+
+func a(s: &String) {
+    val cls = () -> {
+        print(s)
+    }
+}

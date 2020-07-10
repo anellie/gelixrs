@@ -6,7 +6,10 @@
 
 use crate::{
     ir::IRGenerator,
-    mir::nodes::{ADTType, AbstractMethod, ClosureType, Function, Type, Variable, ADT},
+    mir::{
+        nodes::{ADTType, AbstractMethod, ClosureType, Function, Type, Variable, ADT},
+        MutRc,
+    },
 };
 use inkwell::{
     types::{BasicType, BasicTypeEnum, FunctionType, PointerType, StructType},
@@ -14,7 +17,6 @@ use inkwell::{
     AddressSpace::Generic,
 };
 use std::{cell::Ref, rc::Rc};
-use crate::mir::MutRc;
 
 impl IRGenerator {
     /// Converts a `MIRType` to the corresponding LLVM type.
@@ -95,8 +97,12 @@ impl IRGenerator {
 
             Type::Pointer(inner) => self.ir_ty(inner).ptr_type(Generic).into(),
 
-            Type::Value(inner) if !inner.borrow().ty.is_extern_class() => self.build_raw_adt(inner, &format!("DV-{}", &inner.borrow().name)),
-            Type::Weak(inner) if !inner.borrow().ty.is_extern_class() => self.build_raw_adt(inner, &format!("WR-{}", &inner.borrow().name)),
+            Type::Value(inner) if !inner.borrow().ty.is_extern_class() => {
+                self.build_raw_adt(inner, &format!("DV-{}", &inner.borrow().name))
+            }
+            Type::Weak(inner) if !inner.borrow().ty.is_extern_class() => {
+                self.build_raw_adt(inner, &format!("WR-{}", &inner.borrow().name))
+            }
 
             // If the above fell through it's an extern class, so just use the ADT type directly
             Type::Value(adt) | Type::Weak(adt) => self.ir_ty(&Type::Adt(Rc::clone(adt))),
@@ -120,14 +126,13 @@ impl IRGenerator {
     }
 
     fn build_raw_adt(&mut self, adt: &MutRc<ADT>, name: &str) -> BasicTypeEnum {
-        self
-            .build_struct(
-                name,
-                adt.borrow().members.iter().map(|(_, m)| &m.type_),
-                false,
-                true,
-            )
-            .into()
+        self.build_struct(
+            name,
+            adt.borrow().members.iter().map(|(_, m)| &m.type_),
+            false,
+            true,
+        )
+        .into()
     }
 
     /// Generates the struct for captured variables, given a list of them.

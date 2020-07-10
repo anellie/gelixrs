@@ -15,7 +15,7 @@ use crate::{
         Type as ASTType,
     },
     error::{Error, Res},
-    lexer::token::Token,
+    lexer::token::{TType, Token},
     mir::{
         generator::{
             builder::MIRBuilder,
@@ -88,6 +88,16 @@ fn declare_user_methods(builder: &mut MIRBuilder, adt: &MutRc<ADT>) -> Res<()> {
 
     // Do all user-defined methods
     for method in ast.methods.iter().filter(|m| m.body.is_some()) {
+        let mut this_param = FunctionParam::this_param(&ast.name);
+        if !method
+            .sig
+            .modifiers
+            .iter()
+            .any(|t| t.t_type == TType::Strong)
+        {
+            this_param.type_ = ASTType::Weak(Box::new(this_param.type_));
+        }
+
         if method.sig.generics.is_some() {
             adt.borrow_mut().proto_methods.insert(
                 Rc::clone(&method.sig.name.lexeme),
@@ -189,11 +199,16 @@ fn get_instantiator_fn_sig(adt: &ast::ADT, this_param: FunctionParam) -> FuncSig
         return_type: None,
         parameters: vec![this_param],
         variadic: false,
+        modifiers: vec![],
     }
 }
 
 /// Returns signature of the ADT destructor.
-fn get_destructor_fn_sig(adt: &ast::ADT, this_param: FunctionParam, sr: bool) -> FuncSignature {
+fn get_destructor_fn_sig(adt: &ast::ADT, mut this_param: FunctionParam, sr: bool) -> FuncSignature {
+    if !sr {
+        this_param.type_ = ASTType::Weak(Box::new(this_param.type_));
+    }
+
     let fn_name = Token::generic_identifier(format!(
         "free-{}-{}-instance",
         if sr { "sr" } else { "wr" },
@@ -212,6 +227,7 @@ fn get_destructor_fn_sig(adt: &ast::ADT, this_param: FunctionParam, sr: bool) ->
             },
         ],
         variadic: false,
+        modifiers: vec![],
     };
     if !sr {
         sig.parameters.pop();
@@ -298,6 +314,7 @@ fn get_constructor_sig(
         return_type: None,
         parameters,
         variadic: false,
+        modifiers: vec![],
     })
 }
 

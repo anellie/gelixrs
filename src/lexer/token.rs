@@ -126,6 +126,7 @@ pub enum TType {
     New,
     Or,
     Return,
+    Strong,
     To,
     True,
     Var,

@@ -146,7 +146,18 @@ fn build_destructor(gen: &mut MIRGenerator, adt: &MutRc<ADT>) {
                 .get(&free_iface)
                 .map(|iface| Rc::clone(iface.methods.get_index(0).unwrap().1))
         })
-        .flatten();
+        .flatten()
+        .or_else(|| {
+            get_iface_impls(&Type::Weak(Rc::clone(adt)))
+                .map(|impls| {
+                    impls
+                        .borrow()
+                        .interfaces
+                        .get(&free_iface)
+                        .map(|iface| Rc::clone(iface.methods.get_index(0).unwrap().1))
+                })
+                .flatten()
+        });
     if let Some(method) = free_method {
         gen.insert_at_ptr(Expr::call(
             Expr::load(&method),
@@ -159,17 +170,27 @@ fn build_destructor(gen: &mut MIRGenerator, adt: &MutRc<ADT>) {
         gen.insert_at_ptr(build_enum_destructor(Expr::load(&adt_variable), cases))
     } else {
         for field in adt.members.values() {
-            gen.insert_at_ptr(Expr::mod_rc(
-                Expr::struct_get(Expr::load(&adt_variable), field),
-                true,
-            ));
+            if let Type::Value(adt) | Type::Adt(adt) = &field.type_ {
+                gen.insert_at_ptr(Expr::mod_rc(
+                    Expr::cast(
+                        Expr::struct_get(Expr::load(&adt_variable), field),
+                        &Type::Weak(Rc::clone(adt)),
+                        if field.type_.is_adt() {
+                            CastType::SRtoWR
+                        } else {
+                            CastType::DVtoWR
+                        },
+                    ),
+                    true,
+                ));
+            }
         }
     }
 }
 
-fn build_sr_destructor(gen: &mut MIRGenerator, adt: &MutRc<ADT>) {
+fn build_sr_destructor(gen: &mut MIRGenerator, adt_rc: &MutRc<ADT>) {
     let (adt_variable, dealloc_var) = {
-        let dest = adt
+        let dest = adt_rc
             .borrow()
             .destructor_sr
             .as_ref()
@@ -185,13 +206,17 @@ fn build_sr_destructor(gen: &mut MIRGenerator, adt: &MutRc<ADT>) {
         )
     };
 
-    let mut if_free_exprs = Vec::with_capacity(adt.borrow().members.len() + 3);
+    let mut if_free_exprs = Vec::with_capacity(adt_rc.borrow().members.len() + 3);
     if_free_exprs.push(Expr::mod_rc(Expr::load(&adt_variable), false));
 
-    let adt = adt.borrow();
+    let adt = adt_rc.borrow();
     if_free_exprs.push(Expr::call(
         Expr::load(adt.destructor.as_ref().unwrap()),
-        vec![Expr::load(&adt_variable)],
+        vec![Expr::cast(
+            Expr::load(&adt_variable),
+            &Type::Weak(Rc::clone(adt_rc)),
+            CastType::SRtoWR,
+        )],
     ));
     if_free_exprs.push(Expr::Free(Box::new(Expr::load(&adt_variable))));
 
@@ -213,7 +238,7 @@ fn build_enum_destructor(enu: Expr, cases: &HashMap<Rc<String>, MutRc<ADT>>) -> 
         // `then` and `cond` are in reverse order to prevent a "use after move" borrowck error
         let then = Expr::call(
             Expr::load(case.borrow().destructor.as_ref().unwrap()),
-            vec![Expr::cast(enu.clone(), &case_ty, CastType::NoOp)],
+            vec![Expr::cast(enu.clone(), &case_ty, CastType::Bitcast)],
         );
         let cond = Expr::binary(enu.clone(), TType::Is, Expr::type_get(case_ty));
         when_brs.push((cond, then))

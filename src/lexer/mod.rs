@@ -112,6 +112,7 @@ impl Lexer {
             "new" => TType::New,
             "or" => TType::Or,
             "return" => TType::Return,
+            "strong" => TType::Strong,
             "to" => TType::To,
             "true" => TType::True,
             "val" => TType::Val,

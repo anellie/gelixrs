@@ -71,10 +71,10 @@ impl IRGenerator {
     }
 
     /// Checks if a given struct needs to be GC'd.
-    fn needs_gc(struc: StructType) -> bool {
+    pub fn needs_gc(struc: StructType) -> bool {
         struc
             .get_name()
-            .map_or(true, |name| name.to_str().unwrap().starts_with("SR-"))
+            .map_or(false, |name| name.to_str().unwrap().starts_with("SR-"))
     }
 
     fn mod_refcount(&self, value: BasicValueEnum, decrement: bool) {
