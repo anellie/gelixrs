@@ -557,9 +557,13 @@ impl Display for Expr {
 /// An array literal in MIR. See ast/literal.rs for usage.
 #[derive(Debug, Clone)]
 pub struct ArrayLiteral {
+    /// The array allocation
     pub alloc: Box<Expr>,
+    /// A list of values to push
     pub values: Vec<Expr>,
+    /// Array.push() function
     pub push_fn: Rc<Variable>,
+    /// Type of the array, NOT type of values
     pub type_: Type,
 }
 

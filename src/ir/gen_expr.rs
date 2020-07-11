@@ -403,17 +403,47 @@ impl IRGenerator {
             CastType::ToInt => {
                 let obj = self.expression(object);
                 let cast_ty = self.ir_ty(to).into_int_type();
-                self.builder
-                    .build_int_cast(obj.into_int_value(), cast_ty, "cast")
-                    .into()
+
+                match (obj.get_type(), object.get_type().is_signed_int()) {
+                    (BasicTypeEnum::IntType(_), _) => {
+                        self.builder
+                            .build_int_cast(obj.into_int_value(), cast_ty, "cast")
+                    }
+                    (BasicTypeEnum::FloatType(_), true) => self.builder.build_float_to_signed_int(
+                        obj.into_float_value(),
+                        cast_ty,
+                        "cast",
+                    ),
+                    (BasicTypeEnum::FloatType(_), false) => self
+                        .builder
+                        .build_float_to_unsigned_int(obj.into_float_value(), cast_ty, "cast"),
+                    _ => panic!(),
+                }
+                .into()
             }
 
             CastType::ToFloat => {
                 let obj = self.expression(object);
                 let cast_ty = self.ir_ty(to).into_float_type();
-                self.builder
-                    .build_float_cast(obj.into_float_value(), cast_ty, "cast")
-                    .into()
+
+                match (obj.get_type(), to.is_signed_int()) {
+                    (BasicTypeEnum::FloatType(_), _) => {
+                        self.builder
+                            .build_float_cast(obj.into_float_value(), cast_ty, "cast")
+                    }
+                    (BasicTypeEnum::IntType(_), true) => self.builder.build_signed_int_to_float(
+                        obj.into_int_value(),
+                        cast_ty,
+                        "cast",
+                    ),
+                    (BasicTypeEnum::IntType(_), false) => self.builder.build_unsigned_int_to_float(
+                        obj.into_int_value(),
+                        cast_ty,
+                        "cast",
+                    ),
+                    _ => panic!(),
+                }
+                .into()
             }
 
             // TODO: A bit verbose...
@@ -461,16 +491,20 @@ impl IRGenerator {
             }
 
             CastType::SRtoWR => {
-                if to.to_adt().borrow().ty.is_extern_class() {
-                    return self.expression(object);
-                }
-
-                let to = self.ir_ty_ptr(to);
                 let ptr = self.expression(object).into_pointer_value();
-                let gep = unsafe { self.builder.build_struct_gep(ptr, 1, "srwrgep") };
-                self.builder.build_bitcast(gep, to, "wrcast")
+                self.cast_sr_to_wr(ptr, to)
             }
         }
+    }
+
+    pub fn cast_sr_to_wr(&mut self, sr: PointerValue, wr_ty: &Type) -> BasicValueEnum {
+        if wr_ty.to_adt().borrow().ty.is_extern_class() {
+            return sr.into();
+        }
+
+        let to = self.ir_ty_ptr(wr_ty);
+        let gep = unsafe { self.builder.build_struct_gep(sr, 1, "srwrgep") };
+        self.builder.build_bitcast(gep, to, "wrcast")
     }
 
     fn cast_to_interface(&mut self, object: &Expr, to: &Type) -> BasicValueEnum {
@@ -914,11 +948,14 @@ impl IRGenerator {
 
             Literal::Array(Right(literal)) => {
                 let alloc = self.expression(&literal.alloc);
+                let alloc_wr =
+                    self.cast_sr_to_wr(alloc.into_pointer_value(), &literal.type_.to_weak());
+
                 for value in &literal.values {
                     self.build_call(
                         self.get_variable(&literal.push_fn),
                         vec![value].into_iter(),
-                        Some(alloc),
+                        Some(alloc_wr),
                     );
                 }
                 alloc

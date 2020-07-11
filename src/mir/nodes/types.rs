@@ -204,6 +204,13 @@ impl Type {
         }
     }
 
+    pub fn to_value(&self) -> Type {
+        match self {
+            Type::Adt(adt) | Type::Weak(adt) | Type::Value(adt) => Type::Value(Rc::clone(&adt)),
+            _ => self.clone(),
+        }
+    }
+
     /// Returns a list of available constructors, should self be a
     /// static type access.
     /// TODO: Copying the list of constructors is not great for performance

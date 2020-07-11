@@ -2,8 +2,6 @@
 34
 */
 
-TEST BROKEN: CASTS UNIMPL
-
 import std/memory/+
 
 class Class {

@@ -3,10 +3,10 @@
 
 func main() {
     val a = new A()
-    a(a)
+    ab(a)
 }
 
 class A {}
 
-func a(a: &A) {
+func ab(a: &A) {
 }

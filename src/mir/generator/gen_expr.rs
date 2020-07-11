@@ -631,11 +631,7 @@ impl MIRGenerator {
 
                     list.push(Expr::store(
                         &new_var,
-                        Expr::cast(
-                            Expr::load(var),
-                            &ty,
-                            CastType::Bitcast,
-                        ),
+                        Expr::cast(Expr::load(var), &ty, CastType::Bitcast),
                         true,
                     ));
                 }

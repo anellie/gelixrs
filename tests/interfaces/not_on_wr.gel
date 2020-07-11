@@ -1,7 +1,0 @@
-// C-ERR
-
-interface A {}
-
-impl A for ~String {}
-
-func main() {}

@@ -87,7 +87,7 @@ class Array<E> {
     }
 }
 
-impl Free for Array<E> {
+impl Free for &Array<E> {
     func free() {
         for (elem from 0 to this.len) {
             dec_ref(this[elem])
@@ -96,13 +96,13 @@ impl Free for Array<E> {
     }
 }
 
-impl IndexGet<usize, E> for Array<E> {
+impl IndexGet<usize, E> for &Array<E> {
     func index_get(index: usize) -> E {
         this.get(index)
     }
 }
 
-impl IndexSet<usize, E> for Array<E> {
+impl IndexSet<usize, E> for &Array<E> {
     func index_set(index: usize, value: E) {
         this.set(index, value)
     }

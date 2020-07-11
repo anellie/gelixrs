@@ -564,7 +564,9 @@ impl MIRGenerator {
             _ if left_ty == right_ty => return (Some(left_ty), left, right),
 
             // Might be 2 enum cases which need special handling
-            (Type::Adt(_), Type::Adt(_)) | (Type::Weak(_), Type::Weak(_)) | (Type::Value(_), Type::Value(_)) => {
+            (Type::Adt(_), Type::Adt(_))
+            | (Type::Weak(_), Type::Weak(_))
+            | (Type::Value(_), Type::Value(_)) => {
                 if let (
                     ADTType::EnumCase { parent: p1, .. },
                     ADTType::EnumCase { parent: p2, .. },
@@ -577,7 +579,7 @@ impl MIRGenerator {
                             Type::Adt(_) => Type::Adt(Rc::clone(&p1)),
                             Type::Weak(_) => Type::Weak(Rc::clone(&p1)),
                             Type::Value(_) => Type::Value(Rc::clone(&p1)),
-                            _ => panic!()
+                            _ => panic!(),
                         };
 
                         return (
@@ -589,7 +591,7 @@ impl MIRGenerator {
                 }
             }
 
-            _ => ()
+            _ => (),
         }
 
         // Simply trying to cast one into the other is enough for all other cases

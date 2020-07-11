@@ -2,7 +2,7 @@
 3
 2
 */
-oof
+
 func main() {
     var arr = [1, 2, 3, 4]
     print(arr.get(2))

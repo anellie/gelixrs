@@ -243,6 +243,25 @@ impl Type {
             }
         }
     }
+
+    pub fn has_generics(&self) -> bool {
+        match self {
+            Type::Ident(_) => false,
+
+            Type::Pointer(inner) | Type::Weak(inner) | Type::Value(inner) | Type::Array(inner) => {
+                inner.has_generics()
+            }
+
+            Type::Closure {
+                params, ret_type, ..
+            } => {
+                params.iter().any(Self::has_generics)
+                    || ret_type.as_ref().map_or(false, |r| r.has_generics())
+            }
+
+            Type::Generic { .. } => true,
+        }
+    }
 }
 
 impl fmt::Display for Type {

@@ -98,9 +98,7 @@ impl IRGenerator {
 
             Type::Pointer(inner) => self.ir_ty(inner).ptr_type(Generic).into(),
 
-            Type::Value(inner) if !inner.borrow().ty.is_extern_class() => {
-                self.build_raw_adt(inner, &format!("DV-{}", &inner.borrow().name))
-            }
+            Type::Value(inner) => self.ir_ty(&Type::Weak(Rc::clone(inner))),
 
             Type::Weak(inner) if !inner.borrow().ty.is_extern_class() => match inner.borrow().ty {
                 ADTType::Interface { .. } => self.build_iface_type(inner.borrow(), true).into(),
@@ -108,7 +106,7 @@ impl IRGenerator {
             },
 
             // If the above fell through it's an extern class, so just use the ADT type directly
-            Type::Value(adt) | Type::Weak(adt) => self.ir_ty(&Type::Adt(Rc::clone(adt))),
+            Type::Weak(adt) => self.ir_ty(&Type::Adt(Rc::clone(adt))),
 
             _ => panic!(format!("Unknown type '{}' to build", ty)),
         };
