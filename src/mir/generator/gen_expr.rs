@@ -371,7 +371,9 @@ impl MIRGenerator {
                                     .iter()
                                     .skip(1)
                                     .zip(args.iter_mut())
-                                    .all(|(param, arg)| arg.get_type().can_cast_to(&param.type_, true).is_some())
+                                    .all(|(param, arg)| {
+                                        arg.get_type().can_cast_to(&param.type_, true).is_some()
+                                    })
                         })
                         .or_err(
                             &self.builder.path,
@@ -615,16 +617,23 @@ impl MIRGenerator {
 
                 (TType::Is, Expr::VarGet(var)) | (TType::Is, Expr::VarStore { var, .. }) => {
                     let ty = (&**right.get_type().as_type()).clone();
+                    let ty = if var.type_.is_weak() {
+                        ty.to_weak()
+                    } else {
+                        ty.to_strong()
+                    };
+
                     let new_var = self.define_variable(
                         &Token::generic_identifier(var.name.to_string()),
                         false,
-                        ty,
+                        ty.clone(),
                     );
+
                     list.push(Expr::store(
                         &new_var,
                         Expr::cast(
                             Expr::load(var),
-                            &right.get_type().as_type(),
+                            &ty,
                             CastType::Bitcast,
                         ),
                         true,
@@ -965,7 +974,7 @@ impl MIRGenerator {
     /// If a when expression can safely give a value even when an else branch is missing.
     /// Only true when switching on enum type with every case present.
     fn can_omit_else(&self, value_ty: &Type, when_cases: &[(Expr, Expr)]) -> bool {
-        let adt = if let Type::Adt(adt) = value_ty {
+        let adt = if let Some(adt) = value_ty.try_adt() {
             adt
         } else {
             return false;

@@ -30,7 +30,8 @@ impl IRGenerator {
         let ir = self.ir_ty(mir);
         match (ir, mir) {
             // If the type does not need lifecycle (currently only interfaces), then it is passed by value
-            (BasicTypeEnum::StructType(_), Type::Adt(adt)) | (BasicTypeEnum::StructType(_), Type::Weak(adt))
+            (BasicTypeEnum::StructType(_), Type::Adt(adt))
+            | (BasicTypeEnum::StructType(_), Type::Weak(adt))
                 if !adt.borrow().ty.needs_lifecycle() =>
             {
                 ir

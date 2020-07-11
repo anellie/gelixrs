@@ -193,7 +193,14 @@ impl Type {
     pub fn to_strong(&self) -> Type {
         match self {
             Type::Adt(adt) | Type::Weak(adt) | Type::Value(adt) => Type::Adt(Rc::clone(&adt)),
-            _ => self.clone()
+            _ => self.clone(),
+        }
+    }
+
+    pub fn to_weak(&self) -> Type {
+        match self {
+            Type::Adt(adt) | Type::Weak(adt) | Type::Value(adt) => Type::Weak(Rc::clone(&adt)),
+            _ => self.clone(),
         }
     }
 
@@ -281,7 +288,9 @@ impl Type {
                 return Some((Some(CastType::DVtoWR), None))
             }
 
-            (Type::Adt(adt), Type::Adt(other)) => {
+            (Type::Adt(adt), Type::Adt(other))
+            | (Type::Weak(adt), Type::Weak(other))
+            | (Type::Value(adt), Type::Value(other)) => {
                 match &adt.borrow().ty {
                     // Enum case to enum cast
                     ADTType::EnumCase { parent, .. } if Rc::ptr_eq(parent, other) => {
@@ -303,7 +312,12 @@ impl Type {
 
         // Interface cast
         if let (Some(adt), Some(impls)) = (other.try_adt(), get_iface_impls(&self)) {
-            if impls.borrow().interfaces.get(&Type::Adt(Rc::clone(adt))).is_some() {
+            if impls
+                .borrow()
+                .interfaces
+                .get(&Type::Adt(Rc::clone(adt)))
+                .is_some()
+            {
                 return Some((Some(CastType::ToIface), None));
             }
         }

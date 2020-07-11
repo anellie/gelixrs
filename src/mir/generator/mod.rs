@@ -539,11 +539,9 @@ impl MIRGenerator {
                 Expr::cast(Expr::cast(value, &inner_ty, inner), ty, outer)
             }
 
-            Some((Some(outer), None)) => {
-                Expr::cast(value, ty, outer)
-            }
+            Some((Some(outer), None)) => Expr::cast(value, ty, outer),
 
-            _ => value
+            _ => value,
         }
     }
 
@@ -566,16 +564,22 @@ impl MIRGenerator {
             _ if left_ty == right_ty => return (Some(left_ty), left, right),
 
             // Might be 2 enum cases which need special handling
-            (Type::Adt(_), Type::Adt(_)) => {
+            (Type::Adt(_), Type::Adt(_)) | (Type::Weak(_), Type::Weak(_)) | (Type::Value(_), Type::Value(_)) => {
                 if let (
                     ADTType::EnumCase { parent: p1, .. },
                     ADTType::EnumCase { parent: p2, .. },
                 ) = (
-                    &left_ty.as_adt().borrow().ty,
-                    &right_ty.as_adt().borrow().ty,
+                    &left_ty.to_adt().borrow().ty,
+                    &right_ty.to_adt().borrow().ty,
                 ) {
                     if Rc::ptr_eq(p1, p2) {
-                        let ty = Type::Adt(Rc::clone(&p1));
+                        let ty = match left_ty {
+                            Type::Adt(_) => Type::Adt(Rc::clone(&p1)),
+                            Type::Weak(_) => Type::Weak(Rc::clone(&p1)),
+                            Type::Value(_) => Type::Value(Rc::clone(&p1)),
+                            _ => panic!()
+                        };
+
                         return (
                             Some(ty.clone()),
                             Expr::cast(left, &ty, Bitcast),
@@ -585,20 +589,19 @@ impl MIRGenerator {
                 }
             }
 
-            // Simply trying to cast one into the other is enough for all other cases
-            _ => {
-                left = self.try_cast(left, &right_ty);
-                let left_ty = left.get_type();
+            _ => ()
+        }
 
-                if left_ty == right_ty {
-                    return (Some(right_ty), left, right);
-                }
+        // Simply trying to cast one into the other is enough for all other cases
+        left = self.try_cast(left, &right_ty);
+        let left_ty = left.get_type();
+        if left_ty == right_ty {
+            return (Some(right_ty), left, right);
+        }
 
-                right = self.try_cast(right, &left_ty);
-                if left_ty == right.get_type() {
-                    return (Some(left_ty), left, right);
-                }
-            }
+        right = self.try_cast(right, &left_ty);
+        if left_ty == right.get_type() {
+            return (Some(left_ty), left, right);
         }
 
         (None, left, right)

@@ -159,19 +159,19 @@ fn build_destructor(gen: &mut MIRGenerator, adt: &MutRc<ADT>) {
         gen.insert_at_ptr(build_enum_destructor(Expr::load(&adt_variable), cases))
     } else {
         for field in adt.members.values() {
-            if let Type::Value(adt) | Type::Adt(adt) = &field.type_ {
-                gen.insert_at_ptr(Expr::mod_rc(
-                    Expr::cast(
+            match &field.type_ {
+                Type::Adt(_) => {
+                    gen.insert_at_ptr(Expr::mod_rc(
                         Expr::struct_get(Expr::load(&adt_variable), field),
-                        &Type::Weak(Rc::clone(adt)),
-                        if field.type_.is_adt() {
-                            CastType::SRtoWR
-                        } else {
-                            CastType::DVtoWR
-                        },
-                    ),
-                    true,
-                ));
+                        true,
+                    ));
+                }
+
+                Type::Value(_) => {
+                    // TODO: Proper value GC...
+                }
+
+                _ => (),
             }
         }
     }
