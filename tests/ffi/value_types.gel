@@ -9,7 +9,7 @@ func main() {
     drop(t)
 }
 
-func hm(a: ^Test) {}
+func hm(a: ~Test) {}
 
 extern class Test {
     val a = 4

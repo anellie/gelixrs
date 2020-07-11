@@ -21,6 +21,7 @@ use crate::{
             passes::{
                 declaring_globals::{generate_mir_fn, insert_global_and_type},
                 declaring_iface_impls::declare_impl,
+                PassType,
             },
             MIRGenerator,
         },
@@ -273,7 +274,7 @@ impl Prototype {
                 if let Type::Pointer(mir) = mir {
                     Some(*mir)
                 } else {
-                    Some(Type::Value(Box::new(mir)))
+                    Some(Type::Value(mir.into_adt())) // TODO: Possibly unsafe cast?
                 }
             }
 
@@ -281,7 +282,17 @@ impl Prototype {
                 // This is required since primitives do not actually get wrapped in MIR
                 // (See MIRBuilder::find_type)
                 if let Type::Value(mir) = mir {
-                    Some(*mir)
+                    Some(Type::Adt(mir))
+                } else {
+                    Some(mir)
+                }
+            }
+
+            ast::Type::Weak(inner) if goal == &**inner => {
+                // This is required since primitives do not actually get wrapped in MIR
+                // (See MIRBuilder::find_type)
+                if let Type::Weak(mir) = mir {
+                    Some(Type::Adt(mir))
                 } else {
                     Some(mir)
                 }
@@ -539,9 +550,23 @@ fn attach_impls(
     for (im, module) in impls {
         builder.switch_module(module);
         let mut ast = im.clone();
+
+        let ty = match ast.implementor {
+            ast::Type::Pointer(_) => Type::Pointer(Box::new(ty.clone())),
+            ast::Type::Weak(_) => ty.to_weak(),
+            ast::Type::Value(_) => ty.to_value(),
+            _ => ty.clone(),
+        };
+
         let mut tok = ast.implementor.get_token().clone();
         tok.lexeme = Rc::clone(&name);
-        ast.implementor = ast::Type::Ident(tok);
+        ast.implementor = match ast.implementor {
+            ast::Type::Pointer(_) => ast::Type::Pointer(Box::new(ast::Type::Ident(tok))),
+            ast::Type::Weak(_) => ast::Type::Weak(Box::new(ast::Type::Ident(tok))),
+            ast::Type::Value(_) => ast::Type::Value(Box::new(ast::Type::Ident(tok))),
+            _ => ast::Type::Ident(tok),
+        };
+
         declare_impl(ast, builder, Some(ty.clone()))?;
     }
     Ok(())
@@ -552,7 +577,19 @@ pub fn catch_up_passes(gen: &mut MIRGenerator, ty: &Type) -> Res<()> {
     let len = DONE_PASSES.with(|d| d.borrow().len());
     for i in 0..len {
         gen.switch_module(&module);
-        DONE_PASSES.with(|d| d.borrow()[i].run_type(gen, ty.clone()))?
+        DONE_PASSES.with(|d| {
+            let pass = &d.borrow()[i];
+            match pass.get_type() {
+                PassType::Type => pass.run_type(gen, ty.clone())?,
+                PassType::AllTypes => {
+                    pass.run_type(gen, ty.clone())?;
+                    pass.run_type(gen, ty.to_weak())?;
+                    pass.run_type(gen, ty.to_value())?;
+                }
+                _ => (),
+            }
+            Ok(())
+        })?
     }
     Ok(())
 }

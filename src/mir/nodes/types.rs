@@ -15,7 +15,7 @@ use crate::{
     mir::{
         generator::builder::Context,
         get_iface_impls,
-        nodes::{ADTType, Function, Variable, ADT},
+        nodes::{ADTType, CastType, Function, Variable, ADT},
         MutRc,
     },
 };
@@ -76,9 +76,11 @@ pub enum Type {
     /// (looking at you, closures.)
     Adt(MutRc<ADT>),
 
-    /// A value of a type that is usually a pointer, like ADTs.
-    /// This is mainly for C interop.
-    Value(Box<Type>),
+    /// A weak reference to an ADT.
+    Weak(MutRc<ADT>),
+
+    /// A direct value of an ADT.
+    Value(MutRc<ADT>),
 
     /// A pointer to a value that is usually a value (primitives).
     /// This is mainly for C interop.
@@ -159,13 +161,54 @@ impl Type {
 
     /// Is this type a pointer at machine level?
     pub fn is_ptr(&self) -> bool {
-        self.is_adt() || self.is_pointer() || self.is_closure()
+        self.is_adt() || self.is_pointer() || self.is_closure() || self.is_weak()
     }
 
     /// Can this type be assigned to variables?
     /// True for everything but types, as they are static.
     pub fn is_assignable(&self) -> bool {
         !self.is_type()
+    }
+
+    /// Can this type 'escape' the function it is in?
+    /// True for everything except weak references.
+    pub fn can_escape(&self) -> bool {
+        !self.is_weak()
+    }
+
+    pub fn to_adt(&self) -> &MutRc<ADT> {
+        match self {
+            Type::Adt(adt) | Type::Weak(adt) | Type::Value(adt) => adt,
+            _ => panic!(),
+        }
+    }
+
+    pub fn try_adt(&self) -> Option<&MutRc<ADT>> {
+        match self {
+            Type::Adt(adt) | Type::Weak(adt) | Type::Value(adt) => Some(adt),
+            _ => None,
+        }
+    }
+
+    pub fn to_strong(&self) -> Type {
+        match self {
+            Type::Adt(adt) | Type::Weak(adt) | Type::Value(adt) => Type::Adt(Rc::clone(&adt)),
+            _ => self.clone(),
+        }
+    }
+
+    pub fn to_weak(&self) -> Type {
+        match self {
+            Type::Adt(adt) | Type::Weak(adt) | Type::Value(adt) => Type::Weak(Rc::clone(&adt)),
+            _ => self.clone(),
+        }
+    }
+
+    pub fn to_value(&self) -> Type {
+        match self {
+            Type::Adt(adt) | Type::Weak(adt) | Type::Value(adt) => Type::Value(Rc::clone(&adt)),
+            _ => self.clone(),
+        }
     }
 
     /// Returns a list of available constructors, should self be a
@@ -221,38 +264,94 @@ impl Type {
 
     pub fn maybe_simplify(self) -> Self {
         match self {
-            Type::Pointer(inner) if inner.is_value() => *inner.into_value(),
-            Type::Value(inner) if inner.is_pointer() => *inner.into_pointer(),
+            Type::Pointer(inner) if inner.is_value() => Type::Adt(inner.into_value()),
             _ => self,
         }
     }
 
-    pub fn can_cast_to(&self, other: &Type) -> bool {
-        match self {
-            _ if self == other => return true,
+    /// first_call indicates if this is a recursive call or not to prevent SO
+    pub fn can_cast_to(
+        &self,
+        other: &Type,
+        first_call: bool,
+    ) -> Option<(Option<CastType>, Option<(CastType, Type)>)> {
+        match (self, other) {
+            _ if self == other => return Some((None, None)),
 
-            // Enum case to enum cast
-            Type::Adt(adt) => match (&adt.borrow().ty, other) {
-                (ADTType::EnumCase { parent, .. }, Type::Adt(adt)) if Rc::ptr_eq(parent, adt) => {
-                    return true
+            // SR to WR cast
+            (Type::Adt(adt), Type::Weak(weak)) if Rc::ptr_eq(adt, weak) => {
+                return Some((Some(CastType::SRtoWR), None))
+            }
+
+            // SR/WR to DV cast
+            (Type::Adt(adt), Type::Value(value)) | (Type::Weak(adt), Type::Value(value))
+                if Rc::ptr_eq(adt, value) =>
+            {
+                return Some((Some(CastType::ToDV), None))
+            }
+
+            // DV to WR cast
+            (Type::Value(adt), Type::Weak(weak)) if Rc::ptr_eq(adt, weak) => {
+                return Some((Some(CastType::DVtoWR), None))
+            }
+
+            (Type::Adt(adt), Type::Adt(other))
+            | (Type::Weak(adt), Type::Weak(other))
+            | (Type::Value(adt), Type::Value(other)) => {
+                match &adt.borrow().ty {
+                    // Enum case to enum cast
+                    ADTType::EnumCase { parent, .. } if Rc::ptr_eq(parent, other) => {
+                        return Some((Some(CastType::Bitcast), None))
+                    }
+
+                    _ => (),
                 }
-                _ => (),
-            },
+            }
 
             // Number cast
-            _ if self.is_number() && other.is_number() => return true,
+            _ if self.is_number() && other.is_int() => return Some((Some(CastType::ToInt), None)),
+            _ if self.is_number() && other.is_float() => {
+                return Some((Some(CastType::ToFloat), None))
+            }
 
             _ => (),
         }
 
         // Interface cast
-        if let Some(impls) = get_iface_impls(&self) {
-            if impls.borrow().interfaces.get(other).is_some() {
-                return true;
+        if let (Some(adt), Some(impls)) = (other.try_adt(), get_iface_impls(&self)) {
+            if impls
+                .borrow()
+                .interfaces
+                .get(&Type::Adt(Rc::clone(adt)))
+                .is_some()
+            {
+                return Some((Some(CastType::ToIface), None));
             }
         }
 
-        false
+        // TODO: Rather ugly...
+        match self {
+            _ if !first_call => None,
+
+            Type::Adt(adt) => Type::Weak(Rc::clone(adt))
+                .can_cast_to(&other, false)
+                .map(|c| (c.0, Some((CastType::SRtoWR, Type::Weak(Rc::clone(adt))))))
+                .or_else(|| {
+                    Type::Value(Rc::clone(adt))
+                        .can_cast_to(&other, false)
+                        .map(|c| (c.0, Some((CastType::ToDV, Type::Value(Rc::clone(adt))))))
+                }),
+
+            Type::Weak(adt) => Type::Value(Rc::clone(adt))
+                .can_cast_to(&other, false)
+                .map(|c| (c.0, Some((CastType::ToDV, Type::Value(Rc::clone(adt)))))),
+
+            Type::Value(adt) => Type::Weak(Rc::clone(adt))
+                .can_cast_to(&other, false)
+                .map(|c| (c.0, Some((CastType::DVtoWR, Type::Weak(Rc::clone(adt)))))),
+
+            _ => None,
+        }
     }
 
     pub fn display_full(&self, f: &mut Formatter) -> Result<(), Error> {
@@ -303,7 +402,15 @@ impl PartialEq for Type {
 
             Type::Value(t) => {
                 if let Type::Value(o) = o {
-                    t == o
+                    Rc::ptr_eq(t, o)
+                } else {
+                    false
+                }
+            }
+
+            Type::Weak(t) => {
+                if let Type::Weak(o) = o {
+                    Rc::ptr_eq(t, o)
                 } else {
                     false
                 }
@@ -338,8 +445,8 @@ impl Hash for Type {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
             Type::Function(v) => v.borrow().name.hash(state),
-            Type::Adt(v) => v.borrow().name.hash(state),
-            Type::Value(v) | Type::Pointer(v) | Type::Type(v) => v.hash(state),
+            Type::Adt(v) | Type::Value(v) => v.borrow().name.hash(state),
+            Type::Pointer(v) | Type::Type(v) => v.hash(state),
             _ => std::mem::discriminant(self).hash(state),
         }
     }
@@ -351,7 +458,8 @@ impl Display for Type {
             Type::Function(func) => write!(f, "{}", func.borrow().to_closure_type()),
             Type::Closure(closure) => write!(f, "{}", closure),
             Type::Adt(adt) => write!(f, "{}", adt.borrow().name),
-            Type::Value(inner) => write!(f, "^{}", inner),
+            Type::Value(inner) => write!(f, "^{}", inner.borrow().name),
+            Type::Weak(inner) => write!(f, "&{}", inner.borrow().name),
             Type::Pointer(inner) => write!(f, "*{}", inner),
             Type::Type(ty) => match **ty {
                 Type::Function(_) => write!(f, "Function"),

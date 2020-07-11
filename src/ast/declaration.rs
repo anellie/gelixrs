@@ -152,6 +152,7 @@ pub struct FuncSignature {
     pub return_type: Option<Type>,
     pub parameters: Vec<FunctionParam>,
     pub variadic: bool,
+    pub modifiers: Vec<Token>,
 }
 
 /// A function argument.
@@ -205,7 +206,10 @@ pub enum Type {
     /// For ADTs, this is a double pointer.
     Pointer(Box<Type>),
 
-    /// A value type, written ^$type.
+    /// A weak reference.
+    Weak(Box<Type>),
+
+    /// A direct value type, written ~$type.
     /// For primitives, this will do nothing (already a value).
     /// For ADTs, this will compile to a direct struct value instead of a pointer.
     Value(Box<Type>),
@@ -234,7 +238,28 @@ impl Type {
                 closing_paren: token,
                 ..
             } => token,
-            Type::Pointer(inner) | Type::Array(inner) | Type::Value(inner) => inner.get_token(),
+            Type::Pointer(inner) | Type::Weak(inner) | Type::Array(inner) | Type::Value(inner) => {
+                inner.get_token()
+            }
+        }
+    }
+
+    pub fn has_generics(&self) -> bool {
+        match self {
+            Type::Ident(_) => false,
+
+            Type::Pointer(inner) | Type::Weak(inner) | Type::Value(inner) | Type::Array(inner) => {
+                inner.has_generics()
+            }
+
+            Type::Closure {
+                params, ret_type, ..
+            } => {
+                params.iter().any(Self::has_generics)
+                    || ret_type.as_ref().map_or(false, |r| r.has_generics())
+            }
+
+            Type::Generic { .. } => true,
         }
     }
 }
@@ -245,6 +270,8 @@ impl fmt::Display for Type {
             Type::Ident(tok) => write!(f, "{}", tok.lexeme),
 
             Type::Pointer(type_) => write!(f, "*{}", type_),
+
+            Type::Weak(type_) => write!(f, "&{}", type_),
 
             Type::Value(type_) => write!(f, "^{}", type_),
 

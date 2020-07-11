@@ -24,7 +24,7 @@ use crate::{
     mir::{
         generator::{builder::MIRBuilder, intrinsics::INTRINSICS},
         get_iface_impls,
-        nodes::{ADTMember, ADTType, Expr, Function, Prototype, Type, Variable},
+        nodes::{ADTMember, ADTType, CastType::Bitcast, Expr, Function, Prototype, Type, Variable},
         result::ToMIRResult,
         MModule, MutRc, IFACE_IMPLS,
     },
@@ -254,23 +254,32 @@ impl MIRGenerator {
     }
 
     /// Searches all scopes for a variable, starting at the top.
-    fn find_var(&mut self, token: &Token) -> Option<Rc<Variable>> {
+    fn find_var(&mut self, token: &Token) -> Res<Rc<Variable>> {
         for env in self.environments.iter().rev() {
             if let Some(var) = env.get(&token.lexeme) {
-                return Some(Rc::clone(var));
+                return Ok(Rc::clone(var));
             }
         }
 
         if let Some(closure_data) = &mut self.closure_data {
             for env in closure_data.outer_env.iter().rev() {
                 if let Some(var) = env.get(&token.lexeme) {
+                    if !var.type_.can_escape() {
+                        return Err(
+                            self.err(&token, "This variable may not be captured (weak reference)")
+                        );
+                    }
                     closure_data.captured.push(Rc::clone(var));
-                    return Some(Rc::clone(var));
+                    return Ok(Rc::clone(var));
                 }
             }
         }
 
-        self.module.borrow().find_global(&token.lexeme)
+        self.module.borrow().find_global(&token.lexeme).or_err(
+            &self.builder.path,
+            token,
+            &format!("Variable '{}' is not defined", token.lexeme),
+        )
     }
 
     /// Returns the variable of the current loop or creates it if it does not exist yet.
@@ -307,7 +316,7 @@ impl MIRGenerator {
         let object = self.expression(object)?;
         let ty = object.get_type();
 
-        if let Type::Adt(adt) = &ty {
+        if let Some(adt) = ty.try_adt() {
             let adt = adt.borrow();
             let field = adt.members.get(&name.lexeme);
             if let Some(field) = field {
@@ -417,7 +426,7 @@ impl MIRGenerator {
     /// Searches for an associated method on a type. Can be either an interface
     /// method or a class method.
     fn find_associated_method(ty: &Type, name: &Token) -> Option<AssociatedMethod> {
-        let method = if let Type::Adt(adt) = &ty {
+        let method = if let Some(adt) = ty.try_adt() {
             let adt = adt.borrow();
             adt.methods
                 .get(&name.lexeme)
@@ -454,11 +463,41 @@ impl MIRGenerator {
     fn get_operator_overloading_method(
         &self,
         op: TType,
-        left_ty: &Type,
+        left: &mut Expr,
         right: &mut Expr,
     ) -> Option<Rc<Variable>> {
+        let left_ty = left.get_type();
         let proto = INTRINSICS.with(|i| i.borrow().get_op_iface(op))?;
-        let iface_impls = get_iface_impls(left_ty)?;
+
+        if let Some(adt) = left_ty.try_adt() {
+            // TODO: Bit ugly...
+            self.get_op_method(&proto, &left_ty, right)
+                .or_else(|| {
+                    self.get_op_method(&proto, &Type::Weak(Rc::clone(adt)), right)
+                        .map(|var| {
+                            self.try_cast_in_place(left, &Type::Weak(Rc::clone(adt)));
+                            var
+                        })
+                })
+                .or_else(|| {
+                    self.get_op_method(&proto, &Type::Value(Rc::clone(adt)), right)
+                        .map(|var| {
+                            self.try_cast_in_place(left, &Type::Value(Rc::clone(adt)));
+                            var
+                        })
+                })
+        } else {
+            self.get_op_method(&proto, &left_ty, right)
+        }
+    }
+
+    fn get_op_method(
+        &self,
+        proto: &Rc<Prototype>,
+        ty: &Type,
+        right: &mut Expr,
+    ) -> Option<Rc<Variable>> {
+        let iface_impls = get_iface_impls(ty)?;
         let iface_impls = iface_impls.borrow();
 
         for im in iface_impls.interfaces.values() {
@@ -495,16 +534,19 @@ impl MIRGenerator {
     /// this function just returns value unmodified.
     fn try_cast(&self, value: Expr, ty: &Type) -> Expr {
         let val_ty = value.get_type();
-        if val_ty.can_cast_to(ty) {
-            Expr::maybe_cast(value, &val_ty, ty)
-        } else {
-            value
+        match val_ty.can_cast_to(ty, true) {
+            Some((Some(outer), Some((inner, inner_ty)))) => {
+                Expr::cast(Expr::cast(value, &inner_ty, inner), ty, outer)
+            }
+
+            Some((Some(outer), None)) => Expr::cast(value, ty, outer),
+
+            _ => value,
         }
     }
 
     /// Same as above but utilizing `std::mem::replace` to only
     /// require a mutable reference at the cost of a slight performance penalty.
-    /// Returns if the cast was successful.
     fn try_cast_in_place(&self, value_ref: &mut Expr, ty: &Type) {
         let value = mem::replace(value_ref, Expr::none_const());
         *value_ref = self.try_cast(value, ty);
@@ -521,53 +563,47 @@ impl MIRGenerator {
         match (&left_ty, &right_ty) {
             _ if left_ty == right_ty => return (Some(left_ty), left, right),
 
-            // Number cast
-            _ if (left_ty.is_int() && right_ty.is_int())
-                || left_ty.is_float() && right_ty.is_float() =>
-            {
-                let right = self.try_cast(right, &left_ty);
-                return (Some(left_ty), left, right);
-            }
-
-            // Can be either interface and implementor, enum cases or enum and a case
-            (Type::Adt(_), Type::Adt(_)) => {
-                left = self.try_cast(left, &right_ty);
-                right = self.try_cast(right, &left_ty);
-                let left_ty = left.get_type();
-                let right_ty = right.get_type();
-
-                if left_ty == right_ty {
-                    return (Some(left_ty), left, right);
-                } else if let (
+            // Might be 2 enum cases which need special handling
+            (Type::Adt(_), Type::Adt(_))
+            | (Type::Weak(_), Type::Weak(_))
+            | (Type::Value(_), Type::Value(_)) => {
+                if let (
                     ADTType::EnumCase { parent: p1, .. },
                     ADTType::EnumCase { parent: p2, .. },
                 ) = (
-                    &left_ty.as_adt().borrow().ty,
-                    &right_ty.as_adt().borrow().ty,
+                    &left_ty.to_adt().borrow().ty,
+                    &right_ty.to_adt().borrow().ty,
                 ) {
                     if Rc::ptr_eq(p1, p2) {
-                        let ty = Type::Adt(Rc::clone(&p1));
+                        let ty = match left_ty {
+                            Type::Adt(_) => Type::Adt(Rc::clone(&p1)),
+                            Type::Weak(_) => Type::Weak(Rc::clone(&p1)),
+                            Type::Value(_) => Type::Value(Rc::clone(&p1)),
+                            _ => panic!(),
+                        };
+
                         return (
                             Some(ty.clone()),
-                            Expr::cast(left, &ty),
-                            Expr::cast(right, &ty),
+                            Expr::cast(left, &ty, Bitcast),
+                            Expr::cast(right, &ty, Bitcast),
                         );
                     }
                 }
             }
 
-            // Can only be interface/implementor
-            (Type::Adt(adt), _) | (_, Type::Adt(adt)) => {
-                let ty = Type::Adt(Rc::clone(&adt));
-                left = self.try_cast(left, &ty);
-                right = self.try_cast(right, &ty);
-
-                if left.get_type() == right.get_type() {
-                    return (Some(left_ty), left, right);
-                }
-            }
-
             _ => (),
+        }
+
+        // Simply trying to cast one into the other is enough for all other cases
+        left = self.try_cast(left, &right_ty);
+        let left_ty = left.get_type();
+        if left_ty == right_ty {
+            return (Some(right_ty), left, right);
+        }
+
+        right = self.try_cast(right, &left_ty);
+        if left_ty == right.get_type() {
+            return (Some(left_ty), left, right);
         }
 
         (None, left, right)

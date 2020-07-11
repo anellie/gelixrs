@@ -38,11 +38,12 @@ static NO_SEMICOLON: [TType; 3] = [TType::If, TType::LeftBrace, TType::When];
 static START_OF_FN_BODY: [TType; 2] = [TType::LeftBrace, TType::Equal];
 
 // All tokens that can be modifiers at all.
-pub static MODIFIERS: [TType; 4] = [
+pub static MODIFIERS: [TType; 5] = [
     TType::Public,
     TType::Private,
     TType::Extern,
     TType::Variadic,
+    TType::Strong,
 ];
 
 // All tokens that can be modifiers on any declaration.
@@ -53,7 +54,9 @@ static CLASS_MODIFIERS: [TType; 1] = [TType::Extern];
 // All tokens that can be modifiers on a class member.
 static MEMBER_MODIFIERS: [TType; 0] = [];
 // All tokens that can be modifiers on a method.
-static METHOD_MODIFIERS: [TType; 0] = [];
+static METHOD_MODIFIERS: [TType; 1] = [TType::Strong];
+// All tokens that can be modifiers on a constructor.
+static CONSTRUCTOR_MODIFIERS: [TType; 0] = [];
 
 // All tokens that can be modifiers on an enum.
 static ENUM_MODIFIERS: [TType; 0] = [];
@@ -118,7 +121,7 @@ impl Parser {
             TType::Class => module.adts.push(self.class_declaration()?),
             TType::Enum => module.adts.push(self.enum_declaration()?),
             TType::Export => module.exports.push(self.import_declaration("export")?),
-            TType::Func => module.functions.push(self.function()?),
+            TType::Func => module.functions.push(self.function(&FUNC_MODIFIERS)?),
             TType::Import => module.imports.push(self.import_declaration("import")?),
             TType::Interface => module.adts.push(self.iface_declaration()?),
             TType::Impl => module.iface_impls.push(self.iface_impl()?),
@@ -128,8 +131,8 @@ impl Parser {
         Some(())
     }
 
-    fn func_signature(&mut self) -> Option<FuncSignature> {
-        self.check_mods(&FUNC_MODIFIERS, "function");
+    fn func_signature(&mut self, mods: &'static [TType]) -> Option<FuncSignature> {
+        self.check_mods(&mods, "function");
         let (name, generics) = self.generic_ident()?;
         self.consume(TType::LeftParen, "Expected '(' after function name.");
 
@@ -147,6 +150,7 @@ impl Parser {
             parameters,
             generics,
             variadic: self.modifiers.iter().any(|m| m.t_type == TType::Variadic),
+            modifiers: std::mem::replace(&mut self.modifiers, vec![]),
         })
     }
 
@@ -184,7 +188,7 @@ impl Parser {
                 TType::Var => variables.push(self.class_variable(true)?),
                 TType::Val => variables.push(self.class_variable(false)?),
                 TType::Case => cases.push(self.enum_case(&name)?),
-                TType::Func => methods.push(self.function()?),
+                TType::Func => methods.push(self.function(&METHOD_MODIFIERS)?),
 
                 _ => self.error_at_current("Encountered invalid declaration inside enum.")?,
             }
@@ -228,7 +232,7 @@ impl Parser {
                     TType::Var => variables.push(self.class_variable(true)?),
                     TType::Val => variables.push(self.class_variable(false)?),
                     TType::Construct => constructors.push(self.constructor()?),
-                    TType::Func => methods.push(self.function()?),
+                    TType::Func => methods.push(self.function(&METHOD_MODIFIERS)?),
 
                     _ => {
                         self.error_at_current("Encountered invalid declaration inside enum case.")?
@@ -309,7 +313,7 @@ impl Parser {
                 TType::Var => variables.push(self.class_variable(true)?),
                 TType::Val => variables.push(self.class_variable(false)?),
                 TType::Construct => constructors.push(self.constructor()?),
-                TType::Func => methods.push(self.function()?),
+                TType::Func => methods.push(self.function(&METHOD_MODIFIERS)?),
 
                 _ => self.error_at_current("Encountered invalid declaration inside class.")?,
             }
@@ -363,7 +367,7 @@ impl Parser {
     }
 
     fn constructor(&mut self) -> Option<Constructor> {
-        self.check_mods(&METHOD_MODIFIERS, "constructor")?;
+        self.check_mods(&CONSTRUCTOR_MODIFIERS, "constructor")?;
         let visibility = self.get_visibility()?;
 
         self.consume(TType::LeftParen, "Expected '(' after 'construct'.")?;
@@ -434,7 +438,7 @@ impl Parser {
         while !self.check(TType::RightBrace) && !self.is_at_end() {
             match self.advance().t_type {
                 TType::Func => {
-                    let sig = self.func_signature()?;
+                    let sig = self.func_signature(&METHOD_MODIFIERS)?;
                     let body = self.maybe_fn_body()?;
                     methods.push(Function { sig, body })
                 }
@@ -461,7 +465,7 @@ impl Parser {
         let mut methods: Vec<Function> = Vec::new();
         while !self.check(TType::RightBrace) && !self.is_at_end() {
             match self.advance().t_type {
-                TType::Func => methods.push(self.function()?),
+                TType::Func => methods.push(self.function(&METHOD_MODIFIERS)?),
                 _ => self.error_at_current("Encountered invalid declaration inside impl.")?,
             }
         }
@@ -474,10 +478,11 @@ impl Parser {
         })
     }
 
-    fn function(&mut self) -> Option<Function> {
-        let sig = self.func_signature()?;
+    fn function(&mut self, mods: &'static [TType]) -> Option<Function> {
+        let is_extern = self.modifiers.iter().any(|t| t.t_type == TType::Extern);
+        let sig = self.func_signature(mods)?;
 
-        let body = if self.modifiers.iter().any(|t| t.t_type == TType::Extern) {
+        let body = if is_extern {
             None
         } else {
             if !self.check(TType::LeftBrace) {
@@ -774,7 +779,7 @@ impl Parser {
 
     fn unary(&mut self) -> Option<Expression> {
         Some(
-            if let Some(operator) = self.match_tokens(&[TType::Bang, TType::Minus]) {
+            if let Some(operator) = self.match_tokens(&[TType::Bang, TType::Minus, TType::New]) {
                 let right = Box::new(self.unary()?);
                 Expression::Unary { operator, right }
             } else {
@@ -1125,9 +1130,14 @@ impl Parser {
                 }
             }
 
-            TType::Caret => {
+            TType::Tilde => {
                 let inner = self.type_(msg)?;
                 Type::Value(Box::new(inner))
+            }
+
+            TType::AndSym => {
+                let inner = self.type_(msg)?;
+                Type::Weak(Box::new(inner))
             }
 
             TType::Star => {

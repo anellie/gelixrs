@@ -22,7 +22,7 @@ use crate::{
             passes::declaring_globals::{generate_mir_fn, insert_global_and_type},
             AssociatedMethod, ForLoop, MIRGenerator,
         },
-        nodes::{catch_up_passes, ADTType, ArrayLiteral, Expr, Type, Variable, ADT},
+        nodes::{catch_up_passes, ADTType, ArrayLiteral, CastType, Expr, Type, Variable, ADT},
         result::ToMIRResult,
         MutRc,
     },
@@ -116,11 +116,7 @@ impl MIRGenerator {
     }
 
     fn assignment(&mut self, name: &Token, value: &ASTExpr) -> Res<Expr> {
-        let var = self.find_var(&name).or_err(
-            &self.builder.path,
-            name,
-            &format!("Variable '{}' is not defined", name.lexeme),
-        )?;
+        let var = self.find_var(&name)?;
         let value = self.expression(value)?;
         let value = self.try_cast(value, &var.type_);
         let val_ty = value.get_type();
@@ -155,7 +151,7 @@ impl MIRGenerator {
         self.binary_mir(left, operator, right)
     }
 
-    fn binary_mir(&mut self, left: Expr, operator: &Token, mut right: Expr) -> Res<Expr> {
+    fn binary_mir(&mut self, mut left: Expr, operator: &Token, mut right: Expr) -> Res<Expr> {
         let left_ty = left.get_type();
         let right_ty = right.get_type();
 
@@ -171,7 +167,7 @@ impl MIRGenerator {
             }
         } else {
             let method_var = self
-                .get_operator_overloading_method(operator.t_type, &left_ty, &mut right)
+                .get_operator_overloading_method(operator.t_type, &mut left, &mut right)
                 .or_err(
                     &self.builder.path,
                     operator,
@@ -266,7 +262,7 @@ impl MIRGenerator {
 
                     // Interface method call
                     (ASTExpr::Get { .. }, AssociatedMethod::IFace(index)) => {
-                        let adt = obj_ty.as_adt().borrow();
+                        let adt = obj_ty.to_adt().borrow();
                         let params = &adt.dyn_methods.get_index(index).unwrap().1.parameters;
                         self.check_func_args(
                             // 'params' need to have the 'this' parameter, this is the result...
@@ -278,7 +274,7 @@ impl MIRGenerator {
                             true,
                         )?;
 
-                        Ok(Expr::call_dyn(obj_ty.as_adt(), index, args))
+                        Ok(Expr::call_dyn(obj_ty.to_adt(), index, args))
                     }
 
                     // Proto method call with inferred generics
@@ -375,7 +371,9 @@ impl MIRGenerator {
                                     .iter()
                                     .skip(1)
                                     .zip(args.iter_mut())
-                                    .all(|(param, arg)| arg.get_type().can_cast_to(&param.type_))
+                                    .all(|(param, arg)| {
+                                        arg.get_type().can_cast_to(&param.type_, true).is_some()
+                                    })
                         })
                         .or_err(
                             &self.builder.path,
@@ -619,14 +617,21 @@ impl MIRGenerator {
 
                 (TType::Is, Expr::VarGet(var)) | (TType::Is, Expr::VarStore { var, .. }) => {
                     let ty = (&**right.get_type().as_type()).clone();
+                    let ty = if var.type_.is_weak() {
+                        ty.to_weak()
+                    } else {
+                        ty.to_strong()
+                    };
+
                     let new_var = self.define_variable(
                         &Token::generic_identifier(var.name.to_string()),
                         false,
-                        ty,
+                        ty.clone(),
                     );
+
                     list.push(Expr::store(
                         &new_var,
-                        Expr::cast(Expr::load(var), &right.get_type().as_type()),
+                        Expr::cast(Expr::load(var), &ty, CastType::Bitcast),
                         true,
                     ));
                 }
@@ -648,11 +653,11 @@ impl MIRGenerator {
         ast_index: &ASTExpr,
         ast_value: &ASTExpr,
     ) -> Res<Expr> {
-        let obj = self.expression(indexed)?;
+        let mut obj = self.expression(indexed)?;
         let mut index = self.expression(ast_index)?;
         let value = self.expression(ast_value)?;
         let method = self
-            .get_operator_overloading_method(TType::RightBracket, &obj.get_type(), &mut index)
+            .get_operator_overloading_method(TType::RightBracket, &mut obj, &mut index)
             .or_err(
                 &self.builder.path,
                 ast_index.get_token(),
@@ -738,6 +743,7 @@ impl MIRGenerator {
                     })
                     .collect(),
                 variadic: false,
+                modifiers: vec![],
             },
             body: Some(closure.body.clone()),
         };
@@ -830,18 +836,15 @@ impl MIRGenerator {
     }
 
     fn var(&mut self, var: &Token) -> Res<Expr> {
-        if let Some(var) = self.find_var(&var) {
-            Ok(Expr::load(&var))
-        } else {
-            self.module
+        let res = self.find_var(&var);
+        match res {
+            Ok(var) => Ok(Expr::load(&var)),
+            Err(e) => self
+                .module
                 .borrow()
                 .find_type(&var.lexeme)
                 .map(Expr::type_get)
-                .or_err(
-                    &self.builder.path,
-                    var,
-                    &format!("Variable '{}' is not defined", var.lexeme),
-                )
+                .ok_or(e),
         }
     }
 
@@ -967,7 +970,7 @@ impl MIRGenerator {
     /// If a when expression can safely give a value even when an else branch is missing.
     /// Only true when switching on enum type with every case present.
     fn can_omit_else(&self, value_ty: &Type, when_cases: &[(Expr, Expr)]) -> bool {
-        let adt = if let Type::Adt(adt) = value_ty {
+        let adt = if let Some(adt) = value_ty.try_adt() {
             adt
         } else {
             return false;

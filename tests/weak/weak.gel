@@ -1,0 +1,12 @@
+/*
+*/
+
+func main() {
+    val a = A()
+    b(a)
+}
+
+class A {}
+
+func b(a: &A) {
+}

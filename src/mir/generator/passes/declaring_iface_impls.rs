@@ -58,10 +58,18 @@ pub fn declare_impl(
     let err_token = iface_impl.iface.get_token().clone();
     let implementor =
         override_implementor.map_or_else(|| builder.find_type(&iface_impl.implementor), Ok);
-    if implementor.is_err() && iface_impl.implementor.is_generic() {
+    if implementor.is_err() && iface_impl.implementor.has_generics() {
         return add_impl_to_proto(iface_impl, builder);
     }
     let implementor = implementor?;
+    if implementor.is_value() {
+        return Err(Error::new(
+            &err_token,
+            "MIR",
+            "Cannot implement interfaces on direct values".to_string(),
+            &builder.path,
+        ));
+    };
 
     let ty = builder.find_type(&iface_impl.iface)?;
     if !ty.is_adt() || !ty.as_adt().borrow().ty.is_interface() {

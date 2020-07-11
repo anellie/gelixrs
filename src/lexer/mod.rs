@@ -48,7 +48,8 @@ impl Lexer {
             '+' => self.make_token(TType::Plus),
             '*' => self.make_token(TType::Star),
             '/' => self.make_token(TType::Slash),
-            '^' => self.make_token(TType::Caret),
+            '~' => self.make_token(TType::Tilde),
+            '&' => self.make_token(TType::AndSym),
 
             // Double-char
             '!' => self.check_double_token('=', TType::BangEqual, TType::Bang),
@@ -108,8 +109,10 @@ impl Lexer {
             "in" => TType::In,
             "interface" => TType::Interface,
             "is" => TType::Is,
+            "new" => TType::New,
             "or" => TType::Or,
             "return" => TType::Return,
+            "strong" => TType::Strong,
             "to" => TType::To,
             "true" => TType::True,
             "val" => TType::Val,

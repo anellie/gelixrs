@@ -12,21 +12,25 @@ There are 4 different types of values in gelix, based on where they are located:
 
 #### Weak Reference
 
-The default type for a value is a weak reference. A weak reference is a pointer to a value
+The first type is a weak reference. A weak reference is a pointer to a value
 that resides either on the heap or the stack and is simply the name of the type.
 
 Due to the fact that the value can be on the stack, usage is restricted. A weak reference may
-not leave a function that uses it, which means that you cannot:
+not leave a function that uses it or dangle, which means that you cannot:
 - Assign the value to a field, as the field may outlive the value
 - Return a weak reference from a function, as that would outlive the value
+- Have a block evaluate to a weak reference created inside the block
+
+Additionally, a field may not be a weak reference.
+
+They are written with a `&` in front,for example `&String`.
 
 ```java
 func main() {
     a(Array())
 }
 
-// Simply the type name without any extras is a weak reference
-func a(a: Array<i64>) {}
+func a(a: &Array<i64>) {}
 
 class A {
     val a: Array<i64>
@@ -34,7 +38,7 @@ class A {
 }
 
 // This would be a compile error: You cannot assign a weak reference to a field.
-func b(b: Array<i64>) {
+func b(b: &Array<i64>) {
     A(b)
 }
 ```
@@ -45,14 +49,13 @@ The second type is a strong reference. A strong reference is also a pointer, exc
 guaranteed to reside on the heap. SRs are always reference counted and automatically 
 garbage collected.
 
-Compared to WRs, SRs can be used with no restrictions. They are written with a `&` in front,
-for example `&String`.
+They are simply the type name without any additions.
 
 Lastly, SRs will automatically cast to WRs.
 
 ```java
 // The above example would've been a compile error with WRs, but SRs make it possible
-func b(b: &Array<i64>) {
+func b(b: Array<i64>) {
     A(b)
 }
 ```
@@ -63,7 +66,7 @@ func b(b: &Array<i64>) {
 Direct values are not pointers, but instead values directly. This has a few implications:
 - When used as function parameter, the argument is copied on every call
 - When used as a field, the value is part of the parent data structure instead of a pointer
-- A direct value cannot be used as either WR or SR.
+- A direct value cannot be used as a SR, but can cast to a WR.
 - SRs and WRs will automatically cast to direct values
 
 To use direct values, put a `~` in front, like `~String`.
@@ -73,6 +76,8 @@ class A {
     // Because of the type, the "A" datatype is one block in memory
     // instead of being split across the heap like it would be with pointers
     val a: ~String = "hmm"
+    // Note that string literals are always of type ~String, making
+    // the type annotation omittable
 }
 
 func b(a: ~A) {
@@ -115,4 +120,3 @@ Array<i64>()
 // Strong reference
 new Array<i64>()
 ```
-

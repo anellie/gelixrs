@@ -52,7 +52,7 @@ pub trait ModulePass {
 /// The reason for this pass implementation is that prototypes
 /// require 'catching up' when instanced later.
 /// By specifying which pass affects them, its easy to do so.
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone, Copy)]
 pub enum PassType {
     /// This pass runs on the all modules.
     /// Currently only import resolution.
@@ -63,6 +63,7 @@ pub enum PassType {
     /// is automatically attached.
     /// This does not include primitive types.
     Type,
-    /// Same as [PassType::Type], but will also run on primitive types.
+    /// Same as [PassType::Type], but will also run on primitive types as well
+    /// as Weak and Value variations of types.
     AllTypes,
 }

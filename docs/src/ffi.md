@@ -27,8 +27,8 @@ Gelix will compile the class into different LLVM types depending on it's usage:
 
 Usage | Gelix | LLVM | Notes
 --- | --- | --- | ---
-Weak Reference | `T` | `&{ *TypeInfo, i64, f64 }` | Simple pointer, only additional type info
-Strong Reference | `&T` | `&{ i32, *TypeInfo, i64, f64 }` | Contains reference count and type info
+Strong Reference | `T` | `&{ i32, *TypeInfo, i64, f64 }` | Contains reference count and type info
+Weak Reference | `&T` | `&{ *TypeInfo, i64, f64 }` | Simple pointer, only additional type info
 Direct Value | `~T` | `{ i64, f64 }` | Not a pointer
 
 Note that user fields are always in the order they were declared.

@@ -32,11 +32,14 @@ impl IRGenerator {
                     .into()
             }
 
-            BasicValueEnum::FloatValue(flt) => self.coerce_to_void_ptr(self.builder.build_bitcast(
-                flt,
-                self.context.i64_type(),
-                "flttoint",
-            )),
+            BasicValueEnum::FloatValue(flt) => self.coerce_to_void_ptr(
+                self.builder.build_bitcast(
+                    self.builder
+                        .build_float_ext(flt, self.context.f64_type(), "fltextend"),
+                    self.context.i64_type(),
+                    "flttoint",
+                ),
+            ),
 
             _ => panic!("Cannot coerce to void ptr: {:?}", ty),
         }
@@ -99,11 +102,11 @@ impl IRGenerator {
     /// Perform a struct GEP with some additional safety checks.
     /// The index will be offset by one should the struct contain a refcount field,
     /// so callers do not need to account for this.
-    pub fn struct_gep(&self, ptr: PointerValue, index: usize) -> PointerValue {
+    pub fn struct_gep(&self, ptr: PointerValue, _index: usize) -> PointerValue {
         assert!(ptr.get_type().get_element_type().is_struct_type());
 
         // Account for the reference count field, should it be present
-        let index = index as u32 + self.get_struct_offset(ptr);
+        let index = _index as u32 + self.get_struct_offset(ptr);
 
         assert!(
             ptr.get_type()
@@ -117,7 +120,13 @@ impl IRGenerator {
     }
 
     pub fn get_type_info_field(&self, ptr: PointerValue) -> PointerValue {
-        unsafe { self.builder.build_struct_gep(ptr, 1, "gep") }
+        unsafe {
+            self.builder.build_struct_gep(
+                ptr,
+                Self::needs_gc(*ptr.get_type().get_element_type().as_struct_type()) as u32,
+                "gep",
+            )
+        }
     }
 
     pub fn get_struct_offset(&self, ptr: PointerValue) -> u32 {
@@ -125,9 +134,8 @@ impl IRGenerator {
         let struct_type = elem_ty.as_struct_type();
         let mut i = 0;
 
-        // Account for the reference count field, should it be present
-        i +=
-            (struct_type.get_field_type_at_index(i) == Some(self.context.i32_type().into())) as u32;
+        // Account for the reference count field, should the struct be GCd
+        i += Self::needs_gc(*struct_type) as u32;
         // Account for the type info field, should it be present
         i += (struct_type.get_field_type_at_index(i)
             == Some(self.type_info_type.ptr_type(Generic).into())) as u32;

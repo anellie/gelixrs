@@ -134,6 +134,16 @@ impl PassRunner {
                     gen.switch_module(&module);
                     for ty in types {
                         ty.context().map(|c| gen.builder.context = c);
+
+                        if let (Type::Adt(adt), PassType::AllTypes) = (&ty, pass_type) {
+                            pass.run_type(gen, Type::Weak(Rc::clone(adt)))
+                                .map_err(|e| errs.push(e))
+                                .ok();
+                            pass.run_type(gen, Type::Value(Rc::clone(adt)))
+                                .map_err(|e| errs.push(e))
+                                .ok();
+                        }
+
                         pass.run_type(gen, ty).map_err(|e| errs.push(e)).ok();
                     }
 

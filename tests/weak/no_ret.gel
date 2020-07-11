@@ -1,0 +1,9 @@
+// C-ERR
+
+func main() {
+
+}
+
+func a() -> &String {
+    "no"
+}

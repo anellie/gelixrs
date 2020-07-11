@@ -11,6 +11,9 @@ public func size_of<T>() -> i64 = gelixrs_get_type_size::<T>()
 /// Since gelix's GC uses reference counting, a value
 /// is immediately deallocated once unreachable.
 ///
+/// This MUST be implemented on the weak reference type for the GC to pick
+/// it up! Implementing it on SRs or DVs has no effect.
+///
 /// A note for enums: If both an enum and a child case
 /// implement this interface, the order is:
 /// enum.free() -> enum_case.free() -> deallocation
@@ -64,6 +67,13 @@ public func copy_ptr<T>(src: *T, dst: *T, len: i64) {
     for (i from 0 to len) {
         write_value_index(dst, i, load_value_index(src, i))
     }
+}
+
+/// Will clone a pointer for the given amount of elements.
+public func clone_ptr<T>(src: *T, len: i64) -> *T {
+    val dst = allocate::<T>(len)
+    copy_ptr(src, dst, len)
+    dst
 }
 
 /// A wrapper intended for extern classes to allow them to be automatically managed.

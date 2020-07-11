@@ -1,0 +1,20 @@
+// C-ERR
+
+func main() {
+    val a = new A(new B())
+
+}
+
+class A {
+    val b: B
+
+    construct(b)
+}
+
+class B {
+
+}
+
+func a(a: A) {
+    a.b = B()
+}

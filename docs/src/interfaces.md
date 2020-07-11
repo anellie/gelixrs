@@ -67,3 +67,11 @@ when (iface) {
     }
 }
 ```
+
+### Interfaces and the Type System
+
+Compared to classes and enums, interfaces do not currently follow the reference-based 
+memory management model.
+
+An interface type must always be a strong reference, and weak references and direct values
+cannot implement an interface (only primitives, strong references ~~and raw pointers~~ can.).

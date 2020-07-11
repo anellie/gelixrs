@@ -71,19 +71,21 @@ impl IRGenerator {
     }
 
     /// Checks if a given struct needs to be GC'd.
-    fn needs_gc(struc: StructType) -> bool {
-        !struc
+    pub fn needs_gc(struc: StructType) -> bool {
+        struc
             .get_name()
-            .map_or(true, |name| name.to_str().unwrap().starts_with("vtable"))
+            .map_or(false, |name| name.to_str().unwrap().starts_with("SR-"))
     }
 
     fn mod_refcount(&self, value: BasicValueEnum, decrement: bool) {
         match value {
-            BasicValueEnum::StructValue(struc)
-                if struc.get_name().to_str().unwrap().starts_with("iface") =>
-            {
-                self.mod_refcount_iface(struc, decrement)
+            BasicValueEnum::StructValue(struc) => {
+                let name = struc.get_name().to_str().unwrap();
+                if name.starts_with("iface") && !name.starts_with("iface-WR") {
+                    self.mod_refcount_iface(struc, decrement)
+                }
             }
+
             BasicValueEnum::PointerValue(ptr) => {
                 let ty = ptr.get_type().get_element_type().into_struct_type();
                 match &self
@@ -102,10 +104,10 @@ impl IRGenerator {
     }
 
     fn mod_refcount_adt(&self, ptr: PointerValue, adt: &MutRc<ADT>, decrement: bool) {
-        if !adt.borrow().ty.has_refcount() {
+        if adt.borrow().ty.is_extern_class() {
             return;
         }
-        if let Some(destructor) = &adt.borrow().destructor {
+        if let Some(destructor) = &adt.borrow().destructor_sr {
             let func = self.get_variable(destructor);
             let refcount = unsafe { self.builder.build_struct_gep(ptr, 0, "rcgep") };
             let refcount = self.write_new_refcount(refcount, decrement);
