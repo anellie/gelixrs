@@ -120,7 +120,13 @@ impl IRGenerator {
     }
 
     pub fn get_type_info_field(&self, ptr: PointerValue) -> PointerValue {
-        unsafe { self.builder.build_struct_gep(ptr, 1, "gep") }
+        unsafe {
+            self.builder.build_struct_gep(
+                ptr,
+                Self::needs_gc(*ptr.get_type().get_element_type().as_struct_type()) as u32,
+                "gep",
+            )
+        }
     }
 
     pub fn get_struct_offset(&self, ptr: PointerValue) -> u32 {

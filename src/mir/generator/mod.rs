@@ -316,7 +316,7 @@ impl MIRGenerator {
         let object = self.expression(object)?;
         let ty = object.get_type();
 
-        if let Type::Adt(adt) | Type::Weak(adt) | Type::Value(adt) = &ty {
+        if let Some(adt) = ty.try_adt() {
             let adt = adt.borrow();
             let field = adt.members.get(&name.lexeme);
             if let Some(field) = field {
@@ -426,7 +426,7 @@ impl MIRGenerator {
     /// Searches for an associated method on a type. Can be either an interface
     /// method or a class method.
     fn find_associated_method(ty: &Type, name: &Token) -> Option<AssociatedMethod> {
-        let method = if let Type::Adt(adt) | Type::Weak(adt) | Type::Value(adt) = &ty {
+        let method = if let Some(adt) = ty.try_adt() {
             let adt = adt.borrow();
             adt.methods
                 .get(&name.lexeme)
@@ -463,11 +463,41 @@ impl MIRGenerator {
     fn get_operator_overloading_method(
         &self,
         op: TType,
-        left_ty: &Type,
+        left: &mut Expr,
         right: &mut Expr,
     ) -> Option<Rc<Variable>> {
+        let left_ty = left.get_type();
         let proto = INTRINSICS.with(|i| i.borrow().get_op_iface(op))?;
-        let iface_impls = get_iface_impls(left_ty)?;
+
+        if let Some(adt) = left_ty.try_adt() {
+            // TODO: Bit ugly...
+            self.get_op_method(&proto, &left_ty, right)
+                .or_else(|| {
+                    self.get_op_method(&proto, &Type::Weak(Rc::clone(adt)), right)
+                        .map(|var| {
+                            self.try_cast_in_place(left, &Type::Weak(Rc::clone(adt)));
+                            var
+                        })
+                })
+                .or_else(|| {
+                    self.get_op_method(&proto, &Type::Value(Rc::clone(adt)), right)
+                        .map(|var| {
+                            self.try_cast_in_place(left, &Type::Value(Rc::clone(adt)));
+                            var
+                        })
+                })
+        } else {
+            self.get_op_method(&proto, &left_ty, right)
+        }
+    }
+
+    fn get_op_method(
+        &self,
+        proto: &Rc<Prototype>,
+        ty: &Type,
+        right: &mut Expr,
+    ) -> Option<Rc<Variable>> {
+        let iface_impls = get_iface_impls(ty)?;
         let iface_impls = iface_impls.borrow();
 
         for im in iface_impls.interfaces.values() {
@@ -504,16 +534,21 @@ impl MIRGenerator {
     /// this function just returns value unmodified.
     fn try_cast(&self, value: Expr, ty: &Type) -> Expr {
         let val_ty = value.get_type();
-        if let (true, Some(cty)) = val_ty.can_cast_to(ty) {
-            Expr::maybe_cast(value, &val_ty, ty, cty)
-        } else {
-            value
+        match val_ty.can_cast_to(ty, true) {
+            Some((Some(outer), Some((inner, inner_ty)))) => {
+                Expr::cast(Expr::cast(value, &inner_ty, inner), ty, outer)
+            }
+
+            Some((Some(outer), None)) => {
+                Expr::cast(value, ty, outer)
+            }
+
+            _ => value
         }
     }
 
     /// Same as above but utilizing `std::mem::replace` to only
     /// require a mutable reference at the cost of a slight performance penalty.
-    /// Returns if the cast was successful.
     fn try_cast_in_place(&self, value_ref: &mut Expr, ty: &Type) {
         let value = mem::replace(value_ref, Expr::none_const());
         *value_ref = self.try_cast(value, ty);

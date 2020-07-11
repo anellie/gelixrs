@@ -18,7 +18,7 @@ func main() {
 
 class S {}
 
-impl Free for S {
+impl Free for &S {
     func free() {
         print("freed")
     }

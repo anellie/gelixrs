@@ -421,8 +421,7 @@ impl IRGenerator {
                 match object {
                     Expr::StructGet { object, index, .. } => {
                         let struc = self.expression(object);
-                        let ptr = self.struct_gep(struc.into_pointer_value(), *index);
-                        ptr
+                        self.struct_gep(struc.into_pointer_value(), *index)
                     }
 
                     Expr::StructSet {
@@ -461,8 +460,11 @@ impl IRGenerator {
                 self.load_ptr_mir(ptr, to)
             }
 
-            // Purely semantic MIR cast
             CastType::SRtoWR => {
+                if to.to_adt().borrow().ty.is_extern_class() {
+                    return self.expression(object);
+                }
+
                 let to = self.ir_ty_ptr(to);
                 let ptr = self.expression(object).into_pointer_value();
                 let gep = unsafe { self.builder.build_struct_gep(ptr, 1, "srwrgep") };
@@ -495,13 +497,13 @@ impl IRGenerator {
     ) -> BasicValueEnum {
         let field_tys = vtable.get_field_types();
         let mut field_tys = field_tys.iter();
-        let impls = get_iface_impls(&implementor).unwrap();
+        let impls = get_iface_impls(&implementor.to_strong()).unwrap();
         let impls = impls.borrow();
         let methods_iter = self
             .get_free_function(&implementor)
             .into_iter()
             .chain(
-                impls.interfaces[iface]
+                impls.interfaces[&iface.to_strong()]
                     .methods
                     .iter()
                     .map(|(_, method)| self.functions[&PtrEqRc::new(method)])
@@ -524,6 +526,10 @@ impl IRGenerator {
         Some(match ty {
             Type::Adt(adt) if adt.borrow().destructor_sr.is_some() => self.functions
                 [&PtrEqRc::new(&adt.borrow().destructor_sr.as_ref().unwrap())]
+                .as_global_value()
+                .as_pointer_value(),
+            Type::Weak(adt) if adt.borrow().destructor.is_some() => self.functions
+                [&PtrEqRc::new(&adt.borrow().destructor.as_ref().unwrap())]
                 .as_global_value()
                 .as_pointer_value(),
             _ => self.void_ptr().const_zero(),

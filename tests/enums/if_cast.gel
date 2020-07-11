@@ -2,7 +2,7 @@
 Hello!
 No this is Patrick
 */
-
+oof
 func main() {
     val a = Krusty:Crab("Hello!")
     val b = Krusty:B(42)

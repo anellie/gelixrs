@@ -3,7 +3,7 @@ a
 b
 c
 */
-
+oof
 func main() {
     val a = A:A("Hello!")
     val b = A:B(42)

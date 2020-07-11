@@ -179,7 +179,21 @@ impl Type {
     pub fn to_adt(&self) -> &MutRc<ADT> {
         match self {
             Type::Adt(adt) | Type::Weak(adt) | Type::Value(adt) => adt,
-            _ => panic!()
+            _ => panic!(),
+        }
+    }
+
+    pub fn try_adt(&self) -> Option<&MutRc<ADT>> {
+        match self {
+            Type::Adt(adt) | Type::Weak(adt) | Type::Value(adt) => Some(adt),
+            _ => None,
+        }
+    }
+
+    pub fn to_strong(&self) -> Type {
+        match self {
+            Type::Adt(adt) | Type::Weak(adt) | Type::Value(adt) => Type::Adt(Rc::clone(&adt)),
+            _ => self.clone()
         }
     }
 
@@ -241,32 +255,37 @@ impl Type {
         }
     }
 
-    pub fn can_cast_to(&self, other: &Type) -> (bool, Option<CastType>) {
+    /// first_call indicates if this is a recursive call or not to prevent SO
+    pub fn can_cast_to(
+        &self,
+        other: &Type,
+        first_call: bool,
+    ) -> Option<(Option<CastType>, Option<(CastType, Type)>)> {
         match (self, other) {
-            _ if self == other => return (true, None),
+            _ if self == other => return Some((None, None)),
 
             // SR to WR cast
             (Type::Adt(adt), Type::Weak(weak)) if Rc::ptr_eq(adt, weak) => {
-                return (true, Some(CastType::SRtoWR))
+                return Some((Some(CastType::SRtoWR), None))
             }
 
             // SR/WR to DV cast
             (Type::Adt(adt), Type::Value(value)) | (Type::Weak(adt), Type::Value(value))
                 if Rc::ptr_eq(adt, value) =>
             {
-                return (true, Some(CastType::ToDV))
+                return Some((Some(CastType::ToDV), None))
             }
 
             // DV to WR cast
             (Type::Value(adt), Type::Weak(weak)) if Rc::ptr_eq(adt, weak) => {
-                return (true, Some(CastType::DVtoWR))
+                return Some((Some(CastType::DVtoWR), None))
             }
 
             (Type::Adt(adt), Type::Adt(other)) => {
                 match &adt.borrow().ty {
                     // Enum case to enum cast
                     ADTType::EnumCase { parent, .. } if Rc::ptr_eq(parent, other) => {
-                        return (true, Some(CastType::Bitcast))
+                        return Some((Some(CastType::Bitcast), None))
                     }
 
                     _ => (),
@@ -274,20 +293,44 @@ impl Type {
             }
 
             // Number cast
-            _ if self.is_number() && other.is_int() => return (true, Some(CastType::ToInt)),
-            _ if self.is_number() && other.is_float() => return (true, Some(CastType::ToFloat)),
+            _ if self.is_number() && other.is_int() => return Some((Some(CastType::ToInt), None)),
+            _ if self.is_number() && other.is_float() => {
+                return Some((Some(CastType::ToFloat), None))
+            }
 
             _ => (),
         }
 
         // Interface cast
-        if let Some(impls) = get_iface_impls(&self) {
-            if impls.borrow().interfaces.get(other).is_some() {
-                return (true, Some(CastType::ToIface));
+        if let (Some(adt), Some(impls)) = (other.try_adt(), get_iface_impls(&self)) {
+            if impls.borrow().interfaces.get(&Type::Adt(Rc::clone(adt))).is_some() {
+                return Some((Some(CastType::ToIface), None));
             }
         }
 
-        (false, None)
+        // TODO: Rather ugly...
+        match self {
+            _ if !first_call => None,
+
+            Type::Adt(adt) => Type::Weak(Rc::clone(adt))
+                .can_cast_to(&other, false)
+                .map(|c| (c.0, Some((CastType::SRtoWR, Type::Weak(Rc::clone(adt))))))
+                .or_else(|| {
+                    Type::Value(Rc::clone(adt))
+                        .can_cast_to(&other, false)
+                        .map(|c| (c.0, Some((CastType::ToDV, Type::Value(Rc::clone(adt))))))
+                }),
+
+            Type::Weak(adt) => Type::Value(Rc::clone(adt))
+                .can_cast_to(&other, false)
+                .map(|c| (c.0, Some((CastType::ToDV, Type::Value(Rc::clone(adt)))))),
+
+            Type::Value(adt) => Type::Weak(Rc::clone(adt))
+                .can_cast_to(&other, false)
+                .map(|c| (c.0, Some((CastType::DVtoWR, Type::Weak(Rc::clone(adt)))))),
+
+            _ => None,
+        }
     }
 
     pub fn display_full(&self, f: &mut Formatter) -> Result<(), Error> {

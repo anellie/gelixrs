@@ -30,7 +30,7 @@ impl IRGenerator {
         let ir = self.ir_ty(mir);
         match (ir, mir) {
             // If the type does not need lifecycle (currently only interfaces), then it is passed by value
-            (BasicTypeEnum::StructType(_), Type::Adt(adt))
+            (BasicTypeEnum::StructType(_), Type::Adt(adt)) | (BasicTypeEnum::StructType(_), Type::Weak(adt))
                 if !adt.borrow().ty.needs_lifecycle() =>
             {
                 ir
@@ -83,7 +83,7 @@ impl IRGenerator {
                     )
                     .into(),
 
-                ADTType::Interface { .. } => self.build_iface_type(adt.borrow()).into(),
+                ADTType::Interface { .. } => self.build_iface_type(adt.borrow(), false).into(),
 
                 _ => self
                     .build_struct(
@@ -100,9 +100,11 @@ impl IRGenerator {
             Type::Value(inner) if !inner.borrow().ty.is_extern_class() => {
                 self.build_raw_adt(inner, &format!("DV-{}", &inner.borrow().name))
             }
-            Type::Weak(inner) if !inner.borrow().ty.is_extern_class() => {
-                self.build_raw_adt(inner, &format!("WR-{}", &inner.borrow().name))
-            }
+
+            Type::Weak(inner) if !inner.borrow().ty.is_extern_class() => match inner.borrow().ty {
+                ADTType::Interface { .. } => self.build_iface_type(inner.borrow(), true).into(),
+                _ => self.build_raw_adt(inner, &format!("WR-{}", &inner.borrow().name)),
+            },
 
             // If the above fell through it's an extern class, so just use the ADT type directly
             Type::Value(adt) | Type::Weak(adt) => self.ir_ty(&Type::Adt(Rc::clone(adt))),
@@ -138,7 +140,7 @@ impl IRGenerator {
     /// Generates the struct for captured variables, given a list of them.
     fn build_captured_type(&mut self, captured: &[Rc<Variable>]) -> StructType {
         self.build_struct(
-            "closure-captured",
+            "SR-closure-captured",
             captured.iter().map(|var| &var.type_),
             true,
             false,
@@ -234,7 +236,7 @@ impl IRGenerator {
 
     /// Generate the type of an interface when used as a standalone type,
     /// which is a struct with 2 pointers (vtable + implementor).
-    fn build_iface_type(&mut self, iface: Ref<ADT>) -> StructType {
+    fn build_iface_type(&mut self, iface: Ref<ADT>, weak: bool) -> StructType {
         let free_method_sig = Some(
             self.context
                 .void_type()
@@ -257,7 +259,7 @@ impl IRGenerator {
         let vtable_struct = self.build_struct_ir("vtable", vtable.into_iter(), false, false);
 
         self.build_struct_ir(
-            &format!("iface-{}", &iface.name),
+            &format!("iface-{}{}", if weak { "WR-" } else { "" }, &iface.name),
             vec![
                 self.context.i64_type().ptr_type(Generic).into(),
                 vtable_struct.ptr_type(Generic).into(),

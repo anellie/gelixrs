@@ -287,6 +287,16 @@ impl Prototype {
                 }
             }
 
+            ast::Type::Weak(inner) if goal == &**inner => {
+                // This is required since primitives do not actually get wrapped in MIR
+                // (See MIRBuilder::find_type)
+                if let Type::Weak(mir) = mir {
+                    Some(Type::Adt(mir))
+                } else {
+                    Some(mir)
+                }
+            }
+
             ast::Type::Array(inner) if goal == &**inner => Some(
                 mir.context()
                     .unwrap()

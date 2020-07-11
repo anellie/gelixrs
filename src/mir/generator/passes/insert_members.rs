@@ -138,7 +138,7 @@ fn build_destructor(gen: &mut MIRGenerator, adt: &MutRc<ADT>) {
     gen.insert_at_ptr(Expr::none_const());
 
     let free_iface = INTRINSICS.with(|i| i.borrow().free_iface.clone()).unwrap();
-    let free_method = get_iface_impls(&Type::Adt(Rc::clone(adt)))
+    let free_method = get_iface_impls(&Type::Weak(Rc::clone(adt)))
         .map(|impls| {
             impls
                 .borrow()
@@ -146,18 +146,7 @@ fn build_destructor(gen: &mut MIRGenerator, adt: &MutRc<ADT>) {
                 .get(&free_iface)
                 .map(|iface| Rc::clone(iface.methods.get_index(0).unwrap().1))
         })
-        .flatten()
-        .or_else(|| {
-            get_iface_impls(&Type::Weak(Rc::clone(adt)))
-                .map(|impls| {
-                    impls
-                        .borrow()
-                        .interfaces
-                        .get(&free_iface)
-                        .map(|iface| Rc::clone(iface.methods.get_index(0).unwrap().1))
-                })
-                .flatten()
-        });
+        .flatten();
     if let Some(method) = free_method {
         gen.insert_at_ptr(Expr::call(
             Expr::load(&method),
@@ -234,7 +223,7 @@ fn build_sr_destructor(gen: &mut MIRGenerator, adt_rc: &MutRc<ADT>) {
 fn build_enum_destructor(enu: Expr, cases: &HashMap<Rc<String>, MutRc<ADT>>) -> Expr {
     let mut when_brs = Vec::with_capacity(cases.len());
     for case in cases.values() {
-        let case_ty = Type::Adt(Rc::clone(&case));
+        let case_ty = Type::Weak(Rc::clone(&case));
         // `then` and `cond` are in reverse order to prevent a "use after move" borrowck error
         let then = Expr::call(
             Expr::load(case.borrow().destructor.as_ref().unwrap()),

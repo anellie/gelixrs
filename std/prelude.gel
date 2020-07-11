@@ -16,7 +16,7 @@ func try_cast<T, V>(value: T) -> Opt<V> {
 }
 
 func panic(msg: String) {
-    //print("[gelix] Panicked at: " + msg)
+    print("[gelix] Panicked at: " + msg)
     print("[gelix] Exiting.")
     quick_exit(1i32)
 }

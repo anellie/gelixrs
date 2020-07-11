@@ -151,7 +151,7 @@ impl MIRGenerator {
         self.binary_mir(left, operator, right)
     }
 
-    fn binary_mir(&mut self, left: Expr, operator: &Token, mut right: Expr) -> Res<Expr> {
+    fn binary_mir(&mut self, mut left: Expr, operator: &Token, mut right: Expr) -> Res<Expr> {
         let left_ty = left.get_type();
         let right_ty = right.get_type();
 
@@ -167,7 +167,7 @@ impl MIRGenerator {
             }
         } else {
             let method_var = self
-                .get_operator_overloading_method(operator.t_type, &left_ty, &mut right)
+                .get_operator_overloading_method(operator.t_type, &mut left, &mut right)
                 .or_err(
                     &self.builder.path,
                     operator,
@@ -371,7 +371,7 @@ impl MIRGenerator {
                                     .iter()
                                     .skip(1)
                                     .zip(args.iter_mut())
-                                    .all(|(param, arg)| arg.get_type().can_cast_to(&param.type_).0)
+                                    .all(|(param, arg)| arg.get_type().can_cast_to(&param.type_, true).is_some())
                         })
                         .or_err(
                             &self.builder.path,
@@ -648,11 +648,11 @@ impl MIRGenerator {
         ast_index: &ASTExpr,
         ast_value: &ASTExpr,
     ) -> Res<Expr> {
-        let obj = self.expression(indexed)?;
+        let mut obj = self.expression(indexed)?;
         let mut index = self.expression(ast_index)?;
         let value = self.expression(ast_value)?;
         let method = self
-            .get_operator_overloading_method(TType::RightBracket, &obj.get_type(), &mut index)
+            .get_operator_overloading_method(TType::RightBracket, &mut obj, &mut index)
             .or_err(
                 &self.builder.path,
                 ast_index.get_token(),

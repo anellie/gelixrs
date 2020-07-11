@@ -47,7 +47,17 @@ impl MIRBuilder {
             ASTType::Ident(tok) => {
                 let ty = self.find_type_by_name(&tok);
                 let ty = ty.or_else(|| Some(self.context.type_aliases.get(&tok.lexeme)?.clone()));
-                ty.or_type_err(&self.path, ast, "Unknown type.")
+                let ty = ty.or_type_err(&self.path, ast, "Unknown type.")?;
+
+                if !ty.is_function() {
+                    Ok(ty)
+                } else {
+                    None.or_type_err(
+                        &self.path,
+                        ast,
+                        &format!("Functions cannot be used as types"),
+                    )?
+                }
             }
 
             ASTType::Pointer(inner) => {
@@ -59,6 +69,8 @@ impl MIRBuilder {
                 let inner = self.find_type(inner)?;
                 if let Type::Adt(adt) = inner {
                     Ok(Type::Weak(adt))
+                } else if inner.is_primitive() {
+                    Ok(inner)
                 } else {
                     None.or_type_err(
                         &self.path,
@@ -74,6 +86,7 @@ impl MIRBuilder {
                 match inner {
                     Type::Adt(adt) => Ok(Type::Value(adt)),
                     Type::Pointer(inner) => Ok(*inner),
+                    _ if inner.is_primitive() => Ok(inner),
                     _ => None.or_type_err(
                         &self.path,
                         ast,
