@@ -15,8 +15,11 @@ UnsignedInt | `u8` `u16` `u32` `u64`
 Float | `f32` `f64`
 IsPointer | `*Any` `Class` `ExtClass` `Enum` `EnumCase` | Types represented by a pointer in the LLVM IR type system
 IsValue | `^Any` `Primitive` `Interface` | Types represented by a struct or primitive in LLVM IR
-Class | Classes | Also includes extern classes.
+StrongRef | Strong references
+WeakRef | Weak references
+Direct | Direct values
 Interface | Interfaces
+InClass | Non-Extern classes
 ExtClass | Extern classes
 Enum | Enums | Does not include enum cases.
 EnumCase | Enum cases

@@ -243,8 +243,12 @@ impl Type {
             "IsPointer" => self.is_ptr(),
             "IsValue" => !self.is_ptr(),
 
-            _ if self.is_adt() => {
-                let adt = self.as_adt().borrow();
+            "StrongRef" => self.is_adt(),
+            "WeakRef" => self.is_weak(),
+            "Direct" => self.is_value(),
+
+            _ if self.try_adt().is_some() => {
+                let adt = self.to_adt().borrow();
                 match (&lexeme[..], &adt.ty) {
                     ("Class", ADTType::Class { .. })
                     | ("Interface", ADTType::Interface { .. })
@@ -252,6 +256,7 @@ impl Type {
                     | ("EnumCase", ADTType::EnumCase { .. }) => true,
 
                     ("ExtClass", ADTType::Class { external, .. }) => *external,
+                    ("InClass", ADTType::Class { external, .. }) => !*external,
 
                     _ => false,
                 }
