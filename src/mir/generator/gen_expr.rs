@@ -711,11 +711,15 @@ impl MIRGenerator {
         };
 
         let constructor = &array_type.borrow().constructors[0];
-        let array = Expr::alloc_type(
-            Type::Adt(Rc::clone(&array_type)),
-            constructor,
-            vec![Expr::Literal(Literal::I64(values_mir.len() as u64))],
-        );
+        // Using an EOF token here is fine since this will never fail
+        let array = self.alloc_heap(
+            &Token::eof_token(0),
+            Expr::alloc_type(
+                Type::Adt(Rc::clone(&array_type)),
+                constructor,
+                vec![Expr::Literal(Literal::I64(values_mir.len() as u64))],
+            ),
+        )?;
 
         Ok(Expr::Literal(Literal::Array(Right(ArrayLiteral {
             alloc: Box::new(array),
@@ -829,10 +833,21 @@ impl MIRGenerator {
                 "'-' can only be used on signed integers and floats",
             )),
 
+            TType::New => return self.alloc_heap(operator, right),
+
             _ => Ok(()),
         }?;
 
         Ok(Expr::unary(right, operator.t_type))
+    }
+
+    fn alloc_heap(&mut self, op: &Token, inner: Expr) -> Res<Expr> {
+        if let Expr::AllocInst { heap, .. } = &inner {
+            heap.set(true);
+            Ok(inner)
+        } else {
+            Err(self.err(op, "'new' can only be used with constructors"))
+        }
     }
 
     fn var(&mut self, var: &Token) -> Res<Expr> {

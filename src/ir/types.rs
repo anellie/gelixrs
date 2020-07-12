@@ -115,7 +115,7 @@ impl IRGenerator {
 
         self.types.insert(ty.clone(), (ir_ty, type_info));
         match ir_ty {
-            BasicTypeEnum::StructType(struc) if !ty.is_value() && !ty.is_weak() => {
+            BasicTypeEnum::StructType(struc) if !ty.is_value() => {
                 self.types_bw.insert(
                     struc.get_name().unwrap().to_str().unwrap().to_string(),
                     ty.clone(),

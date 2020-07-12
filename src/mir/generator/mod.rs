@@ -24,7 +24,10 @@ use crate::{
     mir::{
         generator::{builder::MIRBuilder, intrinsics::INTRINSICS},
         get_iface_impls,
-        nodes::{ADTMember, ADTType, CastType::Bitcast, Expr, Function, Prototype, Type, Variable},
+        nodes::{
+            ADTMember, ADTType, CastType, CastType::Bitcast, Expr, Function, Prototype, Type,
+            Variable,
+        },
         result::ToMIRResult,
         MModule, MutRc, IFACE_IMPLS,
     },
@@ -357,7 +360,15 @@ impl MIRGenerator {
         if is_method {
             // Remove the "this" argument to get ownership using swap_remove, last arg is now
             // swapped into index 0
-            let arg = self.try_cast(args.swap_remove(0), parameters.next().unwrap());
+            // Try casting it, if the cast fails then the method is being called with
+            // a WR or DV despite the 'strong' modifier so throw an error
+            let arg = self
+                .cast_or_none(args.swap_remove(0), parameters.next().unwrap())
+                .or_err(
+                    &self.builder.path,
+                    err_tok,
+                    "This method requires a strong reference",
+                )?;
             // Put "this" arg at the end and swap them again
             let this_index = args.len();
             args.push(arg);
@@ -535,6 +546,14 @@ impl MIRGenerator {
     fn try_cast(&self, value: Expr, ty: &Type) -> Expr {
         let val_ty = value.get_type();
         match val_ty.can_cast_to(ty, true) {
+            // The case of "ToDV, then bitcast" needs special handling to reverse order
+            // since DVs cannot be bitcast
+            Some((Some(CastType::Bitcast), Some((CastType::ToDV, _)))) => Expr::cast(
+                Expr::cast(value, &ty.to_weak(), CastType::Bitcast),
+                ty,
+                CastType::ToDV,
+            ),
+
             Some((Some(outer), Some((inner, inner_ty)))) => {
                 Expr::cast(Expr::cast(value, &inner_ty, inner), ty, outer)
             }

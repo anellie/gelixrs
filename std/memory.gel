@@ -48,7 +48,7 @@ public func inc_ref<T>(value: T) = gelixrs_inc_ref(value)
 public func dec_ref<T>(value: T) = gelixrs_dec_ref(value)
 
 /// Will simply load the given value.
-func load_value<T>(value: *T) -> T = gelixrs_load_value(value)
+func load_value<T>(value: &T) -> ~T = gelixrs_load_value(value)
 /// Will simply load the given value, with an index.
 func load_value_index<T>(value: *T, index: i64) -> T = gelixrs_load_value(index_ptr(value, index))
 

@@ -67,7 +67,7 @@ extern func quick_exit(status: i32)
 func build_string_literal(literal_ptr: *i8, len: usize) -> String {
     val new_ptr = allocate::<i8>(len)
     copy_ptr(literal_ptr, new_ptr, len)
-    String(len, len, new_ptr)
+    new String(len, len, new_ptr)
 }
 
 /// As the name already says, this function simply does nothing.

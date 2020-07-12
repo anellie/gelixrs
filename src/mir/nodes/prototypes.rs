@@ -274,7 +274,7 @@ impl Prototype {
                 if let Type::Pointer(mir) = mir {
                     Some(*mir)
                 } else {
-                    Some(Type::Value(mir.into_adt())) // TODO: Possibly unsafe cast?
+                    Some(Type::Value(mir.to_adt().clone()))
                 }
             }
 

@@ -65,13 +65,13 @@ class Array<E> {
     }
 
     func pop() -> Opt<E> {
-        if (this.len == 0) return Opt::<E>:None
+        if (this.len == 0) return new Opt::<E>:None
 
         this.len = this.len - 1
         val value = this.get(this.len)
 
         dec_ref(value)
-        Opt:Some(value)
+        new Opt:Some(value)
     }
 
     func maybe_extend() {
@@ -117,14 +117,14 @@ class ArrayIter<E> {
 
 impl Iter<E> for ArrayIter<E> {
     func next() -> Opt<E> {
-        if (this.arr.len == this.index) Opt::<E>:None
+        if (this.arr.len == this.index) new Opt::<E>:None
         else {
             this.index = this.index + 1
-            Opt:Some(this.arr[this.index - 1])
+            new Opt:Some(this.arr[this.index - 1])
         }
     }
 }
 
 impl ToIter<E, ArrayIter<E>> for Array<E> {
-    func iter() -> ArrayIter<E> = ArrayIter(this)
+    func iter() -> ArrayIter<E> = new ArrayIter(this)
 }

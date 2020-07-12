@@ -84,7 +84,7 @@ impl MIRBuilder {
                 let inner = self.find_type(inner)?;
 
                 match inner {
-                    Type::Adt(adt) => Ok(Type::Value(adt)),
+                    Type::Adt(adt) | Type::Weak(adt) => Ok(Type::Value(adt)),
                     Type::Pointer(inner) => Ok(*inner),
                     _ if inner.is_primitive() => Ok(inner),
                     _ => None.or_type_err(

@@ -190,7 +190,8 @@ fn generic_method(
 }
 
 /// Returns signature of the ADT instantiator.
-fn get_instantiator_fn_sig(adt: &ast::ADT, this_param: FunctionParam) -> FuncSignature {
+fn get_instantiator_fn_sig(adt: &ast::ADT, mut this_param: FunctionParam) -> FuncSignature {
+    this_param.type_ = ASTType::Weak(Box::new(this_param.type_));
     let fn_name = Token::generic_identifier(format!("create-{}-instance", &adt.name.lexeme));
     FuncSignature {
         name: fn_name,
@@ -248,7 +249,7 @@ fn declare_constructors(
     let default = maybe_default_constructor(&ast);
     let iter = constructors.iter().chain(default.iter()).enumerate();
     for (i, constructor) in iter {
-        let sig = get_constructor_sig(builder, &ast, constructor, &this_param, i)?;
+        let sig = get_constructor_sig(builder, &ast, constructor, this_param.clone(), i)?;
         let mir_var = create_function(builder, Left(&sig), false, None)?;
         let mir_fn = mir_var.type_.as_function();
         let mut mir_fn = mir_fn.borrow_mut();
@@ -280,9 +281,10 @@ fn get_constructor_sig(
     builder: &mut MIRBuilder,
     adt: &ast::ADT,
     constructor: &Constructor,
-    this_arg: &FunctionParam,
+    mut this_arg: FunctionParam,
     index: usize,
 ) -> Res<FuncSignature> {
+    this_arg.type_ = ASTType::Weak(Box::new(this_arg.type_));
     let name = Token::generic_identifier(format!("{}-constructor-{}", &adt.name.lexeme, index));
     let mut parameters = constructor
         .parameters

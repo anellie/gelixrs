@@ -59,6 +59,7 @@ pub struct IRGenerator {
     /// The `bool` specifies if the value is a pointer or a value in
     /// the context of the MIR type system.
     locals: Vec<Vec<(BasicValueEnum, bool)>>,
+    local_allocs: Vec<Vec<PointerValue>>,
     /// All blocks in the current function.
     blocks: Vec<BasicBlock>,
     /// The block that was last inserted to, or the one still inserting to.
@@ -278,6 +279,7 @@ impl IRGenerator {
 
             variables: HashMap::with_capacity(10),
             locals: Vec::with_capacity(10),
+            local_allocs: Vec::with_capacity(10),
             blocks: Vec::with_capacity(10),
             last_block: None,
 

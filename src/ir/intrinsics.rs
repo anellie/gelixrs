@@ -127,7 +127,7 @@ impl IRGenerator {
                             .types_bw
                             .get(struct_type.get_name().unwrap().to_str().unwrap())
                             .unwrap()
-                            .as_adt();
+                            .to_adt();
 
                         // Use SR destructor if needed
                         if func.context.type_aliases.get_index(0).unwrap().1.is_adt() {
@@ -157,7 +157,10 @@ impl IRGenerator {
             "load_value" => {
                 let mut value = ir.get_first_param().unwrap();
                 if func.parameters[0].type_.is_adt() {
-                    value = self.cast_sr_to_wr(value.into_pointer_value(), &func.parameters[0].type_.to_weak());
+                    value = self.cast_sr_to_wr(
+                        value.into_pointer_value(),
+                        &func.parameters[0].type_.to_weak(),
+                    );
                 }
                 self.builder.build_return(Some(
                     &self.builder.build_load(value.into_pointer_value(), "var"),

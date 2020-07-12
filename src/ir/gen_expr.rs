@@ -212,20 +212,27 @@ impl IRGenerator {
         constructor_args: &[Expr],
         heap: bool,
     ) -> BasicValueEnum {
-        let ir_ty = self.ir_ty(&Type::Adt(ty.clone()));
+        let (mir_ty, wr_ty) = if heap {
+            (Type::Adt(ty.clone()), Some(Type::Weak(ty.clone())))
+        } else {
+            (Type::Weak(ty.clone()), None)
+        };
+        let ir_ty = self.ir_ty(&mir_ty);
+
         let alloc = self.create_alloc(ir_ty, heap);
-        self.maybe_init_type_info(ty, alloc);
+        self.maybe_init_type_info(ty, alloc, heap);
         self.build_alloc_and_init(
             alloc,
             self.get_variable(&ty.borrow().instantiator.as_ref().unwrap()),
             self.get_variable(&constructor),
             constructor_args,
+            wr_ty,
         )
     }
 
-    fn maybe_init_type_info(&mut self, ty: &MutRc<ADT>, alloc: PointerValue) {
+    fn maybe_init_type_info(&mut self, ty: &MutRc<ADT>, alloc: PointerValue, heap: bool) {
         if ty.borrow().ty.needs_lifecycle() && !ty.borrow().ty.is_extern_class() {
-            let gep = unsafe { self.builder.build_struct_gep(alloc, 1, "tygep") };
+            let gep = unsafe { self.builder.build_struct_gep(alloc, heap as u32, "tygep") };
             let val = self.ir_ty_info(&Type::Adt(Rc::clone(ty)));
             self.builder.build_store(gep, val);
         }
@@ -237,10 +244,17 @@ impl IRGenerator {
         instantiator: PointerValue,
         constructor: PointerValue,
         constructor_args: &[Expr],
+        wr_ty: Option<Type>,
     ) -> BasicValueEnum {
+        let wr_ptr = if let Some(ty) = wr_ty {
+            self.cast_sr_to_wr(alloc, &ty).into_pointer_value()
+        } else {
+            alloc
+        };
+
         self.increment_refcount(alloc.into(), true);
         self.builder
-            .build_call(instantiator, &[alloc.into()], "inst");
+            .build_call(instantiator, &[wr_ptr.into()], "inst");
 
         let mut arguments: Vec<BasicValueEnum> = constructor_args
             .iter()
@@ -249,7 +263,7 @@ impl IRGenerator {
         for arg in &arguments {
             self.increment_refcount(*arg, false);
         }
-        arguments.insert(0, alloc.into());
+        arguments.insert(0, wr_ptr.into());
         self.builder.build_call(constructor, &arguments, "constr");
         for arg in arguments.iter().skip(1) {
             self.decrement_refcount(*arg, false);

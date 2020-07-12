@@ -95,6 +95,7 @@ impl IRGenerator {
             {
                 ptr.into()
             }
+            (_, Type::Value(_)) => self.builder.build_load(ptr, "dvload"),
             _ => self.load_ptr(ptr),
         }
     }
@@ -145,7 +146,7 @@ impl IRGenerator {
 
     /// Creates a new stack allocation instruction in the entry block of the function.
     /// The alloca is kept empty.
-    pub fn create_alloc(&self, ty: BasicTypeEnum, heap: bool) -> PointerValue {
+    pub fn create_alloc(&mut self, ty: BasicTypeEnum, heap: bool) -> PointerValue {
         let builder = self.context.create_builder();
 
         let (builder, ptr) = if heap {
@@ -197,7 +198,9 @@ impl IRGenerator {
                 None => builder.position_at_end(&entry),
             }
 
-            (&builder, builder.build_alloca(ty, "tmpalloc"))
+            let ptr = builder.build_alloca(ty, "alloc");
+            self.local_allocs.last_mut().unwrap().push(ptr);
+            (&builder, ptr)
         };
 
         if ty.is_struct_type()
@@ -206,12 +209,7 @@ impl IRGenerator {
         {
             // Initialize the refcount to 0
             let rc = unsafe { builder.build_struct_gep(ptr, 0, "rcinit") };
-            let value = if heap {
-                0
-            } else {
-                2_147_483_648 /* first bit 1, rest 0; used to differentiate heap/stack vars */
-            };
-            builder.build_store(rc, self.context.i32_type().const_int(value, false));
+            builder.build_store(rc, self.context.i32_type().const_int(0, false));
         }
         ptr
     }
@@ -221,12 +219,15 @@ impl IRGenerator {
     }
 
     pub fn push_locals(&mut self) {
-        self.locals.push(Vec::with_capacity(5))
+        self.locals.push(Vec::with_capacity(5));
+        self.local_allocs.push(Vec::with_capacity(2))
     }
 
     pub fn pop_dec_locals(&mut self) {
         let locals = self.locals.pop().unwrap();
-        self.decrement_locals(&locals)
+        self.decrement_locals(&locals);
+        let local_allocs = self.local_allocs.pop().unwrap();
+        self.kill_local_allocs(&local_allocs);
     }
 
     pub fn pop_locals_lift(&mut self, lift: BasicValueEnum) {
@@ -238,17 +239,27 @@ impl IRGenerator {
         }
 
         self.decrement_locals(&locals);
+
+        let local_allocs = self.local_allocs.pop().unwrap();
+        self.kill_local_allocs(&local_allocs);
     }
 
     pub fn pop_locals_remove(&mut self, lift: BasicValueEnum) {
         let locals = self.locals.pop().unwrap();
         self.increment_refcount(lift, false);
         self.decrement_locals(&locals);
+
+        let local_allocs = self.local_allocs.pop().unwrap();
+        self.kill_local_allocs(&local_allocs);
     }
 
     pub fn decrement_all_locals(&self) {
         for locals in &self.locals {
             self.decrement_locals(locals);
+        }
+
+        for allocs in &self.local_allocs {
+            self.kill_local_allocs(allocs);
         }
     }
 
@@ -258,6 +269,37 @@ impl IRGenerator {
                 self.decrement_refcount(*local, *is_ptr);
             }
         }
+    }
+
+    fn kill_local_allocs(&self, local_allocs: &[PointerValue]) {
+        if self.builder.get_insert_block().is_some() {
+            for local in local_allocs {
+                if let Some(dest) = self.get_destructor(*local) {
+                    self.builder.build_call(dest, &[(*local).into()], "free");
+                }
+            }
+        }
+    }
+
+    fn get_destructor(&self, ptr: PointerValue) -> Option<PointerValue> {
+        Some(
+            self.get_variable(
+                self.types_bw
+                    .get(
+                        ptr.get_type()
+                            .get_element_type()
+                            .as_struct_type()
+                            .get_name()
+                            .unwrap()
+                            .to_str()
+                            .unwrap(),
+                    )?
+                    .try_adt()?
+                    .borrow()
+                    .destructor
+                    .as_ref()?,
+            ),
+        )
     }
 
     pub fn nullptr(&self) -> PointerValue {

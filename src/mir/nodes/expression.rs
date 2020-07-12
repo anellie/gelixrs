@@ -202,7 +202,7 @@ impl Expr {
             ty: ty.into_adt(),
             constructor: Rc::clone(&constructor),
             constructor_args,
-            heap: Cell::new(true),
+            heap: Cell::new(false),
         }
     }
 
@@ -343,7 +343,8 @@ impl Expr {
     /// on malformed expressions is undefined behavior that can lead to panics.
     pub fn get_type(&self) -> Type {
         match self {
-            Expr::AllocInst { ty, .. } => Type::Adt(ty.clone()),
+            Expr::AllocInst { ty, heap, .. } if heap.get() => Type::Adt(ty.clone()),
+            Expr::AllocInst { ty, .. } => Type::Weak(ty.clone()),
 
             Expr::Binary {
                 right, operator, ..
@@ -479,7 +480,7 @@ impl Display for Expr {
                 Ok(())
             }
 
-            Expr::Cast { object, to, .. } => write!(f, "cast {} to {}", object, to),
+            Expr::Cast { object, to, ty } => write!(f, "cast {} to {} with {:?}", object, to, ty),
 
             Expr::ConstructClosure {
                 global, captured, ..

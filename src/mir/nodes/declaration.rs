@@ -408,21 +408,11 @@ impl Function {
         write!(f, "{}func {}(", space, self.name)?;
 
         let mut params = self.parameters.iter();
-        params.next().map(|param| {
-            write!(
-                f,
-                "{}: {}",
-                param.name,
-                param.type_,
-            )
-        });
+        params
+            .next()
+            .map(|param| write!(f, "{}: {}", param.name, param.type_,));
         for param in params {
-            write!(
-                f,
-                ", {}: {}",
-                param.name,
-                param.type_,
-            )?;
+            write!(f, ", {}: {}", param.name, param.type_,)?;
         }
 
         writeln!(f, ") {{")?;
