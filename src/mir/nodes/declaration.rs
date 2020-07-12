@@ -411,19 +411,17 @@ impl Function {
         params.next().map(|param| {
             write!(
                 f,
-                "{}: {} (esc: {})",
+                "{}: {}",
                 param.name,
                 param.type_,
-                param.escapes.get()
             )
         });
         for param in params {
             write!(
                 f,
-                ", {}: {}  (esc: {})",
+                ", {}: {}",
                 param.name,
                 param.type_,
-                param.escapes.get()
             )?;
         }
 
@@ -431,12 +429,11 @@ impl Function {
         for (name, var) in &self.variables {
             writeln!(
                 f,
-                "{}{} {}: {} (esc: {}) (local: {})",
+                "{}{} {}: {} (local: {})",
                 space,
                 if var.mutable { "var" } else { "val" },
                 name,
                 var.type_,
-                var.escapes.get(),
                 var.as_local.get()
             )?;
         }
@@ -477,9 +474,6 @@ pub struct Variable {
     pub type_: Type,
     /// The user-chosen name of the variable.
     pub name: Rc<String>,
-    /// If the variable leaves the function and 'escapes' -
-    /// if so, all values need to be heap-allocated.
-    pub escapes: Cell<bool>,
     /// If this variable should be considered a local inside IR.
     /// If true, it will have it's refcounter decreased once
     /// its surrounding scope exits. True for all variables
@@ -493,7 +487,6 @@ impl Variable {
             mutable,
             type_,
             name: Rc::clone(name),
-            escapes: Cell::new(false),
             as_local: Cell::new(true),
         })
     }

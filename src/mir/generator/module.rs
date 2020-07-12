@@ -84,7 +84,6 @@ impl PassRunner {
             Box::new(Generate()),
             Box::new(GenerateImpls()),
             Box::new(ValidateIntrinsics()),
-            // Box::new(GCMarkEscapeVariables()),
         ];
         let mut generator = MIRGenerator::new(MIRBuilder::new(&self.modules[0]));
         for pass in passes.drain(..) {
