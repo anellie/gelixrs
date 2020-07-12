@@ -11,7 +11,7 @@ class A {
     val a = "ok: A"
 }
 
-impl Test for A {
+impl Test for &A {
     func test() -> String = this.a
 }
 
@@ -19,7 +19,7 @@ class B {
     val b = "ok: B"
 }
 
-impl Test for B {
+impl Test for &B {
     func test() -> String = this.b
 }
 

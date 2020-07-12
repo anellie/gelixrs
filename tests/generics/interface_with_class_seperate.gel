@@ -16,5 +16,5 @@ impl Test<String> for Implementor<i64> {
 }
 
 func main() {
-    print(Implementor::<i64>(0).test())
+    print(new Implementor::<i64>(0).test())
 }

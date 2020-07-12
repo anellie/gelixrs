@@ -9,6 +9,7 @@ use std::{
     path::PathBuf, sync::Mutex,
 };
 
+use crate::error::Errors;
 use inkwell::{execution_engine::JitFunction, OptimizationLevel};
 
 type MainFn = unsafe extern "C" fn();
@@ -24,13 +25,19 @@ lazy_static! {
 }
 
 /// All possible ways the compiler can fail compilation.
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 enum Failure {
     Parse,
-    Compile,
+    Compile(Vec<Errors>),
     IR(String),
     Panic,
     Leak(usize),
+}
+
+impl PartialEq for Failure {
+    fn eq(&self, other: &Self) -> bool {
+        std::mem::discriminant(self) == std::mem::discriminant(other)
+    }
 }
 
 #[no_mangle]
@@ -119,7 +126,7 @@ fn exec_jit(path: PathBuf) -> Result<String, Failure> {
     let mut code = super::parse_source(vec![path, STD_LIB.lock().unwrap().clone()])
         .map_err(|_| Failure::Parse)?;
     super::auto_import_prelude(&mut code);
-    let mir = super::compile_mir(code).map_err(|_| Failure::Compile)?;
+    let mir = super::compile_mir(code).map_err(Failure::Compile)?;
     let module = super::compile_ir(mir);
 
     let engine = module
@@ -162,7 +169,7 @@ fn get_expected_result(mut path: PathBuf) -> Result<String, Failure> {
     if code.starts_with("// P-ERR") {
         Err(Failure::Parse)
     } else if code.starts_with("// C-ERR") {
-        Err(Failure::Compile)
+        Err(Failure::Compile(vec![]))
     } else if code.starts_with("// LEAK") {
         Err(Failure::Leak(1))
     } else {

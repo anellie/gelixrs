@@ -179,7 +179,8 @@ impl IRGenerator {
         self.blocks.clear();
         self.variables.clear();
         self.locals.clear();
-        self.locals.push(Vec::with_capacity(3));
+        self.local_allocs.clear();
+        self.push_locals();
 
         let entry_bb = self.context.append_basic_block(&func_val, "entry");
         self.blocks.push(entry_bb);

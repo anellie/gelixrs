@@ -17,6 +17,6 @@ impl Test<A> for Implementor<A> {
 }
 
 func main() {
-    print(Implementor::<String>("ok").test())
-    print(Implementor::<i64>(23).test())
+    print(new Implementor::<String>("ok").test())
+    print(new Implementor::<i64>(23).test())
 }

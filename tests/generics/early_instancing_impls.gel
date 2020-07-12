@@ -8,7 +8,7 @@ hi!
 // resulting in the instance missing the impl.
 
 func main() {
-    A::<String>().a()
+    new A::<String>().a()
 }
 
 func a(a: A<String>) {}

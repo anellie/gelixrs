@@ -13,12 +13,12 @@ func a() -> String {
 
 func b() -> D {
     val string = "I am still allocated!"
-    val a = A(string)
+    val a = new A(string)
     c(a)
 }
 
 func c(a: A) -> D {
-    D(C(B(a)))
+    new D(new C(new B(a)))
 }
 
 class A {

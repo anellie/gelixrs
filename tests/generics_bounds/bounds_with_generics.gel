@@ -20,5 +20,5 @@ func bounded<T: Test<i64>>(a: T) {
 }
 
 func main() {
-    bounded(Implementor("Hello"))
+    bounded(new Implementor("Hello"))
 }

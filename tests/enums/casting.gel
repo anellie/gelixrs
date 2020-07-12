@@ -14,7 +14,7 @@ func main() {
     t(c)
 }
 
-func t(a: A) {
+func t(a: &A) {
     print(a.c)
 }
 

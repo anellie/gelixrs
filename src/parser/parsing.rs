@@ -779,17 +779,17 @@ impl Parser {
 
     fn unary(&mut self) -> Option<Expression> {
         Some(
-            if let Some(operator) = self.match_tokens(&[TType::Bang, TType::Minus, TType::New]) {
+            if let Some(operator) = self.match_tokens(&[TType::Bang, TType::Minus]) {
                 let right = Box::new(self.unary()?);
                 Expression::Unary { operator, right }
             } else {
-                self.call()?
+                self.call(false)?
             },
         )
     }
 
-    fn call(&mut self) -> Option<Expression> {
-        let mut expression = self.primary()?;
+    fn call(&mut self, until_call: bool) -> Option<Expression> {
+        let mut expression = self.new_alloc()?;
         loop {
             match () {
                 _ if self.matches(TType::LeftParen) => {
@@ -807,7 +807,8 @@ impl Parser {
                     expression = Expression::Call {
                         callee: Box::new(expression),
                         arguments,
-                    }
+                    };
+                    if until_call { break };
                 }
 
                 _ if self.check(TType::LeftBracket) => {
@@ -849,6 +850,17 @@ impl Parser {
             }
         }
         Some(expression)
+    }
+
+    fn new_alloc(&mut self) -> Option<Expression> {
+        Some(
+            if let Some(operator) = self.match_tokens(&[TType::New]) {
+                let right = Box::new(self.call(true)?);
+                Expression::Unary { operator, right }
+            } else {
+                self.primary()?
+            },
+        )
     }
 
     fn primary(&mut self) -> Option<Expression> {

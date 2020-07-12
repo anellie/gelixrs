@@ -16,6 +16,7 @@ use ansi_term::{
     Color::{Blue, Red},
     Style,
 };
+use std::fmt::Debug;
 
 pub type Res<T> = Result<T, Error>;
 
@@ -28,6 +29,12 @@ impl Display for Errors {
             writeln!(f, "{}\n", err.to_string(&self.1))?;
         }
         Ok(())
+    }
+}
+
+impl Debug for Errors {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), FmtErr> {
+        <Self as Display>::fmt(self, f)
     }
 }
 

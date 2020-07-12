@@ -25,7 +25,7 @@ impl IndexSet<bool, i64> for IntBox {
 }
 
 func main() {
-    var a = IntBox()
+    var a = new IntBox()
     a[true] = 2
     print(a[true])
 

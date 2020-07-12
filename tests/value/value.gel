@@ -7,7 +7,7 @@
 func main() {
     val a = A()
     print(a.a)
-    print(b().a)
+    print(b(a).a)
 }
 
 func b(a: ~A) -> ~A {

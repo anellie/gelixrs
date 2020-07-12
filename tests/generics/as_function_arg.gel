@@ -7,7 +7,7 @@ func main() {
     test(Test::<i64>())
 }
 
-func test(t: Test<i64>) {
+func test(t: &Test<i64>) {
     print(t.whoAmI(12))
 }
 

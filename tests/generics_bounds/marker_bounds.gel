@@ -36,15 +36,15 @@ func value<T: IsValue>(a: T) {}
 func main() {
     number(34)
 
-    class_(Class("hi"))
+    class_(new Class("hi"))
 
-    val ex = ExtClass()
+    val ex = new ExtClass()
     ext_class(ex)
     drop(ex)
 
-    iface::<Iface>(IImpl())
+    iface::<Iface>(new IImpl())
 
-    pointer(Class("hm"))
+    pointer(new Class("hm"))
 
     value(load_value(Class("ok")))
 }
