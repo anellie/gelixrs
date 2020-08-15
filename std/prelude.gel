@@ -25,7 +25,7 @@ enum Opt<T> {
     case Some(val value: T)
     case None
 
-    func map<M>(map_fn: (T): M) -> Opt<M> {
+    func map<M>(map_fn: (T): M) -> ~Opt<M> {
         if (this is Opt::<T>:Some) return Opt:Some(map_fn(this.value))
         Opt::<M>:None
     }
