@@ -10,4 +10,9 @@ and heap, are expected as well; they are however optional.
 
 Should you find any issues in this book like spelling errors or behavior 
 inconsistent with that of gelix, feel free to open a bug on the
-[gelix issue tracker](https://gitea.angm.xyz/felix/gelixrs).
+[gelix issue tracker](https://git.angm.xyz/felix/gelixrs).
+
+Note that gelix and all the projects related to it are still in active
+development. They *should* work as described, but are not yet production-ready
+and breakage is to be expected. The gelix syntax and general language features
+are still being worked on and can change at any time.
