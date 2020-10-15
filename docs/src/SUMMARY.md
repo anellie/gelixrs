@@ -20,6 +20,7 @@
     - [Module System](modules.md)
     - [Packages](packages.md)
 - [FFI](ffi.md)
+- [Compiler Structure](compiler.md)
 - [Appendix](appendix.md)
     - [Builtin Types](native_types.md)
     - [Operators](operators.md)
