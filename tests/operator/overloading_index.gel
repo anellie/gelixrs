@@ -10,14 +10,14 @@ class IntBox {
     var b = 0
 }
 
-impl IndexGet<bool, i64> for IntBox {
+impl IndexGet[bool, i64] for IntBox {
     func index_get(index: bool) -> i64 {
         if (index) this.a
         else this.b
     }
 }
 
-impl IndexSet<bool, i64> for IntBox {
+impl IndexSet[bool, i64] for IntBox {
     func index_set(index: bool, value: i64) {
         if (index) this.a = value
         else this.b = value
@@ -26,9 +26,9 @@ impl IndexSet<bool, i64> for IntBox {
 
 func main() {
     var a = new IntBox()
-    a[true] = 2
-    print(a[true])
+    a(true) = 2
+    print(a(true))
 
-    a[false] = 7
-    print(a[false])
+    a(false) = 7
+    print(a(false))
 }

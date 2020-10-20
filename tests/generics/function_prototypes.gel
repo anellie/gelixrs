@@ -4,10 +4,10 @@ hi
 */
 
 func main() {
-    print(echo::<i64>(1))
-    print(echo::<String>("hi"))
+    print(echo[i64](1))
+    print(echo[String]("hi"))
 }
 
-func echo<T>(a: T) -> T {
+func echo[T](a: T) -> T {
     a
 }

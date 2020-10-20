@@ -9,10 +9,10 @@ class Implementor {
     construct(a)
 }
 
-func bounded<T: Test>(a: T) {
+func bounded[T: Test](a: T) {
     print(a.test())
 }
 
 func main() {
-    bounded::<Implementor>(Implementor("Hello"))
+    bounded[Implementor](Implementor("Hello"))
 }

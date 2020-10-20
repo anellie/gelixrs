@@ -6,9 +6,9 @@ hi
 func main() {
     val a = "Hello"
     val b = "hi"
-    var arr = Array::<String>(2)
+    var arr = Array[String](2)
     arr.push(a)
     arr.push(b)
-    print(arr[0])
-    print(arr[1])
+    print(arr(0))
+    print(arr(1))
 }

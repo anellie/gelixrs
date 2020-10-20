@@ -3,7 +3,7 @@ ok
 123
 */
 
-interface Test<T> {
+interface Test[T] {
     func test() -> T
 }
 
@@ -11,13 +11,13 @@ class Implementor {
     val a = "ok"
 }
 
-impl Test<String> for Implementor {
+impl Test[String] for Implementor {
     func test() -> String = this.a
 }
 
 class OtherImpl { }
 
-impl Test<i64> for OtherImpl {
+impl Test[i64] for OtherImpl {
     func test() -> i64 = 123
 }
 

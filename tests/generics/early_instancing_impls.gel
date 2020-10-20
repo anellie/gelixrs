@@ -8,17 +8,17 @@ hi!
 // resulting in the instance missing the impl.
 
 func main() {
-    new A::<String>().a()
+    new A[String]().a()
 }
 
-func a(a: A<String>) {}
+func a(a: A[String]) {}
 
-class A<A>{}
+class A[A]{}
 
 interface Test {
     func a()
 }
 
-impl Test for A<A> {
+impl Test for A[A] {
     func a() = print("hi!")
 }

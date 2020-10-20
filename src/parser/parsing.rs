@@ -744,11 +744,18 @@ impl Parser {
                     name,
                     value,
                 }),
-                Expression::IndexGet { indexed, index, .. } => Some(Expression::IndexSet {
-                    indexed,
-                    index,
-                    value,
-                }),
+                Expression::Call { callee, mut arguments, .. } => {
+                    if arguments.len() == 1 {
+                        Some(Expression::IndexSet {
+                            indexed: callee,
+                            index: Box::new(arguments.pop().unwrap()),
+                            value,
+                        })
+                    } else {
+                        self.error_at_current("Expected only 1 argument on indexing call.");
+                        None
+                    }
+                },
                 _ => {
                     self.error_at_current("Invalid assignment target.");
                     None
@@ -790,9 +797,14 @@ impl Parser {
 
     fn call(&mut self, until_call: bool) -> Option<Expression> {
         let mut expression = self.new_alloc()?;
+        // If a newline was hit. This is used to
+        // prevent weird things like `val a = a \n (5 + 5)`
+        // getting parsed as a call.
+        let mut hit_newline = self.check_semi_or_nl();
+
         loop {
             match () {
-                _ if self.matches(TType::LeftParen) => {
+                _ if !hit_newline && self.matches(TType::LeftParen) => {
                     let mut arguments: Vec<Expression> = Vec::new();
                     if !self.check(TType::RightParen) {
                         loop {
@@ -809,17 +821,6 @@ impl Parser {
                         arguments,
                     };
                     if until_call { break };
-                }
-
-                _ if self.check(TType::LeftBracket) => {
-                    let bracket = self.advance();
-                    let index = self.expression()?;
-                    self.consume(TType::RightBracket, "Expected ']' after index.")?;
-                    expression = Expression::IndexGet {
-                        indexed: Box::new(expression),
-                        index: Box::new(index),
-                        bracket,
-                    }
                 }
 
                 _ if self.matches(TType::Dot) => {
@@ -848,6 +849,7 @@ impl Parser {
 
                 _ => break,
             }
+            hit_newline = self.check_semi_or_nl();
         }
         Some(expression)
     }
@@ -896,8 +898,7 @@ impl Parser {
     fn generic_identifier(&mut self) -> Option<(Token, Option<Vec<Type>>)> {
         let name = self.advance();
 
-        Some(if self.matches(TType::ColonColon) {
-            self.consume(TType::Less, "Expected '<' after '::'.")?;
+        Some(if self.matches(TType::LeftBracket) {
             let mut generics = Vec::new();
             loop {
                 generics.push(self.type_("Expected generic type.")?);
@@ -905,7 +906,7 @@ impl Parser {
                     break;
                 }
             }
-            self.consume(TType::Greater, "Expected '>' after type parameters.")?;
+            self.consume(TType::RightBracket, "Expected ']' after type parameters.")?;
             (name, Some(generics))
         } else {
             (name, None)
@@ -1052,7 +1053,7 @@ impl Parser {
     fn generic_ident(&mut self) -> Option<(Token, Option<Vec<GenericParam>>)> {
         let name = self.consume(TType::Identifier, "Expected a name.")?;
         let mut generics = None;
-        if self.matches(TType::Less) {
+        if self.matches(TType::LeftBracket) {
             let mut generics_vec = Vec::with_capacity(1);
             while let Some(type_) = self.match_tokens(&[TType::Identifier]) {
                 if self.matches(TType::Colon) {
@@ -1070,7 +1071,7 @@ impl Parser {
                     break;
                 }
             }
-            self.consume(TType::Greater, "Expected '>' after type parameters.")?;
+            self.consume(TType::RightBracket, "Expected ']' after type parameters.")?;
             generics = Some(generics_vec)
         }
         Some((name, generics))
@@ -1126,7 +1127,7 @@ impl Parser {
         let token = self.advance();
         Some(match token.t_type {
             TType::Identifier => {
-                if self.matches(TType::Less) {
+                if self.matches(TType::LeftBracket) {
                     let mut types = Vec::new();
                     loop {
                         types.push(self.type_("Expected generic type.")?);
@@ -1134,7 +1135,7 @@ impl Parser {
                             break;
                         }
                     }
-                    self.consume(TType::Greater, "Expected '>' after type parameters.")?;
+                    self.consume(TType::RightBracket, "Expected ']' after type parameters.")?;
 
                     Type::Generic { token, types }
                 } else {

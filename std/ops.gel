@@ -9,7 +9,7 @@
 /// that can be easily modified, like a 3D vector, matrix or string.
 /// Using it for adding to a collection, for example,
 /// is not recommended as doing so can be confusing to read.
-interface Add<O, T> {
+interface Add[O, T] {
     func add(other: O) -> T
 }
 
@@ -24,7 +24,7 @@ interface Add<O, T> {
 /// 3D vector or a matrix.
 /// Using it for removing from a collection, for example,
 /// is not recommended as doing so can be confusing to read.
-interface Sub<O, T> {
+interface Sub[O, T] {
     func sub(other: O) -> T
 }
 
@@ -39,7 +39,7 @@ interface Sub<O, T> {
 /// 3D vector or a matrix.
 /// Using it for repeating a string, for example,
 /// is not recommended as doing so can be confusing to read.
-interface Mul<O, T> {
+interface Mul[O, T] {
     func mul(other: O) -> T
 }
 
@@ -52,7 +52,7 @@ interface Mul<O, T> {
 ///
 /// The recommended way to use this operator is exclusively on numbers, like a
 /// 3D vector or a matrix.
-interface Div<O, T> {
+interface Div[O, T] {
     func div(other: O) -> T
 }
 
@@ -67,28 +67,28 @@ interface Div<O, T> {
 /// Additionally, it should be symmetric: ((a == b) == (b == a))
 /// As well as transitive: (a == b && a == c) means (b == c).
 /// These constraints are recommended, but not enforced.
-interface Equal<O> {
+interface Equal[O] {
     func equal(other: O) -> bool
 }
 
-/// An interface that allows overriding the behavior of the 'a[T]' index operator on a type.
+/// An interface that allows overriding the behavior of the 'a(T)' index operator on a type.
 /// Implementing this interface will cause the following translation:
-/// (a[243]) -> (a.index_get(243))
+/// (a(243)) -> (a.index_get(243))
 ///
 /// This operation should not modify parameters.
 ///
 /// If no suitable element is found at the given index, panicking is appropriate.
-interface IndexGet<I, T> {
+interface IndexGet[I, T] {
     func index_get(index: I) -> T
 }
 
-/// An interface that allows overriding the behavior of the 'a[T] = ...' index operator on a type.
+/// An interface that allows overriding the behavior of the 'a(T) = ...' index operator on a type.
 /// Implementing this interface will cause the following translation:
-/// (a[243] = 5) -> (a.index_set(243, 5))
+/// (a(243) = 5) -> (a.index_set(243, 5))
 ///
 /// This operation should not modify the index.
 ///
 /// If no suitable element is found at the given index, panicking is appropriate.
-interface IndexSet<I, T> {
+interface IndexSet[I, T] {
     func index_set(index: I, value: T)
 }

@@ -8,7 +8,7 @@ func main() {
     val b = "hi"
 
     {
-        var arr = Array::<String>(2)
+        var arr = Array[String](2)
         arr.push(a)
         arr.push(b)
     }

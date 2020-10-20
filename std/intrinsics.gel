@@ -7,30 +7,30 @@
 /// You should almost never have to use this module outside of 'std'.
 ///
 /// Many of these functions perform raw pointer arithmetic without any checks.
-/// If you need to use low-level pointers, look at std::ffi and Ptr instead.
+/// If you need to use low-level pointers, look at stdffi and Ptr instead.
 
 import std/memory/+
 
 /// Returns the size of the type in bytes; equivalent to sizeof()
-extern func gelixrs_get_type_size<T>() -> usize
+extern func gelixrs_get_type_size[T]() -> usize
 
 /// Writes the given value to the given pointer.
-extern func gelixrs_write_ptr<T>(ptr: *T, data: T)
+extern func gelixrs_write_ptr[T](ptr: *T, data: T)
 
 /// LLVM IR ptrtoint
-extern func gelixrs_ptr_to_int<T>(ptr: *T) -> u64
+extern func gelixrs_ptr_to_int[T](ptr: *T) -> u64
 
 /// LLVM IR inttoptr
-extern func gelixrs_int_to_ptr<T>(ptr: usize) -> *T
+extern func gelixrs_int_to_ptr[T](ptr: usize) -> *T
 
 /// LLVM IR GEP
-extern func gelixrs_gep<T>(ptr: *T, index: u64) -> *T
+extern func gelixrs_gep[T](ptr: *T, index: u64) -> *T
 
 /// Increments the refcount on the value
-extern func gelixrs_inc_ref<T>(value: T)
+extern func gelixrs_inc_ref[T](value: T)
 
 /// Decrements the refcount on the value
-extern func gelixrs_dec_ref<T>(value: T)
+extern func gelixrs_dec_ref[T](value: T)
 
 /// These 2 functions are used to increment/decrement the refcount on interfaces.
 /// The parameters are split into 2 since interfaces are StructValues,
@@ -40,10 +40,10 @@ extern func gelixrs_dec_ref_iface(implementor: usize, vtable: usize)
 
 /// Will call the given value's destructor, causing it to be deallocated
 /// immediately. Can be very unsafe - does not check for dangling references!
-extern func gelixrs_free_type<T: IsPointer>(value: T)
+extern func gelixrs_free_type[T: IsPointer](value: T)
 
 /// Will simply load the given value
-extern func gelixrs_load_value<T>(value: T) -> ~T
+extern func gelixrs_load_value[T](value: T) -> ~T
 
 /// libc puts
 extern func puts(s: *i8)
@@ -65,7 +65,7 @@ extern func quick_exit(status: i32)
 /// length. Will copy the string at the pointer into
 /// a heap-allocated string.
 func build_string_literal(literal_ptr: *i8, len: usize) -> String {
-    val new_ptr = allocate::<i8>(len)
+    val new_ptr = allocate[i8](len)
     copy_ptr(literal_ptr, new_ptr, len)
     new String(len, len, new_ptr)
 }

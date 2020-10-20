@@ -7,7 +7,7 @@
 */
 
 func main() {
-    var arr = new Array::<i64>(2)
+    var arr = new Array[i64](2)
     var arr = test(arr)
     arr.push(23)
     arr.push(12)
@@ -20,6 +20,6 @@ func main() {
     }
 }
 
-func test(a: [i64]) -> [i64] {
+func test(a: Array[i64]) -> Array[i64] {
     a
 }

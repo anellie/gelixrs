@@ -3,8 +3,8 @@
 */
 
 func main() {
-    var arr = Array::<Array<i64>>(2)
-    arr.push(new Array::<i64>(2))
+    var arr = Array[Array[i64]](2)
+    arr.push(new Array[i64](2))
     arr.get(0).push(13)
     print(arr.get(0).get(0))
 }

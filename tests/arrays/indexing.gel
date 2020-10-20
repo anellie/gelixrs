@@ -4,10 +4,10 @@
 */
 
 func main() {
-    var arr = Array::<i64>(2)
+    var arr = Array[i64](2)
     arr.push(75)
     arr.push(24)
-    arr[0] = 5
-    print(arr[0])
-    print(arr[1])
+    arr(0) = 5
+    print(arr(0))
+    print(arr(1))
 }

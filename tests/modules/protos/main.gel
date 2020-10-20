@@ -1,7 +1,7 @@
 import protos/sub/+
 
 func main() {
-    val s = Sub::<String>("hmm")
+    val s = Sub[String]("hmm")
     s.b = "hello!"
     print(s.b)
     s.sup()

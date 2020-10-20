@@ -9,8 +9,8 @@
 ///
 /// For an example of how to properly implement the interface,
 /// check out `std/collections/Array` and `ArrayIter` in the same module.
-interface Iter<E> {
-    func next() -> ~Opt<E>
+interface Iter[E] {
+    func next() -> ~Opt[E]
 }
 
 /// This interface is a supplement to `Iter`. It is intended to be
@@ -25,26 +25,26 @@ interface Iter<E> {
 ///
 /// For an example of how to properly implement the interface,
 /// check out `std/collections/Array` and `ArrayIter` in the same module.
-interface ToIter<E, I: Iter<E>> {
+interface ToIter[E, I: Iter[E]] {
     func iter() -> ~I
 }
 
 /// A simple iterator that infinitely returns the same value.
-class Repeat<T> {
+class Repeat[T] {
     
-    val value: ~Opt<T>
+    val value: ~Opt[T]
 
     construct(value: T) {
         this.value = Opt:Some(value)
     }
 }
 
-impl Iter<T> for Repeat<T> {
-    func next() -> ~Opt<T> = this.value
+impl Iter[T] for Repeat[T] {
+    func next() -> ~Opt[T] = this.value
 }
 
 /// An iterator that returns the first X values of the inner iter.
-class Take<T, I: Iter<T>> {
+class Take[T, I: Iter[T]] {
     
     val inner: ~I
     val left: usize
@@ -52,9 +52,9 @@ class Take<T, I: Iter<T>> {
     construct(inner, left)
 }
 
-impl Iter<T> for Take<T> {
-    func next() -> ~Opt<T> {
-        if (this.left == 0) Opt::<T>:None
+impl Iter[T] for Take[T] {
+    func next() -> ~Opt[T] {
+        if (this.left == 0) Opt[T]:None
         else {
             this.left = this.left - 1
             this.inner.next()
@@ -63,7 +63,7 @@ impl Iter<T> for Take<T> {
 }
 
 /// A simple implementor of `Iter` for integers.
-class Range<T: Integer> {
+class Range[T: Integer] {
 
     // Note that `start` is also used as the current value when iterating.
     var start: T
@@ -92,9 +92,9 @@ class Range<T: Integer> {
     }
 }
 
-impl Iter<T> for Range<T> {
-    func next() -> ~Opt<T> {
-        if (this.start >= this.end) Opt::<T>:None
+impl Iter[T] for Range[T] {
+    func next() -> ~Opt[T] {
+        if (this.start >= this.end) Opt[T]:None
         else {
             this.start = this.start + this.step
             Opt:Some(this.start - this.step)

@@ -15,7 +15,7 @@ class String {
     /// Will allocate the amount given on the heap (malloc),
     /// capacity of 0 results in no allocation until first insertion.
     construct(capacity) {
-        this.ptr = allocate::<i8>(capacity)
+        this.ptr = allocate[i8](capacity)
         this.length = 0
     }
 
@@ -56,7 +56,7 @@ class String {
     func reserve(amount: usize) {
         if (this.capacity > (this.length + amount)) return
         this.capacity = this.length + amount
-        val new_ptr = allocate::<i8>(this.capacity)
+        val new_ptr = allocate[i8](this.capacity)
         copy_ptr(this.ptr, new_ptr, this.length)
         drop(this.ptr)
         this.ptr = new_ptr
@@ -73,7 +73,7 @@ impl ToString for String {
     func to_string() -> String = this
 }
 
-impl Add<&ToString, String> for &String {
+impl Add[&ToString, String] for &String {
     func add(other: &ToString) -> String {
         val other = other.to_string()
         // +1 to account for the null terminator
@@ -101,7 +101,7 @@ impl ToString for bool {
 }
 
 /// Simply creates a buffer and writes to it with sprintf.
-func sprintf_buf<T: Primitive>(buf_len: usize, format: String, value: T) -> String {
+func sprintf_buf[T: Primitive](buf_len: usize, format: String, value: T) -> String {
     var buffer = new String(buf_len)
     buffer.length = snprintf(buffer.ptr, buf_len, format.ptr, value)
     buffer

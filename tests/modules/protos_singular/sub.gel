@@ -1,6 +1,6 @@
 import protos_singular/main/+
 
-class Sub<A> {
+class Sub[A] {
     var b: A
 
     construct(b)
@@ -10,4 +10,4 @@ class Sub<A> {
     }
 }
 
-func sub<A>(a: A) -> A = a
+func sub[A](a: A) -> A = a

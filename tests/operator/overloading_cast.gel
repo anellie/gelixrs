@@ -10,6 +10,6 @@ func main() {
     a("World")
 }
 
-func a<T: ToString>(a: T) {
+func a[T: ToString](a: T) {
     print("Hello " + a)
 }

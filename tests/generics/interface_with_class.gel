@@ -3,20 +3,20 @@ ok
 23
 */
 
-interface Test<A> {
+interface Test[A] {
     func test() -> A
 }
 
-class Implementor<A> {
+class Implementor[A] {
     val a: A
     construct(a)
 }
 
-impl Test<A> for Implementor<A> {
+impl Test[A] for Implementor[A] {
     func test() -> A = this.a
 }
 
 func main() {
-    print(new Implementor::<String>("ok").test())
-    print(new Implementor::<i64>(23).test())
+    print(new Implementor[String]("ok").test())
+    print(new Implementor[i64](23).test())
 }

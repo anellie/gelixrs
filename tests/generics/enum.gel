@@ -5,16 +5,16 @@ false
 */
 
 func main() {
-    val a = A::<String>:C("Hello!")
-    val c = A::<i64>:D(435)
-    val d = A::<bool>:D(false)
+    val a = A[String]:C("Hello!")
+    val c = A[i64]:D(435)
+    val d = A[bool]:D(false)
 
     print(a.b)
     print(c.print())
     print(d.print())
 }
 
-enum A<B> {
+enum A[B] {
 
     val a = 5
 

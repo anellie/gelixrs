@@ -6,11 +6,11 @@ bye
 */
 
 func main() {
-    print(Test::<i64>().whoAmI(12))
-    print(Test::<String>().whoAmI("bye"))
+    print(Test[i64]().whoAmI(12))
+    print(Test[String]().whoAmI("bye"))
 }
 
-class Test<A> {
+class Test[A] {
     func whoAmI(a: A) -> A {
         print("I'm a method!")
         a

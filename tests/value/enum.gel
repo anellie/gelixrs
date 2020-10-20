@@ -5,7 +5,7 @@ Hello
 func main() {
     val arr = ["Hello"]
     val maybe = arr.pop()
-    if (maybe is Opt::<String>:Some) {
-        print(maybe)
+    if (maybe is Opt[String]:Some) {
+        print(maybe.value)
     }
 }

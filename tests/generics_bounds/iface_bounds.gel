@@ -15,10 +15,10 @@ impl Test for Implementor {
     func test() -> String = this.a
 }
 
-func bounded<T: Test>(a: T) {
+func bounded[T: Test](a: T) {
     print(a.test())
 }
 
 func main() {
-    bounded::<Implementor>(new Implementor("Hello"))
+    bounded[Implementor](new Implementor("Hello"))
 }

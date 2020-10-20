@@ -1,6 +1,6 @@
 // C-ERR
 
-interface Test<T> {
+interface Test[T] {
     func test() -> T
 }
 
@@ -8,13 +8,13 @@ class Implementor {
     val a = "ok"
 }
 
-impl Test<String, i64> for Implementor {
+impl Test[String, i64] for Implementor {
     func test() -> T = this.a
 }
 
 class OtherImpl { }
 
-impl Test<i64> for OtherImpl {
+impl Test[i64] for OtherImpl {
     func test() -> T = 123
 }
 

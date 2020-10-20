@@ -8,11 +8,11 @@ export std/string/String
 
 func print(a: ToString) = puts(a.to_string().ptr)
 
-func cast<T>(value: T) -> T = value
+func cast[T](value: T) -> T = value
 
-func try_cast<T, V>(value: T) -> Opt<V> {
-    if (value is V) Opt::<V>:Some(value)
-    else Opt::<V>:None()
+func try_cast[T, V](value: T) -> Opt[V] {
+    if (value is V) Opt[V]:Some(value)
+    else Opt[V]:None()
 }
 
 func panic(msg: String) {
@@ -21,17 +21,17 @@ func panic(msg: String) {
     quick_exit(1i32)
 }
 
-enum Opt<T> {
+enum Opt[T] {
     case Some(val value: T)
     case None
 
-    func map<M>(map_fn: (T): M) -> ~Opt<M> {
-        if (this is Opt::<T>:Some) return Opt:Some(map_fn(this.value))
-        Opt::<M>:None
+    func map[M](map_fn: (T): M) -> ~Opt[M] {
+        if (this is Opt[T]:Some) return Opt:Some(map_fn(this.value))
+        Opt[M]:None
     }
 }
 
-enum Res<T, E> {
+enum Res[T, E] {
     case Ok(val value: T)
     case Err(val err: E)
 }

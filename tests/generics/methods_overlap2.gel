@@ -4,7 +4,7 @@ func main() {}
 
 
 class Test {
-    func whoAmI<B>(b: B) {
+    func whoAmI[B](b: B) {
         print("I'm a method!")
         print(b)
     }

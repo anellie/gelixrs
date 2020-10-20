@@ -2,19 +2,19 @@
 ok
 */
 
-interface Test<A> {
+interface Test[A] {
     func test() -> A
 }
 
-class Implementor<A> {
+class Implementor[A] {
     val a: A
     construct(a)
 }
 
-impl Test<String> for Implementor<i64> {
+impl Test[String] for Implementor[i64] {
     func test() -> String = "ok"
 }
 
 func main() {
-    print(new Implementor::<i64>(0).test())
+    print(new Implementor[i64](0).test())
 }

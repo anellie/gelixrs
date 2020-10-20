@@ -17,19 +17,19 @@ func main() {
     Opt:Some("owo")
 }
 
-func echo<T>(a: T) -> T {
+func echo[T](a: T) -> T {
     a
 }
 
-class Test<A> {
+class Test[A] {
     val a: A
     construct(a)
 
-    func echo<B>(a: B) -> B = a
+    func echo[B](a: B) -> B = a
 }
 
-func advanced<T>(a: (T)) {
+func advanced[T](a: (T)) {
 }
 
-func advanced2<T>(a: (): T) {
+func advanced2[T](a: (): T) {
 }

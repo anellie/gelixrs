@@ -4,7 +4,7 @@ hi
 */
 
 func main() {
-    var arr = Array::<String>(2)
+    var arr = Array[String](2)
 
     {
         val a = "Hello"
@@ -13,6 +13,6 @@ func main() {
         arr.push(b)
     }
 
-    print(arr[0])
-    print(arr[1])
+    print(arr(0))
+    print(arr(1))
 }

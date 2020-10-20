@@ -1,6 +1,6 @@
 // P-ERR
 
-func number<T E>(a: T) {}
+func number[T E](a: T) {}
 
 func main() {
 }

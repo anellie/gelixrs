@@ -1,6 +1,6 @@
 import protos/main/+
 
-class Sub<A> {
+class Sub[A] {
     var b: A
 
     construct(b)

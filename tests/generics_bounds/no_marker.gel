@@ -19,30 +19,30 @@ impl Iface for IImpl {
 }
 
 
-func number<T: Number>(a: T) = print(a)
+func number[T: Number](a: T) = print(a)
 
-func class_<T: Class>(a: T) {}
+func class_[T: Class](a: T) {}
 
-func ext_class<T: ExtClass>(a: T) {}
+func ext_class[T: ExtClass](a: T) {}
 
-func iface<T: Interface>(a: T) {}
+func iface[T: Interface](a: T) {}
 
-func pointer<T: IsPointer>(a: T) {}
+func pointer[T: IsPointer](a: T) {}
 
-func value<T: IsValue>(a: T) {}
+func value[T: IsValue](a: T) {}
 
 func main() {
-    number::<i64>(34)
+    number[i64](34)
 
-    class_::<Class>(Class("hi"))
+    class_[Class](Class("hi"))
 
     val ex = ExtClass()
-    ext_class::<ExtClass>(ex)
-    free::<ExtClass>(ex)
+    ext_class[ExtClass](ex)
+    free[ExtClass](ex)
 
-    iface::<Iface>(IImpl())
+    iface[Iface](IImpl())
 
-    pointer::<Class>(Class("hm"))
+    pointer[Class](Class("hm"))
 
-    value::<Class>(Class("ok"))
+    value[Class](Class("ok"))
 }

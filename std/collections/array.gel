@@ -18,7 +18,7 @@ import std/ops/+
 //
 // Retrieving elements works as you'd expect using indexing syntax:
 // print([2, 123, 312][1]) // prints 123
-class Array<E> {
+class Array[E] {
 
     var len: usize
     var capacity: usize
@@ -28,7 +28,7 @@ class Array<E> {
     /// Will allocate the amount given on the heap (malloc),
     /// capacity of 0 results in no allocation until first insertion.
     construct(capacity) {
-        this.ptr = allocate::<E>(capacity)
+        this.ptr = allocate[E](capacity)
         this.len = 0
     }
 
@@ -64,8 +64,8 @@ class Array<E> {
         this.len = this.len + 1
     }
 
-    func pop() -> ~Opt<E> {
-        if (this.len == 0) return Opt::<E>:None
+    func pop() -> ~Opt[E] {
+        if (this.len == 0) return Opt[E]:None
 
         this.len = this.len - 1
         val value = this.get(this.len)
@@ -80,51 +80,51 @@ class Array<E> {
 
     func extend() {
         this.capacity = (this.capacity + 1) * 2
-        val new_ptr = allocate::<E>(this.capacity)
+        val new_ptr = allocate[E](this.capacity)
         copy_ptr(this.ptr, new_ptr, this.len)
         drop(this.ptr)
         this.ptr = new_ptr
     }
 }
 
-impl Free for &Array<E> {
+impl Free for &Array[E] {
     func free() {
         for (elem from 0 to this.len) {
-            dec_ref(this[elem])
+            dec_ref(this(elem))
         }
         drop(this.ptr)
     }
 }
 
-impl IndexGet<usize, E> for &Array<E> {
+impl IndexGet[usize, E] for &Array[E] {
     func index_get(index: usize) -> E {
         this.get(index)
     }
 }
 
-impl IndexSet<usize, E> for &Array<E> {
+impl IndexSet[usize, E] for &Array[E] {
     func index_set(index: usize, value: E) {
         this.set(index, value)
     }
 }
 
-class ArrayIter<E> {
-    val arr: Array<E>
+class ArrayIter[E] {
+    val arr: Array[E]
     var index = 0
 
     construct(arr)
 }
 
-impl Iter<E> for ArrayIter<E> {
-    func next() -> ~Opt<E> {
-        if (this.arr.len == this.index) Opt::<E>:None
+impl Iter[E] for ArrayIter[E] {
+    func next() -> ~Opt[E] {
+        if (this.arr.len == this.index) Opt[E]:None
         else {
             this.index = this.index + 1
-            Opt:Some(this.arr[this.index - 1])
+            Opt:Some(this.arr(this.index - 1))
         }
     }
 }
 
-impl ToIter<E, ArrayIter<E>> for Array<E> {
-    func iter() -> ~ArrayIter<E> = ArrayIter(this)
+impl ToIter[E, ArrayIter[E]] for Array[E] {
+    func iter() -> ~ArrayIter[E] = ArrayIter(this)
 }
