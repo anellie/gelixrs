@@ -18,9 +18,9 @@ enum A[B] {
 
     val a = 5
 
-    case C(val b: String)
+    C(val b: String)
 
-    case D {
+    D {
         val b: B
 
         construct(b)

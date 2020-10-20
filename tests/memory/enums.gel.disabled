@@ -6,7 +6,7 @@ enum E {
 
     val a = "Hello"
 
-    case A(var b: String)
+    A(var b: String)
 }
 
 func main() {

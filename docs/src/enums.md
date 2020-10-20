@@ -18,7 +18,7 @@ enum Value {
     
     // Other than classes, enums may not have constructors.
     // Instead, they have cases:
-    case Int {
+    Int {
         // Each case can also have its own additional members and methods:
         val int: i64
 
@@ -32,10 +32,10 @@ enum Value {
 
     // Since the above can be a bit verbose, a case with just members
     // and a constructor taking values for these members can look like this:
-    case Bool(val b: bool) 
+    Bool(val b: bool) 
 
     // Leaving the case empty entirely makes it behave like a simple Java-style enum:
-    case None 
+    None 
 }
 ```
 

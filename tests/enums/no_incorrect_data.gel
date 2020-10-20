@@ -8,15 +8,15 @@ func main() {
 
 enum A {
 
-    case A {
+    A {
         val a: String
     }
 
-    case B {
+    B {
         val a: i64
     }
 
-    case C {
+    C {
         val a: bool
     }
 }

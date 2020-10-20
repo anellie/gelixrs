@@ -37,7 +37,7 @@ enum A {
         print("すみません。")
     }
 
-    case A {
+    A {
         val b: String
 
         construct(b)
@@ -45,5 +45,5 @@ enum A {
         func print() -> String = this.b
     }
 
-    case B(val b: i64)
+    B(val b: i64)
 }

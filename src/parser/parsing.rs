@@ -184,11 +184,12 @@ impl Parser {
 
         while !self.check(TType::RightBrace) && !self.is_at_end() {
             self.consume_mods();
-            match self.advance().t_type {
+            let next = self.advance();
+            match next.t_type {
                 TType::Var => variables.push(self.class_variable(true)?),
                 TType::Val => variables.push(self.class_variable(false)?),
-                TType::Case => cases.push(self.enum_case(&name)?),
                 TType::Func => methods.push(self.function(&METHOD_MODIFIERS)?),
+                TType::Identifier => cases.push(self.enum_case(next, &name)?),
 
                 _ => self.error_at_current("Encountered invalid declaration inside enum.")?,
             }
@@ -216,8 +217,7 @@ impl Parser {
         })
     }
 
-    fn enum_case(&mut self, parent_name: &Token) -> Option<ADT> {
-        let mut name = self.consume(TType::Identifier, "Expected case name.")?;
+    fn enum_case(&mut self, mut name: Token, parent_name: &Token) -> Option<ADT> {
         let new_name = Rc::new(format!("{}:{}", parent_name.lexeme, name.lexeme));
         let case_name = std::mem::replace(&mut name.lexeme, new_name);
 

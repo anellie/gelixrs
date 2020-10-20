@@ -16,8 +16,8 @@ enum A {
 
     val a: i64
 
-    case A
-    case B
-    case C
+    A
+    B
+    C
 
 }

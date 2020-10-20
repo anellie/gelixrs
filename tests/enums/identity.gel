@@ -27,7 +27,7 @@ enum A {
         }
     }
 
-    case A(val b: String)
-    case B(val b: i64)
-    case C(val b: bool)
+    A(val b: String)
+    B(val b: i64)
+    C(val b: bool)
 }

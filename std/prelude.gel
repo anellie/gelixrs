@@ -22,8 +22,8 @@ func panic(msg: String) {
 }
 
 enum Opt[T] {
-    case Some(val value: T)
-    case None
+    Some(val value: T)
+    None
 
     func map[M](map_fn: (T): M) -> ~Opt[M] {
         if (this is Opt[T]:Some) return Opt:Some(map_fn(this.value))
@@ -32,6 +32,6 @@ enum Opt[T] {
 }
 
 enum Res[T, E] {
-    case Ok(val value: T)
-    case Err(val err: E)
+    Ok(val value: T)
+    Err(val err: E)
 }

@@ -14,7 +14,7 @@ func a() -> A {
 }
 
 enum A {
-    case A
-    case B
-    case C
+    A
+    B
+    C
 }

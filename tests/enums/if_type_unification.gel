@@ -16,7 +16,7 @@ func b() -> A {
 }
 
 enum A {
-    case A(val b: i16)
-    case B(val b: i64)
-    case C(val b: bool)
+    A(val b: i16)
+    B(val b: i64)
+    C(val b: bool)
 }

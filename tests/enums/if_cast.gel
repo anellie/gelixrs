@@ -23,6 +23,6 @@ enum Krusty {
         }
     }
 
-    case Crab(val b: String)
-    case Patrick(val b: i64)
+    Crab(val b: String)
+    Patrick(val b: i64)
 }

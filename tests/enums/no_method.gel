@@ -5,5 +5,5 @@ func main() {
 }
 
 enum Test {
-    case A
+    A
 }

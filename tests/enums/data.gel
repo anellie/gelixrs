@@ -15,7 +15,7 @@ func main() {
 }
 
 enum A {
-    case A(val a: String)
-    case B(val a: i64)
-    case C(val a: bool)
+    A(val a: String)
+    B(val a: i64)
+    C(val a: bool)
 }
