@@ -129,7 +129,7 @@ pub fn generate_mir_fn(
 
     if !ret_type.can_escape() {
         return Err(Error::new(
-            func_sig.return_type.as_ref().unwrap().get_token(),
+            func_sig.return_type.as_ref().unwrap().token(),
             "MIR",
             "Cannot return a weak reference".to_string(),
             &builder.path,

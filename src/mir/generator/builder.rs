@@ -11,7 +11,6 @@ use crate::{
     error::Res,
     lexer::token::Token,
     mir::{
-        generator::intrinsics::INTRINSICS,
         nodes::{ClosureType, Type},
         result::ToMIRResult,
         MModule, MutRc,
@@ -60,11 +59,6 @@ impl MIRBuilder {
                 }
             }
 
-            ASTType::Pointer(inner) => {
-                let inner = self.find_type(inner)?;
-                Ok(Type::Pointer(Box::new(inner)).maybe_simplify())
-            }
-
             ASTType::Weak(inner) => {
                 let inner = self.find_type(inner)?;
                 if let Type::Adt(adt) = inner {
@@ -78,26 +72,6 @@ impl MIRBuilder {
                         &format!("Weak is only applicable to ADTs, not {}.", inner),
                     )?
                 }
-            }
-
-            ASTType::Value(inner) => {
-                let inner = self.find_type(inner)?;
-
-                match inner {
-                    Type::Adt(adt) | Type::Weak(adt) => Ok(Type::Value(adt)),
-                    Type::Pointer(inner) => Ok(*inner),
-                    _ if inner.is_primitive() => Ok(inner),
-                    _ => None.or_type_err(
-                        &self.path,
-                        ast,
-                        &format!("Direct Value is only applicable to ADTs, not {}.", inner),
-                    )?,
-                }
-            }
-
-            ASTType::Array(inner) => {
-                let tok = inner.get_token().clone();
-                INTRINSICS.with(|i| i.borrow().get_array_type(self.find_type(inner)?, Some(tok)))
             }
 
             ASTType::Closure {
@@ -130,6 +104,8 @@ impl MIRBuilder {
 
                 proto.build(args, &self.module, token, Rc::clone(&proto))
             }
+
+            _ => panic!(),
         }
     }
 

@@ -744,7 +744,11 @@ impl Parser {
                     name,
                     value,
                 }),
-                Expression::Call { callee, mut arguments, .. } => {
+                Expression::Call {
+                    callee,
+                    mut arguments,
+                    ..
+                } => {
                     if arguments.len() == 1 {
                         Some(Expression::IndexSet {
                             indexed: callee,
@@ -755,7 +759,7 @@ impl Parser {
                         self.error_at_current("Expected only 1 argument on indexing call.");
                         None
                     }
-                },
+                }
                 _ => {
                     self.error_at_current("Invalid assignment target.");
                     None
@@ -820,7 +824,9 @@ impl Parser {
                         callee: Box::new(expression),
                         arguments,
                     };
-                    if until_call { break };
+                    if until_call {
+                        break;
+                    };
                 }
 
                 _ if self.matches(TType::Dot) => {
@@ -855,14 +861,12 @@ impl Parser {
     }
 
     fn new_alloc(&mut self) -> Option<Expression> {
-        Some(
-            if let Some(operator) = self.match_tokens(&[TType::New]) {
-                let right = Box::new(self.call(true)?);
-                Expression::Unary { operator, right }
-            } else {
-                self.primary()?
-            },
-        )
+        Some(if let Some(operator) = self.match_tokens(&[TType::New]) {
+            let right = Box::new(self.call(true)?);
+            Expression::Unary { operator, right }
+        } else {
+            self.primary()?
+        })
     }
 
     fn primary(&mut self) -> Option<Expression> {
@@ -1145,23 +1149,12 @@ impl Parser {
 
             TType::Tilde => {
                 let inner = self.type_(msg)?;
-                Type::Value(Box::new(inner))
+                Type::Strong(Box::new(inner))
             }
 
             TType::AndSym => {
                 let inner = self.type_(msg)?;
                 Type::Weak(Box::new(inner))
-            }
-
-            TType::Star => {
-                let inner = self.type_(msg)?;
-                Type::Pointer(Box::new(inner))
-            }
-
-            TType::LeftBracket => {
-                let arr_type = self.type_("Expected type after '[' in array type.")?;
-                self.consume(TType::RightBracket, "Expected ']' after array type.")?;
-                Type::Array(Box::new(arr_type))
             }
 
             TType::LeftParen => {

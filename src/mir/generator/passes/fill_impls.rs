@@ -75,7 +75,7 @@ impl ModulePass for FillIfaceImpls {
 
             if iface.borrow().methods.len() > iface_impl.methods.len() {
                 return Err(Error::new(
-                    &ast.iface.get_token(),
+                    &ast.iface.token(),
                     "MIR",
                     "Missing methods in interface impl.".to_string(),
                     &gen.builder.path,
@@ -103,7 +103,7 @@ fn check_equal_signature(
             .sig
             .return_type
             .as_ref()
-            .map_or(&method.sig.name, ast::Type::get_token);
+            .map_or(&method.sig.name, ast::Type::token);
         return Err(Error::new(
             tok,
             "MIR",

@@ -34,7 +34,7 @@ pub fn get_iface_impls(ty: &Type) -> Option<MutRc<IFaceImpls>> {
 
 pub type MutRc<T> = Rc<RefCell<T>>;
 
-fn mutrc_new<T>(value: T) -> MutRc<T> {
+pub fn mutrc_new<T>(value: T) -> MutRc<T> {
     Rc::new(RefCell::new(value))
 }
 

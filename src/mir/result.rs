@@ -9,6 +9,7 @@ use std::rc::Rc;
 use crate::{
     ast::{module::ModulePath, Type as ASTType},
     error::{Error, Res},
+    hir::generator::HIRGenerator,
     lexer::token::Token,
 };
 
@@ -25,6 +26,6 @@ impl<T> ToMIRResult<T> for Option<T> {
 
     #[inline(always)]
     fn or_type_err(self, module: &Rc<ModulePath>, error_ty: &ASTType, msg: &str) -> Res<T> {
-        self.ok_or_else(|| Error::new(error_ty.get_token(), "MIR", msg.to_string(), module))
+        self.ok_or_else(|| Error::new(error_ty.token(), "MIR", msg.to_string(), module))
     }
 }

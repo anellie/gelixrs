@@ -55,7 +55,7 @@ pub fn declare_impl(
     builder: &mut MIRBuilder,
     override_implementor: Option<Type>,
 ) -> Res<()> {
-    let err_token = iface_impl.iface.get_token().clone();
+    let err_token = iface_impl.iface.token().clone();
     let implementor =
         override_implementor.map_or_else(|| builder.find_type(&iface_impl.implementor), Ok);
     if implementor.is_err() && iface_impl.implementor.has_generics() {
@@ -121,7 +121,7 @@ pub fn get_or_create_iface_impls(ty: &Type) -> MutRc<IFaceImpls> {
 }
 
 fn add_impl_to_proto(iface_impl: ast::IFaceImpl, builder: &mut MIRBuilder) -> Res<()> {
-    let implementor = iface_impl.implementor.get_token();
+    let implementor = iface_impl.implementor.token();
     let proto = builder
         .module
         .borrow()

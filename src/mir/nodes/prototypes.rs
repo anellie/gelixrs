@@ -270,15 +270,7 @@ impl Prototype {
         match &param {
             ast::Type::Ident(_) if goal == param => Some(mir),
 
-            ast::Type::Pointer(inner) if goal == &**inner => {
-                if let Type::Pointer(mir) = mir {
-                    Some(*mir)
-                } else {
-                    Some(Type::Value(mir.to_adt().clone()))
-                }
-            }
-
-            ast::Type::Value(inner) if goal == &**inner => {
+            ast::Type::Strong(inner) if goal == &**inner => {
                 // This is required since primitives do not actually get wrapped in MIR
                 // (See MIRBuilder::find_type)
                 if let Type::Value(mir) = mir {
@@ -297,16 +289,6 @@ impl Prototype {
                     Some(mir)
                 }
             }
-
-            ast::Type::Array(inner) if goal == &**inner => Some(
-                mir.context()
-                    .unwrap()
-                    .type_aliases
-                    .values()
-                    .next()
-                    .unwrap()
-                    .clone(),
-            ),
 
             ast::Type::Closure {
                 params, ret_type, ..
@@ -552,18 +534,14 @@ fn attach_impls(
         let mut ast = im.clone();
 
         let ty = match ast.implementor {
-            ast::Type::Pointer(_) => Type::Pointer(Box::new(ty.clone())),
             ast::Type::Weak(_) => ty.to_weak(),
-            ast::Type::Value(_) => ty.to_value(),
             _ => ty.clone(),
         };
 
-        let mut tok = ast.implementor.get_token().clone();
+        let mut tok = ast.implementor.token().clone();
         tok.lexeme = Rc::clone(&name);
         ast.implementor = match ast.implementor {
-            ast::Type::Pointer(_) => ast::Type::Pointer(Box::new(ast::Type::Ident(tok))),
             ast::Type::Weak(_) => ast::Type::Weak(Box::new(ast::Type::Ident(tok))),
-            ast::Type::Value(_) => ast::Type::Value(Box::new(ast::Type::Ident(tok))),
             _ => ast::Type::Ident(tok),
         };
 

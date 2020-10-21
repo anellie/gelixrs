@@ -58,6 +58,15 @@ impl ADT {
         })
     }
 
+    /// Returns if this is a simple enum case or false if not enum case
+    pub fn is_simple_enum(&self) -> bool {
+        if let ADTType::EnumCase { no_body, .. } = &self.ty {
+            *no_body
+        } else {
+            false
+        }
+    }
+
     /// This is only called on prototypes and used to replace their name with
     /// the name of an instance. For `EnumCase`, it is assumed the name
     /// is for the parent, since only Enum prototypes exist
@@ -198,24 +207,14 @@ pub struct Variable {
 /// A type literal, like 'String' or '[i64]'
 #[derive(Clone, Debug, PartialEq, EnumAsGetters, EnumIsA)]
 pub enum Type {
-    /// Just an identifier, primitive type, class, or interface
+    /// Just an identifier.
     Ident(Token),
-
-    /// A pointer type, written *$type.
-    /// For primitives, this is a pointer.
-    /// For ADTs, this is a double pointer.
-    Pointer(Box<Type>),
 
     /// A weak reference.
     Weak(Box<Type>),
 
-    /// A direct value type, written ~$type.
-    /// For primitives, this will do nothing (already a value).
-    /// For ADTs, this will compile to a direct struct value instead of a pointer.
-    Value(Box<Type>),
-
-    /// An array of a type, written [$type]
-    Array(Box<Type>),
+    /// A strong reference.
+    Strong(Box<Type>),
 
     /// A closure signature, written (param1: $ty1, param2: $ty2): $ret_type
     Closure {
@@ -230,7 +229,7 @@ pub enum Type {
 }
 
 impl Type {
-    pub fn get_token(&self) -> &Token {
+    pub fn token(&self) -> &Token {
         match self {
             Type::Ident(token)
             | Type::Generic { token, .. }
@@ -238,9 +237,7 @@ impl Type {
                 closing_paren: token,
                 ..
             } => token,
-            Type::Pointer(inner) | Type::Weak(inner) | Type::Array(inner) | Type::Value(inner) => {
-                inner.get_token()
-            }
+            Type::Weak(inner) | Type::Strong(inner) => inner.token(),
         }
     }
 
@@ -248,9 +245,7 @@ impl Type {
         match self {
             Type::Ident(_) => false,
 
-            Type::Pointer(inner) | Type::Weak(inner) | Type::Value(inner) | Type::Array(inner) => {
-                inner.has_generics()
-            }
+            Type::Strong(inner) | Type::Weak(inner) => inner.has_generics(),
 
             Type::Closure {
                 params, ret_type, ..
@@ -269,13 +264,9 @@ impl fmt::Display for Type {
         match self {
             Type::Ident(tok) => write!(f, "{}", tok.lexeme),
 
-            Type::Pointer(type_) => write!(f, "*{}", type_),
-
             Type::Weak(type_) => write!(f, "&{}", type_),
 
-            Type::Value(type_) => write!(f, "^{}", type_),
-
-            Type::Array(type_) => write!(f, "[{}]", type_),
+            Type::Strong(type_) => write!(f, "@{}", type_),
 
             Type::Closure {
                 params, ret_type, ..

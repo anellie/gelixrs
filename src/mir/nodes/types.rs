@@ -231,7 +231,7 @@ impl Type {
         if !marker.is_ident() {
             return false;
         }
-        let lexeme = &marker.get_token().lexeme;
+        let lexeme = &marker.token().lexeme;
         match &lexeme[..] {
             "Primitive" => self.is_primitive(),
             "Number" => self.is_number(),
