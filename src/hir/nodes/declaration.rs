@@ -8,7 +8,7 @@ use crate::{
     ast,
     ast::declaration::GenericParam,
     hir::{
-        generator::{resolver::Resolver, HIRGenerator},
+        generator::{HIRGenerator},
         nodes::{
             expression::Expr,
             types::{
@@ -205,7 +205,7 @@ pub fn ast_generics_to_hir(
 
 /// The exact type of ADT.
 /// Can also contain type-specific data.
-#[derive(Debug, EnumIsA)]
+#[derive(Debug, Clone, EnumIsA)]
 pub enum ADTType {
     /// A class definition.
     Class {

@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     ast::module::ModulePath,
-    error::{Error, Errors, Res},
+    error::{Error, Errors},
     hir::{
         generator::resolver::Resolver,
         hir_err,
@@ -23,7 +23,7 @@ use crate::{
 
 mod expr;
 pub mod intrinsics;
-mod module;
+pub mod module;
 mod passes;
 pub mod resolver;
 

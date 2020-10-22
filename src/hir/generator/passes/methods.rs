@@ -1,5 +1,4 @@
 use std::{
-    cell::{RefCell, RefMut},
     collections::{HashMap, HashSet},
     rc::Rc,
 };
@@ -10,7 +9,7 @@ use crate::{
         declaration::{FuncSignature, FunctionParam, Visibility},
         Constructor,
     },
-    error::{Error, Res},
+    error::{Res},
     hir::{
         generator::HIRGenerator,
         get_or_create_iface_impls,

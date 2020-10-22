@@ -1,6 +1,5 @@
 use crate::{
     ast::Expression,
-    error::Res,
     hir::{generator::HIRGenerator, nodes::expression::Expr},
 };
 

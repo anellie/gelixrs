@@ -9,7 +9,6 @@ use std::rc::Rc;
 use crate::{
     ast::{module::ModulePath, Type as ASTType},
     error::{Error, Res},
-    hir::generator::HIRGenerator,
     lexer::token::Token,
 };
 

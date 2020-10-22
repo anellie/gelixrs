@@ -14,13 +14,15 @@ use crate::{
         generator::resolver::Resolver,
         get_or_create_iface_impls,
         nodes::{
-            declaration::{Function, ADT},
+            declaration::{ADTType, Function, ADT},
             module::Module,
         },
     },
     lexer::token::Token,
     mir::MutRc,
 };
+use crate::hir::nodes::expression::CastType;
+use crate::hir::get_iface_impls;
 
 pub type TypeArguments = Vec<Type>;
 pub type TypeParameters = Vec<TypeParameter>;
@@ -100,7 +102,7 @@ impl Type {
         match self {
             Self::Function(inst) => Some(&mut inst.args),
             Self::Value(inst) | Self::WeakRef(inst) | Self::StrongRef(inst) => Some(&mut inst.args),
-            _ => None
+            _ => None,
         }
     }
 
@@ -177,6 +179,98 @@ impl Type {
     /// True for everything except weak references.
     pub fn can_escape(&self) -> bool {
         !self.is_weak_ref()
+    }
+
+    /// Try turning this type into an ADT,
+    /// if it contains one.
+    pub fn try_adt(&self) -> Option<&Instance<ADT>> {
+        match self {
+            Type::Value(adt) | Type::WeakRef(adt) | Type::StrongRef(adt) => Some(adt),
+            _ => None,
+        }
+    }
+
+    pub fn to_strong(&self) -> Type {
+        self.try_adt().cloned().map(Type::StrongRef).unwrap_or_else(|| self.clone())
+    }
+
+    pub fn to_weak(&self) -> Type {
+        self.try_adt().cloned().map(Type::WeakRef).unwrap_or_else(|| self.clone())
+    }
+
+    pub fn to_value(&self) -> Type {
+        self.try_adt().cloned().map(Type::Value).unwrap_or_else(|| self.clone())
+    }
+
+    /// Returns casts to get this type to [goal].
+    /// None = Not possible
+    /// Some(Cast, None) = Single cast
+    /// Some(Cast, ...) = Double cast with middle step
+    pub fn can_cast_to(
+        &self,
+        goal: &Type,
+    ) -> Option<(CastType, Option<(CastType, Type)>)> {
+        if let Some(cast) = self.find_cast_ty(goal) {
+            Some((cast, None))
+        } else {
+            match self {
+                Type::WeakRef(inst) => Type::Value(inst.clone())
+                    .find_cast_ty(&goal)
+                    .map(|c| (c, Some((CastType::ToValue, Type::Value(inst.clone()))))),
+
+                Type::StrongRef(inst) => Type::Value(inst.clone())
+                    .find_cast_ty(&goal)
+                    .map(|c| (c, Some((CastType::ToValue, Type::Value(inst.clone())))))
+                    .or_else(|| {
+                        Type::WeakRef(inst.clone())
+                            .find_cast_ty(&goal)
+                            .map(|c| (c, Some((CastType::StrongToWeak, Type::Value(inst.clone())))))
+                    }),
+
+                _ => None,
+            }
+        }
+    }
+
+    /// Tries finding a possible cast to [goal].
+    /// Does not account for the types being identical.
+    fn find_cast_ty(&self, goal: &Type) -> Option<CastType> {
+        match (self, goal) {
+            // Interface cast
+            _ if get_or_create_iface_impls(&self).borrow().interfaces.get(goal).is_some() => {
+                Some(CastType::ToInterface)
+            }
+
+            // Strong reference to weak reference cast
+            (Type::StrongRef(adt), Type::WeakRef(weak)) if adt == weak => {
+                Some(CastType::StrongToWeak)
+            }
+
+            // Reference to value cast
+            (Type::StrongRef(adt), Type::Value(value))
+            | (Type::WeakRef(adt), Type::Value(value)) if adt == value => {
+                Some(CastType::ToValue)
+            }
+
+            // Enum case to enum cast
+            (Type::StrongRef(adt), Type::StrongRef(other))
+            | (Type::WeakRef(adt), Type::WeakRef(other))
+            | (Type::Value(adt), Type::Value(other)) => {
+                match &adt.ty.borrow().ty {
+                    ADTType::EnumCase { parent, .. } if Rc::ptr_eq(parent, &other.ty) && other.args == adt.args => {
+                        Some(CastType::Bitcast)
+                    }
+
+                    _ => None,
+                }
+            }
+
+            // Number cast
+            _ if self.is_int() && goal.is_int() => Some(CastType::Number),
+            _ if self.is_float() && goal.is_float() => Some(CastType::Number),
+
+            _ => None,
+        }
     }
 }
 

@@ -6,8 +6,6 @@
 
 use std::rc::Rc;
 
-use either::Either::{Left, Right};
-
 use crate::{
     ast::{expression::LOGICAL_BINARY, Literal},
     hir::{
@@ -111,7 +109,7 @@ pub enum Expr {
     Cast {
         inner: Box<Expr>,
         to: Type,
-        method: CastingMethod,
+        method: CastType,
     },
 }
 
@@ -209,7 +207,7 @@ impl Expr {
         Expr::Break(Box::new(val))
     }
 
-    pub fn cast(val: Expr, to: Type, method: CastingMethod) -> Expr {
+    pub fn cast(val: Expr, to: Type, method: CastType) -> Expr {
         Expr::Cast {
             inner: Box::new(val),
             to,
@@ -315,9 +313,10 @@ impl Expr {
 }
 
 #[derive(Clone, Debug)]
-pub enum CastingMethod {
+pub enum CastType {
     Number,
     StrongToWeak,
-    Direct,
+    ToValue,
+    Bitcast,
     ToInterface,
 }

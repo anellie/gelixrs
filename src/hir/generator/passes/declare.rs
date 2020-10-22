@@ -1,12 +1,10 @@
 use std::{collections::HashMap, rc::Rc};
 
-use either::Either;
 
 use crate::{
     ast,
     ast::{
-        declaration::{FuncSignature, FunctionParam},
-        module::ModulePath,
+        declaration::{FunctionParam},
     },
     error::Res,
     hir::{
@@ -14,7 +12,7 @@ use crate::{
         get_or_create_iface_impls,
         nodes::{
             declaration::{
-                ast_generics_to_hir, ADTType, Declaration, Function, LocalVariable, Variable, ADT,
+                ast_generics_to_hir, ADTType, Declaration, Function, LocalVariable, ADT,
             },
             module::Module,
             types::{IFaceImpl, Type},
@@ -22,7 +20,7 @@ use crate::{
         result::EmitHIRError,
     },
     lexer::token::Token,
-    mir::{mutrc_new, result::ToMIRResult, MutRc},
+    mir::{mutrc_new, MutRc},
 };
 
 impl HIRModuleGenerator {

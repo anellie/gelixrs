@@ -1,7 +1,6 @@
 use std::rc::Rc;
 
 use crate::{
-    error::Res,
     hir::{
         generator::HIRGenerator,
         nodes::declaration::{Declaration, Field, ADT},

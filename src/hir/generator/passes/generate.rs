@@ -1,15 +1,14 @@
-use std::{cell::Ref, collections::HashMap, rc::Rc};
+use std::{collections::HashMap, rc::Rc};
 
 use crate::{
     ast::Constructor,
-    error::Res,
     hir::{
         generator::HIRGenerator,
         get_or_create_iface_impls,
         nodes::{
             declaration::{Declaration, Field, Function, ADT},
             expression::Expr,
-            types::{IFaceImpls, Instance, Type},
+            types::{Instance, Type},
         },
     },
     lexer::token::Token,
@@ -62,7 +61,7 @@ impl HIRGenerator {
         let body = self.expression(&ast.borrow().body.as_ref().unwrap()); // todo?
 
         let ret_type = function.borrow().ret_type.clone();
-        let (body, success) = self.resolver.try_cast(body, &ret_type);
+        let (body, success) = self.resolver.try_cast(body, ret_type.clone());
         if !success {
             self.err(
                 &ast.borrow().sig.name.clone(),

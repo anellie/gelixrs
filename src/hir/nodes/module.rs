@@ -6,10 +6,8 @@ use std::{
 use crate::{
     ast,
     ast::module::ModulePath,
-    error::{Error, Res},
     hir::{
-        hir_err,
-        nodes::{declaration::Declaration, types::Type},
+        nodes::{declaration::Declaration},
     },
     lexer::token::Token,
     mir::{mutrc_new, MutRc},

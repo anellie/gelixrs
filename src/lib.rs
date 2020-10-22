@@ -22,6 +22,7 @@ use crate::{
     lexer::token::Token,
     mir::{generator::module::PassRunner, MModule, MutRc},
 };
+use crate::hir::generator::module::HIRModuleGenerator;
 
 pub mod ast;
 //#[cfg(test)]
@@ -116,8 +117,8 @@ pub fn auto_import_prelude(modules: &mut Vec<Module>) {
 }
 
 pub fn compile_mir(modules: Vec<Module>) -> Result<Vec<MutRc<MModule>>, Vec<Errors>> {
-    let pool = PassRunner::new(&modules);
-    pool.execute(modules)
+    HIRModuleGenerator::new(modules).consume();
+    todo!()
 }
 
 pub fn compile_ir(modules: Vec<MutRc<MModule>>) -> inkwell::module::Module {

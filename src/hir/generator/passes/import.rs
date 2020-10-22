@@ -30,7 +30,7 @@ impl HIRModuleGenerator {
 
                     if let Some(decl) = decl {
                         Self::get_imports(module, is_export)
-                            .insert(Rc::clone(&import.symbol.lexeme), decl.clone());
+                            .insert(Rc::clone(&import.symbol.lexeme), decl);
                     } else if second_stage {
                         gen.err(&import.symbol, "Unknown declaration.".to_string())
                     }
