@@ -50,10 +50,12 @@ impl HIRGenerator {
                 else_b,
             } => self.for_iter(elem_name, iterator, body, else_b),
 
-            AExpr::Get { object, name } => self.get(object, name),
-
-            AExpr::GetGeneric { name, .. } => {
-                Err(self.err_(name, "Can only call generic methods directly".to_string()))
+            AExpr::Get { object, name, type_args } => {
+                if !type_args.is_empty() {
+                    Err(self.err_(name, "Can only call generic methods directly".to_string()))
+                } else {
+                    self.get(object, name)
+                }
             }
 
             AExpr::GetStatic { object, name } => self.get_static(object, name, true),
@@ -222,187 +224,199 @@ impl HIRGenerator {
         Ok(Expr::break_(expr))
     }
 
-    fn call(&mut self, callee: &AExpr, arguments: &[AExpr]) -> Res<Expr> {
-        todo!()
-    }
-    /*
-          let mut args = arguments
-                .iter()
-                .map(|a| self.expression(a))
-                .collect::<Res<Vec<_>>>()?;
+    fn call(&mut self, ast_callee: &AExpr, arguments: &[AExpr]) -> Res<Expr> {
+        let mut args = arguments
+            .iter()
+            .map(|a| self.expression(a))
+            .collect::<Vec<_>>();
 
-            match callee {
-                // Method call while a `this` member is still uninitialized
-                AExpr::Get { name, .. } | AExpr::GetGeneric { name, .. }
-                    if !self.uninitialized_this_members.is_empty() =>
-                {
-                    Err(self.err(
-                        name,
-                        "Cannot call methods in constructors until all class members are initialized.",
-                    ))
-                }
+        match ast_callee {
+            // Method call while a `this` member is still uninitialized
+            AExpr::Get { name, .. }
+                if !self.uninitialized_this_fields.is_empty() =>
+            {
+                Err(self.err_(
+                    name,
+                    "Cannot call methods in constructors until all class members are initialized.".to_string(),
+                ))
+            }
 
-                // Method call
-                AExpr::Get { object, name } | AExpr::GetGeneric { object, name, .. } => {
-                    let (object, field) = self.get_field(object, name)?;
-                    let func = field.right().or_err(
-                        &self.builder.path,
-                        name,
-                        "Class members cannot be called.",
-                    )?;
-                    let obj_ty = object.get_type();
-                    args.insert(0, object);
+            // Method call
+            AExpr::Get { object, name, type_args } => {
+                let (object, field) = self.get_field(object, name)?;
+                let func = field.right().on_err(
+                    &self.path,
+                    name,
+                    "Fields cannot be called.",
+                )?;
+                args.insert(0, object);
 
-                    match (callee, func) {
-                        // Regular method call
-                        (AExpr::Get { .. }, AssociatedMethod::Fn(func)) => {
-                            self.check_func_args_(&func.type_, &mut args, arguments, name, true)?;
-                            Ok(Expr::call(Expr::load(&func), args))
-                        }
+                let func_ty = Type::Function(Instance::new(Rc::clone(&func)));
+                self.check_func_args_(&func_ty, &mut args, arguments, name, true)?;
+                Ok(Expr::call(Expr::var(Variable::Function(Instance {
+                    ty: func,
+                    args: type_args.iter().map(|t| self.resolver.find_type(t)).collect::<Res<Vec<Type>>>()?
+                })), args))
+            }
 
-                        // Interface method call
-                        (AExpr::Get { .. }, AssociatedMethod::IFace(index)) => {
-                            let adt = obj_ty.to_adt().borrow();
-                            let params = &adt.dyn_methods.get_index(index).unwrap().1.parameters;
-                            self.check_func_args(
-                                // 'params' need to have the 'this' parameter, this is the result...
-                                Some(obj_ty.clone()).iter().chain(params.iter()),
-                                &mut args,
-                                arguments,
-                                false,
-                                name,
-                                true,
-                            )?;
+            // Can be either a constructor or function call
+            _ => {
+                let callee = self.expression(ast_callee);
+                let callee_type = callee.get_type();
 
-                            Ok(Expr::call_dyn(obj_ty.to_adt(), index, args))
-                        }
+                if let Some(constructors) = callee_type.get_constructors() {
+                    let constructor = Rc::clone(constructors
+                        .iter()
+                        .find(|constructor| {
+                            let constructor = constructor.borrow();
+                            // If args count and types match
+                            (constructor.parameters.len() - 1 == args.len())
+                                && constructor
+                                    .parameters
+                                    .iter()
+                                    .skip(1)
+                                    .zip(args.iter_mut())
+                                    .all(|(param, arg)| {
+                                        arg.get_type().can_cast_to(&param.ty).is_some()
+                                    })
+                        })
+                        .on_err(
+                            &self.path,
+                            ast_callee.get_token(),
+                            "No matching constructor found for arguments.",
+                        )?);
 
-                        // Proto method call with inferred generics
-                        (AExpr::Get { name, .. }, AssociatedMethod::Proto(ref proto)) => proto
-                            .try_infer_call(
-                                self,
-                                args,
-                                arguments,
-                                name,
-                                Rc::clone(&proto),
-                                obj_ty.context(),
-                                None,
-                            ),
-
-                        // Proto method call with explicit generics
-                        (AExpr::GetGeneric { params, .. }, AssociatedMethod::Proto(ref proto)) => {
-                            let proto_args = params
-                                .iter()
-                                .map(|ty| self.builder.find_type(&ty))
-                                .collect::<Res<Vec<Type>>>()?;
-
-                            let func = proto.build_with_parent_context(
-                                proto_args,
-                                &self.module,
-                                name,
-                                Rc::clone(&proto),
-                                &obj_ty.context().unwrap_or_else(Context::default),
-                            )?;
-                            let func_rc = self
-                                .builder
-                                .module
-                                .borrow()
-                                .find_global(&func.as_function().borrow().name)
-                                .unwrap();
-                            self.check_func_args_(&func, &mut args, arguments, name, true)?;
-
-                            Ok(Expr::call(Expr::load(&func_rc), args))
-                        }
-
-                        // Generic parameters on something else, invalid
-                        _ => Err(self.err(name, "This method does not take generic parameters")),
-                    }
-                }
-
-                // Prototype call with inferred types
-                // TODO: Kinda ugly double find call
-                AExpr::Variable(tok) if self.module.borrow().find_prototype(&tok.lexeme).is_some() => {
-                    let proto = self.module.borrow().find_prototype(&tok.lexeme).unwrap();
-                    proto.try_infer_call(self, args, arguments, tok, Rc::clone(&proto), None, None)
-                }
-
-                // Enum prototype call with inferred types
-                // TODO: Kinda ugly
-                AExpr::GetStatic { object, name }
-                    if object.is_variable()
-                        && self
-                            .module
-                            .borrow()
-                            .find_prototype(&object.get_token().lexeme)
-                            .is_some() =>
-                {
-                    let proto = self
-                        .module
-                        .borrow()
-                        .find_prototype(&object.get_token().lexeme)
-                        .unwrap();
-                    proto.try_infer_call(
-                        self,
-                        args,
-                        arguments,
-                        object.get_token(),
-                        Rc::clone(&proto),
-                        None,
-                        Some(&name.lexeme),
-                    )
-                }
-
-                // Can be either a constructor or function call
-                _ => {
-                    let callee_mir = self.expression(callee)?;
-                    let callee_type = callee_mir.get_type();
-
-                    if let Some(constructors) = callee_type.get_constructors() {
-                        let constructor: &Rc<Variable> = constructors
-                            .iter()
-                            .find(|constructor| {
-                                let constructor = constructor.type_.as_function().borrow();
-                                // If args count and types match
-                                (constructor.parameters.len() - 1 == args.len())
-                                    && constructor
-                                        .parameters
-                                        .iter()
-                                        .skip(1)
-                                        .zip(args.iter_mut())
-                                        .all(|(param, arg)| {
-                                            arg.get_type().can_cast_to(&param.type_, true).is_some()
-                                        })
-                            })
-                            .or_err(
-                                &self.builder.path,
-                                callee.get_token(),
-                                "No matching constructor found for arguments.",
-                            )?;
-
+                    {
+                        for (param, arg) in
+                            constructor.borrow().parameters.iter().skip(1).zip(args.iter_mut())
                         {
-                            let constructor = constructor.type_.as_function().borrow();
-                            for (param, arg) in
-                                constructor.parameters.iter().skip(1).zip(args.iter_mut())
-                            {
-                                self.try_cast_in_place(arg, &param.type_)
-                            }
+                            self.resolver.try_cast_in_place(arg, &param.ty);
                         }
-
-                        Ok(Expr::alloc_type(callee_type, constructor, args))
-                    } else {
-                        self.check_func_args_(
-                            &callee_type,
-                            &mut args,
-                            arguments,
-                            callee.get_token(),
-                            false,
-                        )?;
-                        Ok(Expr::call(callee_mir, args))
                     }
+
+                    Ok(Expr::Allocate {
+                        ty: callee_type,
+                        constructor,
+                        args,
+                        tok: ast_callee.get_token().clone()
+                    })
+                } else {
+                    self.check_func_args_(
+                        &callee_type,
+                        &mut args,
+                        arguments,
+                        ast_callee.get_token(),
+                        false,
+                    )?;
+                    Ok(Expr::call(callee, args))
                 }
             }
         }
-    */
+    }
+
+    /// Check a function call's arguments for correctness,
+    /// possibly adding a cast if required.
+    fn check_func_args<'a, T: Iterator<Item = &'a Type>>(
+        &mut self,
+        mut parameters: T,
+        args: &mut Vec<Expr>,
+        ast_args: &[AExpr],
+        allow_variadic: bool,
+        err_tok: &Token,
+        is_method: bool,
+    ) -> Res<()> {
+        let para_len = parameters.size_hint().0;
+        if para_len > args.len() || (para_len < args.len() && !allow_variadic) {
+            return Err(self.err_(
+                err_tok,
+                format!(
+                    "Incorrect amount of function arguments. (Expected {}; got {})",
+                    parameters.size_hint().0,
+                    args.len()
+                ),
+            ));
+        }
+
+        // Sometimes, methods need their "this" arg to be cast (enum case calling a parent func for example)
+        // Since parameters are an iterator it needs to be done now
+        if is_method {
+            // Remove the "this" argument to get ownership using swap_remove, last arg is now
+            // swapped into index 0
+            // Try casting it, if the cast fails then the method is being called with
+            // a WR or DV despite the 'strong' modifier so throw an error
+            let arg = self
+                .resolver
+                .cast_or_none(args.swap_remove(0), parameters.next().unwrap())
+                .on_err(
+                    &self.path,
+                    err_tok,
+                    "This method requires a strong reference",
+                )?;
+            // Put "this" arg at the end and swap them again
+            let this_index = args.len();
+            args.push(arg);
+            args.swap(0, this_index);
+            // (This is done since it does not need any copying)
+        }
+
+        for ((argument, parameter), ast) in args
+            .iter_mut()
+            .skip(is_method as usize)
+            .zip(parameters)
+            .zip(ast_args.iter())
+        {
+            // The mem::replace usage temporarily swaps out the argument with none_const
+            // to get the ownership cast_or_none requires
+            let arg_type = argument.get_type();
+            let success = self
+                .resolver
+                .try_cast_in_place(argument, &parameter);
+            if !success {
+                self.err(
+                    ast.get_token(),
+                    format!(
+                        "Call argument is the wrong type (was {}, expected {})",
+                        arg_type, parameter
+                    )
+                )
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Same as above, but takes a function instead.
+    /// `func` should be `Type::Function` or `Type::Closure`, otherwise returns an error.
+    pub fn check_func_args_(
+        &mut self,
+        func: &Type,
+        args: &mut Vec<Expr>,
+        ast_args: &[AExpr],
+        err_tok: &Token,
+        is_method: bool,
+    ) -> Res<()> {
+        match func {
+            Type::Function(func) => self.check_func_args(
+                func.ty.borrow().parameters.iter().map(|p| &p.ty),
+                args,
+                ast_args,
+                func.ty.borrow().ast.borrow().sig.variadic,
+                err_tok,
+                is_method,
+            ),
+
+            Type::Closure(closure) => self.check_func_args(
+                closure.parameters.iter(),
+                args,
+                ast_args,
+                false,
+                err_tok,
+                is_method,
+            ),
+
+            _ => Err(self.err_(err_tok, "This cannot be called.".to_string())),
+        }
+    }
 
     fn for_cond(
         &mut self,
@@ -458,66 +472,66 @@ impl HIRGenerator {
         else_b: &Option<Box<AExpr>>,
     ) -> Res<Expr> {
         todo!();
-        /*
-        self.begin_scope();
+    /*
+    self.begin_scope();
 
-        let iter_mir = self.expression(iterator)?;
-        let (iter_ty, elem_ty, to_iter_ty) = INTRINSICS
-            .with(|i| i.borrow().get_for_iter_type(&iter_mir.get_type()))
-            .or_err(
-                &self.builder.path,
-                iterator.get_token(),
-                "Not an iterator (must implement Iter or ToIter).",
-            )?;
+    let iter_mir = self.expression(iterator)?;
+    let (iter_ty, elem_ty, to_iter_ty) = INTRINSICS
+        .with(|i| i.borrow().get_for_iter_type(&iter_mir.get_type()))
+        .or_err(
+            &self.builder.path,
+            iterator.get_token(),
+            "Not an iterator (must implement Iter or ToIter).",
+        )?;
 
-        let iter = if let Some(to_iter_ty) = to_iter_ty {
-            let method = Self::find_associated_method(
-                &to_iter_ty,
-                &Token::generic_identifier("iter".to_string()),
-            )
+    let iter = if let Some(to_iter_ty) = to_iter_ty {
+        let method = Self::find_associated_method(
+            &to_iter_ty,
+            &Token::generic_identifier("iter".to_string()),
+        )
+        .unwrap()
+        .into_fn();
+        Expr::call(Expr::load(&method), vec![iter_mir])
+    } else {
+        iter_mir
+    };
+
+    let opt_proto = self
+        .module
+        .borrow()
+        .find_prototype(&"Opt".to_string())
+        .unwrap();
+    let opt_ty = opt_proto.build(
+        vec![elem_ty.clone()],
+        &self.module,
+        elem_name,
+        Rc::clone(&opt_proto),
+    )?;
+    let some_ty = {
+        let adt = opt_ty.as_adt();
+        let adt = adt.borrow();
+        let cases = adt.ty.cases();
+        Rc::clone(cases.get(&"Some".to_string()).unwrap())
+    };
+
+    let elem_var = self.define_variable(&elem_name, false, elem_ty.clone());
+    let next_fn =
+        Self::find_associated_method(&iter_ty, &Token::generic_identifier("next".to_string()))
             .unwrap()
             .into_fn();
-            Expr::call(Expr::load(&method), vec![iter_mir])
-        } else {
-            iter_mir
-        };
 
-        let opt_proto = self
-            .module
-            .borrow()
-            .find_prototype(&"Opt".to_string())
-            .unwrap();
-        let opt_ty = opt_proto.build(
-            vec![elem_ty.clone()],
-            &self.module,
-            elem_name,
-            Rc::clone(&opt_proto),
-        )?;
-        let some_ty = {
-            let adt = opt_ty.as_adt();
-            let adt = adt.borrow();
-            let cases = adt.ty.cases();
-            Rc::clone(cases.get(&"Some".to_string()).unwrap())
-        };
-
-        let elem_var = self.define_variable(&elem_name, false, elem_ty.clone());
-        let next_fn =
-            Self::find_associated_method(&iter_ty, &Token::generic_identifier("next".to_string()))
-                .unwrap()
-                .into_fn();
-
-        let (body, else_, result_store) = self.for_body(body, else_b)?;
-        self.end_scope();
-        Ok(Expr::IterLoop {
-            iter: Box::new(iter),
-            next_fn,
-            next_cast_ty: Type::Adt(some_ty),
-            store: elem_var,
-            body: Box::new(body),
-            else_: Box::new(else_.unwrap_or_else(Expr::none_const)),
-            result_store,
-        })
-        */
+    let (body, else_, result_store) = self.for_body(body, else_b)?;
+    self.end_scope();
+    Ok(Expr::IterLoop {
+        iter: Box::new(iter),
+        next_fn,
+        next_cast_ty: Type::Adt(some_ty),
+        store: elem_var,
+        body: Box::new(body),
+        else_: Box::new(else_.unwrap_or_else(Expr::none_const)),
+        result_store,
+    })
+    */
     }
 
     fn get(&mut self, object: &AExpr, name: &Token) -> Res<Expr> {
@@ -575,7 +589,7 @@ impl HIRGenerator {
             );
         }
 
-        self.begin_scope(); // scope for smart casts if applicable
+self.begin_scope(); // scope for smart casts if applicable
         let mut then_block = self.smart_casts(&cond);
         then_block.push(self.expression(then_branch));
         let then_val = Expr::Block(then_block);
@@ -668,8 +682,8 @@ impl HIRGenerator {
 
     fn literal(&mut self, literal: &Literal, token: &Token) -> Res<Expr> {
         match literal {
-            // Literal::Array(arr) => self.array_literal(arr.as_ref().left().unwrap()),
-            // Literal::Closure(closure) => self.closure(closure, token),
+    // Literal::Array(arr) => self.array_literal(arr.as_ref().left().unwrap()),
+    // Literal::Closure(closure) => self.closure(closure, token),
             _ => Ok(Expr::Literal(literal.clone(), token.clone())),
         }
     }
@@ -838,8 +852,13 @@ impl HIRGenerator {
     }
 
     fn alloc_heap(&mut self, op: &Token, inner: Expr) -> Res<Expr> {
-        if let Expr::Allocate(ty, token) = inner {
-            Ok(Expr::Allocate(ty.to_strong(), token))
+        if let Expr::Allocate { ty, constructor, args, tok } = inner {
+            Ok(Expr::Allocate {
+                ty: ty.to_strong(),
+                constructor,
+                args,
+                tok
+            })
         } else {
             Err(self.err_(op, "'new' can only be used with constructors".to_string()))
         }
@@ -885,7 +904,7 @@ impl HIRGenerator {
         let mut iter = branches.iter();
         let first = iter.next();
         if first.is_none() {
-            // There are no branches, just return else branch or nothing
+    // There are no branches, just return else branch or nothing
             return Ok(else_branch
                 .as_ref()
                 .map_or_else(Expr::none_const_, |br| self.expression(br)));
@@ -909,7 +928,7 @@ impl HIRGenerator {
             cases.push((cond, branch_val))
         }
 
-        // TODO: Deduplicate this...
+    // TODO: Deduplicate this...
         let mut else_br = else_branch.as_ref().map(|e| self.expression(e));
         if let Some(branch_val) = &else_br {
             if first_ty != Type::None {
@@ -939,7 +958,7 @@ impl HIRGenerator {
         cond_type: &Type,
         branch: &(AExpr, AExpr),
     ) -> Res<(Expr, Expr)> {
-        // See note on `binary` about this
+    // See note on `binary` about this
         let br_cond = match &branch.0 {
             AExpr::GetStatic { object, name } => self.get_static(object, name, false)?,
             _ => self.expression(&branch.0),
@@ -952,9 +971,9 @@ impl HIRGenerator {
             );
         }
 
-        // Small hack to get a token that gives the user
-        // a useful error without having to add complexity
-        // to binary_mir()
+    // Small hack to get a token that gives the user
+    // a useful error without having to add complexity
+    // to binary_mir()
         let mut optok = branch.0.get_token().clone();
         optok.t_type = if br_type.is_type() {
             TType::Is

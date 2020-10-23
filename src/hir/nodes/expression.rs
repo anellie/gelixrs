@@ -17,6 +17,8 @@ use crate::{
     },
     lexer::token::Token,
 };
+use crate::mir::MutRc;
+use crate::hir::nodes::declaration::Function;
 
 /// An expression in gelix.
 /// HIR expressions are an intermediate between AST and MIR;
@@ -37,7 +39,12 @@ pub enum Expr {
 
     /// Allocate a value of the given type,
     /// usually [Type::WeakRef] or [Type::StrongRef].
-    Allocate(Type, Token),
+    Allocate {
+        ty: Type,
+        constructor: MutRc<Function>,
+        args: Vec<Expr>,
+        tok: Token
+    },
 
     // A field getter on an ADT.
     Load {
@@ -278,7 +285,7 @@ impl Expr {
 
             Expr::Break(_) | Expr::Return(_) => Type::Any,
 
-            Expr::Cast { to, .. } | Expr::Allocate(to, _) => to.clone(),
+            Expr::Cast { to, .. } | Expr::Allocate { ty: to, .. } => to.clone(),
 
             Expr::TypeGet(ty) => Type::Type(Box::new(ty.clone())),
         }
@@ -289,7 +296,7 @@ impl Expr {
         match self {
             Expr::Binary { operator: tok, .. }
             | Expr::Literal(_, tok)
-            | Expr::Allocate(_, tok)
+            | Expr::Allocate { tok, .. }
             | Expr::Unary { operator: tok, .. } => tok.clone(),
 
             Expr::Store { location: ex, .. }

@@ -223,6 +223,22 @@ impl Type {
         }
     }
 
+    /// Returns a list of available constructors, should self be a
+    /// static type access.
+    /// TODO: Copying the list of constructors is not great for performance
+    pub fn get_constructors(&self) -> Option<Vec<MutRc<Function>>> {
+        // Thanks, no box pattern matching!
+        if let Type::Type(ty) = self {
+            if let Type::Value(ty) = &**ty {
+                Some(ty.ty.borrow().constructors.clone())
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
     /// Returns casts to get this type to [goal].
     /// None = Not possible
     /// Some(Cast, None) = Single cast

@@ -13,8 +13,7 @@ use either::Either;
 
 use crate::{
     ast::{expression::Expression, Type},
-    lexer::token::Token,
-    mir::nodes::ArrayLiteral,
+    lexer::token::Token
 };
 
 /// An enum containing all literals possible in Gelix.
@@ -43,7 +42,8 @@ pub enum Literal {
     Char(char),
     String(Rc<String>),
 
-    Array(Either<Rc<Vec<Expression>>, ArrayLiteral>),
+    // TODO: HIR arrays
+    Array(Either<Rc<Vec<Expression>>, ()>),
 
     Closure(Box<Closure>),
 }

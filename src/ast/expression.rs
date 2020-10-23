@@ -79,17 +79,11 @@ pub enum Expression {
     },
 
     /// A getter (x.y)
+    /// Can contain generic arguments.
     Get {
         object: Box<Expression>,
         name: Token,
-    },
-
-    /// A getter with generic parameters (x.y::<A, B>)
-    /// Used for generic methods.
-    GetGeneric {
-        object: Box<Expression>,
-        name: Token,
-        params: Vec<Type>,
+        type_args: Vec<Type>,
     },
 
     /// A getter of a static property (X:Y)
@@ -174,7 +168,6 @@ impl Expression {
             | Expression::Break(_, tok)
             | Expression::ForIter { elem_name: tok, .. }
             | Expression::Get { name: tok, .. }
-            | Expression::GetGeneric { name: tok, .. }
             | Expression::GetStatic { name: tok, .. }
             | Expression::IndexGet { bracket: tok, .. }
             | Expression::Literal(_, tok)

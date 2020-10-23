@@ -1,9 +1,13 @@
-use crate::hir::nodes::module::Module;
-use std::fmt;
-use std::fmt::{Formatter, Display};
-use crate::hir::nodes::declaration::{Declaration, Function, ADT, ADTType};
-use std::iter::{repeat};
-use crate::hir::nodes::expression::Expr;
+use crate::hir::nodes::{
+    declaration::{ADTType, Declaration, Function, ADT},
+    expression::Expr,
+    module::Module,
+};
+use std::{
+    fmt,
+    fmt::{Display, Formatter},
+    iter::repeat,
+};
 
 const INDENT: usize = 4;
 type R = Result<(), fmt::Error>;
@@ -79,7 +83,7 @@ impl ADT {
             ADTType::Enum { .. } => write!(f, "enum"),
             ADTType::EnumCase { .. } => write!(f, "case"),
         }?;
-        writeln!(f, "{} {{\n", self.name.lexeme)?;
+        writeln!(f, " {} {{\n", self.name.lexeme)?;
 
         for field in self.fields.values() {
             writeln!(
@@ -118,18 +122,22 @@ impl Expr {
 
             Expr::Variable(var) => write!(f, "{}", var.get_token().lexeme),
 
-            Expr::Allocate(ty, _) => write!(f, "allocate({})", ty),
+            Expr::Allocate { ty, .. } => write!(f, "allocate({})", ty),
 
             Expr::Load { object, field } => {
                 object.display(f, indent_size + INDENT)?;
                 write!(f, ".{}", field.name)
-            },
+            }
 
-            Expr::Store { location, value, first_store } => {
+            Expr::Store {
+                location,
+                value,
+                first_store,
+            } => {
                 location.display(f, indent_size + INDENT)?;
                 write!(f, " = ")?;
                 value.display(f, indent_size + INDENT)
-            },
+            }
 
             Expr::Binary {
                 left,
@@ -139,18 +147,19 @@ impl Expr {
                 left.display(f, indent_size + INDENT)?;
                 write!(f, " {} ", operator.lexeme)?;
                 right.display(f, indent_size + INDENT)
-            },
+            }
 
             Expr::Unary { right, operator } => {
                 write!(f, "{}", operator.lexeme)?;
                 right.display(f, indent_size + INDENT)
-            },
+            }
 
             Expr::Call { callee, arguments } => {
                 callee.display(f, indent_size + INDENT)?;
                 write!(f, "(")?;
                 let mut args = arguments.iter();
-                args.next().map(|param| param.display(f, indent_size + INDENT));
+                args.next()
+                    .map(|param| param.display(f, indent_size + INDENT));
                 for arg in args {
                     write!(f, ", ")?;
                     arg.display(f, indent_size + INDENT)?;
@@ -170,9 +179,13 @@ impl Expr {
                 then_branch.display(f, indent_size + INDENT)?;
                 write!(f, " else ")?;
                 else_branch.display(f, indent_size + INDENT)
-            },
+            }
 
-            Expr::Switch { branches, else_branch, phi_type } => {
+            Expr::Switch {
+                branches,
+                else_branch,
+                phi_type,
+            } => {
                 let indent = repeat(' ').take(indent_size).collect::<String>();
                 let indent_inner = repeat(' ').take(indent_size + INDENT).collect::<String>();
 
@@ -188,32 +201,37 @@ impl Expr {
                 else_branch.display(f, indent_size + INDENT * 2)?;
 
                 writeln!(f, "{}}}", indent)
-            },
+            }
 
-            Expr::Loop { condition, body, else_branch, phi_type } => {
+            Expr::Loop {
+                condition,
+                body,
+                else_branch,
+                phi_type,
+            } => {
                 write!(f, "for (")?;
                 condition.display(f, indent_size + INDENT)?;
                 write!(f, ") ")?;
                 body.display(f, indent_size + INDENT)?;
                 write!(f, " else ")?;
                 else_branch.display(f, indent_size + INDENT)
-            },
+            }
 
             Expr::Break(expr) => {
                 write!(f, "break ")?;
                 expr.display(f, indent_size)
-            },
+            }
 
             Expr::Return(expr) => {
                 write!(f, "return ")?;
                 expr.display(f, indent_size)
-            },
+            }
 
             Expr::Cast { inner, to, method } => {
                 write!(f, "cast[{}](", to)?;
                 inner.display(f, indent_size + INDENT)?;
                 write!(f, ", {:?})", method)
-            },
+            }
 
             Expr::TypeGet(ty) => write!(f, "get_type({})", ty),
         }

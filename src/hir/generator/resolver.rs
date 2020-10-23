@@ -210,9 +210,12 @@ impl Resolver {
 
     /// Same as above but utilizing `std::mem::replace` to only
     /// require a mutable reference at the cost of a slight performance penalty.
-    pub fn try_cast_in_place(&self, value_ref: &mut Expr, ty: &Type) {
+    /// Returns success.
+    pub fn try_cast_in_place(&self, value_ref: &mut Expr, ty: &Type) -> bool {
         let value = mem::replace(value_ref, Expr::none_const_());
-        *value_ref = self.try_cast(value, ty).0; // todo use success
+        let (expr, success) = self.try_cast(value, ty);
+        *value_ref = expr;
+        success
     }
 
     /// Will try to make left and right be of the same type.

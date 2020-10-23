@@ -2,6 +2,7 @@ use std::rc::Rc;
 
 use crate::{
     ast,
+    ast::module::ModulePath,
     error::{Error, Errors},
     hir::{
         generator::{intrinsics::INTRINSICS, HIRGenerator},
@@ -19,13 +20,11 @@ pub struct HIRModuleGenerator {
     pub modules: Vec<MutRc<Module>>,
     /// A single-module generator
     pub generator: HIRGenerator,
-    /// All errors that occured during compilation
-    errors: Vec<Errors>,
 }
 
 impl HIRModuleGenerator {
     /// Consumes AST modules given, processing them to HIR.
-    /// Returns errors if any occured.
+    /// Returns errors if any occurred.
     pub fn consume(mut self) -> Result<Vec<MutRc<Module>>, Vec<Errors>> {
         Self::reset();
 
@@ -45,10 +44,26 @@ impl HIRModuleGenerator {
         self.generator.generate_primitive();
         INTRINSICS
             .with(|i| i.borrow_mut().validate())
-            .map_err(|e| self.errors.push(Errors(vec![e], Rc::new("".to_string()))))
+            .map_err(|e| {
+                self.generator.errors.borrow_mut().insert(
+                    Rc::new(ModulePath(vec![])),
+                    Errors(vec![e], Rc::new("".to_string())),
+                )
+            })
             .ok();
 
-        Ok(self.modules)
+        let errs = self
+            .generator
+            .errors
+            .take()
+            .into_iter()
+            .map(|(k, v)| v)
+            .collect::<Vec<_>>();
+        if errs.is_empty() {
+            Ok(self.modules)
+        } else {
+            Err(errs)
+        }
     }
 
     /// Create a new error and add it to the list of errors.
@@ -104,10 +119,6 @@ impl HIRModuleGenerator {
                 self.generator.resolver.set_context(decl.type_parameters());
                 runner(&mut self.generator, decl)
             }
-
-            if let Some(errs) = self.generator.errors.borrow_mut().take() {
-                self.errors.push(errs)
-            }
         }
     }
 
@@ -120,7 +131,6 @@ impl HIRModuleGenerator {
         Self {
             generator: HIRGenerator::new(Rc::clone(&modules[0])),
             modules,
-            errors: vec![],
         }
     }
 }

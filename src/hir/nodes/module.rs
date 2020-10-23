@@ -6,11 +6,10 @@ use std::{
 use crate::{
     ast,
     ast::module::ModulePath,
-    hir::nodes::declaration::Declaration,
+    hir::{generator::HIRGenerator, hir_err, nodes::declaration::Declaration},
+    lexer::token::Token,
     mir::{mutrc_new, MutRc},
 };
-use crate::hir::generator::HIRGenerator;
-use crate::lexer::token::Token;
 
 /// A module as represented in HIR.
 /// Simplified to a list of declarations.
@@ -68,7 +67,14 @@ impl Module {
     /// Uses given token for error reporting.
     pub fn try_reserve_name_rc(&mut self, gen: &HIRGenerator, name: &Rc<String>, tok: &Token) {
         if !self.used_names.insert(Rc::clone(name)) {
-            gen.err(tok, format!("Name {} already defined in this module", name))
+            gen.error_(
+                hir_err(
+                    tok,
+                    format!("Name {} already defined in this module", name),
+                    &self.path,
+                ),
+                self,
+            )
         }
     }
 

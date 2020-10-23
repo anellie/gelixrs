@@ -72,8 +72,8 @@ pub struct HIRGenerator {
     /// Path of [module]
     pub path: Rc<ModulePath>,
 
-    /// Errors produced in the current module
-    errors: MutRc<Option<Errors>>,
+    /// Errors produced
+    errors: MutRc<HashMap<Rc<ModulePath>, Errors>>,
 }
 
 impl HIRGenerator {
@@ -87,7 +87,9 @@ impl HIRGenerator {
     /// Uses given token for error reporting.
     /// Be warned that this will borrow mutably!
     pub fn try_reserve_name_rc(&self, name: &Rc<String>, tok: &Token) {
-        self.module.borrow_mut().try_reserve_name_rc(self, name, tok)
+        self.module
+            .borrow_mut()
+            .try_reserve_name_rc(self, name, tok)
     }
 
     /// Defines a new variable. It is put into the variable list in the current function
@@ -339,11 +341,18 @@ impl HIRGenerator {
 
     /// Add error to the list of errors.
     pub fn error(&self, error: Error) {
+        self.error_(error, &self.module.borrow())
+    }
+
+    pub(crate) fn error_(&self, error: Error, module: &Module) {
         let mut errs = self.errors.borrow_mut();
-        if let Some(errs) = errs.as_mut() {
+        if let Some(errs) = errs.get_mut(&self.path) {
             errs.0.push(error);
         } else {
-            errs.replace(Errors(vec![error], Rc::clone(&self.module.borrow().src)));
+            errs.insert(
+                Rc::clone(&self.path),
+                Errors(vec![error], Rc::clone(&module.src)),
+            );
         }
     }
 
@@ -375,7 +384,7 @@ impl HIRGenerator {
             path,
             module,
             environments: vec![HashMap::with_capacity(3)],
-            errors: mutrc_new(None),
+            errors: mutrc_new(HashMap::new()),
             ..Default::default()
         }
     }

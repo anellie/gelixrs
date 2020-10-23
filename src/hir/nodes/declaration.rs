@@ -175,11 +175,13 @@ impl ADT {
         } = &inst.borrow().ty
         {
             if *no_body {
-                Some(Expr::Allocate(
+                Some(Expr::Allocate {
                     // TODO: generics, how do they work
-                    Type::WeakRef(Instance::new(Rc::clone(inst))),
-                    Token::eof_token(1),
-                ))
+                    ty: Type::WeakRef(Instance::new(Rc::clone(inst))),
+                    constructor: Rc::clone(&inst.borrow().constructors[0]),
+                    args: vec![],
+                    tok: Token::eof_token(1)
+                })
             } else {
                 None
             }

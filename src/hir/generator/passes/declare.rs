@@ -70,7 +70,7 @@ impl HIRGenerator {
         let name = func.sig.name.clone();
         self.try_reserve_name(&func.sig.name);
 
-        let function = self.generate_mir_fn(func, this_param)?;
+        let function = self.generate_hir_fn(func, this_param)?;
         self.try_reserve_name(&name);
         self.module.borrow_mut().declarations.insert(
             Rc::clone(&name.lexeme),
@@ -80,7 +80,7 @@ impl HIRGenerator {
         Ok(function)
     }
 
-    fn generate_mir_fn(
+    pub fn generate_hir_fn(
         &self,
         func: ast::Function,
         this_param: Option<FunctionParam>,

@@ -58,7 +58,11 @@ impl HIRGenerator {
     fn generate_function(&mut self, function: &MutRc<Function>) {
         self.prepare_function(&function);
         let ast = Rc::clone(&function.borrow().ast);
-        let body = self.expression(&ast.borrow().body.as_ref().unwrap()); // todo?
+
+        let body = match &ast.borrow().body.as_ref() {
+            Some(body) => self.expression(body),
+            None => return,
+        };
 
         let ret_type = function.borrow().ret_type.clone();
         let (body, success) = self.resolver.try_cast(body, &ret_type);

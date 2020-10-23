@@ -62,7 +62,7 @@ impl HIRGenerator {
             };
 
             let name = Rc::clone(&method.sig.name.lexeme);
-            let mir_method = self.create_function(method, Some(this_param.clone()));
+            let mir_method = self.generate_hir_fn(method, Some(this_param.clone()));
             match mir_method {
                 Ok(mir_method) => {
                     adt.borrow_mut().methods.insert(name, mir_method);
@@ -90,7 +90,7 @@ impl HIRGenerator {
         let iter = constructors.iter().chain(default.iter());
         for constructor in iter {
             let sig = eatc!(self.get_constructor(&ast, constructor, this_param.clone()));
-            let func = eatc!(self.create_function(ast::Function { sig, body: None }, None));
+            let func = eatc!(self.generate_hir_fn(ast::Function { sig, body: None }, None));
             let mut fn_mut = func.borrow_mut();
             fn_mut.exprs = eatc!(self.insert_constructor_setters(
                 &adt.borrow(),
