@@ -12,6 +12,9 @@ use crate::{
 pub mod result;
 pub mod generator;
 pub mod nodes;
+pub mod printer;
+
+pub use nodes::module::Module;
 
 thread_local! {
     /// A map containing all interface implementations.

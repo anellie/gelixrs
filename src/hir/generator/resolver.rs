@@ -79,6 +79,8 @@ impl Resolver {
                 }
             }
 
+            ast::Type::RawPtr(inner) => Ok(Type::RawPtr(Box::new(self.find_type(inner)?))),
+
             ast::Type::Closure {
                 params, ret_type, ..
             } => {

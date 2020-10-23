@@ -20,12 +20,12 @@ impl HIRModuleGenerator {
 
                 if import.symbol.t_type == TType::Plus {
                     for (name, decl) in src_module.declarations.iter() {
-                        this.generator.try_reserve_name_rc(name, &import.symbol);
+                        module.try_reserve_name_rc(&this.generator, name, &import.symbol);
                         Self::get_imports(module, is_export).insert(Rc::clone(name), decl.clone());
                     }
                     Ok(second_stage)
                 } else {
-                    this.generator.try_reserve_name(&import.symbol);
+                    module.try_reserve_name(&this.generator, &import.symbol);
                     let decl = src_module.find_import(&import.symbol.lexeme);
 
                     if let Some(decl) = decl {

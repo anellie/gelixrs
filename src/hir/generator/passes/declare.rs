@@ -22,12 +22,12 @@ use crate::{
 
 impl HIRModuleGenerator {
     pub fn declare_adts(&mut self, module: MutRc<Module>, ast: &mut ast::Module) {
-        let mut module = module.borrow_mut();
-
         for ast in ast.adts.drain(..) {
             let name = Rc::clone(&ast.name.lexeme);
             self.generator.try_reserve_name(&ast.name);
             let adt = ADT::from_ast(&self.generator, ast);
+
+            let mut module = module.borrow_mut();
             module
                 .declarations
                 .insert(name, Declaration::Adt(Rc::clone(&adt)));
@@ -128,12 +128,6 @@ impl HIRGenerator {
 
     fn declare_impl(&self, iface_impl: ast::IFaceImpl) {
         let implementor = eat!(self.resolver.find_type(&iface_impl.implementor));
-        if implementor.is_value() {
-            self.err(
-                &iface_impl.implementor.token(),
-                "Cannot implement interfaces on direct values".to_string(),
-            );
-        };
 
         let iface = eat!(self.resolver.find_type(&iface_impl.iface));
         if !iface.is_value() || !iface.as_value().ty.borrow().ty.is_interface() {

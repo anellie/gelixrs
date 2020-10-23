@@ -38,7 +38,7 @@ impl Declaration {
     pub fn to_type(&self) -> Type {
         match self {
             Self::Function(f) => Type::Function(Instance::new(Rc::clone(f))),
-            Self::Adt(a) => Type::WeakRef(Instance::new(Rc::clone(a))),
+            Self::Adt(a) => Type::Value(Instance::new(Rc::clone(a))),
         }
     }
 

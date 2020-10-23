@@ -1157,6 +1157,11 @@ impl Parser {
                 Type::Weak(Box::new(inner))
             }
 
+            TType::Star => {
+                let inner = self.type_(msg)?;
+                Type::RawPtr(Box::new(inner))
+            }
+
             TType::LeftParen => {
                 let mut params = Vec::new();
                 if !self.check(TType::RightParen) {

@@ -23,6 +23,7 @@ use crate::{
     lexer::token::Token,
     mir::{generator::module::PassRunner, MModule, MutRc},
 };
+use crate::hir::generator::module;
 
 pub mod ast;
 //#[cfg(test)]
@@ -116,8 +117,11 @@ pub fn auto_import_prelude(modules: &mut Vec<Module>) {
     }
 }
 
-pub fn compile_mir(modules: Vec<Module>) -> Result<Vec<MutRc<MModule>>, Vec<Errors>> {
-    HIRModuleGenerator::new(modules).consume();
+pub fn compile_hir(modules: Vec<Module>) -> Result<Vec<MutRc<hir::Module>>, Vec<Errors>> {
+    HIRModuleGenerator::new(modules).consume()
+}
+
+pub fn compile_mir(modules: Vec<MutRc<hir::Module>>) -> Result<Vec<MutRc<MModule>>, Vec<Errors>> {
     todo!()
 }
 

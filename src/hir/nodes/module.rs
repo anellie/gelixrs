@@ -9,6 +9,8 @@ use crate::{
     hir::nodes::declaration::Declaration,
     mir::{mutrc_new, MutRc},
 };
+use crate::hir::generator::HIRGenerator;
+use crate::lexer::token::Token;
 
 /// A module as represented in HIR.
 /// Simplified to a list of declarations.
@@ -55,6 +57,19 @@ impl Module {
     /// Return the AST after [borrow_ast].
     pub fn return_ast(&mut self, ast: ast::Module) {
         self.ast = Some(ast)
+    }
+
+    /// Tries to reserve the given name.
+    pub fn try_reserve_name(&mut self, gen: &HIRGenerator, name: &Token) {
+        self.try_reserve_name_rc(gen, &name.lexeme, name)
+    }
+
+    /// Tries to reserve the given name.
+    /// Uses given token for error reporting.
+    pub fn try_reserve_name_rc(&mut self, gen: &HIRGenerator, name: &Rc<String>, tok: &Token) {
+        if !self.used_names.insert(Rc::clone(name)) {
+            gen.err(tok, format!("Name {} already defined in this module", name))
+        }
     }
 
     /// Create new module from AST, consuming it.

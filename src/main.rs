@@ -21,13 +21,13 @@ struct Opt {
     #[structopt(long = "parse")]
     parse: bool,
 
-    /// Compile to MIR, print, and exit
+    /// Compile to HIR, print, and exit
     #[structopt(long)]
-    mir: bool,
+    hir: bool,
 
-    /// Compile to MIR, print including all libs, and exit
+    /// Compile to HIR, print including all libs, and exit
     #[structopt(long)]
-    mir_all: bool,
+    hir_all: bool,
 
     /// Compile to LLVM IR, print, and exit
     #[structopt(long)]
@@ -82,24 +82,30 @@ fn run(args: Opt) -> Result<(), &'static str> {
         return Ok(());
     }
 
-    let mir = gelixrs::compile_mir(code).or_else(|errors| {
+    let hir = gelixrs::compile_hir(code).map_err(|errors| {
         for error in errors {
             println!("{}\n", error);
         }
-        Err("MIR generator encountered errors. Exiting.")
+        "HIR generator encountered errors. Exiting."
     })?;
 
-    if args.mir || args.mir_all {
+    if args.hir || args.hir_all {
         let stem = stem_to_rc_str(&args.file);
-        for module in mir
+        for module in hir
             .iter()
-            .filter(|m| (m.borrow().path.0.first().unwrap() == &stem) || args.mir_all)
+            .filter(|m| (m.borrow().path.0.first().unwrap() == &stem) || args.hir_all)
         {
             println!("{}", module.borrow())
         }
         return Ok(());
     }
 
+    let mir  = gelixrs::compile_mir(hir).map_err(|errors| {
+        for error in errors {
+            println!("{}\n", error);
+        }
+        "MIR generator encountered errors. Exiting."
+    })?;
     let module = gelixrs::compile_ir(mir);
 
     if args.ir {
@@ -228,9 +234,9 @@ mod tests {
 
     #[test]
     #[ignore]
-    fn mir_only() -> Result<(), &'static str> {
+    fn hir_only() -> Result<(), &'static str> {
         run(Opt {
-            mir: true,
+            hir: true,
             file: get_test("unicode.gel"),
             ..Default::default()
         })

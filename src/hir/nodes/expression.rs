@@ -45,7 +45,7 @@ pub enum Expr {
         field: Rc<Field>,
     },
 
-    /// Store into an ADT.
+    /// Store into an ADT or variable.
     Store {
         location: Box<Expr>,
         value: Box<Expr>,

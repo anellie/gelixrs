@@ -216,6 +216,9 @@ pub enum Type {
     /// A strong reference.
     Strong(Box<Type>),
 
+    /// A raw pointer.
+    RawPtr(Box<Type>),
+
     /// A closure signature, written (param1: $ty1, param2: $ty2): $ret_type
     Closure {
         params: Vec<Type>,
@@ -237,7 +240,7 @@ impl Type {
                 closing_paren: token,
                 ..
             } => token,
-            Type::Weak(inner) | Type::Strong(inner) => inner.token(),
+            Type::Weak(inner) | Type::Strong(inner) | Type::RawPtr(inner) => inner.token(),
         }
     }
 
@@ -245,7 +248,7 @@ impl Type {
         match self {
             Type::Ident(_) => false,
 
-            Type::Strong(inner) | Type::Weak(inner) => inner.has_generics(),
+            Type::Strong(inner) | Type::Weak(inner) | Type::RawPtr(inner) => inner.has_generics(),
 
             Type::Closure {
                 params, ret_type, ..
@@ -267,6 +270,8 @@ impl fmt::Display for Type {
             Type::Weak(type_) => write!(f, "&{}", type_),
 
             Type::Strong(type_) => write!(f, "@{}", type_),
+
+            Type::RawPtr(type_) => write!(f, "*{}", type_),
 
             Type::Closure {
                 params, ret_type, ..

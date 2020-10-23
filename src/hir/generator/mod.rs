@@ -78,16 +78,16 @@ pub struct HIRGenerator {
 
 impl HIRGenerator {
     /// Tries to reserve the given name in the current module.
+    /// Be warned that this will borrow mutably!
     pub fn try_reserve_name(&self, name: &Token) {
-        self.try_reserve_name_rc(&name.lexeme, name)
+        self.module.borrow_mut().try_reserve_name(self, name)
     }
 
     /// Tries to reserve the given name in the current module.
-    /// Used given token for error reporting.
+    /// Uses given token for error reporting.
+    /// Be warned that this will borrow mutably!
     pub fn try_reserve_name_rc(&self, name: &Rc<String>, tok: &Token) {
-        if !self.module.borrow_mut().used_names.insert(Rc::clone(name)) {
-            self.err(tok, format!("Name {} already defined in this module", name))
-        }
+        self.module.borrow_mut().try_reserve_name_rc(self, name, tok)
     }
 
     /// Defines a new variable. It is put into the variable list in the current function

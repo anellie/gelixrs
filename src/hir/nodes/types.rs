@@ -67,6 +67,12 @@ pub enum Type {
     /// A weak ADT reference.
     WeakRef(Instance<ADT>),
 
+    /// A raw pointer of a type.
+    /// Can only be interacted with using special
+    /// intrinsic functions; here for FFI and unsafe
+    /// memory operations
+    RawPtr(Box<Type>),
+
     /// An unresolved type parameter, resolved at MIR.
     /// Bound included to allow using methods/operators that
     /// the bound guarantees to be present on type argument.
@@ -90,6 +96,7 @@ impl Type {
             (Self::StrongRef(v), Self::StrongRef(o)) => v == o,
             (Self::WeakRef(v), Self::WeakRef(o)) => v == o,
             (Self::Variable(i, _), Self::Variable(o, _)) => i == o,
+            (Self::RawPtr(p), Self::RawPtr(o)) => p == o,
 
             _ => std::mem::discriminant(self) == std::mem::discriminant(other),
         }
@@ -302,6 +309,7 @@ impl Eq for Type {}
 
 impl Hash for Type {
     fn hash<H: Hasher>(&self, state: &mut H) {
+        // todo bad!!
         match self {
             Self::Function(v) => v.ty.borrow().name.lexeme.hash(state),
             Self::Value(v) | Self::StrongRef(v) | Self::WeakRef(v) => {
@@ -322,9 +330,10 @@ impl Display for Type {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Type::Function(_) => write!(f, "<function>"),
-            // Type::Closure(closure) => write!(f, "{}", closure),
+            Type::Closure(closure) => write!(f, "{}", closure),
             Type::Value(adt) => write!(f, "{}", adt.ty.borrow().name.lexeme),
             Type::WeakRef(adt) => write!(f, "&{}", adt.ty.borrow().name.lexeme),
+            Type::RawPtr(inner) => write!(f, "*{}", inner),
             Type::StrongRef(adt) => write!(f, "@{}", adt.ty.borrow().name.lexeme),
             Type::Variable(_, _) => write!(f, "<type parameter>"),
             Type::Type(ty) => match **ty {
@@ -391,6 +400,20 @@ pub struct VariableIndex {
 pub struct ClosureType {
     pub parameters: Vec<Type>,
     pub ret_type: Type,
+}
+
+impl Display for ClosureType {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+        write!(f, "(")?;
+        if !self.parameters.is_empty() {
+            let mut p_iter = self.parameters.iter();
+            write!(f, "{}", p_iter.next().unwrap())?;
+            for ty in p_iter {
+                write!(f, ", {}", ty)?;
+            }
+        }
+        write!(f, "): {}", self.ret_type)
+    }
 }
 
 /// A single type parameter on a declaration.
