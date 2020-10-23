@@ -18,19 +18,17 @@ use std::{env, fs, path::PathBuf, rc::Rc};
 use crate::{
     ast::module::{Import, Module, ModulePath},
     error::{Error, Errors},
-    hir::generator::module::HIRModuleGenerator,
-    ir::IRGenerator,
+    hir::generator::{module::HIRModuleGenerator},
     lexer::token::Token,
-    mir::{generator::module::PassRunner, MModule, MutRc},
+    mir::{MutRc},
 };
-use crate::hir::generator::module;
 
 pub mod ast;
 //#[cfg(test)]
 //pub mod bench;
 pub mod error;
 pub mod hir;
-pub mod ir;
+// pub mod ir;
 pub mod lexer;
 pub mod mir;
 pub mod parser;
@@ -121,6 +119,7 @@ pub fn compile_hir(modules: Vec<Module>) -> Result<Vec<MutRc<hir::Module>>, Vec<
     HIRModuleGenerator::new(modules).consume()
 }
 
+/*
 pub fn compile_mir(modules: Vec<MutRc<hir::Module>>) -> Result<Vec<MutRc<MModule>>, Vec<Errors>> {
     todo!()
 }
@@ -129,6 +128,7 @@ pub fn compile_ir(modules: Vec<MutRc<MModule>>) -> inkwell::module::Module {
     let gen = IRGenerator::new();
     gen.generate(modules)
 }
+*/
 
 pub fn stem_to_rc_str(path: &PathBuf) -> Rc<String> {
     Rc::new(path.file_stem().unwrap().to_str().unwrap().to_string())

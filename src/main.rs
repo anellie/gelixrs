@@ -100,7 +100,7 @@ fn run(args: Opt) -> Result<(), &'static str> {
         return Ok(());
     }
 
-    let mir  = gelixrs::compile_mir(hir).map_err(|errors| {
+    let mir = gelixrs::compile_mir(hir).map_err(|errors| {
         for error in errors {
             println!("{}\n", error);
         }
