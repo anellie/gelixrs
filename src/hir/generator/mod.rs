@@ -5,21 +5,23 @@ use std::{
 };
 
 use crate::{
-    ast::module::ModulePath,
-    error::{Error, Errors},
+    ast::{module::ModulePath, Expression},
+    error::{Error, Errors, Res},
     hir::{
-        generator::resolver::Resolver,
-        hir_err,
+        generator::{intrinsics::INTRINSICS, resolver::Resolver},
+        get_or_create_iface_impls, hir_err,
         nodes::{
-            declaration::{Field, Function, LocalVariable},
+            declaration::{Declaration, Field, Function, LocalVariable, Variable, ADT},
             expression::Expr,
             module::Module,
-            types::Type,
+            types::{Instance, Type},
         },
+        result::EmitHIRError,
     },
-    lexer::token::Token,
+    lexer::token::{TType, Token},
     mir::{mutrc_new, MutRc},
 };
+use either::Either;
 
 mod expr;
 pub mod intrinsics;
@@ -126,6 +128,167 @@ impl HIRGenerator {
             .insert_var(Rc::clone(&variable.name.lexeme), variable);
     }
 
+    /// Returns the method that corresponds to the operator given (operator overloading).
+    /// Returns None if the given class does not implement the operator.
+    fn get_operator_overloading_method(
+        &self,
+        op: TType,
+        left: &mut Expr,
+        right: &mut Expr,
+    ) -> Option<Instance<Function>> {
+        let left_ty = left.get_type();
+        let interface = INTRINSICS.with(|i| i.borrow().get_op_iface(op))?;
+
+        if let Some(adt) = left_ty.try_adt() {
+            // If this is an ADT, also make sure that possible implementations
+            // for other representations are checked and casted to
+            self.get_op_method(&interface, &left_ty, right)
+                .or_else(|| {
+                    self.get_op_method(&interface, &Type::WeakRef(adt.clone()), right)
+                        .map(|var| {
+                            self.resolver
+                                .try_cast_in_place(left, &Type::WeakRef(adt.clone()));
+                            var
+                        })
+                })
+                .or_else(|| {
+                    self.get_op_method(&interface, &Type::Value(adt.clone()), right)
+                        .map(|var| {
+                            self.resolver
+                                .try_cast_in_place(left, &Type::Value(adt.clone()));
+                            var
+                        })
+                })
+        } else {
+            self.get_op_method(&interface, &left_ty, right)
+        }
+    }
+
+    /// Tries finding a fitting method for an operator overload,
+    /// given the overloading interface, type of the implementor and
+    /// the expression of the right value (to allow casting it if needed)
+    fn get_op_method(
+        &self,
+        interface: &MutRc<ADT>,
+        ty: &Type,
+        right: &mut Expr,
+    ) -> Option<Instance<Function>> {
+        let iface_impls = get_or_create_iface_impls(ty);
+        let iface_impls = iface_impls.borrow();
+
+        for im in iface_impls.interfaces.values() {
+            if Rc::ptr_eq(&im.iface.ty, interface) {
+                let method = im.methods.values().next().unwrap();
+                let ty = &method.borrow().parameters[1].ty;
+                self.resolver.try_cast_in_place(right, ty);
+                if *ty == right.get_type() {
+                    return Some(Instance::new(Rc::clone(method)));
+                }
+            }
+        }
+        None
+    }
+
+    /// Searches all scopes for a variable, starting at the top.
+    fn find_var(&mut self, token: &Token) -> Res<Variable> {
+        self.find_local_var(token)
+            .map(Variable::Local)
+            .or_else(|e| self.find_global_var(token).ok_or(e))
+    }
+
+    /// Searches for a local variable.
+    fn find_local_var(&mut self, token: &Token) -> Res<Rc<LocalVariable>> {
+        for env in self.environments.iter().rev() {
+            if let Some(var) = env.get(&token.lexeme) {
+                return Ok(Rc::clone(var));
+            }
+        }
+
+        if let Some(closure_data) = &mut self.closure_data {
+            for env in closure_data.outer_env.iter().rev() {
+                if let Some(var) = env.get(&token.lexeme) {
+                    if !var.ty.can_escape() {
+                        hir_err(
+                            &token,
+                            "This variable may not be captured (weak reference)".to_string(),
+                            &self.path,
+                        );
+                    }
+                    closure_data.captured.push(Rc::clone(var));
+                    return Ok(Rc::clone(var));
+                }
+            }
+        }
+        Err(self.err_(token, format!("Variable '{}' is not defined", token.lexeme)))
+    }
+
+    fn find_global_var(&self, token: &Token) -> Option<Variable> {
+        let decl = self.module.borrow().find_decl(&token.lexeme)?;
+        match decl {
+            Declaration::Function(func) => Some(Variable::Function(Instance::new(func))),
+            _ => None,
+        }
+    }
+
+    /// Returns the variable of the current loop or creates it if it does not exist yet.
+    /// This variable stores the value of the last loop iteration.
+    fn set_loop_type(&mut self, type_: &Type) {
+        match &self.current_loop_ty {
+            Some(ty) if ty != type_ => {
+                self.err(
+                    // todo!!
+                    &Token::generic_token(TType::Break),
+                    "Break expressions and for body must have same type".to_string(),
+                )
+            }
+
+            None | Some(Type::Any) => self.current_loop_ty = Some(type_.clone()),
+            _ => (),
+        }
+    }
+
+    /// Returns a field of the given expression/object,
+    /// where a field can be either a member or a method.
+    fn get_field(
+        &mut self,
+        object: &Expression,
+        name: &Token,
+    ) -> Res<(Expr, Either<Rc<Field>, MutRc<Function>>)> {
+        let object = self.expression(object);
+        let ty = object.get_type();
+
+        if let Some(adt) = ty.try_adt() {
+            let adt = adt.ty.borrow();
+            let field = adt.fields.get(&name.lexeme);
+            if let Some(field) = field {
+                return Ok((object, Either::Left(Rc::clone(field))));
+            }
+        }
+
+        Self::find_associated_method(&ty, name)
+            .map(|m| (object, Either::Right(m)))
+            .on_err(&self.path, name, "Unknown field or method.")
+    }
+
+    /// Searches for an associated method on a type. Can be either an interface
+    /// method or a class method.
+    fn find_associated_method(ty: &Type, name: &Token) -> Option<MutRc<Function>> {
+        let method = if let Some(adt) = ty.try_adt() {
+            let adt = adt.ty.borrow();
+            adt.methods.get(&name.lexeme).cloned()
+        } else {
+            None
+        };
+
+        method.or_else(|| {
+            get_or_create_iface_impls(ty)
+                .borrow()
+                .methods
+                .get(&name.lexeme)
+                .cloned()
+        })
+    }
+
     /// Creates a new scope. A new scope is created for every function and block,
     /// in addition to the bottom global scope.
     ///
@@ -169,6 +332,11 @@ impl HIRGenerator {
         self.error(hir_err(tok, msg, &self.path))
     }
 
+    /// Create new error. Does not get added to errors!
+    pub fn err_(&self, tok: &Token, msg: String) -> Error {
+        hir_err(tok, msg, &self.path)
+    }
+
     /// Add error to the list of errors.
     pub fn error(&self, error: Error) {
         let mut errs = self.errors.borrow_mut();
@@ -188,6 +356,16 @@ impl HIRGenerator {
         self.current_loop_ty = None;
         self.position = None;
         self.uninitialized_this_fields.clear();
+    }
+
+    pub fn eat<T>(&self, res: Res<T>) -> Option<T> {
+        match res {
+            Ok(i) => Some(i),
+            Err(e) => {
+                self.error(e);
+                None
+            }
+        }
     }
 
     /// Create a new generator working on the given module.

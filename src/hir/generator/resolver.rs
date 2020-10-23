@@ -7,20 +7,17 @@ use crate::{
     hir::{
         hir_err,
         nodes::{
-            expression::Expr,
+            declaration::ADTType,
+            expression::{CastType, CastType::Bitcast, Expr},
             module::Module,
-            types::{ClosureType, Type, TypeParameters, VariableIndex},
+            types::{ClosureType, Instance, Type, TypeParameters, VariableIndex},
         },
         result::EmitHIRError,
     },
     lexer::token::Token,
     mir::MutRc,
 };
-use crate::hir::nodes::declaration::ADTType;
-use crate::hir::nodes::types::Instance;
-use crate::hir::nodes::expression::CastType::Bitcast;
 use std::mem;
-use crate::hir::nodes::expression::CastType;
 
 /// A resolver for types inside HIR.
 /// Responsible for resolving all types and casting them,
@@ -50,7 +47,7 @@ impl Resolver {
                 } else {
                     Err(hir_err(
                         ast.token(),
-                        format!("Functions cannot be used as types"),
+                        "Functions cannot be used as types".to_string(),
                         &self.path,
                     ))
                 }
@@ -101,7 +98,7 @@ impl Resolver {
             ast::Type::Generic { token, types } => {
                 // TODO: more validation
                 let mut ty = self.find_type(&ast::Type::Ident(token.clone()))?;
-                let mut args = ty.type_args().on_err(
+                let args = ty.type_args().on_err(
                     &self.path,
                     token,
                     "Type does not take type arguments.",
@@ -112,8 +109,6 @@ impl Resolver {
                     .collect::<Res<Vec<_>>>()?;
                 Ok(ty)
             }
-
-            _ => panic!(),
         }
     }
 
@@ -170,7 +165,7 @@ impl Resolver {
 
     /// Will cast value to ty, if needed.
     /// If the cast is not possible, returns None.
-    pub fn cast_or_none(&self, value: Expr, ty: Type) -> Option<Expr> {
+    pub fn cast_or_none(&self, value: Expr, ty: &Type) -> Option<Expr> {
         let (value, success) = self.try_cast(value, ty);
         if success {
             Some(value)
@@ -183,36 +178,37 @@ impl Resolver {
     /// Will do casts if needed to make the types match;
     /// returns the new expression that should be used in case a cast happened.
     /// Boolean indicates if the cast was successful.
-    pub fn try_cast(&self, value: Expr, ty: Type) -> (Expr, bool) {
+    pub fn try_cast(&self, value: Expr, ty: &Type) -> (Expr, bool) {
         let val_ty = value.get_type();
-        if val_ty == ty {
-            return (value, true)
+        if val_ty == *ty {
+            return (value, true);
         }
 
-        (match val_ty.can_cast_to(&ty) {
-            None => return (value, false),
+        (
+            match val_ty.can_cast_to(ty) {
+                None => return (value, false),
 
-            // The case of "to value, then bitcast" needs special handling to reverse order
-            // since values cannot be bitcast
-            Some((CastType::Bitcast, Some((CastType::ToValue, _)))) => Expr::cast(
-                Expr::cast(value, ty.to_weak(), CastType::Bitcast),
-                ty,
-                CastType::ToValue,
-            ),
+                // The case of "to value, then bitcast" needs special handling to reverse order
+                // since values cannot be bitcast
+                Some((CastType::Bitcast, Some((CastType::ToValue, _)))) => Expr::cast(
+                    Expr::cast(value, ty.to_weak(), CastType::Bitcast),
+                    ty.clone(),
+                    CastType::ToValue,
+                ),
 
-            Some((outer, Some((inner, inner_ty)))) => {
-                Expr::cast(Expr::cast(value, inner_ty, inner), ty, outer)
-            }
+                Some((outer, Some((inner, inner_ty)))) => {
+                    Expr::cast(Expr::cast(value, inner_ty, inner), ty.clone(), outer)
+                }
 
-            Some((outer, None)) => Expr::cast(value, ty, outer),
-
-            _ => value,
-        }, true)
+                Some((outer, None)) => Expr::cast(value, ty.clone(), outer),
+            },
+            true,
+        )
     }
 
     /// Same as above but utilizing `std::mem::replace` to only
     /// require a mutable reference at the cost of a slight performance penalty.
-    pub fn try_cast_in_place(&self, value_ref: &mut Expr, ty: Type) {
+    pub fn try_cast_in_place(&self, value_ref: &mut Expr, ty: &Type) {
         let value = mem::replace(value_ref, Expr::none_const_());
         *value_ref = self.try_cast(value, ty).0; // todo use success
     }
@@ -221,7 +217,7 @@ impl Resolver {
     /// Return value is `(NewType, left, right)`.
     /// If both are already the same type, this will just return the original type.
     /// If they cannot be made to match, it returns None as type.
-    pub fn try_unify_type(&self, mut left: Expr, mut right: Expr) -> (Option<Type>, Expr, Expr) {
+    pub fn try_unify_type(&self, left: Expr, right: Expr) -> (Option<Type>, Expr, Expr) {
         let left_ty = left.get_type();
         let right_ty = right.get_type();
 
@@ -231,18 +227,21 @@ impl Resolver {
 
         // If both are enum cases, they need special handling to cast to their supertype
         let (left_adt, right_adt) = (left_ty.try_adt(), right_ty.try_adt());
-        if let (Some(ADTType::EnumCase { parent: p1, .. }), Some(ADTType::EnumCase { parent: p2, .. })) = (
+        if let (
+            Some(ADTType::EnumCase { parent: p1, .. }),
+            Some(ADTType::EnumCase { parent: p2, .. }),
+        ) = (
             left_adt.map(|a| a.ty.borrow().ty.clone()),
             right_adt.map(|a| a.ty.borrow().ty.clone()),
         ) {
             if Rc::ptr_eq(&p1, &p2) && left_adt.unwrap().args == right_adt.unwrap().args {
                 let inst = Instance {
                     ty: p1,
-                    args: left_adt.unwrap().args.clone()
+                    args: left_adt.unwrap().args.clone(),
                 };
                 let ty = match (left_ty, right_ty) {
                     (Type::StrongRef(_), Type::StrongRef(_)) => Type::StrongRef(inst),
-                    _ => Type::WeakRef(inst)
+                    _ => Type::WeakRef(inst),
                 };
 
                 // Run this function a second time to convert any
@@ -255,12 +254,12 @@ impl Resolver {
         }
 
         // Simply trying to cast one into the other is enough for all other cases
-        let (left, success) = self.try_cast(left, right_ty.clone());
+        let (left, success) = self.try_cast(left, &right_ty);
         if success {
             return (Some(right_ty), left, right);
         }
 
-        let (right, success) = self.try_cast(right, left_ty.clone());
+        let (right, success) = self.try_cast(right, &left_ty);
         if success {
             return (Some(left_ty), left, right);
         }

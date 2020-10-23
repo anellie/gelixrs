@@ -8,7 +8,7 @@ use crate::{
     ast,
     ast::declaration::GenericParam,
     hir::{
-        generator::{HIRGenerator},
+        generator::HIRGenerator,
         nodes::{
             expression::Expr,
             types::{
@@ -168,6 +168,25 @@ impl ADT {
             }),
         )
     }
+
+    pub fn get_singleton_inst(inst: &MutRc<ADT>) -> Option<Expr> {
+        if let ADTType::EnumCase {
+            simple: no_body, ..
+        } = &inst.borrow().ty
+        {
+            if *no_body {
+                Some(Expr::Allocate(
+                    // TODO: generics, how do they work
+                    Type::WeakRef(Instance::new(Rc::clone(inst))),
+                    Token::eof_token(1),
+                ))
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
 }
 
 /// Takes a list of generics parameters of an AST node and
@@ -318,7 +337,7 @@ impl Function {
 
 /// A variable that can be loaded to produce a value by user code.
 /// Can be either a global or local variable.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Variable {
     /// This is a global function variable
     Function(Instance<Function>),

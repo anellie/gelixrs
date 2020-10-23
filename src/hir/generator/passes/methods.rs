@@ -9,7 +9,7 @@ use crate::{
         declaration::{FuncSignature, FunctionParam, Visibility},
         Constructor,
     },
-    error::{Res},
+    error::Res,
     hir::{
         generator::HIRGenerator,
         get_or_create_iface_impls,
@@ -141,7 +141,7 @@ impl HIRGenerator {
                 })
             })
             .collect::<Res<Vec<FunctionParam>>>()?;
-        parameters.insert(0, this_param.clone());
+        parameters.insert(0, this_param);
         Ok(FuncSignature {
             name: Token::generic_identifier("constructor".to_string()),
             visibility: constructor.visibility,
@@ -216,7 +216,7 @@ impl HIRGenerator {
             let inst = Instance::new(adt);
             self.fill_impls_(&Type::Value(inst.clone()));
             self.fill_impls_(&Type::WeakRef(inst.clone()));
-            self.fill_impls_(&Type::StrongRef(inst.clone()));
+            self.fill_impls_(&Type::StrongRef(inst));
         }
     }
 
@@ -236,7 +236,7 @@ impl HIRGenerator {
             self.switch_module(Rc::clone(&iface_impl.module));
 
             let ast = Rc::clone(&iface_impl.ast);
-            let iface = Rc::clone(&iface_impl.iface);
+            let iface = Rc::clone(&iface_impl.iface.ty);
             let mut ast = ast.borrow_mut();
             let this_arg = FunctionParam::this_param_(&ast.implementor);
 
@@ -249,6 +249,7 @@ impl HIRGenerator {
                     "Method is not defined in interface.",
                 ));
 
+                // TODO: also insert into ADTs?
                 let impl_method = eatc!(self.create_function(ast_method, Some(this_arg.clone())));
                 iface_impl
                     .methods

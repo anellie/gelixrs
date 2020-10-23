@@ -18,11 +18,11 @@ use std::{env, fs, path::PathBuf, rc::Rc};
 use crate::{
     ast::module::{Import, Module, ModulePath},
     error::{Error, Errors},
+    hir::generator::module::HIRModuleGenerator,
     ir::IRGenerator,
     lexer::token::Token,
     mir::{generator::module::PassRunner, MModule, MutRc},
 };
-use crate::hir::generator::module::HIRModuleGenerator;
 
 pub mod ast;
 //#[cfg(test)]

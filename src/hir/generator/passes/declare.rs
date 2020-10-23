@@ -1,11 +1,8 @@
 use std::{collections::HashMap, rc::Rc};
 
-
 use crate::{
     ast,
-    ast::{
-        declaration::{FunctionParam},
-    },
+    ast::declaration::FunctionParam,
     error::Res,
     hir::{
         generator::{intrinsics::INTRINSICS, module::HIRModuleGenerator, HIRGenerator},
@@ -147,7 +144,7 @@ impl HIRGenerator {
         let impls = get_or_create_iface_impls(&implementor);
         let mir_impl = IFaceImpl {
             implementor,
-            iface: Rc::clone(&iface.as_value().ty),
+            iface: iface.as_value().clone(),
             methods: HashMap::with_capacity(iface_impl.methods.len()),
             module: Rc::clone(&self.module),
             ast: mutrc_new(iface_impl),

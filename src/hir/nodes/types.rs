@@ -3,7 +3,6 @@ use std::{
     fmt,
     fmt::{Display, Formatter},
     hash::{Hash, Hasher},
-    panic::resume_unwind,
     rc::Rc,
 };
 
@@ -15,14 +14,13 @@ use crate::{
         get_or_create_iface_impls,
         nodes::{
             declaration::{ADTType, Function, ADT},
+            expression::CastType,
             module::Module,
         },
     },
     lexer::token::Token,
     mir::MutRc,
 };
-use crate::hir::nodes::expression::CastType;
-use crate::hir::get_iface_impls;
 
 pub type TypeArguments = Vec<Type>;
 pub type TypeParameters = Vec<TypeParameter>;
@@ -191,25 +189,38 @@ impl Type {
     }
 
     pub fn to_strong(&self) -> Type {
-        self.try_adt().cloned().map(Type::StrongRef).unwrap_or_else(|| self.clone())
+        self.try_adt()
+            .cloned()
+            .map(Type::StrongRef)
+            .unwrap_or_else(|| self.clone())
     }
 
     pub fn to_weak(&self) -> Type {
-        self.try_adt().cloned().map(Type::WeakRef).unwrap_or_else(|| self.clone())
+        self.try_adt()
+            .cloned()
+            .map(Type::WeakRef)
+            .unwrap_or_else(|| self.clone())
     }
 
     pub fn to_value(&self) -> Type {
-        self.try_adt().cloned().map(Type::Value).unwrap_or_else(|| self.clone())
+        self.try_adt()
+            .cloned()
+            .map(Type::Value)
+            .unwrap_or_else(|| self.clone())
+    }
+
+    pub fn type_or_none(self) -> Option<Type> {
+        match self {
+            Type::None | Type::Any => None,
+            _ => Some(self),
+        }
     }
 
     /// Returns casts to get this type to [goal].
     /// None = Not possible
     /// Some(Cast, None) = Single cast
     /// Some(Cast, ...) = Double cast with middle step
-    pub fn can_cast_to(
-        &self,
-        goal: &Type,
-    ) -> Option<(CastType, Option<(CastType, Type)>)> {
+    pub fn can_cast_to(&self, goal: &Type) -> Option<(CastType, Option<(CastType, Type)>)> {
         if let Some(cast) = self.find_cast_ty(goal) {
             Some((cast, None))
         } else {
@@ -237,7 +248,12 @@ impl Type {
     fn find_cast_ty(&self, goal: &Type) -> Option<CastType> {
         match (self, goal) {
             // Interface cast
-            _ if get_or_create_iface_impls(&self).borrow().interfaces.get(goal).is_some() => {
+            _ if get_or_create_iface_impls(&self)
+                .borrow()
+                .interfaces
+                .get(goal)
+                .is_some() =>
+            {
                 Some(CastType::ToInterface)
             }
 
@@ -248,22 +264,24 @@ impl Type {
 
             // Reference to value cast
             (Type::StrongRef(adt), Type::Value(value))
-            | (Type::WeakRef(adt), Type::Value(value)) if adt == value => {
+            | (Type::WeakRef(adt), Type::Value(value))
+                if adt == value =>
+            {
                 Some(CastType::ToValue)
             }
 
             // Enum case to enum cast
             (Type::StrongRef(adt), Type::StrongRef(other))
             | (Type::WeakRef(adt), Type::WeakRef(other))
-            | (Type::Value(adt), Type::Value(other)) => {
-                match &adt.ty.borrow().ty {
-                    ADTType::EnumCase { parent, .. } if Rc::ptr_eq(parent, &other.ty) && other.args == adt.args => {
-                        Some(CastType::Bitcast)
-                    }
-
-                    _ => None,
+            | (Type::Value(adt), Type::Value(other)) => match &adt.ty.borrow().ty {
+                ADTType::EnumCase { parent, .. }
+                    if Rc::ptr_eq(parent, &other.ty) && other.args == adt.args =>
+                {
+                    Some(CastType::Bitcast)
                 }
-            }
+
+                _ => None,
+            },
 
             // Number cast
             _ if self.is_int() && goal.is_int() => Some(CastType::Number),
@@ -302,7 +320,23 @@ impl Default for Type {
 
 impl Display for Type {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        unimplemented!()
+        match self {
+            Type::Function(_) => write!(f, "<function>"),
+            // Type::Closure(closure) => write!(f, "{}", closure),
+            Type::Value(adt) => write!(f, "{}", adt.ty.borrow().name.lexeme),
+            Type::WeakRef(adt) => write!(f, "&{}", adt.ty.borrow().name.lexeme),
+            Type::StrongRef(adt) => write!(f, "@{}", adt.ty.borrow().name.lexeme),
+            Type::Variable(_, _) => write!(f, "<type parameter>"),
+            Type::Type(ty) => match **ty {
+                Type::Function(_) => write!(f, "<function>"),
+                Type::Closure(_) => write!(f, "<closure>"),
+                Type::Value(_) => write!(f, "<ADT>"),
+                Type::WeakRef(_) => write!(f, "<weak ref>"),
+                Type::StrongRef(_) => write!(f, "<strong ref>"),
+                _ => write!(f, "<{:?}>", self),
+            },
+            _ => write!(f, "{:?}", self),
+        }
     }
 }
 
@@ -385,8 +419,8 @@ impl TypeParameterBound {
         match self {
             Self::Interface(i) => {
                 let impls = get_or_create_iface_impls(ty);
-                let r = impls.borrow().interfaces.contains_key(i);
-                r // thanks borrowck
+                let impls = impls.borrow();
+                impls.interfaces.contains_key(i)
             }
 
             Self::Bound(bound) => match bound {
@@ -456,7 +490,7 @@ pub enum Bound {
 #[derive(Debug)]
 pub struct IFaceImpl {
     pub implementor: Type,
-    pub iface: MutRc<ADT>,
+    pub iface: Instance<ADT>,
     pub methods: HashMap<Rc<String>, MutRc<Function>>,
     /// Module that the impl block is in.
     pub module: MutRc<Module>,

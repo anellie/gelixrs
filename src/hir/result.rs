@@ -6,12 +6,7 @@
 
 use std::rc::Rc;
 
-use crate::{
-    ast::{module::ModulePath, Type as ASTType},
-    error::{Error, Res},
-    hir::{generator::HIRGenerator, hir_err},
-    lexer::token::Token,
-};
+use crate::{ast::module::ModulePath, error::Res, hir::hir_err, lexer::token::Token};
 
 pub trait EmitHIRError<T> {
     fn on_err(self, module: &Rc<ModulePath>, error_token: &Token, msg: &str) -> Res<T>;

@@ -61,7 +61,7 @@ impl HIRGenerator {
         let body = self.expression(&ast.borrow().body.as_ref().unwrap()); // todo?
 
         let ret_type = function.borrow().ret_type.clone();
-        let (body, success) = self.resolver.try_cast(body, ret_type.clone());
+        let (body, success) = self.resolver.try_cast(body, &ret_type);
         if !success {
             self.err(
                 &ast.borrow().sig.name.clone(),

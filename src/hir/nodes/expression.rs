@@ -25,11 +25,15 @@ use crate::{
 /// things are unified.
 #[derive(Clone, Debug)]
 pub enum Expr {
+    /// A block of expressions. Mainly kept around for lifetimes.
+    /// Guaranteed to contain at least one expression.
+    Block(Vec<Expr>),
+
     /// A simple literal, producing itself as value.
     Literal(Literal, Token),
 
     /// Simply a variable use/load.
-    Variable(Rc<Variable>),
+    Variable(Variable),
 
     /// Allocate a value of the given type,
     /// usually [Type::WeakRef] or [Type::StrongRef].
@@ -41,8 +45,7 @@ pub enum Expr {
         field: Rc<Field>,
     },
 
-    /// Store into some location. [location] can be a variable,
-    /// ADT member or similar.
+    /// Store into an ADT.
     Store {
         location: Box<Expr>,
         value: Box<Expr>,
@@ -83,7 +86,6 @@ pub enum Expr {
     /// one whose condition is truthy will be run.
     /// Can be expression.
     Switch {
-        value: Box<Expr>,
         branches: Vec<(Expr, Expr)>,
         else_branch: Box<Expr>,
         /// Returned type, if returning a value
@@ -111,6 +113,8 @@ pub enum Expr {
         to: Type,
         method: CastType,
     },
+
+    TypeGet(Type),
 }
 
 impl Expr {
@@ -122,12 +126,16 @@ impl Expr {
         Expr::Literal(Literal::None, Token::eof_token(1))
     }
 
-    pub fn var(var: &Rc<Variable>) -> Expr {
-        Expr::Variable(Rc::clone(var))
+    pub fn literal(literal: Literal) -> Expr {
+        Expr::Literal(literal, Token::eof_token(1))
+    }
+
+    pub fn var(var: Variable) -> Expr {
+        Expr::Variable(var)
     }
 
     pub fn lvar(var: &Rc<LocalVariable>) -> Expr {
-        Expr::Variable(Rc::new(Variable::Local(Rc::clone(var))))
+        Expr::Variable(Variable::Local(Rc::clone(var)))
     }
 
     pub fn load(obj: Expr, field: &Rc<Field>) -> Expr {
@@ -176,14 +184,8 @@ impl Expr {
         }
     }
 
-    pub fn switch(
-        value: Expr,
-        branches: Vec<(Expr, Expr)>,
-        else_: Expr,
-        phi_type: Option<Type>,
-    ) -> Expr {
+    pub fn switch(branches: Vec<(Expr, Expr)>, else_: Expr, phi_type: Option<Type>) -> Expr {
         Expr::Switch {
-            value: Box::new(value),
             branches,
             else_branch: Box::new(else_),
             phi_type,
@@ -217,6 +219,8 @@ impl Expr {
 
     pub fn get_type(&self) -> Type {
         match self {
+            Expr::Block(exprs) => exprs.last().unwrap().get_type(),
+
             Expr::Literal(literal, _) => match literal {
                 Literal::Any => Type::Any,
                 Literal::None => Type::None,
@@ -275,6 +279,8 @@ impl Expr {
             Expr::Break(_) | Expr::Return(_) => Type::Any,
 
             Expr::Cast { to, .. } | Expr::Allocate(to, _) => to.clone(),
+
+            Expr::TypeGet(ty) => Type::Type(Box::new(ty.clone())),
         }
     }
 
@@ -289,7 +295,9 @@ impl Expr {
             Expr::Store { location: ex, .. }
             | Expr::Call { callee: ex, .. }
             | Expr::Load { object: ex, .. }
-            | Expr::Switch { value: ex, .. }
+            | Expr::Switch {
+                else_branch: ex, ..
+            }
             | Expr::Loop { condition: ex, .. }
             | Expr::If { condition: ex, .. }
             | Expr::Return(ex)
@@ -297,6 +305,10 @@ impl Expr {
             | Expr::Cast { inner: ex, .. } => ex.get_token(),
 
             Expr::Variable(var) => var.get_token(),
+
+            Expr::Block(exprs) => exprs.first().unwrap().get_token(),
+
+            Expr::TypeGet(_) => panic!("no token here!"),
         }
     }
 

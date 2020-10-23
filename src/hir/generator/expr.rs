@@ -1,12 +1,1027 @@
 use crate::{
-    ast::Expression,
-    hir::{generator::HIRGenerator, nodes::expression::Expr},
+    ast,
+    ast::{Expression as AExpr, Literal},
+    error::Res,
+    hir::{
+        generator::HIRGenerator,
+        nodes::{
+            declaration::{ADTType, Variable, ADT},
+            expression::{CastType, Expr},
+            types::{Instance, Type},
+        },
+        result::EmitHIRError,
+    },
+    lexer::token::{TType, Token},
+    mir::MutRc,
 };
+use std::rc::Rc;
 
+/// This impl contains all code of the generator that directly
+/// produces expressions.
+/// This is split into its own file for readability reasons;
+/// a 1500-line file containing everything is difficult to navigate.
 impl HIRGenerator {
-    /// Generate a single expression inside the current module.
-    /// Will set flags on the generator if applicable.
-    pub fn expression(&mut self, ast: &Expression) -> Expr {
+    pub fn expression(&mut self, expression: &AExpr) -> Expr {
+        let expr = match expression {
+            AExpr::Assignment { name, value } => self.assignment(name, value),
+
+            AExpr::Binary {
+                left,
+                operator,
+                right,
+            } => self.binary(left, operator, right),
+
+            AExpr::Block(expressions, _) => self.block(expressions),
+
+            AExpr::Break(expr, tok) => self.break_(expr, tok),
+
+            AExpr::Call { callee, arguments } => self.call(callee, arguments),
+
+            AExpr::ForCond {
+                condition,
+                body,
+                else_b,
+            } => self.for_cond(condition, body, else_b),
+
+            AExpr::ForIter {
+                elem_name,
+                iterator,
+                body,
+                else_b,
+            } => self.for_iter(elem_name, iterator, body, else_b),
+
+            AExpr::Get { object, name } => self.get(object, name),
+
+            AExpr::GetGeneric { name, .. } => {
+                Err(self.err_(name, "Can only call generic methods directly".to_string()))
+            }
+
+            AExpr::GetStatic { object, name } => self.get_static(object, name, true),
+
+            AExpr::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => self.if_(condition, then_branch, else_branch),
+
+            AExpr::IndexGet {
+                indexed,
+                index,
+                bracket,
+            } => self.index_get(indexed, index, bracket),
+
+            AExpr::IndexSet {
+                indexed,
+                index,
+                value,
+            } => self.index_set(indexed, index, value),
+
+            AExpr::Literal(literal, token) => self.literal(literal, token),
+
+            AExpr::Return(val, err_tok) => self.return_(val, err_tok),
+
+            AExpr::Set {
+                object,
+                name,
+                value,
+            } => self.set(object, name, value),
+
+            AExpr::Unary { operator, right } => self.unary(operator, right),
+
+            AExpr::Variable(var) => self.var(var),
+
+            AExpr::VarWithGenerics { name, generics } => self.var_with_generics(name, generics),
+
+            AExpr::When {
+                value,
+                branches,
+                else_branch,
+            } => self.when(value, branches, else_branch),
+
+            AExpr::VarDef(var) => self.var_def(var),
+        };
+
+        self.eat(expr)
+            .unwrap_or_else(|| Expr::literal(Literal::Any))
+    }
+
+    fn assignment(&mut self, name: &Token, value: &AExpr) -> Res<Expr> {
+        let var = self.find_local_var(&name)?;
+        let value = self.expression(value);
+        let (value, matching_types) = self.resolver.try_cast(value, &var.ty);
+
+        if matching_types && var.mutable {
+            Ok(Expr::store(Expr::lvar(&var), value, false))
+        } else if var.mutable {
+            Err(self.err_(
+                &name,
+                format!("Variable {} is a different type", name.lexeme),
+            ))
+        } else {
+            Err(self.err_(
+                &name,
+                format!("Variable {} is not assignable (val)", name.lexeme),
+            ))
+        }
+    }
+
+    fn binary(&mut self, left: &AExpr, operator: &Token, right: &AExpr) -> Res<Expr> {
+        let left = self.expression(left);
+
+        // Account for an edge case with simple enums, where `A:A` incorrectly gets
+        // turned into a regular value instead of a type get.
+        let right = match right {
+            AExpr::GetStatic { object, name } if operator.t_type == TType::Is => {
+                self.get_static(object, name, false)?
+            }
+            _ => self.expression(right),
+        };
+
+        self.binary_mir(left, operator, right)
+    }
+
+    fn binary_mir(&mut self, mut left: Expr, operator: &Token, mut right: Expr) -> Res<Expr> {
+        let left_ty = left.get_type();
+        let right_ty = right.get_type();
+
+        if (left_ty.is_int() && right_ty.is_int())
+            || left_ty.is_float() && right_ty.is_float()
+            || (operator.t_type == TType::Is && right_ty.is_type())
+        {
+            if operator.t_type == TType::And || operator.t_type == TType::Or {
+                Ok(Self::binary_logic(left, operator.t_type, right))
+            } else {
+                let (_, left, right) = self.resolver.try_unify_type(left, right);
+                Ok(Expr::binary(operator.clone(), left, right))
+            }
+        } else {
+            let method_var = self
+                .get_operator_overloading_method(operator.t_type, &mut left, &mut right)
+                .on_err(
+                    &self.path,
+                    operator,
+                    "No implementation of operator found for types.",
+                )?;
+
+            let mut expr = Expr::call(Expr::var(Variable::Function(method_var)), vec![left, right]);
+            if operator.t_type == TType::BangEqual {
+                // Invert the result if this is `!=`, as the method is from `Eq`
+                expr = Expr::unary(Token::generic_token(TType::Bang), expr);
+            }
+            Ok(expr)
+        }
+    }
+
+    /// Logic operators need special treatment for shortcircuiting behavior
+    fn binary_logic(left: Expr, operator: TType, right: Expr) -> Expr {
+        if operator == TType::And {
+            // a and b --> if (a) b else false
+            Expr::if_(
+                left,
+                right,
+                Expr::literal(Literal::Bool(false)),
+                Some(Type::Bool),
+            )
+        } else {
+            // a or b --> if (a) true else b
+            Expr::if_(
+                left,
+                Expr::literal(Literal::Bool(true)),
+                right,
+                Some(Type::Bool),
+            )
+        }
+    }
+
+    fn block(&mut self, expressions: &[AExpr]) -> Res<Expr> {
+        if expressions.is_empty() {
+            return Ok(Expr::none_const_());
+        }
+
+        self.begin_scope();
+        let exprs = expressions.iter().map(|e| self.expression(e)).collect();
+        self.end_scope();
+
+        Ok(Expr::Block(exprs))
+    }
+
+    fn break_(&mut self, expr: &Option<Box<AExpr>>, err_tok: &Token) -> Res<Expr> {
+        if self.current_loop_ty.is_none() {
+            self.err(err_tok, "Break is only allowed in loops.".to_string());
+        }
+
+        let expr = expr
+            .as_ref()
+            .map(|expr| {
+                let expression = self.expression(&expr);
+                self.set_loop_type(&expression.get_type());
+                expression
+            })
+            .unwrap_or_else(|| Expr::none_const(err_tok.clone()));
+
+        Ok(Expr::break_(expr))
+    }
+
+    fn call(&mut self, callee: &AExpr, arguments: &[AExpr]) -> Res<Expr> {
         todo!()
+    }
+    /*
+          let mut args = arguments
+                .iter()
+                .map(|a| self.expression(a))
+                .collect::<Res<Vec<_>>>()?;
+
+            match callee {
+                // Method call while a `this` member is still uninitialized
+                AExpr::Get { name, .. } | AExpr::GetGeneric { name, .. }
+                    if !self.uninitialized_this_members.is_empty() =>
+                {
+                    Err(self.err(
+                        name,
+                        "Cannot call methods in constructors until all class members are initialized.",
+                    ))
+                }
+
+                // Method call
+                AExpr::Get { object, name } | AExpr::GetGeneric { object, name, .. } => {
+                    let (object, field) = self.get_field(object, name)?;
+                    let func = field.right().or_err(
+                        &self.builder.path,
+                        name,
+                        "Class members cannot be called.",
+                    )?;
+                    let obj_ty = object.get_type();
+                    args.insert(0, object);
+
+                    match (callee, func) {
+                        // Regular method call
+                        (AExpr::Get { .. }, AssociatedMethod::Fn(func)) => {
+                            self.check_func_args_(&func.type_, &mut args, arguments, name, true)?;
+                            Ok(Expr::call(Expr::load(&func), args))
+                        }
+
+                        // Interface method call
+                        (AExpr::Get { .. }, AssociatedMethod::IFace(index)) => {
+                            let adt = obj_ty.to_adt().borrow();
+                            let params = &adt.dyn_methods.get_index(index).unwrap().1.parameters;
+                            self.check_func_args(
+                                // 'params' need to have the 'this' parameter, this is the result...
+                                Some(obj_ty.clone()).iter().chain(params.iter()),
+                                &mut args,
+                                arguments,
+                                false,
+                                name,
+                                true,
+                            )?;
+
+                            Ok(Expr::call_dyn(obj_ty.to_adt(), index, args))
+                        }
+
+                        // Proto method call with inferred generics
+                        (AExpr::Get { name, .. }, AssociatedMethod::Proto(ref proto)) => proto
+                            .try_infer_call(
+                                self,
+                                args,
+                                arguments,
+                                name,
+                                Rc::clone(&proto),
+                                obj_ty.context(),
+                                None,
+                            ),
+
+                        // Proto method call with explicit generics
+                        (AExpr::GetGeneric { params, .. }, AssociatedMethod::Proto(ref proto)) => {
+                            let proto_args = params
+                                .iter()
+                                .map(|ty| self.builder.find_type(&ty))
+                                .collect::<Res<Vec<Type>>>()?;
+
+                            let func = proto.build_with_parent_context(
+                                proto_args,
+                                &self.module,
+                                name,
+                                Rc::clone(&proto),
+                                &obj_ty.context().unwrap_or_else(Context::default),
+                            )?;
+                            let func_rc = self
+                                .builder
+                                .module
+                                .borrow()
+                                .find_global(&func.as_function().borrow().name)
+                                .unwrap();
+                            self.check_func_args_(&func, &mut args, arguments, name, true)?;
+
+                            Ok(Expr::call(Expr::load(&func_rc), args))
+                        }
+
+                        // Generic parameters on something else, invalid
+                        _ => Err(self.err(name, "This method does not take generic parameters")),
+                    }
+                }
+
+                // Prototype call with inferred types
+                // TODO: Kinda ugly double find call
+                AExpr::Variable(tok) if self.module.borrow().find_prototype(&tok.lexeme).is_some() => {
+                    let proto = self.module.borrow().find_prototype(&tok.lexeme).unwrap();
+                    proto.try_infer_call(self, args, arguments, tok, Rc::clone(&proto), None, None)
+                }
+
+                // Enum prototype call with inferred types
+                // TODO: Kinda ugly
+                AExpr::GetStatic { object, name }
+                    if object.is_variable()
+                        && self
+                            .module
+                            .borrow()
+                            .find_prototype(&object.get_token().lexeme)
+                            .is_some() =>
+                {
+                    let proto = self
+                        .module
+                        .borrow()
+                        .find_prototype(&object.get_token().lexeme)
+                        .unwrap();
+                    proto.try_infer_call(
+                        self,
+                        args,
+                        arguments,
+                        object.get_token(),
+                        Rc::clone(&proto),
+                        None,
+                        Some(&name.lexeme),
+                    )
+                }
+
+                // Can be either a constructor or function call
+                _ => {
+                    let callee_mir = self.expression(callee)?;
+                    let callee_type = callee_mir.get_type();
+
+                    if let Some(constructors) = callee_type.get_constructors() {
+                        let constructor: &Rc<Variable> = constructors
+                            .iter()
+                            .find(|constructor| {
+                                let constructor = constructor.type_.as_function().borrow();
+                                // If args count and types match
+                                (constructor.parameters.len() - 1 == args.len())
+                                    && constructor
+                                        .parameters
+                                        .iter()
+                                        .skip(1)
+                                        .zip(args.iter_mut())
+                                        .all(|(param, arg)| {
+                                            arg.get_type().can_cast_to(&param.type_, true).is_some()
+                                        })
+                            })
+                            .or_err(
+                                &self.builder.path,
+                                callee.get_token(),
+                                "No matching constructor found for arguments.",
+                            )?;
+
+                        {
+                            let constructor = constructor.type_.as_function().borrow();
+                            for (param, arg) in
+                                constructor.parameters.iter().skip(1).zip(args.iter_mut())
+                            {
+                                self.try_cast_in_place(arg, &param.type_)
+                            }
+                        }
+
+                        Ok(Expr::alloc_type(callee_type, constructor, args))
+                    } else {
+                        self.check_func_args_(
+                            &callee_type,
+                            &mut args,
+                            arguments,
+                            callee.get_token(),
+                            false,
+                        )?;
+                        Ok(Expr::call(callee_mir, args))
+                    }
+                }
+            }
+        }
+    */
+
+    fn for_cond(
+        &mut self,
+        condition: &AExpr,
+        body: &AExpr,
+        else_b: &Option<Box<AExpr>>,
+    ) -> Res<Expr> {
+        let cond = self.expression(condition);
+        if cond.get_type() != Type::Bool {
+            self.err(
+                condition.get_token(),
+                "For condition must be a boolean.".to_string(),
+            );
+        }
+
+        self.begin_scope();
+        let mut cast_block = self.smart_casts(&cond);
+        let (body, else_, phi_ty) = self.for_body(body, else_b);
+        self.end_scope();
+        cast_block.push(body);
+        Ok(Expr::loop_(cond, Expr::Block(cast_block), else_, phi_ty))
+    }
+
+    /// Return type, in order:
+    /// - for body
+    /// - else branch
+    /// - phi type
+    fn for_body(
+        &mut self,
+        body: &AExpr,
+        else_b: &Option<Box<AExpr>>,
+    ) -> (Expr, Expr, Option<Type>) {
+        let prev_loop_ty = std::mem::replace(&mut self.current_loop_ty, Some(Type::Any));
+
+        let body = self.expression(body);
+        let body_type = body.get_type();
+        self.set_loop_type(&body_type);
+
+        let else_val = else_b.as_ref().map_or(Expr::none_const_(), |else_branch| {
+            self.expression(&else_branch)
+        });
+        let (phi_ty, body, else_) = self.resolver.try_unify_type(body, else_val);
+
+        self.current_loop_ty = prev_loop_ty;
+        (body, else_, phi_ty)
+    }
+
+    fn for_iter(
+        &mut self,
+        elem_name: &Token,
+        iterator: &AExpr,
+        body: &AExpr,
+        else_b: &Option<Box<AExpr>>,
+    ) -> Res<Expr> {
+        todo!();
+        /*
+        self.begin_scope();
+
+        let iter_mir = self.expression(iterator)?;
+        let (iter_ty, elem_ty, to_iter_ty) = INTRINSICS
+            .with(|i| i.borrow().get_for_iter_type(&iter_mir.get_type()))
+            .or_err(
+                &self.builder.path,
+                iterator.get_token(),
+                "Not an iterator (must implement Iter or ToIter).",
+            )?;
+
+        let iter = if let Some(to_iter_ty) = to_iter_ty {
+            let method = Self::find_associated_method(
+                &to_iter_ty,
+                &Token::generic_identifier("iter".to_string()),
+            )
+            .unwrap()
+            .into_fn();
+            Expr::call(Expr::load(&method), vec![iter_mir])
+        } else {
+            iter_mir
+        };
+
+        let opt_proto = self
+            .module
+            .borrow()
+            .find_prototype(&"Opt".to_string())
+            .unwrap();
+        let opt_ty = opt_proto.build(
+            vec![elem_ty.clone()],
+            &self.module,
+            elem_name,
+            Rc::clone(&opt_proto),
+        )?;
+        let some_ty = {
+            let adt = opt_ty.as_adt();
+            let adt = adt.borrow();
+            let cases = adt.ty.cases();
+            Rc::clone(cases.get(&"Some".to_string()).unwrap())
+        };
+
+        let elem_var = self.define_variable(&elem_name, false, elem_ty.clone());
+        let next_fn =
+            Self::find_associated_method(&iter_ty, &Token::generic_identifier("next".to_string()))
+                .unwrap()
+                .into_fn();
+
+        let (body, else_, result_store) = self.for_body(body, else_b)?;
+        self.end_scope();
+        Ok(Expr::IterLoop {
+            iter: Box::new(iter),
+            next_fn,
+            next_cast_ty: Type::Adt(some_ty),
+            store: elem_var,
+            body: Box::new(body),
+            else_: Box::new(else_.unwrap_or_else(Expr::none_const)),
+            result_store,
+        })
+        */
+    }
+
+    fn get(&mut self, object: &AExpr, name: &Token) -> Res<Expr> {
+        let (object, field) = self.get_field(object, name)?;
+        let field =
+            field
+                .left()
+                .on_err(&self.path, name, "Cannot get class method (must be called)")?;
+
+        if !self.uninitialized_this_fields.contains(&field) {
+            Ok(Expr::load(object, &field))
+        } else {
+            Err(self.err_(name, "Cannot get uninitialized class member.".to_string()))
+        }
+    }
+
+    // See `binary` for info on `allow_simple`
+    fn get_static(&mut self, object: &AExpr, name: &Token, allow_simple: bool) -> Res<Expr> {
+        let obj = self.expression(object);
+        if let Type::Type(ty) = obj.get_type() {
+            if let ADTType::Enum { cases, .. } = &ty.as_value().ty.borrow().ty {
+                if let Some(case) = cases.get(&name.lexeme) {
+                    match ADT::get_singleton_inst(case) {
+                        Some(inst) if allow_simple => Ok(inst),
+                        _ => Ok(Expr::TypeGet(Type::Value(Instance::new(Rc::clone(case))))),
+                    }
+                } else {
+                    Err(self.err_(name, "Unknown enum case.".to_string()))
+                }
+            } else {
+                Err(self.err_(
+                    name,
+                    "Static access is only supported on enum types.".to_string(),
+                ))
+            }
+        } else {
+            Err(self.err_(
+                name,
+                "Static access is not supported on values.".to_string(),
+            ))
+        }
+    }
+
+    fn if_(
+        &mut self,
+        condition: &AExpr,
+        then_branch: &AExpr,
+        else_branch: &Option<Box<AExpr>>,
+    ) -> Res<Expr> {
+        let cond = self.expression(condition);
+        if cond.get_type() != Type::Bool {
+            self.err(
+                condition.get_token(),
+                "If condition must be a boolean".to_string(),
+            );
+        }
+
+        self.begin_scope(); // scope for smart casts if applicable
+        let mut then_block = self.smart_casts(&cond);
+        then_block.push(self.expression(then_branch));
+        let then_val = Expr::Block(then_block);
+        self.end_scope();
+
+        let else_val = else_branch
+            .as_ref()
+            .map_or(Expr::none_const_(), |else_branch| {
+                self.expression(&else_branch)
+            });
+
+        let (phi_type, then_val, else_val) = self.resolver.try_unify_type(then_val, else_val);
+        Ok(Expr::if_(cond, then_val, else_val, phi_type))
+    }
+
+    /// Tries finding smart casts, where a type can be downcasted
+    /// based on a user-code condition.
+    /// Will insert variables for downcasts into current scope/function.
+    fn smart_casts(&mut self, condition: &Expr) -> Vec<Expr> {
+        let mut casts = Vec::new();
+        self.find_casts(&mut casts, condition);
+        casts
+    }
+
+    fn find_casts(&mut self, list: &mut Vec<Expr>, expr: &Expr) {
+        if let Expr::Binary {
+            left,
+            operator,
+            right,
+        } = expr
+        {
+            match (operator.t_type, &**left) {
+                (TType::And, _) => {
+                    self.find_casts(list, &left);
+                    self.find_casts(list, &right);
+                }
+
+                (TType::Is, Expr::Variable(Variable::Local(var))) => {
+                    let ty = right.get_type().into_type();
+                    let ty = if var.ty.is_weak_ref() {
+                        ty.to_weak()
+                    } else {
+                        ty.to_strong()
+                    };
+
+                    let new_var = self.define_variable(&var.name, false, ty.clone());
+
+                    list.push(Expr::store(
+                        Expr::lvar(&new_var),
+                        Expr::cast(Expr::lvar(var), ty, CastType::Bitcast),
+                        true,
+                    ));
+                }
+
+                _ => (),
+            }
+        }
+    }
+
+    fn index_get(&mut self, indexed: &AExpr, index: &AExpr, bracket: &Token) -> Res<Expr> {
+        let obj = self.expression(indexed);
+        let index = self.expression(index);
+        self.binary_mir(obj, bracket, index)
+    }
+
+    fn index_set(&mut self, indexed: &AExpr, ast_index: &AExpr, ast_value: &AExpr) -> Res<Expr> {
+        let mut obj = self.expression(indexed);
+        let mut index = self.expression(ast_index);
+        let value = self.expression(ast_value);
+        let method = self
+            .get_operator_overloading_method(TType::RightBracket, &mut obj, &mut index)
+            .on_err(
+                &self.path,
+                ast_index.get_token(),
+                "No implementation of operator found for types.",
+            )?;
+
+        if value.get_type() == method.ty.borrow().parameters[2].ty {
+            Ok(Expr::call(
+                Expr::var(Variable::Function(method)),
+                vec![obj, index, value],
+            ))
+        } else {
+            Err(self.err_(
+                ast_value.get_token(),
+                "Setter is of wrong type.".to_string(),
+            ))
+        }
+    }
+
+    fn literal(&mut self, literal: &Literal, token: &Token) -> Res<Expr> {
+        match literal {
+            // Literal::Array(arr) => self.array_literal(arr.as_ref().left().unwrap()),
+            // Literal::Closure(closure) => self.closure(closure, token),
+            _ => Ok(Expr::Literal(literal.clone(), token.clone())),
+        }
+    }
+    /*
+        fn array_literal(&mut self, literal: &[AExpr]) -> Res<Expr> {
+            let mut values_mir = Vec::new();
+            let mut ast_values = literal.iter();
+            let first = self.expression(ast_values.next().unwrap())?;
+            let elem_type = first.get_type();
+
+            values_mir.push(first);
+            for value in ast_values {
+                let mir_val = self.expression(value)?;
+
+                if mir_val.get_type() != elem_type {
+                    return Err(self.err(
+                        value.get_token(),
+                        &format!(
+                            "Type of array value ({}) does not match rest of array ({}).",
+                            mir_val.get_type(),
+                            elem_type
+                        ),
+                    ));
+                }
+
+                values_mir.push(mir_val);
+            }
+
+            let array_type = INTRINSICS.with(|i| i.borrow().get_array_type(elem_type, None))?;
+            let array_type = array_type.as_adt();
+            let push_method = {
+                let arr = array_type.borrow();
+                Rc::clone(arr.methods.get(&Rc::new("push".to_string())).unwrap())
+            };
+
+            let constructor = &array_type.borrow().constructors[0];
+            // Using an EOF token here is fine since this will never fail
+            let array = self.alloc_heap(
+                &Token::eof_token(0),
+                Expr::alloc_type(
+                    Type::Adt(Rc::clone(&array_type)),
+                    constructor,
+                    vec![Expr::Literal(Literal::I64(values_mir.len() as u64))],
+                ),
+            )?;
+
+            Ok(Expr::Literal(Literal::Array(Right(ArrayLiteral {
+                alloc: Box::new(array),
+                values: values_mir,
+                push_fn: push_method,
+                type_: Type::Adt(array_type.clone()),
+            }))))
+        }
+
+        fn closure(&mut self, closure: &Closure, token: &Token) -> Res<Expr> {
+            let mut name = token.clone();
+            name.lexeme = Rc::new(format!("closure-{}:{}", token.line, token.index));
+            let ast_func = ast::Function {
+                sig: FuncSignature {
+                    name: name.clone(),
+                    visibility: Visibility::Public,
+                    generics: None,
+                    return_type: closure.ret_ty.clone(),
+                    parameters: closure
+                        .parameters
+                        .iter()
+                        .map(|p| FunctionParam {
+                            type_: p.type_.as_ref().unwrap().clone(),
+                            name: p.name.clone(),
+                        })
+                        .collect(),
+                    variadic: false,
+                    modifiers: vec![],
+                },
+                body: Some(closure.body.clone()),
+            };
+
+            let mut gen = Self::for_closure(self);
+            let function = generate_mir_fn(
+                &gen.builder,
+                Right(ast_func),
+                String::clone(&name.lexeme),
+                Some(FunctionParam::this_param(&Token::generic_identifier(
+                    "i64".to_string(),
+                ))),
+            )?;
+            let global = Variable::new(false, Type::Function(Rc::clone(&function)), &name.lexeme);
+            insert_global_and_type(&gen.module, &global);
+
+            catch_up_passes(&mut gen, &Type::Function(Rc::clone(&function)))?;
+            let closure_data = gen.end_closure(self);
+
+            let captured = Rc::new(closure_data.captured);
+            function.borrow_mut().parameters[0] = Variable::new(
+                false,
+                Type::ClosureCaptured(Rc::clone(&captured)),
+                &Rc::new("CLOSURE-CAPTURED".to_string()),
+            );
+
+            let expr = Expr::construct_closure(&global, captured);
+            let var = self.define_variable(
+                &Token::generic_identifier("closure-literal".to_string()),
+                false,
+                expr.get_type(),
+            );
+            Ok(Expr::store(&var, expr, true))
+        }
+    */
+
+    fn return_(&mut self, val: &Option<Box<AExpr>>, err_tok: &Token) -> Res<Expr> {
+        let value = val
+            .as_ref()
+            .map(|v| self.expression(&*v))
+            .unwrap_or_else(|| Expr::none_const(err_tok.clone()));
+
+        let ret_type = self.cur_fn().borrow().ret_type.clone();
+        let value = self.resolver.cast_or_none(value, &ret_type).on_err(
+            &self.path,
+            err_tok,
+            "Return expression in function has wrong type",
+        )?;
+
+        Ok(Expr::ret(value))
+    }
+
+    fn set(&mut self, object: &AExpr, name: &Token, value: &AExpr) -> Res<Expr> {
+        let (object, field) = self.get_field(object, name)?;
+        let field = field
+            .left()
+            .on_err(&self.path, name, "Cannot set class method")?;
+        let value = self.expression(value);
+        let (value, success) = self.resolver.try_cast(value, &field.ty);
+
+        if !success {
+            self.err(name, "Class member is a different type".to_string());
+        }
+        if !field.mutable && !self.uninitialized_this_fields.contains(&field) {
+            self.err(name, "Cannot set immutable class member".to_string());
+        }
+
+        let first_set = self.uninitialized_this_fields.remove(&field);
+        Ok(Expr::store(Expr::load(object, &field), value, first_set))
+    }
+
+    fn unary(&mut self, operator: &Token, right: &AExpr) -> Res<Expr> {
+        let right = self.expression(right);
+        let ty = right.get_type();
+
+        match operator.t_type {
+            TType::Bang if ty != Type::Bool => self.err(
+                operator,
+                "'!' can only be used on boolean values".to_string(),
+            ),
+
+            TType::Minus if !(ty.is_signed_int() || ty.is_float()) => self.err(
+                operator,
+                "'-' can only be used on signed integers and floats".to_string(),
+            ),
+
+            TType::New => return self.alloc_heap(operator, right),
+
+            _ => (),
+        };
+
+        Ok(Expr::unary(operator.clone(), right))
+    }
+
+    fn alloc_heap(&mut self, op: &Token, inner: Expr) -> Res<Expr> {
+        if let Expr::Allocate(ty, token) = inner {
+            Ok(Expr::Allocate(ty.to_strong(), token))
+        } else {
+            Err(self.err_(op, "'new' can only be used with constructors".to_string()))
+        }
+    }
+
+    fn var(&mut self, var: &Token) -> Res<Expr> {
+        let res = self.find_var(&var);
+        match res {
+            Ok(var) => Ok(Expr::var(var)),
+            Err(e) => self
+                .resolver
+                .find_type(&ast::Type::Ident(var.clone()))
+                .map(Expr::TypeGet)
+                .ok()
+                .ok_or(e),
+        }
+    }
+
+    fn var_with_generics(&mut self, name: &Token, generics: &[ast::Type]) -> Res<Expr> {
+        let ty = self.resolver.find_type(&ast::Type::Generic {
+            token: name.clone(),
+            types: Vec::from(generics),
+        })?;
+
+        if let Type::Function(func) = ty {
+            Ok(Expr::var(Variable::Function(func)))
+        } else {
+            Ok(Expr::TypeGet(ty))
+        }
+    }
+
+    fn when(
+        &mut self,
+        ast_value: &AExpr,
+        branches: &[(AExpr, AExpr)],
+        else_branch: &Option<Box<AExpr>>,
+    ) -> Res<Expr> {
+        let value = self.expression(ast_value);
+        let cond_type = value.get_type();
+
+        let mut cases = Vec::with_capacity(branches.len());
+
+        let mut iter = branches.iter();
+        let first = iter.next();
+        if first.is_none() {
+            // There are no branches, just return else branch or nothing
+            return Ok(else_branch
+                .as_ref()
+                .map_or_else(Expr::none_const_, |br| self.expression(br)));
+        }
+
+        let (first_cond, mut first_val) =
+            self.when_branch(value.clone(), &cond_type, first.unwrap())?;
+        let mut first_ty = first_val.get_type();
+        for branch in iter {
+            let (cond, mut branch_val) = self.when_branch(value.clone(), &cond_type, branch)?;
+
+            if first_ty != Type::None {
+                let result = self.resolver.try_unify_type(first_val, branch_val);
+                first_ty = result.0.unwrap_or(Type::None);
+                first_val = result.1;
+                branch_val = result.2;
+            } else if branch_val.get_type() != first_ty {
+                first_ty = Type::None
+            }
+
+            cases.push((cond, branch_val))
+        }
+
+        // TODO: Deduplicate this...
+        let mut else_br = else_branch.as_ref().map(|e| self.expression(e));
+        if let Some(branch_val) = &else_br {
+            if first_ty != Type::None {
+                let result = self.resolver.try_unify_type(first_val, else_br.unwrap());
+                first_ty = result.0.unwrap_or(Type::None);
+                first_val = result.1;
+                else_br = Some(result.2);
+            } else if branch_val.get_type() != first_ty {
+                first_ty = Type::None
+            }
+        }
+
+        cases.insert(0, (first_cond, first_val));
+        if else_br.is_none() && !self.can_omit_else(&cond_type, &cases) {
+            first_ty = Type::None
+        }
+        Ok(Expr::switch(
+            cases,
+            else_br.unwrap_or_else(Expr::none_const_),
+            first_ty.type_or_none(),
+        ))
+    }
+
+    fn when_branch(
+        &mut self,
+        value: Expr,
+        cond_type: &Type,
+        branch: &(AExpr, AExpr),
+    ) -> Res<(Expr, Expr)> {
+        // See note on `binary` about this
+        let br_cond = match &branch.0 {
+            AExpr::GetStatic { object, name } => self.get_static(object, name, false)?,
+            _ => self.expression(&branch.0),
+        };
+        let br_type = br_cond.get_type();
+        if &br_type != cond_type && !br_type.is_type() {
+            self.err(
+                branch.0.get_token(),
+                "Branches of when must be of same type as the value compared.".to_string(),
+            );
+        }
+
+        // Small hack to get a token that gives the user
+        // a useful error without having to add complexity
+        // to binary_mir()
+        let mut optok = branch.0.get_token().clone();
+        optok.t_type = if br_type.is_type() {
+            TType::Is
+        } else {
+            TType::EqualEqual
+        };
+        let cond = self.binary_mir(value, &optok, br_cond)?;
+
+        self.begin_scope();
+        let mut branch_list = self.smart_casts(&cond);
+        branch_list.push(self.expression(&branch.1));
+        let branch_val = Expr::Block(branch_list);
+        self.end_scope();
+
+        Ok((cond, branch_val))
+    }
+
+    /// If a when expression can safely give a value even when an else branch is missing.
+    /// Only true when switching on enum type with every case present.
+    fn can_omit_else(&self, value_ty: &Type, when_cases: &[(Expr, Expr)]) -> bool {
+        let adt = if let Some(adt) = value_ty.try_adt() {
+            adt
+        } else {
+            return false;
+        };
+        let adt = adt.ty.borrow();
+        let cases = if let ADTType::Enum { cases } = &adt.ty {
+            cases
+        } else {
+            return false;
+        };
+        let mut cases: Vec<&MutRc<ADT>> = cases.values().collect();
+
+        for (cond, _) in when_cases.iter() {
+            let (op, right) = if let Expr::Binary {
+                operator, right, ..
+            } = cond
+            {
+                (operator, right)
+            } else {
+                panic!("Invalid when condition")
+            };
+
+            if op.t_type != TType::Is {
+                return false;
+            };
+            let ty = right.get_type();
+            let adt = ty.as_type().as_value();
+            let i = cases.iter().position(|c| Rc::ptr_eq(c, &adt.ty));
+            if let Some(i) = i {
+                cases.remove(i);
+            }
+        }
+        cases.is_empty()
+    }
+
+    fn var_def(&mut self, var: &ast::Variable) -> Res<Expr> {
+        let init = self.expression(&var.initializer);
+        let type_ = init.get_type();
+        if type_.is_assignable() {
+            let var = self.define_variable(&var.name, var.mutable, type_);
+            Ok(Expr::store(Expr::lvar(&var), init, true))
+        } else {
+            Err(self.err_(
+                &var.initializer.get_token(),
+                format!("Cannot assign type '{}' to a variable.", type_),
+            ))
+        }
     }
 }
