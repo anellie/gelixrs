@@ -18,9 +18,10 @@ use std::{env, fs, path::PathBuf, rc::Rc};
 use crate::{
     ast::module::{Import, Module, ModulePath},
     error::{Error, Errors},
-    hir::generator::{module::HIRModuleGenerator},
+    hir::generator::module::HIRModuleGenerator,
     lexer::token::Token,
-    mir::{MutRc},
+    lir::LModule,
+    mir::MutRc,
 };
 
 pub mod ast;
@@ -28,8 +29,9 @@ pub mod ast;
 //pub mod bench;
 pub mod error;
 pub mod hir;
-// pub mod ir;
+pub mod ir;
 pub mod lexer;
+pub mod lir;
 pub mod mir;
 pub mod parser;
 #[cfg(test)]
@@ -119,16 +121,13 @@ pub fn compile_hir(modules: Vec<Module>) -> Result<Vec<MutRc<hir::Module>>, Vec<
     HIRModuleGenerator::new(modules).consume()
 }
 
-/*
-pub fn compile_mir(modules: Vec<MutRc<hir::Module>>) -> Result<Vec<MutRc<MModule>>, Vec<Errors>> {
+pub fn compile_lir(modules: Vec<MutRc<hir::Module>>) -> Result<Vec<MutRc<LModule>>, Vec<Errors>> {
     todo!()
 }
 
-pub fn compile_ir(modules: Vec<MutRc<MModule>>) -> inkwell::module::Module {
-    let gen = IRGenerator::new();
-    gen.generate(modules)
+pub fn compile_ir(modules: Vec<MutRc<LModule>>) -> inkwell::module::Module {
+    todo!()
 }
-*/
 
 pub fn stem_to_rc_str(path: &PathBuf) -> Rc<String> {
     Rc::new(path.file_stem().unwrap().to_str().unwrap().to_string())

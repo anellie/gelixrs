@@ -11,14 +11,13 @@ use crate::{
     hir::{
         generator::intrinsics::INTRINSICS,
         nodes::{
-            declaration::{Field, LocalVariable, Variable},
-            types::Type,
+            declaration::{Field, Function, LocalVariable, Variable},
+            types::{Type, TypeArguments},
         },
     },
     lexer::token::Token,
+    mir::MutRc,
 };
-use crate::mir::MutRc;
-use crate::hir::nodes::declaration::Function;
 
 /// An expression in gelix.
 /// HIR expressions are an intermediate between AST and MIR;
@@ -43,7 +42,7 @@ pub enum Expr {
         ty: Type,
         constructor: MutRc<Function>,
         args: Vec<Expr>,
-        tok: Token
+        tok: Token,
     },
 
     // A field getter on an ADT.
@@ -250,7 +249,10 @@ impl Expr {
 
             Expr::Variable(var) => var.get_type(),
 
-            Expr::Load { field, .. } => field.ty.clone(),
+            Expr::Load { object, field } => field
+                .ty
+                .resolve(object.get_type().type_args().unwrap())
+                .clone(),
 
             Expr::Store { value, .. } => value.get_type(),
 
@@ -268,7 +270,7 @@ impl Expr {
             }
 
             Expr::Call { callee, .. } => match callee.get_type() {
-                Type::Function(func) => func.ty.borrow().ret_type.clone(),
+                Type::Function(func) => func.ty.borrow().ret_type.resolve(&func.args).clone(),
                 Type::Closure(closure) => closure.ret_type.clone(),
                 _ => panic!("Invalid callee"),
             },

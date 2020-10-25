@@ -62,8 +62,12 @@ impl HIRGenerator {
             };
 
             let name = Rc::clone(&method.sig.name.lexeme);
-            let mir_method = self.generate_hir_fn(method, Some(this_param.clone()));
-            match mir_method {
+            let hir_method = self.generate_hir_fn(
+                method,
+                Some(this_param.clone()),
+                Some(&adt.borrow().type_parameters),
+            );
+            match hir_method {
                 Ok(mir_method) => {
                     adt.borrow_mut().methods.insert(name, mir_method);
                 }
@@ -71,7 +75,6 @@ impl HIRGenerator {
             }
         }
 
-        let this_param = FunctionParam::this_param(&ast.name);
         if let Some(constructors) = ast.constructors() {
             self.declare_constructors(&adt, &ast, &this_param, constructors);
         }
@@ -89,17 +92,22 @@ impl HIRGenerator {
         let default = self.maybe_default_constructor(&ast);
         let iter = constructors.iter().chain(default.iter());
         for constructor in iter {
-            let sig = eatc!(self.get_constructor(&ast, constructor, this_param.clone()));
-            let func = eatc!(self.generate_hir_fn(ast::Function { sig, body: None }, None));
-            let mut fn_mut = func.borrow_mut();
-            fn_mut.exprs = eatc!(self.insert_constructor_setters(
-                &adt.borrow(),
-                constructor,
-                &fn_mut.parameters
-            ));
+            let sig = eatc!(
+                self,
+                self.get_constructor(&ast, constructor, this_param.clone())
+            );
+            let func = eatc!(
+                self,
+                self.generate_hir_fn(
+                    ast::Function { sig, body: None },
+                    None,
+                    Some(&adt.borrow().type_parameters),
+                )
+            );
             adt.borrow_mut().constructors.push(Rc::clone(&func));
 
-            let params = fn_mut
+            let params = func
+                .borrow()
                 .parameters
                 .iter()
                 .skip(1)
@@ -162,8 +170,49 @@ impl HIRGenerator {
             .flatten()
     }
 
+    /// Will return a default constructor with no parameters
+    /// should the ADT not contain a constructor and
+    /// all members have default values.
+    fn maybe_default_constructor(&self, adt: &ast::ADT) -> Option<Constructor> {
+        let no_uninitialized_members = !adt
+            .members()
+            .unwrap()
+            .iter()
+            .any(|v| v.initializer.is_none());
+        if adt.constructors().unwrap().is_empty() && no_uninitialized_members {
+            Some(Constructor {
+                parameters: vec![],
+                visibility: Visibility::Public,
+                body: None,
+            })
+        } else {
+            None
+        }
+    }
+
     /// Insert all constructor 'setter' parameters into the entry
-    /// block of the HIR function.
+    /// block of their HIR function.
+    /// This has to be a separate pass since constructors are declared
+    /// before fields are.
+    pub fn constructor_setters(&mut self, decl: Declaration) {
+        if let Declaration::Adt(adt) = decl {
+            if let Some(constructors) = adt.borrow().ast.borrow().constructors() {
+                for (i, constructor) in constructors.iter().enumerate() {
+                    let func = &adt.borrow().constructors[i];
+                    let mut fn_mut = func.borrow_mut();
+                    fn_mut.exprs = eatc!(
+                        self,
+                        self.insert_constructor_setters(
+                            &adt.borrow(),
+                            constructor,
+                            &fn_mut.parameters
+                        )
+                    );
+                }
+            }
+        }
+    }
+
     fn insert_constructor_setters(
         &mut self,
         adt: &ADT,
@@ -189,26 +238,6 @@ impl HIRGenerator {
         }
         block.push(Expr::none_const_());
         Ok(block)
-    }
-
-    /// Will return a default constructor with no parameters
-    /// should the ADT not contain a constructor and
-    /// all members have default values.
-    fn maybe_default_constructor(&self, adt: &ast::ADT) -> Option<Constructor> {
-        let no_uninitialized_members = !adt
-            .members()
-            .unwrap()
-            .iter()
-            .any(|v| v.initializer.is_none());
-        if adt.constructors().unwrap().is_empty() && no_uninitialized_members {
-            Some(Constructor {
-                parameters: vec![],
-                visibility: Visibility::Public,
-                body: None,
-            })
-        } else {
-            None
-        }
     }
 
     pub fn fill_impls(&mut self, decl: Declaration) {
@@ -243,14 +272,21 @@ impl HIRGenerator {
             for ast_method in ast.methods.drain(..) {
                 let iface = iface.borrow();
                 let name = Rc::clone(&ast_method.sig.name.lexeme);
-                let iface_method = eatc!(iface.methods.get(&name).on_err(
-                    &self.path,
-                    &ast_method.sig.name,
-                    "Method is not defined in interface.",
-                ));
+                let iface_method = eatc!(
+                    self,
+                    iface.methods.get(&name).on_err(
+                        &self.path,
+                        &ast_method.sig.name,
+                        "Method is not defined in interface.",
+                    )
+                );
 
                 // TODO: also insert into ADTs?
-                let impl_method = eatc!(self.create_function(ast_method, Some(this_arg.clone())));
+                // TODO: Type parameters on impls
+                let impl_method = eatc!(
+                    self,
+                    self.create_function(ast_method, Some(this_arg.clone()), None)
+                );
                 iface_impl
                     .methods
                     .insert(Rc::clone(&name), Rc::clone(&impl_method));

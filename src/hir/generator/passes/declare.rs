@@ -12,7 +12,7 @@ use crate::{
                 ast_generics_to_hir, ADTType, Declaration, Function, LocalVariable, ADT,
             },
             module::Module,
-            types::{IFaceImpl, Type},
+            types::{IFaceImpl, Type, TypeParameters},
         },
         result::EmitHIRError,
     },
@@ -51,7 +51,10 @@ impl HIRModuleGenerator {
 
     pub fn declare_functions(&mut self, _module: MutRc<Module>, ast: &mut ast::Module) {
         for ast in ast.functions.drain(..) {
-            eatc!(self.generator.create_function(ast, None));
+            eatc!(
+                self.generator,
+                self.generator.create_function(ast, None, None)
+            );
         }
     }
 }
@@ -66,12 +69,12 @@ impl HIRGenerator {
         &mut self,
         func: ast::Function,
         this_param: Option<FunctionParam>,
+        parent_type_params: Option<&TypeParameters>,
     ) -> Res<MutRc<Function>> {
         let name = func.sig.name.clone();
-        self.try_reserve_name(&func.sig.name);
-
-        let function = self.generate_hir_fn(func, this_param)?;
         self.try_reserve_name(&name);
+
+        let function = self.generate_hir_fn(func, this_param, parent_type_params)?;
         self.module.borrow_mut().declarations.insert(
             Rc::clone(&name.lexeme),
             Declaration::Function(Rc::clone(&function)),
@@ -81,11 +84,14 @@ impl HIRGenerator {
     }
 
     pub fn generate_hir_fn(
-        &self,
+        &mut self,
         func: ast::Function,
         this_param: Option<FunctionParam>,
+        parent_type_params: Option<&TypeParameters>,
     ) -> Res<MutRc<Function>> {
         let signature = &func.sig;
+        let type_parameters = ast_generics_to_hir(&self, &signature.generics, parent_type_params);
+        self.resolver.set_context(&type_parameters);
         let ret_type = signature
             .return_type
             .as_ref()
@@ -110,7 +116,7 @@ impl HIRGenerator {
         Ok(mutrc_new(Function {
             name: signature.name.clone(),
             parameters,
-            type_parameters: ast_generics_to_hir(&self, &signature.generics),
+            type_parameters,
             exprs: Vec::with_capacity(4),
             variables: Default::default(),
             ret_type,
@@ -120,16 +126,19 @@ impl HIRGenerator {
 
     fn maybe_set_main_fn(&self, func: &MutRc<Function>, err_tok: &Token) {
         if &func.borrow().name.lexeme[..] == "main" {
-            eat!(INTRINSICS
-                .with(|i| i.borrow_mut().set_main_fn(func))
-                .on_err(&self.path, err_tok, "Can't define main multiple times."));
+            eat!(
+                self,
+                INTRINSICS
+                    .with(|i| i.borrow_mut().set_main_fn(func))
+                    .on_err(&self.path, err_tok, "Can't define main multiple times.")
+            );
         }
     }
 
     fn declare_impl(&self, iface_impl: ast::IFaceImpl) {
-        let implementor = eat!(self.resolver.find_type(&iface_impl.implementor));
+        let implementor = eat!(self, self.resolver.find_type(&iface_impl.implementor));
 
-        let iface = eat!(self.resolver.find_type(&iface_impl.iface));
+        let iface = eat!(self, self.resolver.find_type(&iface_impl.iface));
         if !iface.is_value() || !iface.as_value().ty.borrow().ty.is_interface() {
             self.err(&iface_impl.iface.token(), "Not an interface".to_string());
         }

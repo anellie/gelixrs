@@ -40,6 +40,7 @@ impl HIRModuleGenerator {
         self.generator.primitive_impls();
         self.run_dec(HIRGenerator::fill_impls);
         self.run_dec(HIRGenerator::insert_adt_fields);
+        self.run_dec(HIRGenerator::constructor_setters);
         self.run_dec(HIRGenerator::generate);
         self.generator.generate_primitive();
         INTRINSICS
@@ -116,7 +117,7 @@ impl HIRModuleGenerator {
         for (declarations, module) in declarations.into_iter() {
             self.generator.switch_module(module);
             for decl in declarations {
-                self.generator.resolver.set_context(decl.type_parameters());
+                self.generator.resolver.set_context(&decl.type_parameters());
                 runner(&mut self.generator, decl)
             }
         }

@@ -10,7 +10,7 @@ use crate::{
             declaration::ADTType,
             expression::{CastType, CastType::Bitcast, Expr},
             module::Module,
-            types::{ClosureType, Instance, Type, TypeParameters, VariableIndex},
+            types::{ClosureType, Instance, Type, TypeParameters, TypeVariable},
         },
         result::EmitHIRError,
     },
@@ -28,21 +28,24 @@ pub struct Resolver {
     pub module: MutRc<Module>,
     /// Path of [module]
     pub path: Rc<ModulePath>,
-    // TODO: Isn't 2 enough in all cases?
-    pub contexts: Vec<Rc<TypeParameters>>,
+    pub type_params: Option<Rc<TypeParameters>>,
 }
 
 impl Resolver {
     /// Resolves the given AST type to its HIR equivalent.
     pub fn find_type(&self, ast: &ast::Type) -> Res<Type> {
+        self.find_type_(ast, false)
+    }
+
+    pub fn find_type_(&self, ast: &ast::Type, allow_fn: bool) -> Res<Type> {
         match ast {
             ast::Type::Ident(tok) => {
-                let ty = self.find_type_by_name(&tok);
-                let ty = ty.or_else(|| self.search_type_param(&tok.lexeme));
+                let ty = self.search_type_param(&tok.lexeme);
+                let ty = ty.or_else(|| self.find_type_by_name(&tok));
                 let ty = ty.on_err(&self.path, ast.token(), "Unknown type.")?;
                 // TODO generics validation
 
-                if !ty.is_function() {
+                if !ty.is_function() || allow_fn {
                     Ok(ty)
                 } else {
                     Err(hir_err(
@@ -99,8 +102,8 @@ impl Resolver {
 
             ast::Type::Generic { token, types } => {
                 // TODO: more validation
-                let mut ty = self.find_type(&ast::Type::Ident(token.clone()))?;
-                let args = ty.type_args().on_err(
+                let mut ty = self.find_type_(&ast::Type::Ident(token.clone()), true)?;
+                let args = ty.type_args_mut().on_err(
                     &self.path,
                     token,
                     "Type does not take type arguments.",
@@ -149,16 +152,13 @@ impl Resolver {
     }
 
     fn search_type_param(&self, name: &String) -> Option<Type> {
-        for (i, context) in self.contexts.iter().enumerate() {
-            for param in context.iter() {
+        if let Some(params) = &self.type_params {
+            for param in params.iter() {
                 if *param.name.lexeme == *name {
-                    return Some(Type::Variable(
-                        VariableIndex {
-                            context: i,
-                            index: param.index,
-                        },
-                        param.bound.clone(),
-                    ));
+                    return Some(Type::Variable(TypeVariable {
+                        index: param.index,
+                        name: Rc::clone(&param.name.lexeme),
+                    }));
                 }
             }
         }
@@ -172,6 +172,7 @@ impl Resolver {
         if success {
             Some(value)
         } else {
+            println!("{} {}", value.get_type(), ty);
             None
         }
     }
@@ -276,12 +277,11 @@ impl Resolver {
     pub fn switch_module(&mut self, new: MutRc<Module>) {
         self.module = new;
         self.path = Rc::clone(&self.module.borrow().path);
-        self.contexts.clear();
+        self.type_params = None;
     }
 
     /// Sets the current type parameters.
-    pub fn set_context(&mut self, ctx: Rc<TypeParameters>) {
-        self.contexts.clear();
-        self.contexts.push(ctx);
+    pub fn set_context(&mut self, ctx: &Rc<TypeParameters>) {
+        self.type_params = Some(Rc::clone(ctx))
     }
 }

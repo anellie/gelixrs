@@ -1,7 +1,8 @@
 use crate::hir::nodes::{
-    declaration::{ADTType, Declaration, Function, ADT},
+    declaration::{ADTType, Declaration, Function, Variable, ADT},
     expression::Expr,
     module::Module,
+    types::print_type_args,
 };
 use std::{
     fmt,
@@ -51,6 +52,13 @@ impl Function {
         }
 
         writeln!(f, ") {{")?;
+        for typ in self.type_parameters.iter() {
+            writeln!(
+                f,
+                "    {}tyvar {}: {:?}",
+                indent, typ.name.lexeme, typ.bound
+            )?;
+        }
         for (name, var) in &self.variables {
             writeln!(
                 f,
@@ -61,6 +69,7 @@ impl Function {
                 var.ty,
             )?;
         }
+
         if !self.variables.is_empty() {
             writeln!(f)?;
         }
@@ -85,6 +94,13 @@ impl ADT {
         }?;
         writeln!(f, " {} {{\n", self.name.lexeme)?;
 
+        for typ in self.type_parameters.iter() {
+            writeln!(
+                f,
+                "    {}tyvar {}: {:?}",
+                indent, typ.name.lexeme, typ.bound
+            )?;
+        }
         for field in self.fields.values() {
             writeln!(
                 f,
@@ -96,7 +112,7 @@ impl ADT {
             )?;
         }
         writeln!(f)?;
-        for func in self.methods.values() {
+        for func in self.constructors.iter().chain(self.methods.values()) {
             func.borrow().display(f, indent_size + INDENT)?;
             writeln!(f)?;
         }
@@ -120,7 +136,13 @@ impl Expr {
 
             Expr::Literal(literal, _) => write!(f, "{}", literal),
 
-            Expr::Variable(var) => write!(f, "{}", var.get_token().lexeme),
+            Expr::Variable(var) => {
+                write!(f, "{}", var.get_token().lexeme)?;
+                if let Variable::Function(func) = var {
+                    print_type_args(f, &func.args)?;
+                }
+                Ok(())
+            }
 
             Expr::Allocate { ty, .. } => write!(f, "allocate({})", ty),
 

@@ -25,28 +25,26 @@ impl<T> EmitHIRError<T> for Option<T> {
 
 #[macro_use]
 mod eat {
-    /// This macro is used to generate binary operator parsing functions.
-    /// The parser is a recursive descent parser.
-    /// name is the name of the binary operation, next is the descending function name.
-    /// matching is an array literal of the tokens that should match.
     macro_rules! eat {
-        ($res:expr) => {{
-            let macro_result = $res;
-            if macro_result.is_ok() {
-                macro_result.ok().unwrap()
-            } else {
-                return;
+        ($gen:expr, $res:expr) => {{
+            match $res {
+                Ok(r) => r,
+                Err(e) => {
+                    $gen.error(e);
+                    return;
+                }
             }
         }};
     }
 
     macro_rules! eatc {
-        ($res:expr) => {{
-            let macro_result = $res;
-            if macro_result.is_ok() {
-                macro_result.ok().unwrap()
-            } else {
-                continue;
+        ($gen:expr, $res:expr) => {{
+            match $res {
+                Ok(r) => r,
+                Err(e) => {
+                    $gen.error(e);
+                    continue;
+                }
             }
         }};
     }

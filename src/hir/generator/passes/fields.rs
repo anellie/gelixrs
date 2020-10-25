@@ -21,17 +21,20 @@ impl HIRGenerator {
         self.check_duplicate(&adt);
     }
 
-    /// This function will fill the ADT with its members while also generating the init method.
+    /// This function will fill the ADT with its members.
     fn build_adt(&mut self, adt: &MutRc<ADT>) {
         let ast = Rc::clone(&adt.borrow().ast);
         let ast = ast.borrow();
 
         for field in ast.members().unwrap().iter() {
             let initializer = field.initializer.as_ref().map(|e| self.expression(e));
-            let ty = eat!(initializer.as_ref().map_or_else(
-                || self.resolver.find_type(field.ty.as_ref().unwrap()),
-                |i| Ok(i.get_type()),
-            ));
+            let ty = eat!(
+                self,
+                initializer.as_ref().map_or_else(
+                    || self.resolver.find_type(field.ty.as_ref().unwrap()),
+                    |i| Ok(i.get_type()),
+                )
+            );
 
             if !ty.can_escape() {
                 self.err(

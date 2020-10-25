@@ -66,7 +66,7 @@ impl HIRGenerator {
 
         let ret_type = function.borrow().ret_type.clone();
         let (body, success) = self.resolver.try_cast(body, &ret_type);
-        if !success {
+        if !success && ret_type != Type::None {
             self.err(
                 &ast.borrow().sig.name.clone(),
                 format!(
@@ -133,6 +133,8 @@ impl HIRGenerator {
     /// that location, then insert all parameters as variables.
     fn prepare_function(&mut self, function: &MutRc<Function>) {
         self.set_pointer(Rc::clone(function));
+        self.resolver
+            .set_context(&function.borrow().type_parameters);
         self.begin_scope();
         let func = function.borrow();
         for param in &func.parameters {

@@ -739,7 +739,11 @@ impl Parser {
             let value = Box::new(self.expression()?);
             match expression {
                 Expression::Variable(name) => Some(Expression::Assignment { name, value }),
-                Expression::Get { object, name, type_args } => Some(Expression::Set {
+                Expression::Get {
+                    object,
+                    name,
+                    type_args,
+                } => Some(Expression::Set {
                     object,
                     name,
                     value,
@@ -834,7 +838,7 @@ impl Parser {
                     expression = Expression::Get {
                         object: Box::new(expression),
                         name,
-                        type_args: generics.unwrap_or_else(|| vec![])
+                        type_args: generics.unwrap_or_else(|| vec![]),
                     }
                 }
 

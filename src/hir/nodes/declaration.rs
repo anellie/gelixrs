@@ -19,6 +19,10 @@ use crate::{
     lexer::token::Token,
     mir::{mutrc_new, MutRc},
 };
+use std::{
+    iter::{Enumerate, Map},
+    slice::Iter,
+};
 
 /// A declaration is a top-level user-defined
 /// item inside a module. This can be
@@ -129,27 +133,20 @@ impl ADT {
             fields: HashMap::with_capacity(mem_size),
             methods: HashMap::with_capacity(method_size),
             constructors: Vec::with_capacity(const_size),
-            type_parameters: ast_generics_to_hir(&generator, &ast.generics),
+            type_parameters: ast_generics_to_hir(&generator, &ast.generics, None),
             ty,
             ast: mutrc_new(ast),
         });
 
         if let Some(mut cases) = enum_cases {
-            let cases = cases
-                .drain(..)
-                .map(|c| Self::enum_case(generator, &adt, c))
-                .collect();
+            let cases = cases.drain(..).map(|c| Self::enum_case(&adt, c)).collect();
             adt.borrow_mut().ty = ADTType::Enum { cases };
         }
 
         adt
     }
 
-    fn enum_case(
-        generator: &HIRGenerator,
-        parent_rc: &MutRc<ADT>,
-        ast: ast::ADT,
-    ) -> (Rc<String>, MutRc<ADT>) {
+    fn enum_case(parent_rc: &MutRc<ADT>, ast: ast::ADT) -> (Rc<String>, MutRc<ADT>) {
         let parent = parent_rc.borrow();
         let ty = ADTType::EnumCase {
             parent: Rc::clone(&parent_rc),
@@ -162,7 +159,7 @@ impl ADT {
                 fields: HashMap::with_capacity(ast.members().unwrap().len() + parent.fields.len()),
                 methods: HashMap::with_capacity(ast.methods.len() + parent.methods.len()),
                 constructors: Vec::with_capacity(ast.constructors().unwrap().len()),
-                type_parameters: ast_generics_to_hir(&generator, &ast.generics),
+                type_parameters: Rc::clone(&parent.type_parameters),
                 ty,
                 ast: mutrc_new(ast),
             }),
@@ -180,7 +177,7 @@ impl ADT {
                     ty: Type::WeakRef(Instance::new(Rc::clone(inst))),
                     constructor: Rc::clone(&inst.borrow().constructors[0]),
                     args: vec![],
-                    tok: Token::eof_token(1)
+                    tok: Token::eof_token(1),
                 })
             } else {
                 None
@@ -197,31 +194,28 @@ impl ADT {
 pub fn ast_generics_to_hir(
     generator: &HIRGenerator,
     generics: &Option<Vec<GenericParam>>,
+    parent_generics: Option<&TypeParameters>,
 ) -> Rc<TypeParameters> {
-    Rc::new(
-        generics
-            .as_ref()
-            .map(|g| {
-                g.iter()
-                    .enumerate()
-                    .map(|elem| {
-                        TypeParameter {
-                            name: elem.1.name.clone(),
-                            index: elem.0,
-                            bound: TypeParameterBound::from_ast(
-                                &generator.resolver,
-                                elem.1.bound.as_ref(),
-                            )
-                            .unwrap_or_else(|e| {
-                                generator.error(e);
-                                TypeParameterBound::default() // doesn't matter anymore, compilation failed anyway
-                            }),
-                        }
-                    })
-                    .collect()
-            })
-            .unwrap_or_else(|| Vec::with_capacity(0)),
-    )
+    let gen_iter = generics.as_ref().map(|g| {
+        g.iter().enumerate().map(|elem| {
+            TypeParameter {
+                name: elem.1.name.clone(),
+                index: elem.0,
+                bound: TypeParameterBound::from_ast(&generator.resolver, elem.1.bound.as_ref())
+                    .unwrap_or_else(|e| {
+                        generator.error(e);
+                        TypeParameterBound::default() // doesn't matter anymore, compilation failed anyway
+                    }),
+            }
+        })
+    });
+
+    Rc::new(match (gen_iter, parent_generics) {
+        (Some(gen), Some(parent)) => parent.iter().cloned().chain(gen).collect(),
+        (Some(gen), None) => gen.collect(),
+        (None, Some(parent)) => parent.clone(),
+        (None, None) => vec![],
+    })
 }
 
 /// The exact type of ADT.

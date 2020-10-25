@@ -344,7 +344,7 @@ impl HIRGenerator {
         self.error_(error, &self.module.borrow())
     }
 
-    pub(crate) fn error_(&self, error: Error, module: &Module) {
+    pub fn error_(&self, error: Error, module: &Module) {
         let mut errs = self.errors.borrow_mut();
         if let Some(errs) = errs.get_mut(&self.path) {
             errs.0.push(error);

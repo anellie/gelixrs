@@ -1,0 +1,11 @@
+/*
+5
+*/
+
+func main() {
+    print(a[i64](4))
+}
+
+func a[T](b: T) -> T = b
+
+class T {}

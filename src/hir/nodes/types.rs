@@ -74,9 +74,7 @@ pub enum Type {
     RawPtr(Box<Type>),
 
     /// An unresolved type parameter, resolved at MIR.
-    /// Bound included to allow using methods/operators that
-    /// the bound guarantees to be present on type argument.
-    Variable(VariableIndex, TypeParameterBound),
+    Variable(TypeVariable),
     /// A type itself. This is used for static fields,
     /// currently only enum cases.
     Type(Box<Type>),
@@ -95,7 +93,7 @@ impl Type {
             (Self::Value(v), Self::Value(o)) => v == o,
             (Self::StrongRef(v), Self::StrongRef(o)) => v == o,
             (Self::WeakRef(v), Self::WeakRef(o)) => v == o,
-            (Self::Variable(i, _), Self::Variable(o, _)) => i == o,
+            (Self::Variable(i), Self::Variable(o)) => i.index == o.index,
             (Self::RawPtr(p), Self::RawPtr(o)) => p == o,
 
             _ => std::mem::discriminant(self) == std::mem::discriminant(other),
@@ -103,10 +101,21 @@ impl Type {
     }
 
     /// Returns type arguments of this type, if applicable.
-    pub fn type_args(&mut self) -> Option<&mut TypeArguments> {
+    pub fn type_args(&self) -> Option<&TypeArguments> {
+        match self {
+            Self::Function(inst) => Some(&inst.args),
+            Self::Value(inst) | Self::WeakRef(inst) | Self::StrongRef(inst) => Some(&inst.args),
+            Self::Type(ty) => ty.type_args(),
+            _ => None,
+        }
+    }
+
+    /// Returns type arguments of this type, if applicable.
+    pub fn type_args_mut(&mut self) -> Option<&mut TypeArguments> {
         match self {
             Self::Function(inst) => Some(&mut inst.args),
             Self::Value(inst) | Self::WeakRef(inst) | Self::StrongRef(inst) => Some(&mut inst.args),
+            Self::Type(ty) => ty.type_args_mut(),
             _ => None,
         }
     }
@@ -313,6 +322,30 @@ impl Type {
             _ => None,
         }
     }
+
+    pub fn resolve(&self, args: &TypeArguments) -> Type {
+        // Start by replacing any type variables with their concrete type
+        let mut ty = match self {
+            Type::Variable(var) => args[var.index].clone(),
+            _ => self.clone(),
+        };
+
+        // Resolve any type args on itself if present,
+        // for example resolving SomeAdt[T] to SomeAdt[ActualType]
+        ty.type_args_mut().map(|a| {
+            for arg in a {
+                *arg = arg.resolve(args)
+            }
+        });
+
+        // If the type has empty type args, attach given ones
+        // Done after arg resolution to prevent resolving given ones when that is not needed
+        if self.type_args().map(|a| a.is_empty()).unwrap_or(false) {
+            *ty.type_args_mut().unwrap() = args.clone();
+        }
+
+        ty
+    }
 }
 
 impl PartialEq for Type {
@@ -347,11 +380,11 @@ impl Display for Type {
         match self {
             Type::Function(_) => write!(f, "<function>"),
             Type::Closure(closure) => write!(f, "{}", closure),
-            Type::Value(adt) => write!(f, "{}", adt.ty.borrow().name.lexeme),
-            Type::WeakRef(adt) => write!(f, "&{}", adt.ty.borrow().name.lexeme),
+            Type::Value(adt) => write!(f, "{}", adt),
+            Type::WeakRef(adt) => write!(f, "&{}", adt),
             Type::RawPtr(inner) => write!(f, "*{}", inner),
-            Type::StrongRef(adt) => write!(f, "@{}", adt.ty.borrow().name.lexeme),
-            Type::Variable(_, _) => write!(f, "<type parameter>"),
+            Type::StrongRef(adt) => write!(f, "@{}", adt),
+            Type::Variable(var) => write!(f, "{}", var.name),
             Type::Type(ty) => match **ty {
                 Type::Function(_) => write!(f, "<function>"),
                 Type::Closure(_) => write!(f, "<closure>"),
@@ -384,6 +417,25 @@ impl<T> Instance<T> {
     }
 }
 
+impl Display for Instance<ADT> {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{}", self.ty.borrow().name.lexeme)?;
+        print_type_args(f, &self.args)
+    }
+}
+
+pub fn print_type_args(f: &mut Formatter, args: &TypeArguments) -> fmt::Result {
+    if !args.is_empty() {
+        let mut args = args.iter();
+        args.next().map(|arg| write!(f, "[{}", arg));
+        for arg in args {
+            write!(f, ", {}", arg)?;
+        }
+        write!(f, "]")?;
+    }
+    Ok(())
+}
+
 impl<T> Clone for Instance<T> {
     /// Clone this instance; does single Rc clone and possibly
     /// vector clone if type arguments are present.
@@ -403,12 +455,11 @@ impl<T> PartialEq for Instance<T> {
 
 impl<T> Eq for Instance<T> {}
 
-/// Index of a type parameter to be used when monomorphising.
-/// TODO: this might need to be done differently.
+/// Type parameter to be used when monomorphising.
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct VariableIndex {
-    pub context: usize,
+pub struct TypeVariable {
     pub index: usize,
+    pub name: Rc<String>,
 }
 
 /// A closure signature.
@@ -433,7 +484,7 @@ impl Display for ClosureType {
 }
 
 /// A single type parameter on a declaration.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TypeParameter {
     /// Name of the parameter to use
     pub name: Token,

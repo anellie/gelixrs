@@ -13,7 +13,7 @@ use either::Either;
 
 use crate::{
     ast::{expression::Expression, Type},
-    lexer::token::Token
+    lexer::token::Token,
 };
 
 /// An enum containing all literals possible in Gelix.

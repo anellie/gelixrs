@@ -59,8 +59,8 @@ fn run(args: Opt) -> Result<(), &'static str> {
         return Err("Given path does not exist.");
     }
 
-    let std_mod = find_std_module()?;
-    let modules = vec![args.file.clone(), std_mod];
+    let _std_mod = find_std_module()?;
+    let modules = vec![args.file.clone()];
 
     let mut code = gelixrs::parse_source(modules).or_else(|errors| {
         for file in errors {
@@ -100,13 +100,13 @@ fn run(args: Opt) -> Result<(), &'static str> {
         return Ok(());
     }
 
-    let mir = gelixrs::compile_mir(hir).map_err(|errors| {
+    let lir = gelixrs::compile_lir(hir).map_err(|errors| {
         for error in errors {
             println!("{}\n", error);
         }
-        "MIR generator encountered errors. Exiting."
+        "LIR generator encountered errors. Exiting."
     })?;
-    let module = gelixrs::compile_ir(mir);
+    let module = gelixrs::compile_ir(lir);
 
     if args.ir {
         match args.output {
