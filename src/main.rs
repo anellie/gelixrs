@@ -62,12 +62,12 @@ fn run(args: Opt) -> Result<(), &'static str> {
     let _std_mod = find_std_module()?;
     let modules = vec![args.file.clone()];
 
-    let mut code = gelixrs::parse_source(modules).or_else(|errors| {
+    let mut code = gelixrs::parse_source(modules).map_err(|errors| {
         for file in errors {
             println!("{} error(s):\n{}", file.0.len(), file);
             println!();
         }
-        Err("Parser encountered errors. Exiting.")
+        "Parser encountered errors. Exiting."
     })?;
 
     if !args.no_prelude {
@@ -144,7 +144,7 @@ fn run(args: Opt) -> Result<(), &'static str> {
     module.write_bitcode_to_path(&module_file);
 
     if args.optimize_level > 3 {
-        Err("Invalid optimize level.")?;
+        return Err("Invalid optimize level.");
     }
     let status = process::Command::new("clang")
         .arg("-o")

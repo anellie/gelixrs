@@ -55,7 +55,7 @@ impl HIRGenerator {
         }
     }
 
-    fn generate_function(&mut self, function: &MutRc<Function>) {
+    pub fn generate_function(&mut self, function: &MutRc<Function>) {
         self.prepare_function(&function);
         let ast = Rc::clone(&function.borrow().ast);
 

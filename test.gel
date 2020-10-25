@@ -1,0 +1,33 @@
+func main() {
+    5 + pls[i64](5)
+
+    5 + uwu[i64](4).pls(3)
+
+    uwu2[i64]().pls(4)
+    AA[i64](BB[i64](4))
+}
+
+func pls[T](a: T) -> T = pls2[T](a)
+
+func pls2[V](a: V) -> V = a
+
+class AA[A] {
+    val a: BB[A]
+    construct(a)
+}
+
+class BB[B] {
+    val b: B
+    construct(b)
+}
+
+class uwu[A] {
+    val owo: A
+    construct(owo)
+    func hmm(a: i64) {}
+    func pls[T](a: T) -> T = a
+}
+
+class uwu2[B] {
+    func pls(a: B) -> uwu[B] = uwu[B](a)
+}

@@ -15,6 +15,9 @@ use crate::{
     mir::MutRc,
 };
 use std::rc::Rc;
+use crate::ast::literal::Closure;
+use crate::ast::declaration::{FuncSignature, Visibility, FunctionParam};
+use crate::hir::nodes::declaration::LocalVariable;
 
 /// This impl contains all code of the generator that directly
 /// produces expressions.
@@ -499,10 +502,10 @@ impl HIRGenerator {
 
     fn for_iter(
         &mut self,
-        elem_name: &Token,
-        iterator: &AExpr,
-        body: &AExpr,
-        else_b: &Option<Box<AExpr>>,
+        _elem_name: &Token,
+        _iterator: &AExpr,
+        _body: &AExpr,
+        _else_b: &Option<Box<AExpr>>,
     ) -> Res<Expr> {
         todo!();
         /*
@@ -715,116 +718,61 @@ impl HIRGenerator {
 
     fn literal(&mut self, literal: &Literal, token: &Token) -> Res<Expr> {
         match literal {
-            // Literal::Array(arr) => self.array_literal(arr.as_ref().left().unwrap()),
-            // Literal::Closure(closure) => self.closure(closure, token),
+            Literal::Closure(closure) => self.closure(closure, token),
             _ => Ok(Expr::Literal(literal.clone(), token.clone())),
         }
     }
-    /*
-        fn array_literal(&mut self, literal: &[AExpr]) -> Res<Expr> {
-            let mut values_mir = Vec::new();
-            let mut ast_values = literal.iter();
-            let first = self.expression(ast_values.next().unwrap())?;
-            let elem_type = first.get_type();
 
-            values_mir.push(first);
-            for value in ast_values {
-                let mir_val = self.expression(value)?;
+    fn closure(&mut self, closure: &Closure, token: &Token) -> Res<Expr> {
+        let mut name = token.clone();
+        name.lexeme = Rc::new(format!("closure-{}:{}", token.line, token.index));
+        let ast_func = ast::Function {
+            sig: FuncSignature {
+                name,
+                visibility: Visibility::Public,
+                generics: None,
+                return_type: closure.ret_ty.clone(),
+                parameters: closure
+                    .parameters
+                    .iter()
+                    .map(|p| FunctionParam {
+                        type_: p.type_.as_ref().unwrap().clone(),
+                        name: p.name.clone(),
+                    })
+                    .collect(),
+                variadic: false,
+                modifiers: vec![],
+            },
+            body: Some(closure.body.clone()),
+        };
 
-                if mir_val.get_type() != elem_type {
-                    return Err(self.err(
-                        value.get_token(),
-                        &format!(
-                            "Type of array value ({}) does not match rest of array ({}).",
-                            mir_val.get_type(),
-                            elem_type
-                        ),
-                    ));
-                }
+        let mut gen = Self::for_closure(self);
+        let function = gen.create_function(
+            ast_func,
+            Some(FunctionParam::this_param(&Token::generic_identifier("i64".to_string()))),
+            None // TODO: always none? maybe not
+        )?;
+        gen.generate_function(&function);
+        let closure_data = gen.end_closure(self);
 
-                values_mir.push(mir_val);
-            }
+        let captured = Rc::new(closure_data.captured);
+        function.borrow_mut().parameters[0] = Rc::new(LocalVariable {
+            name: Token::generic_identifier("CLOSURE-CAPTURED".to_string()),
+            ty: Type::ClosureCaptured(Rc::clone(&captured)),
+            mutable: false
+        });
 
-            let array_type = INTRINSICS.with(|i| i.borrow().get_array_type(elem_type, None))?;
-            let array_type = array_type.as_adt();
-            let push_method = {
-                let arr = array_type.borrow();
-                Rc::clone(arr.methods.get(&Rc::new("push".to_string())).unwrap())
-            };
-
-            let constructor = &array_type.borrow().constructors[0];
-            // Using an EOF token here is fine since this will never fail
-            let array = self.alloc_heap(
-                &Token::eof_token(0),
-                Expr::alloc_type(
-                    Type::Adt(Rc::clone(&array_type)),
-                    constructor,
-                    vec![Expr::Literal(Literal::I64(values_mir.len() as u64))],
-                ),
-            )?;
-
-            Ok(Expr::Literal(Literal::Array(Right(ArrayLiteral {
-                alloc: Box::new(array),
-                values: values_mir,
-                push_fn: push_method,
-                type_: Type::Adt(array_type.clone()),
-            }))))
-        }
-
-        fn closure(&mut self, closure: &Closure, token: &Token) -> Res<Expr> {
-            let mut name = token.clone();
-            name.lexeme = Rc::new(format!("closure-{}:{}", token.line, token.index));
-            let ast_func = ast::Function {
-                sig: FuncSignature {
-                    name: name.clone(),
-                    visibility: Visibility::Public,
-                    generics: None,
-                    return_type: closure.ret_ty.clone(),
-                    parameters: closure
-                        .parameters
-                        .iter()
-                        .map(|p| FunctionParam {
-                            type_: p.type_.as_ref().unwrap().clone(),
-                            name: p.name.clone(),
-                        })
-                        .collect(),
-                    variadic: false,
-                    modifiers: vec![],
-                },
-                body: Some(closure.body.clone()),
-            };
-
-            let mut gen = Self::for_closure(self);
-            let function = generate_mir_fn(
-                &gen.builder,
-                Right(ast_func),
-                String::clone(&name.lexeme),
-                Some(FunctionParam::this_param(&Token::generic_identifier(
-                    "i64".to_string(),
-                ))),
-            )?;
-            let global = Variable::new(false, Type::Function(Rc::clone(&function)), &name.lexeme);
-            insert_global_and_type(&gen.module, &global);
-
-            catch_up_passes(&mut gen, &Type::Function(Rc::clone(&function)))?;
-            let closure_data = gen.end_closure(self);
-
-            let captured = Rc::new(closure_data.captured);
-            function.borrow_mut().parameters[0] = Variable::new(
-                false,
-                Type::ClosureCaptured(Rc::clone(&captured)),
-                &Rc::new("CLOSURE-CAPTURED".to_string()),
-            );
-
-            let expr = Expr::construct_closure(&global, captured);
-            let var = self.define_variable(
-                &Token::generic_identifier("closure-literal".to_string()),
-                false,
-                expr.get_type(),
-            );
-            Ok(Expr::store(&var, expr, true))
-        }
-    */
+        let expr = Expr::Closure {
+            function,
+            captured
+        };
+        let var = self.define_variable(
+            &Token::generic_identifier("closure-literal".to_string()),
+            false,
+            expr.get_type(),
+        );
+        Ok(Expr::store(Expr::lvar(&var), expr, true))
+    }
 
     fn return_(&mut self, val: &Option<Box<AExpr>>, err_tok: &Token) -> Res<Expr> {
         let value = val

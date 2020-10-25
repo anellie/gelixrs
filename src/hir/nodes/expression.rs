@@ -12,7 +12,7 @@ use crate::{
         generator::intrinsics::INTRINSICS,
         nodes::{
             declaration::{Field, Function, LocalVariable, Variable},
-            types::{Type, TypeArguments},
+            types::{Type},
         },
     },
     lexer::token::Token,
@@ -118,6 +118,14 @@ pub enum Expr {
         inner: Box<Expr>,
         to: Type,
         method: CastType,
+    },
+
+    /// A closure construction out of a function and captured variables.
+    /// The function is required to have a receiver parameter of type
+    /// ClosureCaptured, fitting [captured].
+    Closure {
+        function: MutRc<Function>,
+        captured: Rc<Vec<Rc<LocalVariable>>>
     },
 
     TypeGet(Type),
@@ -251,8 +259,7 @@ impl Expr {
 
             Expr::Load { object, field } => field
                 .ty
-                .resolve(object.get_type().type_args().unwrap())
-                .clone(),
+                .resolve(object.get_type().type_args().unwrap()),
 
             Expr::Store { value, .. } => value.get_type(),
 
@@ -270,7 +277,7 @@ impl Expr {
             }
 
             Expr::Call { callee, .. } => match callee.get_type() {
-                Type::Function(func) => func.ty.borrow().ret_type.resolve(&func.args).clone(),
+                Type::Function(func) => func.ty.borrow().ret_type.resolve(&func.args),
                 Type::Closure(closure) => closure.ret_type.clone(),
                 _ => panic!("Invalid callee"),
             },
@@ -288,6 +295,8 @@ impl Expr {
             Expr::Break(_) | Expr::Return(_) => Type::Any,
 
             Expr::Cast { to, .. } | Expr::Allocate { ty: to, .. } => to.clone(),
+
+            Expr::Closure { function, .. } => function.borrow().to_closure_type(),
 
             Expr::TypeGet(ty) => Type::Type(Box::new(ty.clone())),
         }
@@ -317,7 +326,7 @@ impl Expr {
 
             Expr::Block(exprs) => exprs.first().unwrap().get_token(),
 
-            Expr::TypeGet(_) => panic!("no token here!"),
+            Expr::Closure { .. } | Expr::TypeGet(_) => panic!("no token here!"),
         }
     }
 

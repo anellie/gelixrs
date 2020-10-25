@@ -58,7 +58,7 @@ impl HIRModuleGenerator {
             .errors
             .take()
             .into_iter()
-            .map(|(k, v)| v)
+            .map(|(_, v)| v)
             .collect::<Vec<_>>();
         if errs.is_empty() {
             Ok(self.modules)

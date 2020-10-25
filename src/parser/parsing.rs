@@ -742,7 +742,7 @@ impl Parser {
                 Expression::Get {
                     object,
                     name,
-                    type_args,
+                    ..
                 } => Some(Expression::Set {
                     object,
                     name,
@@ -838,12 +838,12 @@ impl Parser {
                     expression = Expression::Get {
                         object: Box::new(expression),
                         name,
-                        type_args: generics.unwrap_or_else(|| vec![]),
+                        type_args: generics.unwrap_or_else(Vec::new),
                     }
                 }
 
                 _ if self.matches(TType::Colon) => {
-                    expression = Expression::GetStatic {
+                    expression = Expression::GetStatic { 
                         object: Box::new(expression),
                         name: self
                             .consume(TType::Identifier, "Expected property name after ':'.")?,

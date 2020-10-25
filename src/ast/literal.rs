@@ -42,7 +42,7 @@ pub enum Literal {
     Char(char),
     String(Rc<String>),
 
-    // TODO: HIR arrays
+    // TODO: HIR array literals
     Array(Either<Rc<Vec<Expression>>, ()>),
 
     Closure(Box<Closure>),

@@ -128,7 +128,7 @@ impl Expr {
                 writeln!(f, "{{")?;
                 for expr in exprs.iter() {
                     write!(f, "{}    ", indent)?;
-                    expr.display(f, indent_size);
+                    expr.display(f, indent_size)?;
                     writeln!(f)?;
                 }
                 write!(f, "{}}}\n{}", indent, indent)
@@ -154,7 +154,7 @@ impl Expr {
             Expr::Store {
                 location,
                 value,
-                first_store,
+                ..
             } => {
                 location.display(f, indent_size + INDENT)?;
                 write!(f, " = ")?;
@@ -193,7 +193,7 @@ impl Expr {
                 condition,
                 then_branch,
                 else_branch,
-                phi_type,
+                ..
             } => {
                 write!(f, "if (")?;
                 condition.display(f, indent_size + INDENT)?;
@@ -206,7 +206,7 @@ impl Expr {
             Expr::Switch {
                 branches,
                 else_branch,
-                phi_type,
+                ..
             } => {
                 let indent = repeat(' ').take(indent_size).collect::<String>();
                 let indent_inner = repeat(' ').take(indent_size + INDENT).collect::<String>();
@@ -229,7 +229,7 @@ impl Expr {
                 condition,
                 body,
                 else_branch,
-                phi_type,
+                ..
             } => {
                 write!(f, "for (")?;
                 condition.display(f, indent_size + INDENT)?;
@@ -253,6 +253,10 @@ impl Expr {
                 write!(f, "cast[{}](", to)?;
                 inner.display(f, indent_size + INDENT)?;
                 write!(f, ", {:?})", method)
+            }
+
+            Expr::Closure { function, .. } => {
+                write!(f, "closure({})", function.borrow().name.lexeme)
             }
 
             Expr::TypeGet(ty) => write!(f, "get_type({})", ty),

@@ -121,11 +121,11 @@ pub fn compile_hir(modules: Vec<Module>) -> Result<Vec<MutRc<hir::Module>>, Vec<
     HIRModuleGenerator::new(modules).consume()
 }
 
-pub fn compile_lir(modules: Vec<MutRc<hir::Module>>) -> Result<Vec<MutRc<LModule>>, Vec<Errors>> {
+pub fn compile_lir(_modules: Vec<MutRc<hir::Module>>) -> Result<Vec<MutRc<LModule>>, Vec<Errors>> {
     todo!()
 }
 
-pub fn compile_ir(modules: Vec<MutRc<LModule>>) -> inkwell::module::Module {
+pub fn compile_ir(_modules: Vec<MutRc<LModule>>) -> inkwell::module::Module {
     todo!()
 }
 

@@ -21,6 +21,7 @@ use crate::{
     lexer::token::Token,
     mir::MutRc,
 };
+use crate::hir::nodes::declaration::LocalVariable;
 
 pub type TypeArguments = Vec<Type>;
 pub type TypeParameters = Vec<TypeParameter>;
@@ -59,6 +60,8 @@ pub enum Type {
     Function(Instance<Function>),
     /// A closure signature.
     Closure(Rc<ClosureType>),
+    /// The first parameter on a closure function
+    ClosureCaptured(Rc<Vec<Rc<LocalVariable>>>),
 
     /// An ADT used as a value.
     Value(Instance<ADT>),
@@ -332,12 +335,12 @@ impl Type {
 
         // Resolve any type args on itself if present,
         // for example resolving SomeAdt[T] to SomeAdt[ActualType]
-        ty.type_args_mut().map(|a| {
+        if let Some(a) = ty.type_args_mut() {
             for arg in a {
                 *arg = arg.resolve(args)
             }
-        });
-
+        }
+        
         // If the type has empty type args, attach given ones
         // Done after arg resolution to prevent resolving given ones when that is not needed
         if self.type_args().map(|a| a.is_empty()).unwrap_or(false) {

@@ -19,10 +19,6 @@ use crate::{
     lexer::token::Token,
     mir::{mutrc_new, MutRc},
 };
-use std::{
-    iter::{Enumerate, Map},
-    slice::Iter,
-};
 
 /// A declaration is a top-level user-defined
 /// item inside a module. This can be
