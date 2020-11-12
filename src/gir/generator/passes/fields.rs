@@ -1,11 +1,11 @@
 use std::rc::Rc;
 
 use crate::{
-    hir::{
+    gir::{
         generator::HIRGenerator,
         nodes::declaration::{Declaration, Field, ADT},
     },
-    mir::MutRc,
+    gir::MutRc,
 };
 
 impl HIRGenerator {

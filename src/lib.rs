@@ -18,21 +18,17 @@ use std::{env, fs, path::PathBuf, rc::Rc};
 use crate::{
     ast::module::{Import, Module, ModulePath},
     error::{Error, Errors},
-    hir::generator::module::HIRModuleGenerator,
     lexer::token::Token,
-    lir::LModule,
-    mir::MutRc,
+    gir::MutRc,
 };
 
 pub mod ast;
 //#[cfg(test)]
 //pub mod bench;
 pub mod error;
-pub mod hir;
+pub mod gir;
 pub mod ir;
 pub mod lexer;
-pub mod lir;
-pub mod mir;
 pub mod parser;
 #[cfg(test)]
 pub mod tests;
@@ -95,8 +91,12 @@ fn parse_module(input: PathBuf, path: &mut ModulePath) -> Result<Module, Vec<Err
 }
 
 fn fill_module(code: Rc<String>, module: &mut Module) -> Result<(), Errors> {
-    let lexer = lexer::Lexer::new(&code);
-    let parser = parser::Parser::new(lexer, Rc::clone(&module.path));
+    let lexer = lexer::Lexer::new(&code, &module.path);
+    let tokens = lexer
+        .consume()
+        .map_err(|e| Errors(vec![e], Rc::clone(&code)))?;
+
+    let parser = parser::Parser::new(tokens, Rc::clone(&module.path));
     parser.parse(module).map_err(|errs| Errors(errs, code))
 }
 
@@ -117,18 +117,19 @@ pub fn auto_import_prelude(modules: &mut Vec<Module>) {
     }
 }
 
-pub fn compile_hir(modules: Vec<Module>) -> Result<Vec<MutRc<hir::Module>>, Vec<Errors>> {
+/*
+pub fn compile_hir(modules: Vec<Module>) -> Result<Vec<MutRc<gir::Module>>, Vec<Errors>> {
     HIRModuleGenerator::new(modules).consume()
 }
 
-pub fn compile_lir(_modules: Vec<MutRc<hir::Module>>) -> Result<Vec<MutRc<LModule>>, Vec<Errors>> {
+pub fn compile_lir(_modules: Vec<MutRc<gir::Module>>) -> Result<Vec<MutRc<LModule>>, Vec<Errors>> {
     todo!()
 }
 
 pub fn compile_ir(_modules: Vec<MutRc<LModule>>) -> inkwell::module::Module {
     todo!()
 }
-
+*/
 pub fn stem_to_rc_str(path: &PathBuf) -> Rc<String> {
     Rc::new(path.file_stem().unwrap().to_str().unwrap().to_string())
 }

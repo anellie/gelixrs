@@ -4,7 +4,7 @@ use crate::{
     ast,
     ast::declaration::FunctionParam,
     error::Res,
-    hir::{
+    gir::{
         generator::{intrinsics::INTRINSICS, module::HIRModuleGenerator, HIRGenerator},
         get_or_create_iface_impls,
         nodes::{
@@ -17,7 +17,7 @@ use crate::{
         result::EmitHIRError,
     },
     lexer::token::Token,
-    mir::{mutrc_new, MutRc},
+    gir::{mutrc_new, MutRc},
 };
 
 impl HIRModuleGenerator {
@@ -121,6 +121,7 @@ impl HIRGenerator {
             variables: Default::default(),
             ret_type,
             ast: mutrc_new(func),
+            module: Rc::clone(&self.module),
         }))
     }
 

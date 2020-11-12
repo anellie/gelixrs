@@ -1,23 +1,24 @@
 use crate::{
     ast,
-    ast::{Expression as AExpr, Literal},
+    ast::{
+        declaration::{FuncSignature, FunctionParam, Visibility},
+        literal::Closure,
+        Expression as AExpr, Literal,
+    },
     error::Res,
-    hir::{
+    gir::{
         generator::HIRGenerator,
         nodes::{
-            declaration::{ADTType, Variable, ADT},
+            declaration::{ADTType, LocalVariable, Variable, ADT},
             expression::{CastType, Expr},
             types::{Instance, Type, TypeArguments},
         },
         result::EmitHIRError,
     },
     lexer::token::{TType, Token},
-    mir::MutRc,
+    gir::MutRc,
 };
 use std::rc::Rc;
-use crate::ast::literal::Closure;
-use crate::ast::declaration::{FuncSignature, Visibility, FunctionParam};
-use crate::hir::nodes::declaration::LocalVariable;
 
 /// This impl contains all code of the generator that directly
 /// produces expressions.
@@ -134,7 +135,7 @@ impl HIRGenerator {
         }
     }
 
-    fn binary(&mut self, left: &AExpr, operator: &Token, right: &AExpr) -> Res<Expr> {
+    fn binary(&mut self, left: &AExpr, operator: &Token , right: &AExpr) -> Res<Expr> {
         let left = self.expression(left);
 
         // Account for an edge case with simple enums, where `A:A` incorrectly gets
@@ -749,8 +750,10 @@ impl HIRGenerator {
         let mut gen = Self::for_closure(self);
         let function = gen.create_function(
             ast_func,
-            Some(FunctionParam::this_param(&Token::generic_identifier("i64".to_string()))),
-            None // TODO: always none? maybe not
+            Some(FunctionParam::this_param(&Token::generic_identifier(
+                "i64".to_string(),
+            ))),
+            None, // TODO: always none? maybe not
         )?;
         gen.generate_function(&function);
         let closure_data = gen.end_closure(self);
@@ -759,13 +762,10 @@ impl HIRGenerator {
         function.borrow_mut().parameters[0] = Rc::new(LocalVariable {
             name: Token::generic_identifier("CLOSURE-CAPTURED".to_string()),
             ty: Type::ClosureCaptured(Rc::clone(&captured)),
-            mutable: false
+            mutable: false,
         });
 
-        let expr = Expr::Closure {
-            function,
-            captured
-        };
+        let expr = Expr::Closure { function, captured };
         let var = self.define_variable(
             &Token::generic_identifier("closure-literal".to_string()),
             false,

@@ -8,12 +8,13 @@ use std::{iter::Peekable, mem, rc::Rc};
 
 use crate::{
     lexer::{
-        token::{TType, Token},
+        token::{TType, TType::EndOfFile, Token},
         Lexer,
     },
     parser::parsing::MODIFIERS,
     Error, ModulePath,
 };
+use std::collections::VecDeque;
 
 mod parsing;
 
@@ -23,11 +24,9 @@ pub struct Parser {
     /// Required for error display.
     module_path: Rc<ModulePath>,
 
-    /// The token stream used.
-    tokens: Peekable<Lexer>,
+    /// The tokens left to parse.
+    tokens: VecDeque<Token>,
 
-    /// The token currently being processed.
-    current: Token,
     /// The line of the token before the current one.
     previous_line: usize,
 
@@ -72,11 +71,11 @@ impl Parser {
         }
     }
 
-    /// Same as consume, but consumes semicolons or newlines.
+    /// Same as consume, but consumes a separator (`;` or newline).
     /// Also does not return a token, since newlines are not tokens.
     /// (This special function is needed because of this)
-    fn consume_semi_or_nl(&mut self, message: &'static str) -> Option<()> {
-        if self.matches(TType::Semicolon) || self.previous_line != self.current.line {
+    fn consume_separator(&mut self, message: &'static str) -> Option<()> {
+        if self.matches(TType::Semicolon) || self.previous_line != self.current_line() {
             Some(())
         } else {
             self.error_at_current(message);
@@ -84,44 +83,55 @@ impl Parser {
         }
     }
 
-    /// Sets self.current to the next token and returns the last token.
-    /// If at the end of tokens, self.current is set to an `EndOfFile` token.
+    /// Advances to the next token, returning the previous one.
     /// Advancing after the end will simply return `EndOfFile` tokens indefinitely.
     fn advance(&mut self) -> Token {
-        self.previous_line = self.current.line;
-
-        let next_token = self
-            .tokens
-            .next()
-            .unwrap_or_else(|| Token::eof_token(self.current.line + 1));
-        let old_token = mem::replace(&mut self.current, next_token);
-
-        if self.check(TType::ScanError) {
-            self.lexer_error();
-        }
-
-        old_token
+        self.previous_line = self.current_line();
+        self.tokens
+            .pop_front()
+            .unwrap_or_else(|| Token::eof_token(self.current_line() + 1))
     }
 
     /// Is the current token the given token?
     fn check(&self, t_type: TType) -> bool {
-        self.current.t_type == t_type
+        self.current() == t_type
     }
 
     /// Is the next token the given token?
     fn check_next(&mut self, t_type: TType) -> bool {
-        self.tokens.peek().unwrap_or(&Token::eof_token(0)).t_type == t_type
+        self.peek() == t_type
     }
 
-    /// Same as check, but checks for ; or newlines
-    /// (This special function is needed since newlines are not a token)
-    fn check_semi_or_nl(&mut self) -> bool {
-        self.check(TType::Semicolon) || self.previous_line != self.current.line
+    /// Same as check, but checks for separators between expressions (`;` or newline)
+    fn check_separator(&mut self) -> bool {
+        self.check(TType::Semicolon) || self.previous_line != self.current_line()
     }
 
     /// Is the parser at the end of the token stream?
     fn is_at_end(&self) -> bool {
-        self.current.t_type == TType::EndOfFile
+        self.current() == TType::EndOfFile
+    }
+
+    fn current(&self) -> TType {
+        self.tokens.get(0).map(|t| t.t_type).unwrap_or(EndOfFile)
+    }
+
+    fn current_line(&self) -> usize {
+        self.tokens
+            .get(0)
+            .map(|t| t.line)
+            .unwrap_or(self.previous_line)
+    }
+
+    fn current_full(&self) -> Token {
+        self.tokens
+            .get(0)
+            .cloned()
+            .unwrap_or_else(|| Token::eof_token(self.previous_line))
+    }
+
+    fn peek(&self) -> TType {
+        self.tokens.get(1).map(|t| t.t_type).unwrap_or(EndOfFile)
     }
 
     /// Causes an error at the current token with the given message.
@@ -129,24 +139,13 @@ impl Parser {
     /// Returns None; allows returning from calling function with ?
     fn error_at_current(&mut self, message: &str) -> Option<()> {
         let error = Error::new(
-            &self.current,
+            &self.current_full(),
             "Parser",
             message.to_string(),
             &self.module_path,
         );
         self.errors.push(error);
         None
-    }
-
-    /// Reports an error produced by the lexer.
-    fn lexer_error(&mut self) {
-        let error = Error::new(
-            &self.current,
-            "Lexer",
-            (*self.current.lexeme).clone(),
-            &self.module_path,
-        );
-        self.errors.push(error);
     }
 
     /// Will attempt to sync after an error to allow compilation to continue.
@@ -157,9 +156,8 @@ impl Parser {
         self.advance();
 
         while !self.is_at_end() {
-            match self.current.t_type {
-                TType::Impl | TType::Import | TType::Class | TType::Enum | TType::Func => return,
-                _ if MODIFIERS.contains(&self.current.t_type) => return,
+            match self.current() {
+                TType::Impl | TType::Import | TType::Class | TType::Enum => return,
                 _ => (),
             }
             self.advance();
@@ -167,20 +165,15 @@ impl Parser {
     }
 
     /// Creates a new parser for parsing the given tokens.
-    pub fn new(tokens: Lexer, module_path: Rc<ModulePath>) -> Parser {
-        let mut parser = Parser {
+    pub fn new(tokens: VecDeque<Token>, module_path: Rc<ModulePath>) -> Parser {
+        Parser {
             module_path,
-            tokens: tokens.peekable(),
+            tokens,
 
-            current: Token::eof_token(0),
             previous_line: 0,
 
             errors: vec![],
             modifiers: vec![],
-        };
-
-        // Set state correctly.
-        parser.advance();
-        parser
+        }
     }
 }

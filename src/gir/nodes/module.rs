@@ -6,9 +6,9 @@ use std::{
 use crate::{
     ast,
     ast::module::ModulePath,
-    hir::{generator::HIRGenerator, hir_err, nodes::declaration::Declaration},
+    gir::{generator::HIRGenerator, hir_err, nodes::declaration::Declaration},
     lexer::token::Token,
-    mir::{mutrc_new, MutRc},
+    gir::{mutrc_new, MutRc},
 };
 
 /// A module as represented in HIR.

@@ -4,13 +4,13 @@ use crate::{
     ast,
     ast::module::ModulePath,
     error::{Error, Errors},
-    hir::{
+    gir::{
         generator::{intrinsics::INTRINSICS, HIRGenerator},
         hir_err,
         nodes::{declaration::Declaration, module::Module},
     },
     lexer::token::Token,
-    mir::MutRc,
+    gir::MutRc,
 };
 
 /// Generator responsible for compiling the full HIR

@@ -6,11 +6,20 @@
 
 use std::{convert::TryInto, iter::FromIterator, rc::Rc};
 
+use crate::{
+    ast::module::ModulePath,
+    error::{Error, Res},
+};
+use std::collections::VecDeque;
 use token::{TType, Token};
 
 pub mod token;
 
+type LRes = Res<Token>;
+
 /// A lexer is an iterator that turns gelix source code into [Token]s.
+/// It returns the next token with [next], and allows temporarily
+/// looking at the next token with [peek].
 pub struct Lexer {
     /// The chars of the source
     chars: Vec<char>,
@@ -22,53 +31,65 @@ pub struct Lexer {
     line: usize,
     /// The index of the current position on the current line
     line_index: usize,
+
+    /// The path of the module this lexer is lexing.
+    /// Required for error display.
+    module_path: Rc<ModulePath>,
 }
 
 impl Lexer {
-    /// Returns the next token, or None if at EOF.
-    fn next_token(&mut self) -> Option<Token> {
-        if let Err(tok) = self.skip_whitespace() {
-            return Some(tok);
+    /// Consume the lexer, producing all tokens.
+    pub fn consume(mut self) -> Res<VecDeque<Token>> {
+        let mut toks = VecDeque::with_capacity(300);
+        while let Some(token) = self.next_token()? {
+            toks.push_back(token)
         }
+        Ok(toks)
+    }
 
+    fn next_token(&mut self) -> Res<Option<Token>> {
+        self.skip_whitespace()?;
         self.start = self.current;
-        let ch = self.advance()?;
 
-        Some(match ch {
-            // Single-char
-            '(' => self.make_token(TType::LeftParen),
-            ')' => self.make_token(TType::RightParen),
-            '[' => self.make_token(TType::LeftBracket),
-            ']' => self.make_token(TType::RightBracket),
-            '{' => self.make_token(TType::LeftBrace),
-            '}' => self.make_token(TType::RightBrace),
-            ';' => self.make_token(TType::Semicolon),
-            ',' => self.make_token(TType::Comma),
-            '.' => self.make_token(TType::Dot),
-            '+' => self.make_token(TType::Plus),
-            '*' => self.make_token(TType::Star),
-            '/' => self.make_token(TType::Slash),
-            '~' => self.make_token(TType::Tilde),
-            '&' => self.make_token(TType::AndSym),
+        let ch = self.advance();
+        ch.map(|ch| {
+            Ok(match ch {
+                // Single-char
+                '(' => self.make_token(TType::LeftParen),
+                ')' => self.make_token(TType::RightParen),
+                '[' => self.make_token(TType::LeftBracket),
+                ']' => self.make_token(TType::RightBracket),
+                '{' => self.make_token(TType::LeftBrace),
+                '}' => self.make_token(TType::RightBrace),
+                ';' => self.make_token(TType::Semicolon),
+                ',' => self.make_token(TType::Comma),
+                '.' => self.make_token(TType::Dot),
+                '+' => self.make_token(TType::Plus),
+                '*' => self.make_token(TType::Star),
+                '/' => self.make_token(TType::Slash),
+                '~' => self.make_token(TType::Tilde),
+                '&' => self.make_token(TType::AndSym),
 
-            // Double-char
-            '!' => self.check_double_token('=', TType::BangEqual, TType::Bang),
-            '=' => self.check_double_token('=', TType::EqualEqual, TType::Equal),
-            '<' => self.check_double_token('=', TType::LessEqual, TType::Less),
-            '>' => self.check_double_token('=', TType::GreaterEqual, TType::Greater),
-            '-' => self.check_double_token('>', TType::Arrow, TType::Minus),
-            ':' => self.check_double_token(':', TType::ColonColon, TType::Colon),
+                // Double-char
+                '!' => self.check_double_token('=', TType::BangEqual, TType::Bang),
+                '=' => self.check_double_token('=', TType::EqualEqual, TType::Equal),
+                '<' => self.check_double_token('=', TType::LessEqual, TType::Less),
+                '>' => self.check_double_token('=', TType::GreaterEqual, TType::Greater),
+                '-' => self.check_double_token('>', TType::Arrow, TType::Minus),
+                ':' => self.check_double_token(':', TType::ColonColon, TType::Colon),
 
-            // Literals
-            '"' => self.string(),
-            '\'' => self.ch(),
-            _ if ch.is_ascii_digit() => self.number(),
+                // Literals
+                '"' => self.string()?,
+                '\'' => self.ch()?,
+                _ if ch.is_ascii_digit() => self.number(),
 
-            // Identifiers/Keywords
-            _ if (ch.is_alphabetic() || ch == '_') => self.identifier(),
+                // Identifiers/Keywords
+                _ if (ch.is_alphabetic() || ch == '_') => self.identifier(),
 
-            _ => self.error_token("Unexpected symbol."),
+                _ => return Err(self.error("Unexpected symbol.")),
+            })
         })
+        .transpose()
     }
 
     /// Matches the next char to check for double-char tokens. Will emit token based on match.
@@ -83,7 +104,7 @@ impl Lexer {
 
     /// Creates an identifier or keyword token.
     fn identifier(&mut self) -> Token {
-        while self.peek().is_alphanumeric() || self.check('_') {
+        while self.peek_ch().is_alphanumeric() || self.check('_') {
             self.advance();
         }
         let mut token = self.make_token(TType::Identifier);
@@ -132,20 +153,20 @@ impl Lexer {
 
     /// Creates a Int or Float token
     fn number(&mut self) -> Token {
-        while self.peek().is_ascii_digit() {
+        while self.peek_ch().is_ascii_digit() {
             self.advance();
         }
 
         if self.check('.') && self.peek_twice().is_ascii_digit() {
             self.advance();
-            while self.peek().is_ascii_digit() {
+            while self.peek_ch().is_ascii_digit() {
                 self.advance();
             }
             self.match_next('f');
             self.make_token(TType::Float)
         } else {
             if self.match_next('i') || self.match_next('u') {
-                while self.peek().is_ascii_alphanumeric() {
+                while self.peek_ch().is_ascii_alphanumeric() {
                     self.advance();
                 }
             }
@@ -154,7 +175,7 @@ impl Lexer {
     }
 
     /// Creates a string token
-    fn string(&mut self) -> Token {
+    fn string(&mut self) -> LRes {
         let start_line = self.line;
         while !self.check('"') && !self.is_at_end() {
             if self.check('\n') {
@@ -165,27 +186,25 @@ impl Lexer {
         }
 
         if self.is_at_end() {
-            let mut token = self.error_token("Unterminated string!");
-            token.line = start_line;
-            token
+            Err(self.error("Unterminated string!"))
         } else {
             // Ensure the quotes are not included in the literal
             self.start += 1;
-            let token = self.str_escape_seq();
+            let token = self.str_escape_seq()?;
             self.advance();
-            token
+            Ok(token)
         }
     }
 
     /// Replace all escape sequences inside a string literal with their proper char
     /// and return either an error or the finished string token
-    fn str_escape_seq(&mut self) -> Token {
+    fn str_escape_seq(&mut self) -> LRes {
         for i in self.start..self.current {
             if self.char_at(i) == '\\' {
                 self.chars.remove(i);
                 self.current -= 1;
                 if self.chars.len() == i {
-                    return self.error_token("Unterminated string!");
+                    return Err(self.error("Unterminated string!"));
                 }
 
                 self.chars[i] = match self.char_at(i) {
@@ -208,21 +227,21 @@ impl Lexer {
                             .unwrap()
                     }
 
-                    _ => return self.error_token("Unknown escape sequence."),
+                    _ => return Err(self.error("Unknown escape sequence.")),
                 }
             }
         }
-        self.make_token(TType::String)
+        Ok(self.make_token(TType::String))
     }
 
     /// Creates a char token
-    fn ch(&mut self) -> Token {
+    fn ch(&mut self) -> LRes {
         self.advance();
         if self.match_next('\'') {
-            self.make_token(TType::Char)
+            Ok(self.make_token(TType::Char))
         } else {
             self.advance();
-            self.error_token("Unterminated char literal!")
+            Err(self.error("Unterminated char literal!"))
         }
     }
 
@@ -237,21 +256,22 @@ impl Lexer {
         }
     }
 
-    /// Creates a `ScanError` token with the given message at the current location
-    fn error_token(&mut self, message: &'static str) -> Token {
-        Token {
-            t_type: TType::ScanError,
-            lexeme: Rc::new(message.to_string()),
-            index: self.line_index + message.len(),
+    /// Creates an error with the given message at the current location
+    fn error(&mut self, message: &'static str) -> Error {
+        Error {
             line: self.line,
-            len: message.len(),
+            start: self.line_index,
+            len: self.current - self.start,
+            producer: "Lexer",
+            message: message.to_string(),
+            module: Rc::clone(&self.module_path),
         }
     }
 
     /// Skips all whitespace and comments
-    fn skip_whitespace(&mut self) -> Result<(), Token> {
+    fn skip_whitespace(&mut self) -> Result<(), Error> {
         loop {
-            match self.peek() {
+            match self.peek_ch() {
                 ' ' | '\r' | '\t' => {
                     self.advance();
                 }
@@ -285,7 +305,7 @@ impl Lexer {
                         }
 
                         if self.is_at_end() {
-                            return Err(self.error_token("Unterminated comment"));
+                            return Err(self.error("Unterminated comment"));
                         }
 
                         self.advance();
@@ -315,12 +335,12 @@ impl Lexer {
 
     /// Checks if the next char matches.
     fn check(&self, expected: char) -> bool {
-        self.peek() == expected
+        self.peek_ch() == expected
     }
 
     /// Checks if the next 2 char match.
     fn check_two(&self, expected: char, expected_second: char) -> bool {
-        self.peek() == expected && self.peek_twice() == expected_second
+        self.peek_ch() == expected && self.peek_twice() == expected_second
     }
 
     /// Advances the char pointer by 1 and returns the consumed char, or None at EOF.
@@ -335,7 +355,7 @@ impl Lexer {
     }
 
     /// Returns the current char without consuming it.
-    fn peek(&self) -> char {
+    fn peek_ch(&self) -> char {
         self.char_at(self.current)
     }
 
@@ -350,7 +370,7 @@ impl Lexer {
     }
 
     /// Create a new lexer for scanning the given source.
-    pub fn new(source: &Rc<String>) -> Lexer {
+    pub fn new(source: &Rc<String>, path: &Rc<ModulePath>) -> Lexer {
         let chars: Vec<char> = source.chars().collect();
         Lexer {
             chars,
@@ -358,14 +378,7 @@ impl Lexer {
             current: 0,
             line: 1,
             line_index: 0,
+            module_path: Rc::clone(path),
         }
-    }
-}
-
-impl Iterator for Lexer {
-    type Item = Token;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.next_token()
     }
 }

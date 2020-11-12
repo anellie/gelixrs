@@ -1,12 +1,12 @@
 use crate::{
-    hir::{
+    gir::{
         generator::{intrinsics::INTRINSICS, module::HIRModuleGenerator},
         nodes::{
             module::Module,
             types::{Instance, Type},
         },
     },
-    mir::MutRc,
+    gir::MutRc,
 };
 
 impl HIRModuleGenerator {

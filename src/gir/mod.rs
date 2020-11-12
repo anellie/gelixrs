@@ -3,9 +3,8 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use crate::{
     ast::module::ModulePath,
     error::Error,
-    hir::nodes::types::{IFaceImpls, Type},
+    gir::nodes::types::IFaceImpls,
     lexer::token::Token,
-    mir::{mutrc_new, MutRc},
 };
 
 #[macro_use]
@@ -14,7 +13,17 @@ pub mod generator;
 pub mod nodes;
 pub mod printer;
 
-pub use nodes::module::Module;
+pub use nodes::{
+    declaration::{Declaration, Function, ADT},
+    module::Module,
+    types::Type,
+};
+
+pub type MutRc<T> = Rc<RefCell<T>>;
+
+pub fn mutrc_new<T>(value: T) -> MutRc<T> {
+    Rc::new(RefCell::new(value))
+}
 
 thread_local! {
     /// A map containing all interface implementations.

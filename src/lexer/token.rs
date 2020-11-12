@@ -139,6 +139,5 @@ pub enum TType {
     Extern,
     Variadic,
 
-    ScanError,
     EndOfFile,
 }

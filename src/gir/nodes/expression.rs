@@ -8,15 +8,16 @@ use std::rc::Rc;
 
 use crate::{
     ast::{expression::LOGICAL_BINARY, Literal},
-    hir::{
-        generator::intrinsics::INTRINSICS,
+    error::Res,
+    gir::{
+        generator::{intrinsics::INTRINSICS, visitors::Visitor},
         nodes::{
             declaration::{Field, Function, LocalVariable, Variable},
-            types::{Type},
+            types::Type,
         },
     },
     lexer::token::Token,
-    mir::MutRc,
+    gir::MutRc,
 };
 
 /// An expression in gelix.
@@ -125,7 +126,7 @@ pub enum Expr {
     /// ClosureCaptured, fitting [captured].
     Closure {
         function: MutRc<Function>,
-        captured: Rc<Vec<Rc<LocalVariable>>>
+        captured: Rc<Vec<Rc<LocalVariable>>>,
     },
 
     TypeGet(Type),
@@ -257,9 +258,9 @@ impl Expr {
 
             Expr::Variable(var) => var.get_type(),
 
-            Expr::Load { object, field } => field
-                .ty
-                .resolve(object.get_type().type_args().unwrap()),
+            Expr::Load { object, field } => {
+                field.ty.resolve(object.get_type().type_args().unwrap())
+            }
 
             Expr::Store { value, .. } => value.get_type(),
 
@@ -338,6 +339,100 @@ impl Expr {
             true
         } else {
             false
+        }
+    }
+
+    pub fn visit<T: Visitor>(&mut self, v: &mut T) -> Res<()> {
+        match self {
+            Expr::Block(block) => {
+                for expr in block.iter_mut() {
+                    expr.visit(v)?;
+                }
+                v.visit_block(block)
+            }
+
+            Expr::Literal(literal, _) => v.visit_literal(literal),
+
+            Expr::Variable(var) => v.visit_variable(var),
+
+            Expr::Allocate { ty, constructor, args, .. } => {
+                for expr in args.iter_mut() {
+                    expr.visit(v)?;
+                }
+                v.visit_allocation(ty, constructor, args)
+            }
+
+            Expr::Load { object, field } => {
+                object.visit(v)?;
+                v.visit_load(object, field)
+            }
+
+            Expr::Store { location, value, first_store } => {
+                location.visit(v)?;
+                value.visit(v)?;
+                v.visit_store(location, value, first_store)
+            }
+
+            Expr::Binary { left, operator, right } => {
+                left.visit(v)?;
+                right.visit(v)?;
+                v.visit_binary(left, operator, right)
+            }
+
+            Expr::Unary { operator, right } => {
+                right.visit(v)?;
+                v.visit_unary(operator, right)
+            }
+
+            Expr::Call { callee, arguments } => {
+                callee.visit(v)?;
+                for expr in arguments.iter_mut() {
+                    expr.visit(v)?;
+                }
+                v.visit_call(callee, arguments)
+            }
+
+            Expr::If { condition, then_branch, else_branch, phi_type } => {
+                condition.visit(v)?;
+                then_branch.visit(v)?;
+                else_branch.visit(v)?;
+                v.visit_if(condition, then_branch, else_branch, phi_type)
+            }
+
+            Expr::Switch { branches, else_branch, phi_type } => {
+                for br in branches.iter_mut() {
+                    br.0.visit(v)?;
+                    br.1.visit(v)?;
+                }
+                else_branch.visit(v)?;
+                v.visit_switch(branches, else_branch, phi_type)
+            }
+
+            Expr::Loop { condition, body, else_branch, phi_type } => {
+                condition.visit(v)?;
+                body.visit(v)?;
+                else_branch.visit(v)?;
+                v.visit_loop(condition, body, else_branch, phi_type)
+            }
+
+            Expr::Break(expr) => {
+                expr.visit(v)?;
+                v.visit_break(expr)
+            }
+
+            Expr::Return(expr) => {
+                expr.visit(v)?;
+                v.visit_return(expr)
+            }
+
+            Expr::Cast { inner, to, method } => {
+                inner.visit(v)?;
+                v.visit_cast(inner, to, method)
+            }
+
+            Expr::Closure { function, captured } => v.visit_closure(function, captured),
+
+            Expr::TypeGet(ty) => v.visit_type_get(ty)
         }
     }
 }

@@ -10,7 +10,7 @@ use crate::{
         Constructor,
     },
     error::Res,
-    hir::{
+    gir::{
         generator::HIRGenerator,
         get_or_create_iface_impls,
         nodes::{
@@ -21,7 +21,7 @@ use crate::{
         result::EmitHIRError,
     },
     lexer::token::{TType, Token},
-    mir::{result::ToMIRResult, MutRc},
+    gir::{result::ToMIRResult, MutRc},
 };
 
 impl HIRGenerator {

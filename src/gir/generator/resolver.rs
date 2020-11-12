@@ -4,7 +4,7 @@ use crate::{
     ast,
     ast::module::ModulePath,
     error::Res,
-    hir::{
+    gir::{
         hir_err,
         nodes::{
             declaration::ADTType,
@@ -15,7 +15,7 @@ use crate::{
         result::EmitHIRError,
     },
     lexer::token::Token,
-    mir::MutRc,
+    gir::MutRc,
 };
 use std::mem;
 

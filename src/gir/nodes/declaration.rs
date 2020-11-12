@@ -7,7 +7,7 @@ use std::{
 use crate::{
     ast,
     ast::declaration::GenericParam,
-    hir::{
+    gir::{
         generator::HIRGenerator,
         nodes::{
             expression::Expr,
@@ -15,9 +15,10 @@ use crate::{
                 ClosureType, Instance, Type, TypeParameter, TypeParameterBound, TypeParameters,
             },
         },
+        Module,
     },
     lexer::token::Token,
-    mir::{mutrc_new, MutRc},
+    gir::{mutrc_new, MutRc},
 };
 
 /// A declaration is a top-level user-defined
@@ -84,6 +85,7 @@ pub struct ADT {
 
     pub ty: ADTType,
     pub ast: MutRc<ast::ADT>,
+    pub module: MutRc<Module>,
 }
 
 impl ADT {
@@ -132,17 +134,25 @@ impl ADT {
             type_parameters: ast_generics_to_hir(&generator, &ast.generics, None),
             ty,
             ast: mutrc_new(ast),
+            module: Rc::clone(&generator.module),
         });
 
         if let Some(mut cases) = enum_cases {
-            let cases = cases.drain(..).map(|c| Self::enum_case(&adt, c)).collect();
+            let cases = cases
+                .drain(..)
+                .map(|c| Self::enum_case(generator, &adt, c))
+                .collect();
             adt.borrow_mut().ty = ADTType::Enum { cases };
         }
 
         adt
     }
 
-    fn enum_case(parent_rc: &MutRc<ADT>, ast: ast::ADT) -> (Rc<String>, MutRc<ADT>) {
+    fn enum_case(
+        generator: &HIRGenerator,
+        parent_rc: &MutRc<ADT>,
+        ast: ast::ADT,
+    ) -> (Rc<String>, MutRc<ADT>) {
         let parent = parent_rc.borrow();
         let ty = ADTType::EnumCase {
             parent: Rc::clone(&parent_rc),
@@ -158,6 +168,7 @@ impl ADT {
                 type_parameters: Rc::clone(&parent.type_parameters),
                 ty,
                 ast: mutrc_new(ast),
+                module: Rc::clone(&generator.module),
             }),
         )
     }
@@ -298,6 +309,7 @@ pub struct Function {
     /// The return type of the function; Type::None if omitted.
     pub ret_type: Type,
     pub ast: MutRc<ast::Function>,
+    pub module: MutRc<Module>,
 }
 
 impl Function {

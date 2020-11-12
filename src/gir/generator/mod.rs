@@ -7,7 +7,7 @@ use std::{
 use crate::{
     ast::{module::ModulePath, Expression},
     error::{Error, Errors, Res},
-    hir::{
+    gir::{
         generator::{intrinsics::INTRINSICS, resolver::Resolver},
         get_or_create_iface_impls, hir_err,
         nodes::{
@@ -19,7 +19,7 @@ use crate::{
         result::EmitHIRError,
     },
     lexer::token::{TType, Token},
-    mir::{mutrc_new, MutRc},
+    gir::{mutrc_new, MutRc},
 };
 use either::Either;
 
@@ -28,6 +28,7 @@ pub mod intrinsics;
 pub mod module;
 mod passes;
 pub mod resolver;
+pub mod visitors;
 
 pub type Environment = HashMap<Rc<String>, Rc<LocalVariable>>;
 

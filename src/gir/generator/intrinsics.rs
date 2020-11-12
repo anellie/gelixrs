@@ -18,13 +18,13 @@ use std::{
 
 use crate::{
     error::{Error, Res},
-    hir::nodes::{
+    gir::nodes::{
         declaration::{Function, ADT},
         module::Module,
         types::Type,
     },
     lexer::token::TType,
-    mir::MutRc,
+    gir::MutRc,
 };
 
 thread_local! {

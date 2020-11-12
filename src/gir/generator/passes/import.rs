@@ -3,12 +3,12 @@ use std::{cell::RefMut, rc::Rc};
 use crate::{
     ast::{module::ModulePath, Import},
     error::{Error, Res},
-    hir::{
+    gir::{
         generator::module::HIRModuleGenerator,
         nodes::module::{Imports, Module},
     },
     lexer::token::TType,
-    mir::{result::ToMIRResult, MutRc},
+    gir::{result::ToMIRResult, MutRc},
 };
 
 impl HIRModuleGenerator {

@@ -355,7 +355,7 @@ impl Parser {
                 self.error_at_current("Expected ':' or '=' after class member name.")?;
             }
         }
-        self.consume_semi_or_nl("Expected newline or ';' after variable declaration.")?;
+        self.consume_separator("Expected newline or ';' after variable declaration.")?;
 
         Some(ADTMember {
             name,
@@ -396,7 +396,7 @@ impl Parser {
     }
 
     fn maybe_fn_body(&mut self) -> Option<Option<Expression>> {
-        Some(if START_OF_FN_BODY.contains(&self.current.t_type) {
+        Some(if START_OF_FN_BODY.contains(&self.current()) {
             if !self.check(TType::LeftBrace) {
                 self.consume(TType::Equal, "Expected start of block or '='.")?;
             }
@@ -499,7 +499,7 @@ impl Parser {
         let name = self.consume(TType::Identifier, "Expected variable name.")?;
         self.consume(TType::Equal, "Expected '=' after variable name.")?;
         let initializer = self.expression()?;
-        self.consume_semi_or_nl("Expected newline or ';' after variable declaration.")?;
+        self.consume_separator("Expected newline or ';' after variable declaration.")?;
 
         Some(Variable {
             name,
@@ -516,10 +516,10 @@ impl Parser {
             _ if self.matches(TType::Var) => Expression::VarDef(Box::new(self.variable(true)?)),
             _ if self.matches(TType::Val) => Expression::VarDef(Box::new(self.variable(false)?)),
             _ => {
-                let requires_semicolon = !NO_SEMICOLON.contains(&self.current.t_type);
+                let requires_semicolon = !NO_SEMICOLON.contains(&self.current());
                 let expression = self.expression()?;
                 if requires_semicolon {
-                    self.consume_semi_or_nl("Expected newline or ';' after expression.")?;
+                    self.consume_separator("Expected newline or ';' after expression.")?;
                 }
                 expression
             }
@@ -682,7 +682,7 @@ impl Parser {
 
     fn return_expression(&mut self) -> Option<Expression> {
         let tok = self.advance();
-        let value = if !self.check_semi_or_nl() {
+        let value = if !self.check_separator() {
             Some(Box::new(self.expression()?))
         } else {
             None
@@ -693,7 +693,7 @@ impl Parser {
 
     fn break_expression(&mut self) -> Option<Expression> {
         let tok = self.advance();
-        let value = if !self.check_semi_or_nl() {
+        let value = if !self.check_separator() {
             Some(Box::new(self.expression()?))
         } else {
             None
@@ -739,11 +739,7 @@ impl Parser {
             let value = Box::new(self.expression()?);
             match expression {
                 Expression::Variable(name) => Some(Expression::Assignment { name, value }),
-                Expression::Get {
-                    object,
-                    name,
-                    ..
-                } => Some(Expression::Set {
+                Expression::Get { object, name, .. } => Some(Expression::Set {
                     object,
                     name,
                     value,
@@ -808,7 +804,7 @@ impl Parser {
         // If a newline was hit. This is used to
         // prevent weird things like `val a = a \n (5 + 5)`
         // getting parsed as a call.
-        let mut hit_newline = self.check_semi_or_nl();
+        let mut hit_newline = self.check_separator();
 
         loop {
             match () {
@@ -843,7 +839,7 @@ impl Parser {
                 }
 
                 _ if self.matches(TType::Colon) => {
-                    expression = Expression::GetStatic { 
+                    expression = Expression::GetStatic {
                         object: Box::new(expression),
                         name: self
                             .consume(TType::Identifier, "Expected property name after ':'.")?,
@@ -852,7 +848,7 @@ impl Parser {
 
                 _ => break,
             }
-            hit_newline = self.check_semi_or_nl();
+            hit_newline = self.check_separator();
         }
         Some(expression)
     }
@@ -1080,7 +1076,7 @@ impl Parser {
 
     fn consume_mods(&mut self) {
         self.modifiers.clear();
-        while MODIFIERS.contains(&self.current.t_type) {
+        while MODIFIERS.contains(&self.current()) {
             let tok = self.advance();
             self.modifiers.push(tok)
         }

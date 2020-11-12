@@ -1,4 +1,4 @@
-use crate::hir::nodes::{
+use crate::gir::nodes::{
     declaration::{ADTType, Declaration, Function, Variable, ADT},
     expression::Expr,
     module::Module,
@@ -152,9 +152,7 @@ impl Expr {
             }
 
             Expr::Store {
-                location,
-                value,
-                ..
+                location, value, ..
             } => {
                 location.display(f, indent_size + INDENT)?;
                 write!(f, " = ")?;

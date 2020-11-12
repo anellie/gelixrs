@@ -2,7 +2,7 @@ use std::{collections::HashMap, rc::Rc};
 
 use crate::{
     ast::Constructor,
-    hir::{
+    gir::{
         generator::HIRGenerator,
         get_or_create_iface_impls,
         nodes::{
@@ -12,7 +12,7 @@ use crate::{
         },
     },
     lexer::token::Token,
-    mir::MutRc,
+    gir::MutRc,
 };
 
 impl HIRGenerator {

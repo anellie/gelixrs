@@ -9,19 +9,18 @@ use std::{
 use crate::{
     ast,
     error::Res,
-    hir::{
+    gir::{
         generator::resolver::Resolver,
         get_or_create_iface_impls,
         nodes::{
-            declaration::{ADTType, Function, ADT},
+            declaration::{ADTType, Function, LocalVariable, ADT},
             expression::CastType,
             module::Module,
         },
     },
     lexer::token::Token,
-    mir::MutRc,
+    gir::MutRc,
 };
-use crate::hir::nodes::declaration::LocalVariable;
 
 pub type TypeArguments = Vec<Type>;
 pub type TypeParameters = Vec<TypeParameter>;
@@ -340,7 +339,7 @@ impl Type {
                 *arg = arg.resolve(args)
             }
         }
-        
+
         // If the type has empty type args, attach given ones
         // Done after arg resolution to prevent resolving given ones when that is not needed
         if self.type_args().map(|a| a.is_empty()).unwrap_or(false) {
@@ -457,6 +456,15 @@ impl<T> PartialEq for Instance<T> {
 }
 
 impl<T> Eq for Instance<T> {}
+
+impl<T: Hash> Hash for Instance<T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.ty.borrow().hash(state);
+        if !self.args.is_empty() {
+            self.args.hash(state)
+        }
+    }
+}
 
 /// Type parameter to be used when monomorphising.
 #[derive(Debug, Clone, Eq, PartialEq)]
