@@ -21,14 +21,15 @@ use crate::{
     lexer::token::Token,
     gir::MutRc,
 };
+use crate::ir::adapter::Instantiable;
 
 pub type TypeArguments = Vec<Type>;
 pub type TypeParameters = Vec<TypeParameter>;
 
-/// A type in HIR.
+/// A type in GIR.
 /// This *can* include type arguments for declarations,
 /// but does not have to - types can be unresolved.
-/// Type parameters are a separate type, monomorthised later in MIR.
+/// Type parameters are a separate type, monomorthised later in GIR.
 #[derive(Debug, Clone, EnumAsGetters, EnumIsA, EnumIntoGetters)]
 pub enum Type {
     /// Any type that can cast to anything; used by
@@ -75,7 +76,7 @@ pub enum Type {
     /// memory operations
     RawPtr(Box<Type>),
 
-    /// An unresolved type parameter, resolved at MIR.
+    /// An unresolved type parameter, resolved at GIR.
     Variable(TypeVariable),
     /// A type itself. This is used for static fields,
     /// currently only enum cases.
@@ -402,20 +403,38 @@ impl Display for Type {
 
 /// An "instance" of a declaration, with type arguments.
 /// Arguments can be absent from the type if it is to be used
-/// generically; should not be absent in final HIR produced.
+/// generically; should not be absent in final GIR produced.
 #[derive(Debug)]
-pub struct Instance<T> {
+pub struct Instance<T: Instantiable> {
     pub ty: MutRc<T>,
-    pub args: TypeArguments,
+    args: TypeArguments,
 }
 
-impl<T> Instance<T> {
-    /// Create a new instance without type arguments, does not allocate.
-    pub fn new(ty: MutRc<T>) -> Instance<T> {
+impl<T: Instantiable> Instance<T> {
+    /// Create a new instance. Will register with inner type.
+    pub fn new(ty: MutRc<T>, args: TypeArguments) -> Instance<T> {
+        ty.borrow_mut().register_instance(&args);
         Instance {
             ty,
-            args: Vec::with_capacity(0),
+            args,
         }
+    }
+
+    /// Create a new instance with no type arguments.
+    pub fn new_(ty: MutRc<T>) -> Instance<T> {
+        Instance {
+            ty,
+            args: vec![],
+        }
+    }
+
+    pub fn args(&self) -> &TypeArguments {
+        &self.args
+    }
+
+    pub fn set_args(&mut self, new: TypeArguments) {
+        self.ty.borrow_mut().register_instance(&new);
+        self.args = new;
     }
 }
 
@@ -438,7 +457,7 @@ pub fn print_type_args(f: &mut Formatter, args: &TypeArguments) -> fmt::Result {
     Ok(())
 }
 
-impl<T> Clone for Instance<T> {
+impl<T: Instantiable> Clone for Instance<T> {
     /// Clone this instance; does single Rc clone and possibly
     /// vector clone if type arguments are present.
     fn clone(&self) -> Self {
@@ -449,15 +468,15 @@ impl<T> Clone for Instance<T> {
     }
 }
 
-impl<T> PartialEq for Instance<T> {
+impl<T: Instantiable> PartialEq for Instance<T> {
     fn eq(&self, other: &Self) -> bool {
         Rc::ptr_eq(&self.ty, &other.ty) && self.args == other.args
     }
 }
 
-impl<T> Eq for Instance<T> {}
+impl<T: Instantiable> Eq for Instance<T> {}
 
-impl<T: Hash> Hash for Instance<T> {
+impl<T: Instantiable + Hash> Hash for Instance<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.ty.borrow().hash(state);
         if !self.args.is_empty() {

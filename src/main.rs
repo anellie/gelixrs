@@ -21,13 +21,13 @@ struct Opt {
     #[structopt(long = "parse")]
     parse: bool,
 
-    /// Compile to HIR, print, and exit
+    /// Compile to GIR, print, and exit
     #[structopt(long)]
-    hir: bool,
+    gir: bool,
 
-    /// Compile to HIR, print including all libs, and exit
+    /// Compile to GIR, print including all libs, and exit
     #[structopt(long)]
-    hir_all: bool,
+    gir_all: bool,
 
     /// Compile to LLVM IR, print, and exit
     #[structopt(long)]
@@ -82,25 +82,25 @@ fn run(args: Opt) -> Result<(), &'static str> {
         return Ok(());
     }
 
-    let hir = gelixrs::compile_hir(code).map_err(|errors| {
+    let gir = gelixrs::compile_gir(code).map_err(|errors| {
         for error in errors {
             println!("{}\n", error);
         }
-        "HIR generator encountered errors. Exiting."
+        "GIR generator encountered errors. Exiting."
     })?;
 
-    if args.hir || args.hir_all {
+    if args.gir || args.gir_all {
         let stem = stem_to_rc_str(&args.file);
-        for module in hir
+        for module in gir
             .iter()
-            .filter(|m| (m.borrow().path.0.first().unwrap() == &stem) || args.hir_all)
+            .filter(|m| (m.borrow().path.0.first().unwrap() == &stem) || args.gir_all)
         {
             println!("{}", module.borrow())
         }
         return Ok(());
     }
 
-    let lir = gelixrs::compile_lir(hir).map_err(|errors| {
+    let lir = gelixrs::compile_lir(gir).map_err(|errors| {
         for error in errors {
             println!("{}\n", error);
         }
@@ -206,7 +206,7 @@ mod tests {
             run(Opt {
                 file: get_test("empty_file.gel"),
                 ..Default::default()
-            }) == Err("MIR generator encountered errors. Exiting.")
+            }) == Err("GIR generator encountered errors. Exiting.")
         )
     }
 
@@ -218,7 +218,7 @@ mod tests {
                 no_prelude: true,
                 file: get_test("scoping.gel"),
                 ..Default::default()
-            }) == Err("MIR generator encountered errors. Exiting.")
+            }) == Err("GIR generator encountered errors. Exiting.")
         )
     }
 
@@ -234,9 +234,9 @@ mod tests {
 
     #[test]
     #[ignore]
-    fn hir_only() -> Result<(), &'static str> {
+    fn gir_only() -> Result<(), &'static str> {
         run(Opt {
-            hir: true,
+            gir: true,
             file: get_test("unicode.gel"),
             ..Default::default()
         })

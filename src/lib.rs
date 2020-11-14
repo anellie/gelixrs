@@ -19,7 +19,6 @@ use crate::{
     ast::module::{Import, Module, ModulePath},
     error::{Error, Errors},
     lexer::token::Token,
-    gir::MutRc,
 };
 
 pub mod ast;
@@ -118,8 +117,8 @@ pub fn auto_import_prelude(modules: &mut Vec<Module>) {
 }
 
 /*
-pub fn compile_hir(modules: Vec<Module>) -> Result<Vec<MutRc<gir::Module>>, Vec<Errors>> {
-    HIRModuleGenerator::new(modules).consume()
+pub fn compile_gir(modules: Vec<Module>) -> Result<Vec<MutRc<gir::Module>>, Vec<Errors>> {
+    GIRModuleGenerator::new(modules).consume()
 }
 
 pub fn compile_lir(_modules: Vec<MutRc<gir::Module>>) -> Result<Vec<MutRc<LModule>>, Vec<Errors>> {

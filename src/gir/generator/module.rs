@@ -5,25 +5,26 @@ use crate::{
     ast::module::ModulePath,
     error::{Error, Errors},
     gir::{
-        generator::{intrinsics::INTRINSICS, HIRGenerator},
-        hir_err,
+        generator::{intrinsics::INTRINSICS, GIRGenerator},
+        gir_err,
         nodes::{declaration::Declaration, module::Module},
     },
     lexer::token::Token,
     gir::MutRc,
 };
+use crate::gir::Function;
 
-/// Generator responsible for compiling the full HIR
+/// Generator responsible for compiling the full GIR
 /// list of modules as one unit.
-pub struct HIRModuleGenerator {
+pub struct GIRModuleGenerator {
     /// All modules in this compilation run
     pub modules: Vec<MutRc<Module>>,
     /// A single-module generator
-    pub generator: HIRGenerator,
+    pub generator: GIRGenerator,
 }
 
-impl HIRModuleGenerator {
-    /// Consumes AST modules given, processing them to HIR.
+impl GIRModuleGenerator {
+    /// Consumes AST modules given, processing them to GIR.
     /// Returns errors if any occurred.
     pub fn consume(mut self) -> Result<Vec<MutRc<Module>>, Vec<Errors>> {
         Self::reset();
@@ -36,12 +37,12 @@ impl HIRModuleGenerator {
         self.run_mod(Self::populate_intrinsics_fn);
         self.imports(true);
 
-        self.run_dec(HIRGenerator::declare_methods);
+        self.run_dec(GIRGenerator::declare_methods);
         self.generator.primitive_impls();
-        self.run_dec(HIRGenerator::fill_impls);
-        self.run_dec(HIRGenerator::insert_adt_fields);
-        self.run_dec(HIRGenerator::constructor_setters);
-        self.run_dec(HIRGenerator::generate);
+        self.run_dec(GIRGenerator::fill_impls);
+        self.run_dec(GIRGenerator::insert_adt_fields);
+        self.run_dec(GIRGenerator::constructor_setters);
+        self.run_dec(GIRGenerator::generate);
         self.generator.generate_primitive();
         INTRINSICS
             .with(|i| i.borrow_mut().validate())
@@ -70,7 +71,7 @@ impl HIRModuleGenerator {
     /// Create a new error and add it to the list of errors.
     pub fn err(&self, tok: &Token, msg: String) {
         self.generator
-            .error(hir_err(tok, msg, &self.generator.path))
+            .error(gir_err(tok, msg, &self.generator.path))
     }
 
     /// Add the given error to the list of errors.
@@ -97,7 +98,7 @@ impl HIRModuleGenerator {
     }
 
     /// Execute a given declaration-scope pass.
-    fn run_dec<T: FnMut(&mut HIRGenerator, Declaration)>(&mut self, mut runner: T) {
+    fn run_dec<T: FnMut(&mut GIRGenerator, Declaration)>(&mut self, mut runner: T) {
         let declarations = self
             .modules
             .iter()
@@ -130,8 +131,8 @@ impl HIRModuleGenerator {
     pub fn new(modules: Vec<ast::Module>) -> Self {
         let modules: Vec<_> = modules.into_iter().map(Module::new).collect();
         Self {
-            generator: HIRGenerator::new(Rc::clone(&modules[0])),
-            modules,
+            generator: GIRGenerator::new(Rc::clone(&modules[0])),
+            modules
         }
     }
 }

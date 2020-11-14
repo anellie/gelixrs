@@ -3,7 +3,7 @@ use std::{collections::HashMap, rc::Rc};
 use crate::{
     ast::Constructor,
     gir::{
-        generator::HIRGenerator,
+        generator::GIRGenerator,
         get_or_create_iface_impls,
         nodes::{
             declaration::{Declaration, Field, Function, ADT},
@@ -15,7 +15,7 @@ use crate::{
     gir::MutRc,
 };
 
-impl HIRGenerator {
+impl GIRGenerator {
     pub fn generate(&mut self, decl: Declaration) {
         match decl {
             Declaration::Function(func) => self.generate_function(&func),
@@ -29,7 +29,7 @@ impl HIRGenerator {
                     }
                 }
 
-                let inst = Instance::new(adt_rc);
+                let inst = Instance::new_(adt_rc);
                 self.generate_impl(&Type::Value(inst.clone()));
                 self.generate_impl(&Type::WeakRef(inst.clone()));
                 self.generate_impl(&Type::StrongRef(inst));

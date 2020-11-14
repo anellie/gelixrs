@@ -8,7 +8,7 @@ use crate::{
     ast,
     ast::declaration::GenericParam,
     gir::{
-        generator::HIRGenerator,
+        generator::GIRGenerator,
         nodes::{
             expression::Expr,
             types::{
@@ -20,6 +20,7 @@ use crate::{
     lexer::token::Token,
     gir::{mutrc_new, MutRc},
 };
+use crate::ir::adapter::{IRFunction, IRAdt};
 
 /// A declaration is a top-level user-defined
 /// item inside a module. This can be
@@ -38,8 +39,8 @@ impl Declaration {
     /// generated code due to this!
     pub fn to_type(&self) -> Type {
         match self {
-            Self::Function(f) => Type::Function(Instance::new(Rc::clone(f))),
-            Self::Adt(a) => Type::Value(Instance::new(Rc::clone(a))),
+            Self::Function(f) => Type::Function(Instance::new_(Rc::clone(f))),
+            Self::Adt(a) => Type::Value(Instance::new_(Rc::clone(a))),
         }
     }
 
@@ -86,11 +87,12 @@ pub struct ADT {
     pub ty: ADTType,
     pub ast: MutRc<ast::ADT>,
     pub module: MutRc<Module>,
+    pub ir: IRAdt
 }
 
 impl ADT {
     /// TODO: Enum edge case is rather ugly
-    pub fn from_ast(generator: &HIRGenerator, mut ast: ast::ADT) -> MutRc<ADT> {
+    pub fn from_ast(generator: &GIRGenerator, mut ast: ast::ADT) -> MutRc<ADT> {
         let mut enum_cases: Option<Vec<ast::ADT>> = None;
         let (mem_size, method_size, const_size, ty) = match &mut ast.ty {
             ast::ADTType::Class {
@@ -131,8 +133,9 @@ impl ADT {
             fields: HashMap::with_capacity(mem_size),
             methods: HashMap::with_capacity(method_size),
             constructors: Vec::with_capacity(const_size),
-            type_parameters: ast_generics_to_hir(&generator, &ast.generics, None),
+            type_parameters: ast_generics_to_gir(&generator, &ast.generics, None),
             ty,
+            ir: IRAdt::new(ast.generics.is_some()),
             ast: mutrc_new(ast),
             module: Rc::clone(&generator.module),
         });
@@ -149,7 +152,7 @@ impl ADT {
     }
 
     fn enum_case(
-        generator: &HIRGenerator,
+        generator: &GIRGenerator,
         parent_rc: &MutRc<ADT>,
         ast: ast::ADT,
     ) -> (Rc<String>, MutRc<ADT>) {
@@ -169,6 +172,7 @@ impl ADT {
                 ty,
                 ast: mutrc_new(ast),
                 module: Rc::clone(&generator.module),
+                ir: IRAdt::new(!parent.type_parameters.is_empty())
             }),
         )
     }
@@ -181,7 +185,7 @@ impl ADT {
             if *no_body {
                 Some(Expr::Allocate {
                     // TODO: generics, how do they work
-                    ty: Type::WeakRef(Instance::new(Rc::clone(inst))),
+                    ty: Type::WeakRef(Instance::new_(Rc::clone(inst))),
                     constructor: Rc::clone(&inst.borrow().constructors[0]),
                     args: vec![],
                     tok: Token::eof_token(1),
@@ -196,10 +200,10 @@ impl ADT {
 }
 
 /// Takes a list of generics parameters of an AST node and
-/// returns it's HIR representation. Can log an error
+/// returns it's GIR representation. Can log an error
 /// if type bound cannot be resolved.
-pub fn ast_generics_to_hir(
-    generator: &HIRGenerator,
+pub fn ast_generics_to_gir(
+    generator: &GIRGenerator,
     generics: &Option<Vec<GenericParam>>,
     parent_generics: Option<&TypeParameters>,
 ) -> Rc<TypeParameters> {
@@ -308,8 +312,12 @@ pub struct Function {
     pub variables: HashMap<Rc<String>, Rc<LocalVariable>>,
     /// The return type of the function; Type::None if omitted.
     pub ret_type: Type,
+    /// The AST for this function.
     pub ast: MutRc<ast::Function>,
+    /// The module this was declared in.
     pub module: MutRc<Module>,
+    /// IR data for this function, used by IR generator
+    pub ir: IRFunction
 }
 
 impl Function {

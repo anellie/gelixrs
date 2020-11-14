@@ -5,22 +5,23 @@ use crate::{
     ast::declaration::FunctionParam,
     error::Res,
     gir::{
-        generator::{intrinsics::INTRINSICS, module::HIRModuleGenerator, HIRGenerator},
+        generator::{intrinsics::INTRINSICS, module::GIRModuleGenerator, GIRGenerator},
         get_or_create_iface_impls,
         nodes::{
             declaration::{
-                ast_generics_to_hir, ADTType, Declaration, Function, LocalVariable, ADT,
+                ast_generics_to_gir, ADTType, Declaration, Function, LocalVariable, ADT,
             },
             module::Module,
             types::{IFaceImpl, Type, TypeParameters},
         },
-        result::EmitHIRError,
+        result::EmitGIRError,
     },
     lexer::token::Token,
     gir::{mutrc_new, MutRc},
 };
+use crate::ir::adapter::IRFunction;
 
-impl HIRModuleGenerator {
+impl GIRModuleGenerator {
     pub fn declare_adts(&mut self, module: MutRc<Module>, ast: &mut ast::Module) {
         for ast in ast.adts.drain(..) {
             let name = Rc::clone(&ast.name.lexeme);
@@ -59,7 +60,7 @@ impl HIRModuleGenerator {
     }
 }
 
-impl HIRGenerator {
+impl GIRGenerator {
     /// Creates a function.
     /// `this_arg` indicates that the function is a method
     /// with some kind of receiver, with the 'this' parameter
@@ -74,7 +75,7 @@ impl HIRGenerator {
         let name = func.sig.name.clone();
         self.try_reserve_name(&name);
 
-        let function = self.generate_hir_fn(func, this_param, parent_type_params)?;
+        let function = self.generate_gir_fn(func, this_param, parent_type_params)?;
         self.module.borrow_mut().declarations.insert(
             Rc::clone(&name.lexeme),
             Declaration::Function(Rc::clone(&function)),
@@ -83,14 +84,14 @@ impl HIRGenerator {
         Ok(function)
     }
 
-    pub fn generate_hir_fn(
+    pub fn generate_gir_fn(
         &mut self,
         func: ast::Function,
         this_param: Option<FunctionParam>,
         parent_type_params: Option<&TypeParameters>,
     ) -> Res<MutRc<Function>> {
         let signature = &func.sig;
-        let type_parameters = ast_generics_to_hir(&self, &signature.generics, parent_type_params);
+        let type_parameters = ast_generics_to_gir(&self, &signature.generics, parent_type_params);
         self.resolver.set_context(&type_parameters);
         let ret_type = signature
             .return_type
@@ -113,7 +114,8 @@ impl HIRGenerator {
             }));
         }
 
-        Ok(mutrc_new(Function {
+        let has_ty_args = !type_parameters.is_empty();
+        let function = mutrc_new(Function {
             name: signature.name.clone(),
             parameters,
             type_parameters,
@@ -122,7 +124,10 @@ impl HIRGenerator {
             ret_type,
             ast: mutrc_new(func),
             module: Rc::clone(&self.module),
-        }))
+            ir: IRFunction::new(has_ty_args)
+        });
+        self.module.borrow_mut().functions.push(Rc::clone(&function));
+        Ok(function)
     }
 
     fn maybe_set_main_fn(&self, func: &MutRc<Function>, err_tok: &Token) {
@@ -146,7 +151,7 @@ impl HIRGenerator {
 
         let err_tok = iface_impl.iface.token().clone();
         let impls = get_or_create_iface_impls(&implementor);
-        let mir_impl = IFaceImpl {
+        let gir_impl = IFaceImpl {
             implementor,
             iface: iface.as_value().clone(),
             methods: HashMap::with_capacity(iface_impl.methods.len()),
@@ -156,7 +161,7 @@ impl HIRGenerator {
         let already_defined = impls
             .borrow_mut()
             .interfaces
-            .insert(iface, mir_impl)
+            .insert(iface, gir_impl)
             .is_some();
         if already_defined {
             self.err(&err_tok, "Interface already defined for type".to_string());

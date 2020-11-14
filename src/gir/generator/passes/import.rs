@@ -4,14 +4,14 @@ use crate::{
     ast::{module::ModulePath, Import},
     error::{Error, Res},
     gir::{
-        generator::module::HIRModuleGenerator,
+        generator::module::GIRModuleGenerator,
         nodes::module::{Imports, Module},
     },
     lexer::token::TType,
-    gir::{result::ToMIRResult, MutRc},
+    gir::{result::ToGIRResult, MutRc},
 };
 
-impl HIRModuleGenerator {
+impl GIRModuleGenerator {
     pub fn imports(&mut self, second_stage: bool) {
         self.run_mod(|gen, module| {
             gen.drain_mod_imports(module, |this, module, import, is_export| {

@@ -2,13 +2,13 @@ use std::rc::Rc;
 
 use crate::{
     gir::{
-        generator::HIRGenerator,
+        generator::GIRGenerator,
         nodes::declaration::{Declaration, Field, ADT},
     },
     gir::MutRc,
 };
 
-impl HIRGenerator {
+impl GIRGenerator {
     pub fn insert_adt_fields(&mut self, decl: Declaration) {
         match decl {
             Declaration::Adt(adt) if adt.borrow().ty.has_members() => self.fill_adt(adt),

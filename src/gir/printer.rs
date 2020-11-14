@@ -139,7 +139,7 @@ impl Expr {
             Expr::Variable(var) => {
                 write!(f, "{}", var.get_token().lexeme)?;
                 if let Variable::Function(func) = var {
-                    print_type_args(f, &func.args)?;
+                    print_type_args(f, func.args())?;
                 }
                 Ok(())
             }

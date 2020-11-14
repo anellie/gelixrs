@@ -21,7 +21,7 @@ use crate::{
 };
 
 /// An expression in gelix.
-/// HIR expressions are an intermediate between AST and MIR;
+/// GIR expressions are an intermediate between AST and GIR;
 /// they contain semantic info but are high-level with little lowering.
 /// The expression set is slightly smaller than AST as some
 /// things are unified.
@@ -278,7 +278,7 @@ impl Expr {
             }
 
             Expr::Call { callee, .. } => match callee.get_type() {
-                Type::Function(func) => func.ty.borrow().ret_type.resolve(&func.args),
+                Type::Function(func) => func.ty.borrow().ret_type.resolve(func.args()),
                 Type::Closure(closure) => closure.ret_type.clone(),
                 _ => panic!("Invalid callee"),
             },

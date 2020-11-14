@@ -6,38 +6,38 @@
 
 use std::rc::Rc;
 
-use crate::{ast::module::ModulePath, error::Res, gir::hir_err, lexer::token::Token, ast};
+use crate::{ast::module::ModulePath, error::Res, gir::gir_err, lexer::token::Token, ast};
 use crate::error::Error;
 
-pub trait EmitHIRError<T> {
+pub trait EmitGIRError<T> {
     fn on_err(self, module: &Rc<ModulePath>, error_token: &Token, msg: &str) -> Res<T>;
 }
 
-impl<T> EmitHIRError<T> for Option<T> {
+impl<T> EmitGIRError<T> for Option<T> {
     #[inline(always)]
     fn on_err(self, module: &Rc<ModulePath>, error_token: &Token, msg: &str) -> Res<T> {
         if let Some(i) = self {
             Ok(i)
         } else {
-            Err(hir_err(error_token, msg.to_string(), module))
+            Err(gir_err(error_token, msg.to_string(), module))
         }
     }
 }
 
-pub trait ToMIRResult<T> {
+pub trait ToGIRResult<T> {
     fn or_err(self, module: &Rc<ModulePath>, error_token: &Token, msg: &str) -> Res<T>;
     fn or_type_err(self, module: &Rc<ModulePath>, error_ty: &ast::Type, msg: &str) -> Res<T>;
 }
 
-impl<T> ToMIRResult<T> for Option<T> {
+impl<T> ToGIRResult<T> for Option<T> {
     #[inline(always)]
     fn or_err(self, module: &Rc<ModulePath>, error_token: &Token, msg: &str) -> Res<T> {
-        self.ok_or_else(|| Error::new(error_token, "MIR", msg.to_string(), module))
+        self.ok_or_else(|| Error::new(error_token, "GIR", msg.to_string(), module))
     }
 
     #[inline(always)]
     fn or_type_err(self, module: &Rc<ModulePath>, error_ty: &ast::Type, msg: &str) -> Res<T> {
-        self.ok_or_else(|| Error::new(error_ty.token(), "MIR", msg.to_string(), module))
+        self.ok_or_else(|| Error::new(error_ty.token(), "GIR", msg.to_string(), module))
     }
 }
 

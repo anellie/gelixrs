@@ -99,7 +99,7 @@ impl Intrinsics {
                 line: 0,
                 start: 0,
                 len: 0,
-                producer: "HIR",
+                producer: "GIR",
                 message: "Could not find main function.".to_string(),
                 module: Rc::new(Default::default()),
             });

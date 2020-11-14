@@ -5,21 +5,21 @@ use crate::{
     ast::module::ModulePath,
     error::Res,
     gir::{
-        hir_err,
+        gir_err,
         nodes::{
             declaration::ADTType,
             expression::{CastType, CastType::Bitcast, Expr},
             module::Module,
             types::{ClosureType, Instance, Type, TypeParameters, TypeVariable},
         },
-        result::EmitHIRError,
+        result::EmitGIRError,
     },
     lexer::token::Token,
     gir::MutRc,
 };
 use std::mem;
 
-/// A resolver for types inside HIR.
+/// A resolver for types inside GIR.
 /// Responsible for resolving all types and casting them,
 /// and managing type parameters/arguments.
 #[derive(Default)]
@@ -32,7 +32,7 @@ pub struct Resolver {
 }
 
 impl Resolver {
-    /// Resolves the given AST type to its HIR equivalent.
+    /// Resolves the given AST type to its GIR equivalent.
     pub fn find_type(&self, ast: &ast::Type) -> Res<Type> {
         self.find_type_(ast, false)
     }
@@ -48,7 +48,7 @@ impl Resolver {
                 if !ty.is_function() || allow_fn {
                     Ok(ty)
                 } else {
-                    Err(hir_err(
+                    Err(gir_err(
                         ast.token(),
                         "Functions cannot be used as types".to_string(),
                         &self.path,
@@ -61,7 +61,7 @@ impl Resolver {
                 if let Type::Value(adt) = inner {
                     Ok(Type::WeakRef(adt))
                 } else {
-                    Err(hir_err(
+                    Err(gir_err(
                         ast.token(),
                         format!("Weak is only applicable to ADTs, not {}.", inner),
                         &self.path,
@@ -74,7 +74,7 @@ impl Resolver {
                 if let Type::Value(adt) = inner {
                     Ok(Type::StrongRef(adt))
                 } else {
-                    Err(hir_err(
+                    Err(gir_err(
                         ast.token(),
                         format!("Strong is only applicable to ADTs, not {}.", inner),
                         &self.path,
@@ -240,11 +240,8 @@ impl Resolver {
             left_adt.map(|a| a.ty.borrow().ty.clone()),
             right_adt.map(|a| a.ty.borrow().ty.clone()),
         ) {
-            if Rc::ptr_eq(&p1, &p2) && left_adt.unwrap().args == right_adt.unwrap().args {
-                let inst = Instance {
-                    ty: p1,
-                    args: left_adt.unwrap().args.clone(),
-                };
+            if Rc::ptr_eq(&p1, &p2) && left_adt.unwrap().args() == right_adt.unwrap().args() {
+                let inst = Instance::new(p1, left_adt.unwrap().args().clone());
                 let ty = match (left_ty, right_ty) {
                     (Type::StrongRef(_), Type::StrongRef(_)) => Type::StrongRef(inst),
                     _ => Type::WeakRef(inst),

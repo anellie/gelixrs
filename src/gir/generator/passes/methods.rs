@@ -11,20 +11,20 @@ use crate::{
     },
     error::Res,
     gir::{
-        generator::HIRGenerator,
+        generator::GIRGenerator,
         get_or_create_iface_impls,
         nodes::{
             declaration::{ADTType, Declaration, Function, LocalVariable, ADT},
             expression::Expr,
             types::{Instance, Type},
         },
-        result::EmitHIRError,
+        result::EmitGIRError,
     },
     lexer::token::{TType, Token},
-    gir::{result::ToMIRResult, MutRc},
+    gir::{result::ToGIRResult, MutRc},
 };
 
-impl HIRGenerator {
+impl GIRGenerator {
     pub fn declare_methods(&mut self, decl: Declaration) {
         if let Declaration::Adt(adt) = decl {
             self.declare_user_methods(&adt);
@@ -62,14 +62,14 @@ impl HIRGenerator {
             };
 
             let name = Rc::clone(&method.sig.name.lexeme);
-            let hir_method = self.generate_hir_fn(
+            let gir_method = self.generate_gir_fn(
                 method,
                 Some(this_param.clone()),
                 Some(&adt.borrow().type_parameters),
             );
-            match hir_method {
-                Ok(mir_method) => {
-                    adt.borrow_mut().methods.insert(name, mir_method);
+            match gir_method {
+                Ok(gir_method) => {
+                    adt.borrow_mut().methods.insert(name, gir_method);
                 }
                 Err(err) => self.error(err),
             }
@@ -98,7 +98,7 @@ impl HIRGenerator {
             );
             let func = eatc!(
                 self,
-                self.generate_hir_fn(
+                self.generate_gir_fn(
                     ast::Function { sig, body: None },
                     None,
                     Some(&adt.borrow().type_parameters),
@@ -191,7 +191,7 @@ impl HIRGenerator {
     }
 
     /// Insert all constructor 'setter' parameters into the entry
-    /// block of their HIR function.
+    /// block of their GIR function.
     /// This has to be a separate pass since constructors are declared
     /// before fields are.
     pub fn constructor_setters(&mut self, decl: Declaration) {
@@ -217,7 +217,7 @@ impl HIRGenerator {
         &mut self,
         adt: &ADT,
         constructor: &Constructor,
-        hir_fn_params: &[Rc<LocalVariable>],
+        gir_fn_params: &[Rc<LocalVariable>],
     ) -> Res<Vec<Expr>> {
         let mut block = Vec::new();
         for (index, (param, _)) in constructor
@@ -231,8 +231,8 @@ impl HIRGenerator {
                     .get(&param.lexeme)
                     .or_err(&self.path, param, "Unknown class field.")?;
             block.push(Expr::store(
-                Expr::load(Expr::lvar(&hir_fn_params[0]), field),
-                Expr::lvar(&hir_fn_params[index + 1]),
+                Expr::load(Expr::lvar(&gir_fn_params[0]), field),
+                Expr::lvar(&gir_fn_params[index + 1]),
                 true,
             ))
         }
@@ -242,7 +242,7 @@ impl HIRGenerator {
 
     pub fn fill_impls(&mut self, decl: Declaration) {
         if let Declaration::Adt(adt) = decl {
-            let inst = Instance::new(adt);
+            let inst = Instance::new_(adt);
             self.fill_impls_(&Type::Value(inst.clone()));
             self.fill_impls_(&Type::WeakRef(inst.clone()));
             self.fill_impls_(&Type::StrongRef(inst));

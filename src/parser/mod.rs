@@ -4,7 +4,7 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::{iter::Peekable, mem, rc::Rc};
+use std::{rc::Rc};
 
 use crate::{
     lexer::{

@@ -6,17 +6,21 @@ use std::{
 use crate::{
     ast,
     ast::module::ModulePath,
-    gir::{generator::HIRGenerator, hir_err, nodes::declaration::Declaration},
+    gir::{generator::GIRGenerator, gir_err, nodes::declaration::Declaration},
     lexer::token::Token,
     gir::{mutrc_new, MutRc},
 };
+use crate::gir::Function;
 
-/// A module as represented in HIR.
+/// A module as represented in GIR.
 /// Simplified to a list of declarations.
 #[derive(Default, Debug)]
 pub struct Module {
     /// All declarations (classes/functions/ifaces) in this module.
     pub declarations: HashMap<Rc<String>, Declaration>,
+    /// All functions declared in all modules.
+    /// Defined here additionally allow easily compiling all in IR.
+    pub functions: Vec<MutRc<Function>>,
 
     /// All imports from other modules.
     pub imports: Imports,
@@ -59,16 +63,16 @@ impl Module {
     }
 
     /// Tries to reserve the given name.
-    pub fn try_reserve_name(&mut self, gen: &HIRGenerator, name: &Token) {
+    pub fn try_reserve_name(&mut self, gen: &GIRGenerator, name: &Token) {
         self.try_reserve_name_rc(gen, &name.lexeme, name)
     }
 
     /// Tries to reserve the given name.
     /// Uses given token for error reporting.
-    pub fn try_reserve_name_rc(&mut self, gen: &HIRGenerator, name: &Rc<String>, tok: &Token) {
+    pub fn try_reserve_name_rc(&mut self, gen: &GIRGenerator, name: &Rc<String>, tok: &Token) {
         if !self.used_names.insert(Rc::clone(name)) {
             gen.error_(
-                hir_err(
+                gir_err(
                     tok,
                     format!("Name {} already defined in this module", name),
                     &self.path,

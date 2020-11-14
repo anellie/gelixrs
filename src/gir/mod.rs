@@ -54,7 +54,7 @@ pub fn get_or_create_iface_impls(ty: &Type) -> MutRc<IFaceImpls> {
     }
 }
 
-/// Produces a new error for the HIR.
-pub fn hir_err(tok: &Token, msg: String, path: &Rc<ModulePath>) -> Error {
-    Error::new(tok, "HIR", msg, path)
+/// Produces a new error for the GIR.
+pub fn gir_err(tok: &Token, msg: String, path: &Rc<ModulePath>) -> Error {
+    Error::new(tok, "GIR", msg, path)
 }

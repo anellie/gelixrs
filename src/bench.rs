@@ -27,10 +27,10 @@ fn generic_classes_parse(b: &mut Bencher) {
 }
 
 #[bench]
-fn generic_classes_mir(b: &mut Bencher) {
+fn generic_classes_gir(b: &mut Bencher) {
     let path = vec![get_benchmark(GENERIC_TEST)];
     b.iter(|| {
         let ast = super::parse_source(path.clone()).ok().unwrap();
-        super::compile_mir(ast)
+        super::compile_gir(ast)
     });
 }

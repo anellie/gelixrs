@@ -126,8 +126,8 @@ fn exec_jit(path: PathBuf) -> Result<String, Failure> {
     let mut code = super::parse_source(vec![path, STD_LIB.lock().unwrap().clone()])
         .map_err(|_| Failure::Parse)?;
     super::auto_import_prelude(&mut code);
-    let hir = super::compile_hir(code).map_err(Failure::Compile)?;
-    let lir = super::compile_lir(hir).map_err(Failure::Compile)?;
+    let gir = super::compile_gir(code).map_err(Failure::Compile)?;
+    let lir = super::compile_lir(gir).map_err(Failure::Compile)?;
     let module = super::compile_ir(lir);
 
     let engine = module

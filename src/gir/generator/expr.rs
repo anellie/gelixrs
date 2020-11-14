@@ -7,13 +7,13 @@ use crate::{
     },
     error::Res,
     gir::{
-        generator::HIRGenerator,
+        generator::GIRGenerator,
         nodes::{
             declaration::{ADTType, LocalVariable, Variable, ADT},
             expression::{CastType, Expr},
             types::{Instance, Type, TypeArguments},
         },
-        result::EmitHIRError,
+        result::EmitGIRError,
     },
     lexer::token::{TType, Token},
     gir::MutRc,
@@ -24,7 +24,7 @@ use std::rc::Rc;
 /// produces expressions.
 /// This is split into its own file for readability reasons;
 /// a 1500-line file containing everything is difficult to navigate.
-impl HIRGenerator {
+impl GIRGenerator {
     pub fn expression(&mut self, expression: &AExpr) -> Expr {
         let expr = match expression {
             AExpr::Assignment { name, value } => self.assignment(name, value),
@@ -147,10 +147,10 @@ impl HIRGenerator {
             _ => self.expression(right),
         };
 
-        self.binary_mir(left, operator, right)
+        self.binary_gir(left, operator, right)
     }
 
-    fn binary_mir(&mut self, mut left: Expr, operator: &Token, mut right: Expr) -> Res<Expr> {
+    fn binary_gir(&mut self, mut left: Expr, operator: &Token, mut right: Expr) -> Res<Expr> {
         let left_ty = left.get_type();
         let right_ty = right.get_type();
 
@@ -259,9 +259,7 @@ impl HIRGenerator {
                     .on_err(&self.path, name, "Fields cannot be called.")?;
 
                 let ty_args = type_args.iter().map(|t| self.resolver.find_type(t));
-                let func = Instance {
-                    ty: Rc::clone(&func),
-                    args: object
+                let ty_args = object
                         .get_type()
                         .type_args()
                         .unwrap()
@@ -269,8 +267,8 @@ impl HIRGenerator {
                         .cloned()
                         .map(Ok)
                         .chain(ty_args)
-                        .collect::<Res<Vec<Type>>>()?,
-                };
+                        .collect::<Res<Vec<Type>>>()?;
+                let func = Instance::new(Rc::clone(&func), ty_args);
 
                 args.insert(0, object);
                 self.check_func_args_(
@@ -432,8 +430,8 @@ impl HIRGenerator {
                     .borrow()
                     .parameters
                     .iter()
-                    .map(|p| p.ty.resolve(&func.args)),
-                Some(&func.args),
+                    .map(|p| p.ty.resolve(func.args())),
+                Some(func.args()),
                 args,
                 ast_args,
                 func.ty.borrow().ast.borrow().sig.variadic,
@@ -512,9 +510,9 @@ impl HIRGenerator {
         /*
         self.begin_scope();
 
-        let iter_mir = self.expression(iterator)?;
+        let iter_gir = self.expression(iterator)?;
         let (iter_ty, elem_ty, to_iter_ty) = INTRINSICS
-            .with(|i| i.borrow().get_for_iter_type(&iter_mir.get_type()))
+            .with(|i| i.borrow().get_for_iter_type(&iter_gir.get_type()))
             .or_err(
                 &self.builder.path,
                 iterator.get_token(),
@@ -528,9 +526,9 @@ impl HIRGenerator {
             )
             .unwrap()
             .into_fn();
-            Expr::call(Expr::load(&method), vec![iter_mir])
+            Expr::call(Expr::load(&method), vec![iter_gir])
         } else {
-            iter_mir
+            iter_gir
         };
 
         let opt_proto = self
@@ -593,7 +591,8 @@ impl HIRGenerator {
                 if let Some(case) = cases.get(&name.lexeme) {
                     match ADT::get_singleton_inst(case) {
                         Some(inst) if allow_simple => Ok(inst),
-                        _ => Ok(Expr::TypeGet(Type::Value(Instance::new(Rc::clone(case))))),
+                        // TODO: Type arguments!!
+                        _ => Ok(Expr::TypeGet(Type::Value(Instance::new_(Rc::clone(case))))),
                     }
                 } else {
                     Err(self.err_(name, "Unknown enum case.".to_string()))
@@ -689,7 +688,7 @@ impl HIRGenerator {
     fn index_get(&mut self, indexed: &AExpr, index: &AExpr, bracket: &Token) -> Res<Expr> {
         let obj = self.expression(indexed);
         let index = self.expression(index);
-        self.binary_mir(obj, bracket, index)
+        self.binary_gir(obj, bracket, index)
     }
 
     fn index_set(&mut self, indexed: &AExpr, ast_index: &AExpr, ast_value: &AExpr) -> Res<Expr> {
@@ -960,14 +959,14 @@ impl HIRGenerator {
 
         // Small hack to get a token that gives the user
         // a useful error without having to add complexity
-        // to binary_mir()
+        // to binary_gir()
         let mut optok = branch.0.get_token().clone();
         optok.t_type = if br_type.is_type() {
             TType::Is
         } else {
             TType::EqualEqual
         };
-        let cond = self.binary_mir(value, &optok, br_cond)?;
+        let cond = self.binary_gir(value, &optok, br_cond)?;
 
         self.begin_scope();
         let mut branch_list = self.smart_casts(&cond);

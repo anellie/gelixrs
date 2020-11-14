@@ -22,12 +22,12 @@ use inkwell::{
     values::{BasicValueEnum, FunctionValue, PointerValue},
 };
 
-use crate::gir::{
-    nodes::{Function, Type, Variable},
-    MModule, MutRc,
-};
 use inkwell::{passes::PassManager, types::StructType, AddressSpace::Generic};
-use crate::gir::Type;
+use crate::gir::{Type, MutRc};
+use crate::gir;
+
+pub mod adapter;
+// mod intrinsics;
 
 /// A generator that creates LLVM IR out of Gelix IR (GIR).
 ///
@@ -37,7 +37,6 @@ pub struct IRGenerator {
     context: Context,
     builder: Builder,
     module: Module,
-    mpm: PassManager<Module>,
 
     /// The currently compiled function.
     function: Option<FunctionValue>,
@@ -49,7 +48,7 @@ pub struct IRGenerator {
     /// during all parts of the function - locals declared inside of an if clause for example.
     ///
     /// The `bool` specifies if the value is a pointer or a value in
-    /// the context of the MIR type system.
+    /// the context of the GIR type system.
     locals: Vec<Vec<(BasicValueEnum, bool)>>,
     local_allocs: Vec<Vec<PointerValue>>,
     /// All blocks in the current function.
@@ -69,24 +68,24 @@ pub struct IRGenerator {
     /// Needed state about the current loop, if compiling one.
     loop_data: Option<LoopData>,
 }
-
+/*
 impl IRGenerator {
-    /// Generates IR. Will process all MIR modules given.
-    pub fn generate(mut self, mir: Vec<MutRc<MModule>>) -> Module {
-        for module in &mir {
+    /// Generates IR. Will process all GIR modules given.
+    pub fn generate(mut self, gir: Vec<MutRc<gir::Module>>) -> Module {
+        for module in &gir {
             let module = module.borrow_mut();
-            for function in module.globals.values() {
+            for function in &module.functions {
                 self.declare_function(function);
             }
         }
 
-        let intrinsics_module = mir.iter().find(|m| {
+        let intrinsics_module = gir.iter().find(|m| {
             let module = m.borrow();
             **module.path.0[0] == *"std" && **module.path.0[1] == *"intrinsics"
         });
         self.fill_intrinsic_functions(intrinsics_module.unwrap());
 
-        for module in mir {
+        for module in gir {
             let module = module.borrow_mut();
             for function in module.globals.values() {
                 self.function(&function);
@@ -97,14 +96,13 @@ impl IRGenerator {
             .verify()
             .map_err(|e| {
                 self.module.print_to_file(Path::new("invalid_code.ll")).unwrap_or(());
-                println!("The compiler generated invalid code, which can be found in the 'invalid_code.ll'.");
+                println!("The compiler generated invalid code, which can be found in 'invalid_code.ll'.");
                 println!("This is a bug, and should be reported (please include the code when doing so).");
                 println!("The error message reported by LLVM:\n");
                 println!("{}\n", e.to_string().replace("\\n", "\n"));
                 std::process::exit(1);
             })
             .unwrap();
-        self.mpm.run_on(&self.module);
         self.module
     }
 
@@ -220,13 +218,6 @@ impl IRGenerator {
         let module = context.create_module("main");
         let builder = context.create_builder();
 
-        let mpm = PassManager::create(());
-        mpm.add_instruction_combining_pass();
-        mpm.add_reassociate_pass();
-        mpm.add_basic_alias_analysis_pass();
-        mpm.add_instruction_combining_pass();
-        mpm.add_reassociate_pass();
-
         let none_const = context
             .struct_type(&[BasicTypeEnum::IntType(context.bool_type())], true)
             .const_named_struct(&[BasicValueEnum::IntValue(
@@ -261,18 +252,14 @@ impl IRGenerator {
             context,
             module,
             builder,
-            mpm,
             function: None,
 
-            variables: HashMap::with_capacity(10),
             locals: Vec::with_capacity(10),
             local_allocs: Vec::with_capacity(10),
             blocks: Vec::with_capacity(10),
             last_block: None,
 
-            types,
             types_bw: HashMap::with_capacity(50),
-            functions: HashMap::with_capacity(10),
 
             type_info_type,
             none_const: none_const.into(),
@@ -293,7 +280,7 @@ impl IRGenerator {
         );
     }
 }
-
+*/
 pub struct LoopData {
     /// The block to jump to using break expressions;
     /// the block at the end of the loop.

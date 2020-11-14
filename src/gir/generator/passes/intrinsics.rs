@@ -1,6 +1,6 @@
 use crate::{
     gir::{
-        generator::{intrinsics::INTRINSICS, module::HIRModuleGenerator},
+        generator::{intrinsics::INTRINSICS, module::GIRModuleGenerator},
         nodes::{
             module::Module,
             types::{Instance, Type},
@@ -9,7 +9,7 @@ use crate::{
     gir::MutRc,
 };
 
-impl HIRModuleGenerator {
+impl GIRModuleGenerator {
     pub fn populate_intrinsics(&mut self, module: MutRc<Module>) {
         let module = module.borrow();
         if **module.path.0[0] == *"std" && **module.path.0[1] == *"ops" {
@@ -21,7 +21,7 @@ impl HIRModuleGenerator {
                 i.borrow_mut().string_type = module
                     .find_decl(&"String".to_string())
                     .map(|d| d.into_adt())
-                    .map(Instance::new)
+                    .map(Instance::new_)
                     .map(Type::Value);
             })
         } else if **module.path.0[0] == *"std" && **module.path.0[1] == *"memory" {

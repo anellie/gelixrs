@@ -9,14 +9,14 @@ use crate::{
     error::{Error, Errors, Res},
     gir::{
         generator::{intrinsics::INTRINSICS, resolver::Resolver},
-        get_or_create_iface_impls, hir_err,
+        get_or_create_iface_impls, gir_err,
         nodes::{
             declaration::{Declaration, Field, Function, LocalVariable, Variable, ADT},
             expression::Expr,
             module::Module,
             types::{Instance, Type},
         },
-        result::EmitHIRError,
+        result::EmitGIRError,
     },
     lexer::token::{TType, Token},
     gir::{mutrc_new, MutRc},
@@ -32,10 +32,10 @@ pub mod visitors;
 
 pub type Environment = HashMap<Rc<String>, Rc<LocalVariable>>;
 
-/// A HIR generator scoped to a single module, responsible for
+/// A GIR generator scoped to a single module, responsible for
 /// compiling expressions and resolving types (latter delegated to resolver).
 #[derive(Default)]
-pub struct HIRGenerator {
+pub struct GIRGenerator {
     /// Type resolver
     pub resolver: Resolver,
 
@@ -77,7 +77,7 @@ pub struct HIRGenerator {
     errors: MutRc<HashMap<Rc<ModulePath>, Errors>>,
 }
 
-impl HIRGenerator {
+impl GIRGenerator {
     /// Tries to reserve the given name in the current module.
     /// Be warned that this will borrow mutably!
     pub fn try_reserve_name(&self, name: &Token) {
@@ -185,7 +185,8 @@ impl HIRGenerator {
                 let ty = &method.borrow().parameters[1].ty;
                 self.resolver.try_cast_in_place(right, ty);
                 if *ty == right.get_type() {
-                    return Some(Instance::new(Rc::clone(method)));
+                    // TODO: Type arguments
+                    return Some(Instance::new_(Rc::clone(method)));
                 }
             }
         }
@@ -211,7 +212,7 @@ impl HIRGenerator {
             for env in closure_data.outer_env.iter().rev() {
                 if let Some(var) = env.get(&token.lexeme) {
                     if !var.ty.can_escape() {
-                        hir_err(
+                        gir_err(
                             &token,
                             "This variable may not be captured (weak reference)".to_string(),
                             &self.path,
@@ -228,7 +229,8 @@ impl HIRGenerator {
     fn find_global_var(&self, token: &Token) -> Option<Variable> {
         let decl = self.module.borrow().find_decl(&token.lexeme)?;
         match decl {
-            Declaration::Function(func) => Some(Variable::Function(Instance::new(func))),
+            // TODO: Reject if missing params
+            Declaration::Function(func) => Some(Variable::Function(Instance::new_(func))),
             _ => None,
         }
     }
@@ -332,12 +334,12 @@ impl HIRGenerator {
 
     /// Create new error and add it to the list of errors.
     pub fn err(&self, tok: &Token, msg: String) {
-        self.error(hir_err(tok, msg, &self.path))
+        self.error(gir_err(tok, msg, &self.path))
     }
 
     /// Create new error. Does not get added to errors!
     pub fn err_(&self, tok: &Token, msg: String) -> Error {
-        hir_err(tok, msg, &self.path)
+        gir_err(tok, msg, &self.path)
     }
 
     /// Add error to the list of errors.
@@ -390,13 +392,13 @@ impl HIRGenerator {
         }
     }
 
-    /// Produces a [HIRGenerator] usable for generating a closure literal,
+    /// Produces a [GIRGenerator] usable for generating a closure literal,
     /// temporarily making the outer generator unusable.
     /// It takes the outer environments to allow for capturing variables,
     /// and also records some other required closure data.
     /// This data is then retried with `self.end_closure`.
-    pub fn for_closure(outer: &mut HIRGenerator) -> Self {
-        HIRGenerator {
+    pub fn for_closure(outer: &mut GIRGenerator) -> Self {
+        GIRGenerator {
             closure_data: Some(ClosureData {
                 outer_env: mem::replace(&mut outer.environments, vec![]),
                 captured: Vec::with_capacity(3),
@@ -407,7 +409,7 @@ impl HIRGenerator {
 
     /// Ends closure compilation and restores the outer generator,
     /// returning recorded info about the compiled closure.
-    pub fn end_closure(self, outer: &mut HIRGenerator) -> ClosureData {
+    pub fn end_closure(self, outer: &mut GIRGenerator) -> ClosureData {
         let mut closure_data = self.closure_data.unwrap();
         outer.environments = mem::replace(&mut closure_data.outer_env, vec![]);
         closure_data
