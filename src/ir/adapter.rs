@@ -13,7 +13,7 @@ use IRAdapter::TypeArgs;
 
 pub enum IRAdapter<T: Copy> {
     NoTypeArgs(Option<T>),
-    TypeArgs(IndexMap<Rc<TypeArguments>, Option<T>>),
+    TypeArgs(IndexMap<Rc<TypeArguments>, T>),
 }
 
 impl<T: Copy> IRAdapter<T> {
@@ -28,7 +28,7 @@ impl<T: Copy> IRAdapter<T> {
     pub fn get_inst(&self, args: &Rc<TypeArguments>) -> Option<T> {
         match self {
             IRAdapter::NoTypeArgs(opt) => *opt,
-            IRAdapter::TypeArgs(map) => map.get(args).copied().flatten(),
+            IRAdapter::TypeArgs(map) => map.get(args).copied(),
         }
     }
 
@@ -38,7 +38,7 @@ impl<T: Copy> IRAdapter<T> {
                 opt.replace(ir);
             },
             IRAdapter::TypeArgs(map) => {
-                map.insert(Rc::clone(args), Some(ir));
+                map.insert(Rc::clone(args), ir);
             },
         };
     }
@@ -82,7 +82,7 @@ impl<'a, T: Copy> Iterator for AdapterIter<'a, T> {
             IRAdapter::NoTypeArgs(item) if self.count == 0 => item.as_ref().map(|i| (i, None)),
             TypeArgs(map) => map
                 .get_index(self.count)
-                .map(|(k, v)| (v.as_ref().unwrap(), Some(k))),
+                .map(|(k, v)| (v, Some(k))),
             _ => None,
         };
         self.count += 1;
@@ -107,33 +107,3 @@ pub struct IRAdtInfo {
 pub type IRFunction = IRAdapter<FunctionValue>;
 pub type IRAdt = IRAdapter<IRAdtInfo>;
 pub type IRClosure = StructType;
-
-pub trait Instantiable {
-    fn register_instance(&mut self, new: &Rc<TypeArguments>);
-}
-
-impl Instantiable for Function {
-    fn register_instance(&mut self, new: &Rc<TypeArguments>) {
-        match &mut *self.ir.borrow_mut() {
-            TypeArgs(map) => {
-                if !map.contains_key(new) {
-                    map.insert(Rc::clone(new), None);
-                }
-            }
-            _ => (),
-        }
-    }
-}
-
-impl Instantiable for ADT {
-    fn register_instance(&mut self, new: &Rc<TypeArguments>) {
-        match &mut self.ir {
-            TypeArgs(map) => {
-                if !map.contains_key(new) {
-                    map.insert(Rc::clone(new), None);
-                }
-            }
-            _ => (),
-        }
-    }
-}

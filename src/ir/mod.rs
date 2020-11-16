@@ -81,6 +81,9 @@ pub struct IRGenerator {
     /// by removing from this vector until it is empty.
     functions_left: Vec<(MutRc<Function>, Rc<TypeArguments>)>,
 
+    /// Flags used when compiling expressions
+    flags: IRFlags,
+
     /// Needed state about the current loop, if compiling one.
     loop_data: Option<LoopData>,
 }
@@ -321,10 +324,19 @@ impl IRGenerator {
             none_const: none_const.into(),
             type_args: Vec::with_capacity(3),
             functions_left: Vec::with_capacity(20),
+            flags: IRFlags::default(),
 
             loop_data: None,
         }
     }
+}
+
+#[derive(Debug, Default)]
+pub struct IRFlags {
+    /// Do not load pointers produced from storage locations,
+    /// mainly local variables and struct GEPs.
+    /// Used by Expr::store.
+    no_load: bool
 }
 
 pub struct LoopData {

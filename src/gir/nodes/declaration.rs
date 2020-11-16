@@ -301,6 +301,8 @@ pub struct Field {
     pub ty: Type,
     /// The initializer for this field, if any.
     pub initializer: Option<Box<Expr>>,
+    /// The index of the field inside the ADT.
+    pub index: usize
 }
 
 impl PartialEq for Field {

@@ -1,16 +1,24 @@
 use std::rc::Rc;
 
 use crate::{gir::nodes::expression::Expr, ir::IRGenerator};
-use inkwell::values::{BasicValueEnum, PointerValue};
+use inkwell::values::{BasicValueEnum, PointerValue, IntValue};
 use crate::ast::Literal;
 use either::Either::Right;
 use inkwell::types::{AnyTypeEnum, BasicTypeEnum, StructType};
 use crate::gir::nodes::expression::CastType;
-use crate::gir::{Type, get_or_create_iface_impls};
+use crate::gir::{Type, get_or_create_iface_impls, MutRc, ADT, Function};
 use crate::gir::nodes::declaration::Variable;
+use std::mem;
+use crate::lexer::token::TType;
+use inkwell::{IntPredicate, FloatPredicate};
 
 impl IRGenerator {
     pub fn expression(&mut self, expr: &Expr) -> BasicValueEnum {
+        self.expression_(expr, false)
+    }
+
+    pub fn expression_(&mut self, expr: &Expr, no_load: bool) -> BasicValueEnum {
+        self.flags.no_load = no_load;
         if self.builder.get_insert_block().is_none() {
             return self.none_const;
         }
@@ -25,12 +33,43 @@ impl IRGenerator {
 
             Expr::Literal(literal, _) => self.literal(literal),
 
+            Expr::Allocate { ty, constructor, args, tok } => self.allocate(ty, constructor, args),
+
             Expr::Variable(var) => {
                 match var {
-                    Variable::Local(_) => self.load_ptr_mir(self.get_variable(var), &var.get_type()),
+                    Variable::Local(_) => self.load_ptr_gir(self.get_variable(var), &var.get_type()),
                     Variable::Function(func) => self.get_or_create(func).as_global_value().as_pointer_value().into(),
                 }
             },
+
+            Expr::Load { object, field } => {
+                let obj = self.expression(object);
+                let ptr = self.struct_gep(obj.into_pointer_value(), field.index);
+                self.load_ptr_gir(ptr, &field.ty)
+            },
+
+            Expr::Store { location, value, first_store } => {
+                let store = self.expression_(location, true);
+                let value = self.expression(value);
+                self.build_store(store.into_pointer_value(), value, *first_store);
+                if *first_store {
+                    self.locals().push((store, true))
+                }
+
+                value
+            },
+
+            Expr::Binary { left, operator, right } => {
+                let left = self.expression(left);
+                if operator.t_type == TType::Is {
+                    self.binary_is(left, right.get_type().as_type()).into()
+                } else {
+                    let right = self.expression(right);
+                    self.binary(left, operator.t_type, right)
+                }
+            },
+
+            Expr::Unary { operator, right } => self.unary(right, operator.t_type),
 
             Expr::Call { callee, arguments } => {
                 let callee = self.expression(callee);
@@ -59,11 +98,7 @@ impl IRGenerator {
                 todo!()
             }
             /*
-            Expr::Allocate { .. } => {},
-            Expr::Load { .. } => {},
-            Expr::Store { .. } => {},
-            Expr::Binary { .. } => {},
-            Expr::Unary { .. } => {},
+
             Expr::If { .. } => {},
             Expr::Switch { .. } => {},
             Expr::Loop { .. } => {},
@@ -71,6 +106,126 @@ impl IRGenerator {
             Expr::Closure { .. } => {},
             Expr::TypeGet(_) => {},*/
         }
+    }
+
+
+    fn allocate(
+        &mut self,
+        ty: &Type,
+        constructor: &MutRc<Function>,
+        constructor_args: &[Expr],
+    ) -> BasicValueEnum {
+        let (ir_ty, tyinfo) = self.ir_ty_raw(ty);
+        let alloc = self.create_alloc(ir_ty, ty.is_strong_ref());
+        self.maybe_init_type_info(&ty.try_adt().unwrap().ty, alloc, tyinfo);
+        self.build_alloc_and_init(
+            alloc,
+            ty,
+            todo!(),
+            todo!(),
+            constructor_args,
+        )
+    }
+
+    fn maybe_init_type_info(&mut self, ty: &MutRc<ADT>, alloc: PointerValue, info: Option<PointerValue>) {
+        if ty.borrow().ty.ref_is_ptr() && !ty.borrow().ty.is_extern_class() {
+            let gep = self.get_type_info_field(alloc);
+            self.builder.build_store(gep, info.unwrap());
+        }
+    }
+
+    fn build_alloc_and_init(
+        &mut self,
+        alloc: PointerValue,
+        ty: &Type,
+        instantiator: PointerValue,
+        constructor: PointerValue,
+        constructor_args: &[Expr]
+    ) -> BasicValueEnum {
+        let ptr = if let Type::StrongRef(ty) = ty {
+            self.cast_sr_to_wr(alloc, &Type::WeakRef(ty.clone())).into_pointer_value()
+        } else {
+            alloc
+        };
+
+        self.increment_refcount(alloc.into(), true);
+        self.builder
+            .build_call(instantiator, &[ptr.into()], "inst");
+
+        let mut arguments: Vec<BasicValueEnum> = constructor_args
+            .iter()
+            .map(|a| self.expression(a))
+            .collect();
+        for arg in &arguments {
+            self.increment_refcount(*arg, false);
+        }
+        arguments.insert(0, ptr.into());
+        self.builder.build_call(constructor, &arguments, "constr");
+        for arg in arguments.iter().skip(1) {
+            self.decrement_refcount(*arg, false);
+        }
+
+        self.locals().push((alloc.into(), true));
+        alloc.into()
+    }
+    
+    fn binary(
+        &self,
+        left: BasicValueEnum,
+        operator: TType,
+        right: BasicValueEnum,
+    ) -> BasicValueEnum {
+        match (left, right) {
+            (BasicValueEnum::IntValue(left), BasicValueEnum::IntValue(right)) => {
+                BasicValueEnum::IntValue(match operator {
+                    TType::Plus => self.builder.build_int_add(left, right, "add"),
+                    TType::Minus => self.builder.build_int_sub(left, right, "sub"),
+                    TType::Star => self.builder.build_int_mul(left, right, "mul"),
+                    TType::Slash => self.builder.build_int_signed_div(left, right, "div"),
+                    TType::And => self.builder.build_and(left, right, "and"),
+                    TType::Or => self.builder.build_or(left, right, "or"),
+                    _ => {
+                        self.builder
+                            .build_int_compare(get_predicate(operator), left, right, "cmp")
+                    }
+                })
+            }
+
+            (BasicValueEnum::FloatValue(left), BasicValueEnum::FloatValue(right)) => {
+                BasicValueEnum::FloatValue(match operator {
+                    TType::Plus => self.builder.build_float_add(left, right, "add"),
+                    TType::Minus => self.builder.build_float_sub(left, right, "sub"),
+                    TType::Star => self.builder.build_float_mul(left, right, "mul"),
+                    TType::Slash => self.builder.build_float_div(left, right, "div"),
+                    _ => {
+                        return BasicValueEnum::IntValue(self.builder.build_float_compare(
+                            get_float_predicate(operator),
+                            left,
+                            right,
+                            "cmp",
+                        ))
+                    }
+                })
+            }
+
+            // One of the operators is `Any`, so it will branch away; return whatever
+            _ => self.context.bool_type().const_int(0, false).into(),
+        }
+    }
+
+    fn binary_is(&mut self, left: BasicValueEnum, right: &Type) -> IntValue {
+        let ty_info_ptr = self.ir_ty_info(right).unwrap();
+        let left_ptr = self.get_type_info_field(left.into_pointer_value());
+        let left_ptr = self.load_ptr(left_ptr).into_pointer_value();
+
+        let left_int = self
+            .builder
+            .build_ptr_to_int(left_ptr, self.context.i64_type(), "conv");
+        let right_int = self
+            .builder
+            .build_ptr_to_int(ty_info_ptr, self.context.i64_type(), "conv");
+        self.builder
+            .build_int_compare(IntPredicate::EQ, left_int, right_int, "ident")
     }
 
     fn build_call<'a, T: Iterator<Item = &'a Expr>>(
@@ -215,13 +370,31 @@ impl IRGenerator {
 
             CastType::ToValue => {
                 let ptr = self.expression(object).into_pointer_value();
-                self.load_ptr_mir(ptr, to)
+                self.load_ptr_gir(ptr, to)
             }
 
             CastType::StrongToWeak => {
                 let ptr = self.expression(object).into_pointer_value();
                 self.cast_sr_to_wr(ptr, to)
             }
+        }
+    }
+
+    fn unary(&mut self, right: &Expr, operator: TType) -> BasicValueEnum {
+        let expr = self.expression(right);
+        match expr {
+            BasicValueEnum::IntValue(int) => match operator {
+                TType::Bang => self.builder.build_not(int, "unarynot"),
+                TType::Minus => self.builder.build_int_neg(int, "unaryneg"),
+                _ => panic!("Invalid unary operator"),
+            }
+                .into(),
+
+            BasicValueEnum::FloatValue(float) => {
+                self.builder.build_float_neg(float, "unaryneg").into()
+            }
+
+            _ => panic!("Invalid unary operator"),
         }
     }
 
@@ -309,5 +482,29 @@ impl IRGenerator {
             }
             _ => self.void_ptr().const_zero(),
         })
+    }
+}
+
+fn get_predicate(tok: TType) -> IntPredicate {
+    match tok {
+        TType::Greater => IntPredicate::SGT,
+        TType::GreaterEqual => IntPredicate::SGE,
+        TType::Less => IntPredicate::SLT,
+        TType::LessEqual => IntPredicate::SLE,
+        TType::EqualEqual => IntPredicate::EQ,
+        TType::BangEqual => IntPredicate::NE,
+        _ => panic!("invalid tok"),
+    }
+}
+
+fn get_float_predicate(tok: TType) -> FloatPredicate {
+    match tok {
+        TType::Greater => FloatPredicate::OGT,
+        TType::GreaterEqual => FloatPredicate::OGE,
+        TType::Less => FloatPredicate::OLT,
+        TType::LessEqual => FloatPredicate::OLE,
+        TType::EqualEqual => FloatPredicate::OEQ,
+        TType::BangEqual => FloatPredicate::ONE,
+        _ => panic!("invalid tok"),
     }
 }

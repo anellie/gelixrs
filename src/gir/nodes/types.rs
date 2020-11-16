@@ -19,7 +19,7 @@ use crate::{
         },
         MutRc,
     },
-    ir::adapter::{IRClosure, Instantiable},
+    ir::adapter::{IRClosure},
     lexer::token::Token,
 };
 use std::cell::Cell;
@@ -115,15 +115,14 @@ impl Type {
     }
 
     /// Sets type arguments of this type, if applicable.
+    /// Returns success.
     pub fn set_type_args(&mut self, args: Rc<TypeArguments>) -> bool {
         match self {
             Self::Function(inst) => {
-                inst.ty.borrow_mut().register_instance(&args);
                 inst.args = args;
                 true
             }
             Self::Value(inst) | Self::WeakRef(inst) | Self::StrongRef(inst) => {
-                inst.ty.borrow_mut().register_instance(&args);
                 inst.args = args;
                 true
             }
@@ -413,15 +412,14 @@ impl Display for Type {
 /// Arguments can be absent from the type if it is to be used
 /// generically; should not be absent in final GIR produced.
 #[derive(Debug)]
-pub struct Instance<T: Instantiable> {
+pub struct Instance<T> {
     pub ty: MutRc<T>,
     args: Rc<TypeArguments>,
 }
 
-impl<T: Instantiable> Instance<T> {
+impl<T> Instance<T> {
     /// Create a new instance. Will register with inner type.
     pub fn new(ty: MutRc<T>, args: Rc<TypeArguments>) -> Instance<T> {
-        ty.borrow_mut().register_instance(&args);
         Instance { ty, args }
     }
 
@@ -466,7 +464,7 @@ pub fn print_type_args(f: &mut Formatter, args: &TypeArguments) -> fmt::Result {
     Ok(())
 }
 
-impl<T: Instantiable> Clone for Instance<T> {
+impl<T> Clone for Instance<T> {
     /// Clone this instance; does 2 Rc clones
     fn clone(&self) -> Self {
         Self {
@@ -476,15 +474,15 @@ impl<T: Instantiable> Clone for Instance<T> {
     }
 }
 
-impl<T: Instantiable> PartialEq for Instance<T> {
+impl<T> PartialEq for Instance<T> {
     fn eq(&self, other: &Self) -> bool {
         Rc::ptr_eq(&self.ty, &other.ty) && self.args == other.args
     }
 }
 
-impl<T: Instantiable> Eq for Instance<T> {}
+impl<T> Eq for Instance<T> {}
 
-impl<T: Instantiable + Hash> Hash for Instance<T> {
+impl<T: Hash> Hash for Instance<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.ty.borrow().hash(state);
         if !self.args.is_empty() {

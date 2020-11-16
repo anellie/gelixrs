@@ -24,7 +24,7 @@ impl GIRGenerator {
         let ast = Rc::clone(&adt.borrow().ast);
         let ast = ast.borrow();
 
-        for field in ast.members().unwrap().iter() {
+        for (index, field) in ast.members().unwrap().iter().enumerate() {
             let initializer = field.initializer.as_ref().map(|e| self.expression(e));
             let ty = eat!(
                 self,
@@ -46,6 +46,7 @@ impl GIRGenerator {
                 mutable: field.mutable,
                 ty,
                 initializer: initializer.map(Box::new),
+                index
             });
 
             let existing_entry = adt

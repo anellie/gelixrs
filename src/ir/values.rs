@@ -17,7 +17,7 @@ use inkwell::{
 use std::rc::Rc;
 
 impl IRGenerator {
-    /// Force any type to be turned into a void pointer. TODO: used?
+    /// Force any type to be turned into a void pointer.
     pub fn coerce_to_void_ptr(&self, ty: BasicValueEnum) -> BasicValueEnum {
         let target = self.void_ptr();
         match ty {
@@ -78,10 +78,11 @@ impl IRGenerator {
         }
     }
 
-    /// Similar to the function above, but with MIR type info.
+    /// Similar to the function above, but with GIR type info.
     /// This is sometimes required to prevent unintentionally loading
     /// a value, for example when dealing with primitive pointers.
-    pub fn load_ptr_mir(&self, ptr: PointerValue, mir_ty: &Type) -> BasicValueEnum {
+    pub fn load_ptr_gir(&self, ptr: PointerValue, mir_ty: &Type) -> BasicValueEnum {
+        if self.flags.no_load { return ptr.into() }
         match (ptr.get_type().get_element_type(), mir_ty) {
             (AnyTypeEnum::IntType(_), Type::RawPtr(_)) => ptr.into(),
             (AnyTypeEnum::PointerType(inner), Type::RawPtr(_))
