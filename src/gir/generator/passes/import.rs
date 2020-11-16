@@ -6,9 +6,10 @@ use crate::{
     gir::{
         generator::module::GIRModuleGenerator,
         nodes::module::{Imports, Module},
+        result::ToGIRResult,
+        MutRc,
     },
     lexer::token::TType,
-    gir::{result::ToGIRResult, MutRc},
 };
 
 impl GIRModuleGenerator {

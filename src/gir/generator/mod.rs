@@ -9,7 +9,7 @@ use crate::{
     error::{Error, Errors, Res},
     gir::{
         generator::{intrinsics::INTRINSICS, resolver::Resolver},
-        get_or_create_iface_impls, gir_err,
+        get_or_create_iface_impls, gir_err, mutrc_new,
         nodes::{
             declaration::{Declaration, Field, Function, LocalVariable, Variable, ADT},
             expression::Expr,
@@ -17,9 +17,9 @@ use crate::{
             types::{Instance, Type},
         },
         result::EmitGIRError,
+        MutRc,
     },
     lexer::token::{TType, Token},
-    gir::{mutrc_new, MutRc},
 };
 use either::Either;
 

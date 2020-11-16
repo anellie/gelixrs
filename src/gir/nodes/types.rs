@@ -17,11 +17,12 @@ use crate::{
             expression::CastType,
             module::Module,
         },
+        MutRc,
     },
+    ir::adapter::{IRClosure, Instantiable},
     lexer::token::Token,
-    gir::MutRc,
 };
-use crate::ir::adapter::Instantiable;
+use std::cell::Cell;
 
 pub type TypeArguments = Vec<Type>;
 pub type TypeParameters = Vec<TypeParameter>;
@@ -76,7 +77,7 @@ pub enum Type {
     /// memory operations
     RawPtr(Box<Type>),
 
-    /// An unresolved type parameter, resolved at GIR.
+    /// An unresolved type parameter, resolved at IR.
     Variable(TypeVariable),
     /// A type itself. This is used for static fields,
     /// currently only enum cases.
@@ -104,7 +105,7 @@ impl Type {
     }
 
     /// Returns type arguments of this type, if applicable.
-    pub fn type_args(&self) -> Option<&TypeArguments> {
+    pub fn type_args(&self) -> Option<&Rc<TypeArguments>> {
         match self {
             Self::Function(inst) => Some(&inst.args),
             Self::Value(inst) | Self::WeakRef(inst) | Self::StrongRef(inst) => Some(&inst.args),
@@ -113,13 +114,21 @@ impl Type {
         }
     }
 
-    /// Returns type arguments of this type, if applicable.
-    pub fn type_args_mut(&mut self) -> Option<&mut TypeArguments> {
+    /// Sets type arguments of this type, if applicable.
+    pub fn set_type_args(&mut self, args: Rc<TypeArguments>) -> bool {
         match self {
-            Self::Function(inst) => Some(&mut inst.args),
-            Self::Value(inst) | Self::WeakRef(inst) | Self::StrongRef(inst) => Some(&mut inst.args),
-            Self::Type(ty) => ty.type_args_mut(),
-            _ => None,
+            Self::Function(inst) => {
+                inst.ty.borrow_mut().register_instance(&args);
+                inst.args = args;
+                true
+            }
+            Self::Value(inst) | Self::WeakRef(inst) | Self::StrongRef(inst) => {
+                inst.ty.borrow_mut().register_instance(&args);
+                inst.args = args;
+                true
+            }
+            Self::Type(ty) => ty.set_type_args(args),
+            _ => false,
         }
     }
 
@@ -326,7 +335,7 @@ impl Type {
         }
     }
 
-    pub fn resolve(&self, args: &TypeArguments) -> Type {
+    pub fn resolve(&self, args: &Rc<TypeArguments>) -> Type {
         // Start by replacing any type variables with their concrete type
         let mut ty = match self {
             Type::Variable(var) => args[var.index].clone(),
@@ -335,16 +344,15 @@ impl Type {
 
         // Resolve any type args on itself if present,
         // for example resolving SomeAdt[T] to SomeAdt[ActualType]
-        if let Some(a) = ty.type_args_mut() {
-            for arg in a {
-                *arg = arg.resolve(args)
-            }
+        if let Some(a) = ty.type_args() {
+            let new = Rc::new(a.iter().map(|a| a.resolve(args)).collect::<Vec<_>>());
+            ty.set_type_args(new);
         }
 
         // If the type has empty type args, attach given ones
         // Done after arg resolution to prevent resolving given ones when that is not needed
         if self.type_args().map(|a| a.is_empty()).unwrap_or(false) {
-            *ty.type_args_mut().unwrap() = args.clone();
+            ty.set_type_args(Rc::clone(args));
         }
 
         ty
@@ -407,34 +415,35 @@ impl Display for Type {
 #[derive(Debug)]
 pub struct Instance<T: Instantiable> {
     pub ty: MutRc<T>,
-    args: TypeArguments,
+    args: Rc<TypeArguments>,
 }
 
 impl<T: Instantiable> Instance<T> {
     /// Create a new instance. Will register with inner type.
-    pub fn new(ty: MutRc<T>, args: TypeArguments) -> Instance<T> {
+    pub fn new(ty: MutRc<T>, args: Rc<TypeArguments>) -> Instance<T> {
         ty.borrow_mut().register_instance(&args);
-        Instance {
-            ty,
-            args,
-        }
+        Instance { ty, args }
     }
 
     /// Create a new instance with no type arguments.
     pub fn new_(ty: MutRc<T>) -> Instance<T> {
         Instance {
             ty,
-            args: vec![],
+            args: Rc::new(vec![]),
         }
     }
 
-    pub fn args(&self) -> &TypeArguments {
+    pub fn args(&self) -> &Rc<TypeArguments> {
         &self.args
     }
+}
 
-    pub fn set_args(&mut self, new: TypeArguments) {
-        self.ty.borrow_mut().register_instance(&new);
-        self.args = new;
+impl Instance<ADT> {
+    pub fn get_method(&self, name: &Rc<String>) -> Instance<Function> {
+        Instance::new(
+            Rc::clone(self.ty.borrow().methods.get(name).unwrap()),
+            Rc::clone(&self.args),
+        )
     }
 }
 
@@ -458,12 +467,11 @@ pub fn print_type_args(f: &mut Formatter, args: &TypeArguments) -> fmt::Result {
 }
 
 impl<T: Instantiable> Clone for Instance<T> {
-    /// Clone this instance; does single Rc clone and possibly
-    /// vector clone if type arguments are present.
+    /// Clone this instance; does 2 Rc clones
     fn clone(&self) -> Self {
         Self {
             ty: Rc::clone(&self.ty),
-            args: Vec::clone(&self.args),
+            args: Rc::clone(&self.args),
         }
     }
 }
@@ -493,10 +501,11 @@ pub struct TypeVariable {
 }
 
 /// A closure signature.
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Default)]
 pub struct ClosureType {
     pub parameters: Vec<Type>,
     pub ret_type: Type,
+    pub ir: Cell<Option<IRClosure>>,
 }
 
 impl Display for ClosureType {

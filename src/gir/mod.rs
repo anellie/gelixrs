@@ -1,10 +1,7 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
-    ast::module::ModulePath,
-    error::Error,
-    gir::nodes::types::IFaceImpls,
-    lexer::token::Token,
+    ast::module::ModulePath, error::Error, gir::nodes::types::IFaceImpls, lexer::token::Token,
 };
 
 #[macro_use]

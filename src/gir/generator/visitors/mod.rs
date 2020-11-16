@@ -6,10 +6,9 @@ use crate::{
             declaration::{Field, LocalVariable, Variable},
             expression::{CastType, Expr},
         },
-        Function, Type,
+        Function, MutRc, Type,
     },
     lexer::token::Token,
-    gir::MutRc,
 };
 use std::rc::Rc;
 

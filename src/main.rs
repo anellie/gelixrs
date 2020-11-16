@@ -100,13 +100,7 @@ fn run(args: Opt) -> Result<(), &'static str> {
         return Ok(());
     }
 
-    let lir = gelixrs::compile_lir(gir).map_err(|errors| {
-        for error in errors {
-            println!("{}\n", error);
-        }
-        "LIR generator encountered errors. Exiting."
-    })?;
-    let module = gelixrs::compile_ir(lir);
+    let module = gelixrs::compile_ir(gir);
 
     if args.ir {
         match args.output {

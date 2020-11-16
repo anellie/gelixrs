@@ -15,9 +15,9 @@ use crate::{
             declaration::{Field, Function, LocalVariable, Variable},
             types::Type,
         },
+        MutRc,
     },
     lexer::token::Token,
-    gir::MutRc,
 };
 
 /// An expression in gelix.
@@ -355,7 +355,12 @@ impl Expr {
 
             Expr::Variable(var) => v.visit_variable(var),
 
-            Expr::Allocate { ty, constructor, args, .. } => {
+            Expr::Allocate {
+                ty,
+                constructor,
+                args,
+                ..
+            } => {
                 for expr in args.iter_mut() {
                     expr.visit(v)?;
                 }
@@ -367,13 +372,21 @@ impl Expr {
                 v.visit_load(object, field)
             }
 
-            Expr::Store { location, value, first_store } => {
+            Expr::Store {
+                location,
+                value,
+                first_store,
+            } => {
                 location.visit(v)?;
                 value.visit(v)?;
                 v.visit_store(location, value, first_store)
             }
 
-            Expr::Binary { left, operator, right } => {
+            Expr::Binary {
+                left,
+                operator,
+                right,
+            } => {
                 left.visit(v)?;
                 right.visit(v)?;
                 v.visit_binary(left, operator, right)
@@ -392,14 +405,23 @@ impl Expr {
                 v.visit_call(callee, arguments)
             }
 
-            Expr::If { condition, then_branch, else_branch, phi_type } => {
+            Expr::If {
+                condition,
+                then_branch,
+                else_branch,
+                phi_type,
+            } => {
                 condition.visit(v)?;
                 then_branch.visit(v)?;
                 else_branch.visit(v)?;
                 v.visit_if(condition, then_branch, else_branch, phi_type)
             }
 
-            Expr::Switch { branches, else_branch, phi_type } => {
+            Expr::Switch {
+                branches,
+                else_branch,
+                phi_type,
+            } => {
                 for br in branches.iter_mut() {
                     br.0.visit(v)?;
                     br.1.visit(v)?;
@@ -408,7 +430,12 @@ impl Expr {
                 v.visit_switch(branches, else_branch, phi_type)
             }
 
-            Expr::Loop { condition, body, else_branch, phi_type } => {
+            Expr::Loop {
+                condition,
+                body,
+                else_branch,
+                phi_type,
+            } => {
                 condition.visit(v)?;
                 body.visit(v)?;
                 else_branch.visit(v)?;
@@ -432,12 +459,12 @@ impl Expr {
 
             Expr::Closure { function, captured } => v.visit_closure(function, captured),
 
-            Expr::TypeGet(ty) => v.visit_type_get(ty)
+            Expr::TypeGet(ty) => v.visit_type_get(ty),
         }
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum CastType {
     Number,
     StrongToWeak,

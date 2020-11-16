@@ -127,8 +127,7 @@ fn exec_jit(path: PathBuf) -> Result<String, Failure> {
         .map_err(|_| Failure::Parse)?;
     super::auto_import_prelude(&mut code);
     let gir = super::compile_gir(code).map_err(Failure::Compile)?;
-    let lir = super::compile_lir(gir).map_err(Failure::Compile)?;
-    let module = super::compile_ir(lir);
+    let module = super::compile_ir(gir);
 
     let engine = module
         .create_jit_execution_engine(OptimizationLevel::None)

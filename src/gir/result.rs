@@ -6,8 +6,13 @@
 
 use std::rc::Rc;
 
-use crate::{ast::module::ModulePath, error::Res, gir::gir_err, lexer::token::Token, ast};
-use crate::error::Error;
+use crate::{
+    ast,
+    ast::module::ModulePath,
+    error::{Error, Res},
+    gir::gir_err,
+    lexer::token::Token,
+};
 
 pub trait EmitGIRError<T> {
     fn on_err(self, module: &Rc<ModulePath>, error_token: &Token, msg: &str) -> Res<T>;

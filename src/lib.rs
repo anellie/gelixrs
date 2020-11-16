@@ -20,6 +20,9 @@ use crate::{
     error::{Error, Errors},
     lexer::token::Token,
 };
+use crate::gir::MutRc;
+use crate::gir::generator::module::GIRModuleGenerator;
+use crate::ir::IRGenerator;
 
 pub mod ast;
 //#[cfg(test)]
@@ -116,19 +119,15 @@ pub fn auto_import_prelude(modules: &mut Vec<Module>) {
     }
 }
 
-/*
+
 pub fn compile_gir(modules: Vec<Module>) -> Result<Vec<MutRc<gir::Module>>, Vec<Errors>> {
     GIRModuleGenerator::new(modules).consume()
 }
 
-pub fn compile_lir(_modules: Vec<MutRc<gir::Module>>) -> Result<Vec<MutRc<LModule>>, Vec<Errors>> {
-    todo!()
+pub fn compile_ir(modules: Vec<MutRc<gir::Module>>) -> inkwell::module::Module {
+    IRGenerator::new().generate(modules)
 }
 
-pub fn compile_ir(_modules: Vec<MutRc<LModule>>) -> inkwell::module::Module {
-    todo!()
-}
-*/
 pub fn stem_to_rc_str(path: &PathBuf) -> Rc<String> {
     Rc::new(path.file_stem().unwrap().to_str().unwrap().to_string())
 }

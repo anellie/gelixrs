@@ -1,12 +1,10 @@
-use crate::{
-    gir::{
-        generator::{intrinsics::INTRINSICS, module::GIRModuleGenerator},
-        nodes::{
-            module::Module,
-            types::{Instance, Type},
-        },
+use crate::gir::{
+    generator::{intrinsics::INTRINSICS, module::GIRModuleGenerator},
+    nodes::{
+        module::Module,
+        types::{Instance, Type},
     },
-    gir::MutRc,
+    MutRc,
 };
 
 impl GIRModuleGenerator {

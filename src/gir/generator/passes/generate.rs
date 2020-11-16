@@ -1,4 +1,4 @@
-use std::{collections::HashMap, rc::Rc};
+use std::rc::Rc;
 
 use crate::{
     ast::Constructor,
@@ -10,10 +10,11 @@ use crate::{
             expression::Expr,
             types::{Instance, Type},
         },
+        MutRc,
     },
     lexer::token::Token,
-    gir::MutRc,
 };
+use indexmap::map::IndexMap;
 
 impl GIRGenerator {
     pub fn generate(&mut self, decl: Declaration) {
@@ -77,7 +78,11 @@ impl GIRGenerator {
             );
         }
 
-        self.insert_at_ptr(Expr::ret(body));
+        if ret_type == Type::None {
+            self.insert_at_ptr(body)
+        } else {
+            self.insert_at_ptr(Expr::ret(body));
+        }
         self.end_scope();
     }
 
@@ -104,7 +109,7 @@ impl GIRGenerator {
     fn set_uninitialized_members(
         &mut self,
         constructor: &Constructor,
-        class_mems: &HashMap<Rc<String>, Rc<Field>>,
+        class_mems: &IndexMap<Rc<String>, Rc<Field>>,
     ) {
         self.uninitialized_this_fields.clear();
         for (name, mem) in class_mems.iter() {

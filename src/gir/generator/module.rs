@@ -8,11 +8,10 @@ use crate::{
         generator::{intrinsics::INTRINSICS, GIRGenerator},
         gir_err,
         nodes::{declaration::Declaration, module::Module},
+        MutRc,
     },
     lexer::token::Token,
-    gir::MutRc,
 };
-use crate::gir::Function;
 
 /// Generator responsible for compiling the full GIR
 /// list of modules as one unit.
@@ -132,7 +131,7 @@ impl GIRModuleGenerator {
         let modules: Vec<_> = modules.into_iter().map(Module::new).collect();
         Self {
             generator: GIRGenerator::new(Rc::clone(&modules[0])),
-            modules
+            modules,
         }
     }
 }

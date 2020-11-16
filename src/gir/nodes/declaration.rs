@@ -9,18 +9,20 @@ use crate::{
     ast::declaration::GenericParam,
     gir::{
         generator::GIRGenerator,
+        mutrc_new,
         nodes::{
             expression::Expr,
             types::{
                 ClosureType, Instance, Type, TypeParameter, TypeParameterBound, TypeParameters,
             },
         },
-        Module,
+        Module, MutRc,
     },
+    ir::adapter::{IRAdt, IRFunction},
     lexer::token::Token,
-    gir::{mutrc_new, MutRc},
 };
-use crate::ir::adapter::{IRFunction, IRAdt};
+use indexmap::map::IndexMap;
+use std::cell::RefCell;
 
 /// A declaration is a top-level user-defined
 /// item inside a module. This can be
@@ -70,24 +72,29 @@ pub struct ADT {
     /// The name of the ADT.
     pub name: Token,
     /// All fields on the ADT.
-    pub fields: HashMap<Rc<String>, Rc<Field>>,
-    /// All methods of this ADT.
-    pub methods: HashMap<Rc<String>, MutRc<Function>>,
+    pub fields: IndexMap<Rc<String>, Rc<Field>>,
 
+    /// All methods of this ADT.
+    /// Some ADTs have a few more special methods:
+    /// - "new-instance(&ADT) -> &ADT": Initializes an empty allocation of the ADT with default members, called before constructor.
+    /// - "free-wr(&ADT, act)": Frees a WR by decrementing the refcount of all fields if act == true
+    /// - "free-sr(&ADT, act)": Frees a SR by decrementing the refcount of all fields and calling free if act == true
+    pub methods: HashMap<Rc<String>, MutRc<Function>>,
     /// All constructors of the ADT, if any. They are simply methods
     /// with special constraints to enforce safety.
-    ///
-    /// Note that not all ADT have this function since not all are intended to be
-    /// user-instantiated (for example interfaces or closure capture ADTs)
     pub constructors: Vec<MutRc<Function>>,
 
     /// Type parameters on this ADT, if any.
     pub type_parameters: Rc<TypeParameters>,
 
+    /// The exact type of this ADT; used for holding specific info.
     pub ty: ADTType,
+    /// The AST of this ADT
     pub ast: MutRc<ast::ADT>,
+    /// The module this ADT was declared in
     pub module: MutRc<Module>,
-    pub ir: IRAdt
+    /// IR-level information of this ADT
+    pub ir: IRAdt,
 }
 
 impl ADT {
@@ -130,7 +137,7 @@ impl ADT {
 
         let adt = mutrc_new(ADT {
             name: ast.name.clone(),
-            fields: HashMap::with_capacity(mem_size),
+            fields: IndexMap::with_capacity(mem_size),
             methods: HashMap::with_capacity(method_size),
             constructors: Vec::with_capacity(const_size),
             type_parameters: ast_generics_to_gir(&generator, &ast.generics, None),
@@ -165,14 +172,14 @@ impl ADT {
             ast.case_name(),
             mutrc_new(ADT {
                 name: ast.name.clone(),
-                fields: HashMap::with_capacity(ast.members().unwrap().len() + parent.fields.len()),
+                fields: IndexMap::with_capacity(ast.members().unwrap().len() + parent.fields.len()),
                 methods: HashMap::with_capacity(ast.methods.len() + parent.methods.len()),
                 constructors: Vec::with_capacity(ast.constructors().unwrap().len()),
                 type_parameters: Rc::clone(&parent.type_parameters),
                 ty,
                 ast: mutrc_new(ast),
                 module: Rc::clone(&generator.module),
-                ir: IRAdt::new(!parent.type_parameters.is_empty())
+                ir: IRAdt::new(!parent.type_parameters.is_empty()),
             }),
         )
     }
@@ -267,6 +274,20 @@ impl ADTType {
             unreachable!();
         }
     }
+
+    /// Are strong/weak references of this type a pointer?
+    /// True for all but interfaces.
+    pub fn ref_is_ptr(&self) -> bool {
+        !self.is_interface()
+    }
+
+    /// Is this an extern class?
+    pub fn is_extern_class(&self) -> bool {
+        match self {
+            ADTType::Class { external } => *external,
+            _ => false,
+        }
+    }
 }
 
 /// Field on an ADT.
@@ -317,7 +338,7 @@ pub struct Function {
     /// The module this was declared in.
     pub module: MutRc<Module>,
     /// IR data for this function, used by IR generator
-    pub ir: IRFunction
+    pub ir: RefCell<IRFunction>,
 }
 
 impl Function {
@@ -343,6 +364,7 @@ impl Function {
                 .map(|p| p.ty.clone())
                 .collect(),
             ret_type: self.ret_type.clone(),
+            ..Default::default()
         }))
     }
 }
@@ -383,6 +405,18 @@ impl Hash for Variable {
         }
     }
 }
+
+impl PartialEq for Variable {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Variable::Function(f), Variable::Function(o)) => f == o,
+            (Variable::Local(f), Variable::Local(o)) => Rc::ptr_eq(f, o),
+            _ => false,
+        }
+    }
+}
+
+impl Eq for Variable {}
 
 /// A local variable scoped to a function, can be
 /// function parameters or user-defined variables.

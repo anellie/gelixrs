@@ -1,11 +1,9 @@
 use std::rc::Rc;
 
-use crate::{
-    gir::{
-        generator::GIRGenerator,
-        nodes::declaration::{Declaration, Field, ADT},
-    },
-    gir::MutRc,
+use crate::gir::{
+    generator::GIRGenerator,
+    nodes::declaration::{Declaration, Field, ADT},
+    MutRc,
 };
 
 impl GIRGenerator {

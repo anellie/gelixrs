@@ -14,9 +14,9 @@ use crate::{
             types::{Instance, Type, TypeArguments},
         },
         result::EmitGIRError,
+        MutRc,
     },
     lexer::token::{TType, Token},
-    gir::MutRc,
 };
 use std::rc::Rc;
 
@@ -135,7 +135,7 @@ impl GIRGenerator {
         }
     }
 
-    fn binary(&mut self, left: &AExpr, operator: &Token , right: &AExpr) -> Res<Expr> {
+    fn binary(&mut self, left: &AExpr, operator: &Token, right: &AExpr) -> Res<Expr> {
         let left = self.expression(left);
 
         // Account for an edge case with simple enums, where `A:A` incorrectly gets
@@ -260,15 +260,15 @@ impl GIRGenerator {
 
                 let ty_args = type_args.iter().map(|t| self.resolver.find_type(t));
                 let ty_args = object
-                        .get_type()
-                        .type_args()
-                        .unwrap()
-                        .iter()
-                        .cloned()
-                        .map(Ok)
-                        .chain(ty_args)
-                        .collect::<Res<Vec<Type>>>()?;
-                let func = Instance::new(Rc::clone(&func), ty_args);
+                    .get_type()
+                    .type_args()
+                    .unwrap()
+                    .iter()
+                    .cloned()
+                    .map(Ok)
+                    .chain(ty_args)
+                    .collect::<Res<Vec<Type>>>()?;
+                let func = Instance::new(Rc::clone(&func), Rc::new(ty_args));
 
                 args.insert(0, object);
                 self.check_func_args_(
@@ -348,7 +348,7 @@ impl GIRGenerator {
     fn check_func_args<T: Iterator<Item = Type>>(
         &mut self,
         mut parameters: T,
-        type_args: Option<&TypeArguments>,
+        type_args: Option<&Rc<TypeArguments>>,
         args: &mut Vec<Expr>,
         ast_args: &[AExpr],
         allow_variadic: bool,

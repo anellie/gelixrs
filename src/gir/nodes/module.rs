@@ -6,11 +6,12 @@ use std::{
 use crate::{
     ast,
     ast::module::ModulePath,
-    gir::{generator::GIRGenerator, gir_err, nodes::declaration::Declaration},
+    gir::{
+        generator::GIRGenerator, gir_err, mutrc_new, nodes::declaration::Declaration, Function,
+        MutRc,
+    },
     lexer::token::Token,
-    gir::{mutrc_new, MutRc},
 };
-use crate::gir::Function;
 
 /// A module as represented in GIR.
 /// Simplified to a list of declarations.

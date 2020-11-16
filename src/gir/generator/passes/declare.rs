@@ -6,7 +6,7 @@ use crate::{
     error::Res,
     gir::{
         generator::{intrinsics::INTRINSICS, module::GIRModuleGenerator, GIRGenerator},
-        get_or_create_iface_impls,
+        get_or_create_iface_impls, mutrc_new,
         nodes::{
             declaration::{
                 ast_generics_to_gir, ADTType, Declaration, Function, LocalVariable, ADT,
@@ -15,11 +15,12 @@ use crate::{
             types::{IFaceImpl, Type, TypeParameters},
         },
         result::EmitGIRError,
+        MutRc,
     },
+    ir::adapter::IRFunction,
     lexer::token::Token,
-    gir::{mutrc_new, MutRc},
 };
-use crate::ir::adapter::IRFunction;
+use std::cell::RefCell;
 
 impl GIRModuleGenerator {
     pub fn declare_adts(&mut self, module: MutRc<Module>, ast: &mut ast::Module) {
@@ -124,9 +125,12 @@ impl GIRGenerator {
             ret_type,
             ast: mutrc_new(func),
             module: Rc::clone(&self.module),
-            ir: IRFunction::new(has_ty_args)
+            ir: RefCell::new(IRFunction::new(has_ty_args)),
         });
-        self.module.borrow_mut().functions.push(Rc::clone(&function));
+        self.module
+            .borrow_mut()
+            .functions
+            .push(Rc::clone(&function));
         Ok(function)
     }
 

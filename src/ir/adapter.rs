@@ -1,18 +1,22 @@
-use inkwell::values::{FunctionValue, StructValue};
-use crate::gir::{Type, Function, ADT};
+use crate::gir::{nodes::types::TypeArguments, Function, ADT};
 use indexmap::map::IndexMap;
-use std::fmt::{Debug, Formatter};
-use std::{io, fmt};
-use crate::gir::nodes::types::{Instance, TypeArguments};
-use inkwell::types::StructType;
-use crate::gir::nodes::declaration::ADTType;
+use inkwell::{
+    types::StructType,
+    values::{FunctionValue, PointerValue},
+};
+use std::{
+    fmt,
+    fmt::{Debug, Formatter},
+    rc::Rc,
+};
+use IRAdapter::TypeArgs;
 
-pub enum IRAdapter<T> {
+pub enum IRAdapter<T: Copy> {
     NoTypeArgs(Option<T>),
-    TypeArgs(IndexMap<TypeArguments, Option<T>>)
+    TypeArgs(IndexMap<Rc<TypeArguments>, Option<T>>),
 }
 
-impl<T> IRAdapter<T> {
+impl<T: Copy> IRAdapter<T> {
     pub fn new(type_args: bool) -> Self {
         if type_args {
             IRAdapter::TypeArgs(IndexMap::with_capacity(3))
@@ -20,39 +24,66 @@ impl<T> IRAdapter<T> {
             IRAdapter::NoTypeArgs(None)
         }
     }
+
+    pub fn get_inst(&self, args: &Rc<TypeArguments>) -> Option<T> {
+        match self {
+            IRAdapter::NoTypeArgs(opt) => *opt,
+            IRAdapter::TypeArgs(map) => map.get(args).copied().flatten(),
+        }
+    }
+
+    pub fn add_inst(&mut self, args: &Rc<TypeArguments>, ir: T) {
+        match self {
+            IRAdapter::NoTypeArgs(opt) => {
+                opt.replace(ir);
+            },
+            IRAdapter::TypeArgs(map) => {
+                map.insert(Rc::clone(args), Some(ir));
+            },
+        };
+    }
+
+    pub fn count(&self) -> usize {
+        match self {
+            IRAdapter::NoTypeArgs(_) => 1,
+            IRAdapter::TypeArgs(map) => map.len(),
+        }
+    }
 }
 
-impl<T> Debug for IRAdapter<T> {
+impl<T: Copy> Debug for IRAdapter<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "<IR adapter>")
     }
 }
 
-impl<'a, T> IntoIterator for &'a IRAdapter<T> {
-    type Item = (&'a T, &'a [Type]);
+impl<'a, T: Copy> IntoIterator for &'a IRAdapter<T> {
+    type Item = (&'a T, Option<&'a Rc<TypeArguments>>);
     type IntoIter = AdapterIter<'a, T>;
 
     fn into_iter(self) -> Self::IntoIter {
         AdapterIter {
             inner: self,
-            count: 0
+            count: 0,
         }
     }
 }
 
-pub struct AdapterIter<'a, T> {
+pub struct AdapterIter<'a, T: Copy> {
     inner: &'a IRAdapter<T>,
-    count: usize
+    count: usize,
 }
 
-impl<'a, T> Iterator for AdapterIter<'a, T> {
-    type Item = (&'a T, &'a [Type]);
+impl<'a, T: Copy> Iterator for AdapterIter<'a, T> {
+    type Item = (&'a T, Option<&'a Rc<TypeArguments>>);
 
     fn next(&mut self) -> Option<Self::Item> {
         let ret = match self.inner {
-            IRAdapter::NoTypeArgs(item) if self.count == 0 => item.as_ref().map(|i| (i, &[] as &[Type])),
-            IRAdapter::TypeArgs(map) => map.get_index(self.count).map(|(k, v)| (v.as_ref().unwrap(), k.as_slice())),
-            _ => None
+            IRAdapter::NoTypeArgs(item) if self.count == 0 => item.as_ref().map(|i| (i, None)),
+            TypeArgs(map) => map
+                .get_index(self.count)
+                .map(|(k, v)| (v.as_ref().unwrap(), Some(k))),
+            _ => None,
         };
         self.count += 1;
         ret
@@ -61,40 +92,48 @@ impl<'a, T> Iterator for AdapterIter<'a, T> {
     fn size_hint(&self) -> (usize, Option<usize>) {
         match self.inner {
             IRAdapter::NoTypeArgs(_) => (1, Some(1)),
-            IRAdapter::TypeArgs(map) => (map.len(), Some(map.len())),
+            TypeArgs(map) => (map.len(), Some(map.len())),
         }
     }
 }
 
+#[derive(Copy, Clone)]
+pub struct IRAdtInfo {
+    pub strong: StructType,
+    pub weak: StructType,
+    pub typeinfo: PointerValue,
+}
+
 pub type IRFunction = IRAdapter<FunctionValue>;
-pub type IRAdt = IRAdapter<StructType>;
+pub type IRAdt = IRAdapter<IRAdtInfo>;
+pub type IRClosure = StructType;
 
 pub trait Instantiable {
-    fn register_instance(&mut self, new: &TypeArguments);
+    fn register_instance(&mut self, new: &Rc<TypeArguments>);
 }
 
 impl Instantiable for Function {
-    fn register_instance(&mut self, new: &TypeArguments) {
-        match &mut self.ir {
-            IRAdapter::TypeArgs(map) => {
+    fn register_instance(&mut self, new: &Rc<TypeArguments>) {
+        match &mut *self.ir.borrow_mut() {
+            TypeArgs(map) => {
                 if !map.contains_key(new) {
-                    map.insert(new.clone(), None);
+                    map.insert(Rc::clone(new), None);
                 }
-            },
-            _ => ()
+            }
+            _ => (),
         }
     }
 }
 
 impl Instantiable for ADT {
-    fn register_instance(&mut self, new: &TypeArguments) {
+    fn register_instance(&mut self, new: &Rc<TypeArguments>) {
         match &mut self.ir {
-            IRAdapter::TypeArgs(map) => {
+            TypeArgs(map) => {
                 if !map.contains_key(new) {
-                    map.insert(new.clone(), None);
+                    map.insert(Rc::clone(new), None);
                 }
-            },
-            _ => ()
+            }
+            _ => (),
         }
     }
 }

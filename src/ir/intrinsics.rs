@@ -5,29 +5,33 @@
  */
 
 use crate::{
-    ir::{IRGenerator, PtrEqRc},
-    gir::{Function, Module, MutRc},
+    gir::{nodes::types::TypeArguments, Function, Module, MutRc, Type},
+    ir::IRGenerator,
 };
 use inkwell::{
-    types::{AnyTypeEnum, BasicType},
+    types::BasicType,
     values::{BasicValue, FunctionValue},
     AddressSpace::Generic,
     IntPredicate,
 };
-use std::cell::RefMut;
-use crate::gir::Type;
+use std::{cell::Ref, rc::Rc};
 
 impl IRGenerator {
     pub(super) fn fill_intrinsic_functions(&mut self, module: &MutRc<Module>) {
         for func in &module.borrow().functions {
-            let func = func.borrow_mut();
-            for (ir, ty_args) in &func.ir {
-                self.fill_intrinsic(func, ty_args, *ir)
+            let func = func.borrow();
+            for (ir, ty_args) in func.ir.borrow().into_iter() {
+                self.fill_intrinsic(&func, ty_args, *ir)
             }
         }
     }
 
-    fn fill_intrinsic(&mut self, func: RefMut<Function>, ty_args: &[Type], ir: FunctionValue) {
+    fn fill_intrinsic(
+        &mut self,
+        func: &Ref<Function>,
+        ty_args: Option<&Rc<TypeArguments>>,
+        ir: FunctionValue,
+    ) {
         // Trim the module name and generic parameters off the function
         // "std/mod:func_name<A, B>" -> "func_name"
         // TODO: ^^^ will this ever be needed again? ^^^
@@ -47,7 +51,7 @@ impl IRGenerator {
             // Credit: http://nondot.org/sabre/LLVMNotes/SizeOf-OffsetOf-VariableSizedStructs.txt
             "get_type_size" => {
                 let i = self.context.i64_type();
-                let typ = self.ir_ty(&ty_args[0]).ptr_type(Generic);
+                let typ = self.ir_ty_generic(&ty_args.unwrap()[0]).ptr_type(Generic);
                 let ptr_size = unsafe {
                     self.builder
                         .build_gep(typ.const_null(), &[i.const_int(1, false)], "size")
@@ -114,33 +118,33 @@ impl IRGenerator {
 
             "free_type" => {
                 let value = ir.get_first_param().unwrap();
-                let elem = value.into_pointer_value().get_type().get_element_type();
-
+                let elem = &ty_args.unwrap()[0];
                 match elem {
-                    AnyTypeEnum::StructType(struct_type) => {
-                        let adt = self
-                            .types_bw
-                            .get(struct_type.get_name().unwrap().to_str().unwrap())
-                            .unwrap()
-                            .to_adt();
-
-                        // Use SR destructor if needed
-                        if func.context.type_aliases.get_index(0).unwrap().1.is_adt() {
-                            let destructor =
-                                self.get_variable(&adt.borrow().destructor_sr.as_ref().unwrap());
-                            self.builder.build_call(
-                                destructor,
-                                &[value, self.context.bool_type().const_int(1, false).into()],
-                                "free",
-                            );
-                        } else {
-                            let destructor =
-                                self.get_variable(&adt.borrow().destructor.as_ref().unwrap());
-                            self.builder.build_call(destructor, &[value], "free");
-                        };
+                    Type::WeakRef(adt) => {
+                        let method = adt.get_method(&Rc::new("free-wr".to_string()));
+                        let destructor = method
+                            .ty
+                            .borrow()
+                            .ir
+                            .borrow()
+                            .get_inst(method.args())
+                            .unwrap();
+                        self.builder.build_call(destructor, &[value], "free");
                     }
 
-                    // Primitive, simply calling free is enough
+                    Type::StrongRef(adt) => {
+                        let method = adt.get_method(&Rc::new("free-sr".to_string()));
+                        let destructor = method
+                            .ty
+                            .borrow()
+                            .ir
+                            .borrow()
+                            .get_inst(method.args())
+                            .unwrap();
+                        self.builder.build_call(destructor, &[value], "free");
+                    }
+
+                    // Primitive, simply calling free is enough since it must be a raw pointer
                     _ => {
                         self.builder.build_free(value.into_pointer_value());
                     }
@@ -151,12 +155,6 @@ impl IRGenerator {
 
             "load_value" => {
                 let mut value = ir.get_first_param().unwrap();
-                if func.parameters[0].type_.is_adt() {
-                    value = self.cast_sr_to_wr(
-                        value.into_pointer_value(),
-                        &func.parameters[0].type_.to_weak(),
-                    );
-                }
                 self.builder.build_return(Some(
                     &self.builder.build_load(value.into_pointer_value(), "var"),
                 ));

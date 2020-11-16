@@ -13,9 +13,9 @@ use crate::{
             types::{ClosureType, Instance, Type, TypeParameters, TypeVariable},
         },
         result::EmitGIRError,
+        MutRc,
     },
     lexer::token::Token,
-    gir::MutRc,
 };
 use std::mem;
 
@@ -97,21 +97,21 @@ impl Resolver {
                 Ok(Type::Closure(Rc::new(ClosureType {
                     parameters,
                     ret_type,
+                    ..Default::default()
                 })))
             }
 
             ast::Type::Generic { token, types } => {
                 // TODO: more validation
                 let mut ty = self.find_type_(&ast::Type::Ident(token.clone()), true)?;
-                let args = ty.type_args_mut().on_err(
-                    &self.path,
-                    token,
-                    "Type does not take type arguments.",
-                )?;
-                *args = types
+                let args = types
                     .iter()
                     .map(|p| self.find_type(p))
                     .collect::<Res<Vec<_>>>()?;
+                let success = ty.set_type_args(Rc::new(args));
+                if !success {
+                    None.on_err(&self.path, token, "Type does not take type arguments.")?;
+                }
                 Ok(ty)
             }
         }
@@ -241,7 +241,7 @@ impl Resolver {
             right_adt.map(|a| a.ty.borrow().ty.clone()),
         ) {
             if Rc::ptr_eq(&p1, &p2) && left_adt.unwrap().args() == right_adt.unwrap().args() {
-                let inst = Instance::new(p1, left_adt.unwrap().args().clone());
+                let inst = Instance::new(p1, Rc::clone(left_adt.unwrap().args()));
                 let ty = match (left_ty, right_ty) {
                     (Type::StrongRef(_), Type::StrongRef(_)) => Type::StrongRef(inst),
                     _ => Type::WeakRef(inst),

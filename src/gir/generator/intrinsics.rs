@@ -18,13 +18,15 @@ use std::{
 
 use crate::{
     error::{Error, Res},
-    gir::nodes::{
-        declaration::{Function, ADT},
-        module::Module,
-        types::Type,
+    gir::{
+        nodes::{
+            declaration::{Function, ADT},
+            module::Module,
+            types::Type,
+        },
+        MutRc,
     },
     lexer::token::TType,
-    gir::MutRc,
 };
 
 thread_local! {

@@ -18,10 +18,10 @@ use crate::{
             expression::Expr,
             types::{Instance, Type},
         },
-        result::EmitGIRError,
+        result::{EmitGIRError, ToGIRResult},
+        MutRc,
     },
     lexer::token::{TType, Token},
-    gir::{result::ToGIRResult, MutRc},
 };
 
 impl GIRGenerator {
