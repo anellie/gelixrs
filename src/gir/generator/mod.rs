@@ -22,6 +22,7 @@ use crate::{
     lexer::token::{TType, Token},
 };
 use either::Either;
+use smol_str::SmolStr;
 
 mod expr;
 pub mod intrinsics;
@@ -30,7 +31,7 @@ mod passes;
 pub mod resolver;
 pub mod visitors;
 
-pub type Environment = HashMap<Rc<String>, Rc<LocalVariable>>;
+pub type Environment = HashMap<SmolStr, Rc<LocalVariable>>;
 
 /// A GIR generator scoped to a single module, responsible for
 /// compiling expressions and resolving types (latter delegated to resolver).
@@ -87,7 +88,7 @@ impl GIRGenerator {
     /// Tries to reserve the given name in the current module.
     /// Uses given token for error reporting.
     /// Be warned that this will borrow mutably!
-    pub fn try_reserve_name_rc(&self, name: &Rc<String>, tok: &Token) {
+    pub fn try_reserve_name_rc(&self, name: &SmolStr, tok: &Token) {
         self.module
             .borrow_mut()
             .try_reserve_name_rc(self, name, tok)
@@ -111,7 +112,7 @@ impl GIRGenerator {
     fn insert_variable(&mut self, var: &Rc<LocalVariable>, allow_redefine: bool) {
         let cur_env = self.environments.last_mut().unwrap();
         let was_defined = cur_env
-            .insert(Rc::clone(&var.name.lexeme), Rc::clone(&var))
+            .insert(var.name.lexeme.clone(), Rc::clone(&var))
             .is_some();
         if was_defined && !allow_redefine {
             self.err(
@@ -128,7 +129,7 @@ impl GIRGenerator {
     pub fn add_function_variable(&mut self, variable: Rc<LocalVariable>) {
         self.cur_fn()
             .borrow_mut()
-            .insert_var(Rc::clone(&variable.name.lexeme), variable);
+            .insert_var(variable.name.lexeme.clone(), variable);
     }
 
     /// Returns the method that corresponds to the operator given (operator overloading).

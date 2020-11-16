@@ -15,6 +15,7 @@ use crate::{
     ast::{expression::Expression, Type},
     lexer::token::Token,
 };
+use smol_str::SmolStr;
 
 /// An enum containing all literals possible in Gelix.
 #[derive(Debug, Clone)]
@@ -40,7 +41,7 @@ pub enum Literal {
     F64(f64),
 
     Char(char),
-    String(Rc<String>),
+    String(SmolStr),
 
     // TODO: GIR array literals
     Array(Either<Rc<Vec<Expression>>, ()>),

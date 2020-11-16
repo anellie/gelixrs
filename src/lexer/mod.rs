@@ -11,6 +11,7 @@ use crate::{
     error::{Error, Res},
 };
 use std::collections::VecDeque;
+use smol_str::SmolStr;
 use token::{TType, Token};
 
 pub mod token;
@@ -249,10 +250,10 @@ impl Lexer {
     fn make_token(&mut self, t_type: TType) -> Token {
         Token {
             t_type,
-            lexeme: Rc::new(self.chars[(self.start)..(self.current)].iter().collect()),
+            // TODO Any way to avoid this allocation? probably not without fiddling with smol_str internals
+            lexeme: SmolStr::new(self.chars[(self.start)..(self.current)].iter().collect::<String>()),
             index: self.line_index,
-            line: self.line,
-            len: self.current - self.start,
+            line: self.line
         }
     }
 

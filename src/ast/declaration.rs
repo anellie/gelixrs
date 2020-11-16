@@ -7,7 +7,7 @@
 use std::fmt;
 
 use super::{super::lexer::token::Token, expression::Expression};
-use std::rc::Rc;
+use smol_str::SmolStr;
 
 /// Visibilities of a declaration.
 /// Most declarations default to 'module'
@@ -51,11 +51,11 @@ impl ADT {
     }
 
     /// Returns case name if this is an enum case, regular name otherwise.
-    pub fn case_name(&self) -> Rc<String> {
-        Rc::clone(match &self.ty {
+    pub fn case_name(&self) -> SmolStr {
+        match &self.ty {
             ADTType::EnumCase { case_name, .. } => case_name,
             _ => &self.name.lexeme,
-        })
+        }.clone()
     }
 
     /// Returns if this is a simple enum case or false if not enum case
@@ -64,26 +64,6 @@ impl ADT {
             *no_body
         } else {
             false
-        }
-    }
-
-    /// This is only called on prototypes and used to replace their name with
-    /// the name of an instance. For `EnumCase`, it is assumed the name
-    /// is for the parent, since only Enum prototypes exist
-    pub fn replace_proto_name(&mut self, new: &Rc<String>) {
-        match &mut self.ty {
-            ADTType::Enum { cases, .. } => {
-                self.name.lexeme = Rc::clone(new);
-                for case in cases.iter_mut() {
-                    case.replace_proto_name(new)
-                }
-            }
-
-            ADTType::EnumCase { case_name, .. } => {
-                self.name.lexeme = Rc::new(format!("{}:{}", new, case_name))
-            }
-
-            _ => self.name.lexeme = Rc::clone(new),
         }
     }
 }
@@ -115,7 +95,7 @@ pub enum ADTType {
         variables: Vec<ADTMember>,
         constructors: Vec<Constructor>,
         // The name of the case without the parent before it
-        case_name: Rc<String>,
+        case_name: SmolStr,
         // If this case has no body, and is simply `case Name`
         no_body: bool,
     },
@@ -175,7 +155,7 @@ impl FunctionParam {
     /// Used to create the implicit 'this' parameter in class & iface methods.
     pub fn this_param(ty: &Token) -> FunctionParam {
         FunctionParam {
-            name: Token::generic_identifier("this".to_string()),
+            name: Token::generic_identifier("this"),
             type_: Type::Ident(ty.clone()),
         }
     }
@@ -183,7 +163,7 @@ impl FunctionParam {
     /// See above.
     pub fn this_param_(ty: &Type) -> FunctionParam {
         FunctionParam {
-            name: Token::generic_identifier("this".to_string()),
+            name: Token::generic_identifier("this"),
             type_: ty.clone(),
         }
     }

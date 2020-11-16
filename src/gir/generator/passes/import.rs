@@ -22,7 +22,7 @@ impl GIRModuleGenerator {
                 if import.symbol.t_type == TType::Plus {
                     for (name, decl) in src_module.declarations.iter() {
                         module.try_reserve_name_rc(&this.generator, name, &import.symbol);
-                        Self::get_imports(module, is_export).insert(Rc::clone(name), decl.clone());
+                        Self::get_imports(module, is_export).insert(name.clone(), decl.clone());
                     }
                     Ok(second_stage)
                 } else {
@@ -31,7 +31,7 @@ impl GIRModuleGenerator {
 
                     if let Some(decl) = decl {
                         Self::get_imports(module, is_export)
-                            .insert(Rc::clone(&import.symbol.lexeme), decl);
+                            .insert(import.symbol.lexeme.clone(), decl);
                     } else if second_stage {
                         gen.err(&import.symbol, "Unknown declaration.".to_string())
                     }

@@ -6,7 +6,7 @@
 
 use std::{env, fs, path::PathBuf, process};
 
-use gelixrs::{find_std_module, stem_to_rc_str};
+use gelixrs::{find_std_module, stem_to_smol};
 use inkwell::{execution_engine::JitFunction, OptimizationLevel};
 use structopt::StructOpt;
 
@@ -75,7 +75,7 @@ fn run(args: Opt) -> Result<(), &'static str> {
     }
 
     if args.parse {
-        let stem = stem_to_rc_str(&args.file);
+        let stem = stem_to_smol(&args.file);
         for module in code.iter().filter(|m| m.path.0.first().unwrap() == &stem) {
             println!("{:#?}\n\n", module);
         }
@@ -90,7 +90,7 @@ fn run(args: Opt) -> Result<(), &'static str> {
     })?;
 
     if args.gir || args.gir_all {
-        let stem = stem_to_rc_str(&args.file);
+        let stem = stem_to_smol(&args.file);
         for module in gir
             .iter()
             .filter(|m| (m.borrow().path.0.first().unwrap() == &stem) || args.gir_all)

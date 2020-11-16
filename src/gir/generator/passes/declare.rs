@@ -25,7 +25,7 @@ use std::cell::RefCell;
 impl GIRModuleGenerator {
     pub fn declare_adts(&mut self, module: MutRc<Module>, ast: &mut ast::Module) {
         for ast in ast.adts.drain(..) {
-            let name = Rc::clone(&ast.name.lexeme);
+            let name = ast.name.lexeme.clone();
             self.generator.try_reserve_name(&ast.name);
             let adt = ADT::from_ast(&self.generator, ast);
 
@@ -37,7 +37,7 @@ impl GIRModuleGenerator {
             if let ADTType::Enum { cases } = &adt.borrow().ty {
                 for case in cases.values() {
                     module.declarations.insert(
-                        Rc::clone(&case.borrow().name.lexeme),
+                        case.borrow().name.lexeme.clone(),
                         Declaration::Adt(Rc::clone(case)),
                     );
                 }
@@ -78,7 +78,7 @@ impl GIRGenerator {
 
         let function = self.generate_gir_fn(func, this_param, parent_type_params)?;
         self.module.borrow_mut().declarations.insert(
-            Rc::clone(&name.lexeme),
+            name.lexeme.clone(),
             Declaration::Function(Rc::clone(&function)),
         );
         self.maybe_set_main_fn(&function, &name);

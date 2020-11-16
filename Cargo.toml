@@ -11,6 +11,7 @@ either = "1.5.2"
 indexmap = "1.2.0"
 enum-methods = "0.0.8"
 ansi_term = "0.12.1"
+smol_str = "0.1.17"
 
 # Inkwell recently added reqwest as a build dependency.
 # This caused the amount of crates to build to triple

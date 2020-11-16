@@ -1,3 +1,5 @@
+use smol_str::SmolStr;
+
 use crate::{
     ast,
     ast::{
@@ -725,7 +727,7 @@ impl GIRGenerator {
 
     fn closure(&mut self, closure: &Closure, token: &Token) -> Res<Expr> {
         let mut name = token.clone();
-        name.lexeme = Rc::new(format!("closure-{}:{}", token.line, token.index));
+        name.lexeme = SmolStr::new(format!("closure-{}:{}", token.line, token.index));
         let ast_func = ast::Function {
             sig: FuncSignature {
                 name,
@@ -750,7 +752,7 @@ impl GIRGenerator {
         let function = gen.create_function(
             ast_func,
             Some(FunctionParam::this_param(&Token::generic_identifier(
-                "i64".to_string(),
+                "i64",
             ))),
             None, // TODO: always none? maybe not
         )?;
@@ -759,14 +761,14 @@ impl GIRGenerator {
 
         let captured = Rc::new(closure_data.captured);
         function.borrow_mut().parameters[0] = Rc::new(LocalVariable {
-            name: Token::generic_identifier("CLOSURE-CAPTURED".to_string()),
+            name: Token::generic_identifier("CLOSURE-CAPTURED"),
             ty: Type::ClosureCaptured(Rc::clone(&captured)),
             mutable: false,
         });
 
         let expr = Expr::Closure { function, captured };
         let var = self.define_variable(
-            &Token::generic_identifier("closure-literal".to_string()),
+            &Token::generic_identifier("closure-literal"),
             false,
             expr.get_type(),
         );

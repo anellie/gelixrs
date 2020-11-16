@@ -23,6 +23,7 @@ use crate::{
 use crate::gir::MutRc;
 use crate::gir::generator::module::GIRModuleGenerator;
 use crate::ir::IRGenerator;
+use smol_str::SmolStr;
 
 pub mod ast;
 //#[cfg(test)]
@@ -48,7 +49,7 @@ fn make_modules(
     path: &mut ModulePath,
     modules: &mut Vec<Module>,
 ) -> Result<(), Vec<Errors>> {
-    path.0.push(stem_to_rc_str(&input));
+    path.0.push(stem_to_smol(&input));
 
     if let Ok(dir) = input.read_dir() {
         let mut errors = Vec::new();
@@ -105,10 +106,10 @@ fn fill_module(code: Rc<String>, module: &mut Module) -> Result<(), Errors> {
 pub fn auto_import_prelude(modules: &mut Vec<Module>) {
     let prelude_import = Import {
         path: Rc::new(ModulePath(vec![
-            Rc::new("std".to_string()),
-            Rc::new("prelude".to_string()),
+            SmolStr::new_inline("std"),
+            SmolStr::new_inline("prelude"),
         ])),
-        symbol: Token::generic_identifier("+".to_string()),
+        symbol: Token::generic_identifier("+"),
     };
 
     for module in modules
@@ -128,8 +129,8 @@ pub fn compile_ir(modules: Vec<MutRc<gir::Module>>) -> inkwell::module::Module {
     IRGenerator::new().generate(modules)
 }
 
-pub fn stem_to_rc_str(path: &PathBuf) -> Rc<String> {
-    Rc::new(path.file_stem().unwrap().to_str().unwrap().to_string())
+pub fn stem_to_smol(path: &PathBuf) -> SmolStr {
+    SmolStr::new(path.file_stem().unwrap().to_str().unwrap())
 }
 
 pub fn find_std_module() -> Result<PathBuf, &'static str> {

@@ -57,8 +57,8 @@ impl Error {
     ) -> Error {
         Error {
             line: tok.line,
-            start: tok.index - tok.len,
-            len: tok.len,
+            start: tok.index - tok.lexeme.len(),
+            len: tok.lexeme.len(),
             producer,
             message,
             module: Rc::clone(module),

@@ -13,11 +13,12 @@ use crate::{
     ast::declaration::{Function, IFaceImpl, ADT},
     lexer::token::Token,
 };
+use smol_str::SmolStr;
 
 /// The path of the module. For example, the file 'std/collections/array.gel'
-/// would have ["std", "collections", "array"] here.
+/// would have `["std", "collections", "array"]` here.
 #[derive(Clone, Debug, Default, PartialOrd, PartialEq, Eq, Hash)]
-pub struct ModulePath(pub Vec<Rc<String>>);
+pub struct ModulePath(pub Vec<SmolStr>);
 
 impl Display for ModulePath {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
@@ -26,8 +27,8 @@ impl Display for ModulePath {
             "{}",
             self.0
                 .iter()
-                .map(|rc| (&**rc).clone())
-                .collect::<Vec<String>>()
+                .map(|rc| rc.as_ref())
+                .collect::<Vec<&str>>()
                 .join("/")
         )
     }

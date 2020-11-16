@@ -4,56 +4,51 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::rc::Rc;
+use smol_str::SmolStr;
 
 /// A token in the gelix language. These are produced by a lexer.
-/// Cloning a Token is cheap, since the lexemes are refcounted.
+/// Cloning a Token is cheap, since the lexemes use smol_str.
 #[derive(Debug, Clone)]
 pub struct Token {
     /// The type of the token.
     pub t_type: TType,
     /// The lexeme of the token. Does not include escape chars (ex. String lexeme is <i>I'm a string!</i>)
-    pub lexeme: Rc<String>,
+    pub lexeme: SmolStr,
     /// The index of the last char of the token inside the source.
     /// This is used for error reporting.
     pub index: usize,
     /// The line of the token.
     pub line: usize,
-    /// The length of the token. Even though this can be taken from
-    /// the lexeme in most cases, it sometimes differs because the
-    /// lexeme was modified.
-    pub len: usize,
 }
 
 impl Token {
     pub fn eof_token(line: usize) -> Token {
         Token {
             t_type: TType::EndOfFile,
-            lexeme: Rc::new("\0".to_string()),
+            lexeme: SmolStr::new_inline("\0"),
             index: 1,
             line,
-            len: 0,
         }
     }
 
-    pub fn generic_identifier(lexeme: String) -> Token {
+    // Warning: `lexeme` must not be over 22 bytes!
+    // See `SmolStr::new_inline`.
+    pub fn generic_identifier(lexeme: &str) -> Token {
         let index = lexeme.len();
         Token {
             t_type: TType::Identifier,
-            lexeme: Rc::new(lexeme),
+            lexeme: SmolStr::new_inline(lexeme),
             index,
-            line: 1,
-            len: 0,
+            line: 1
         }
     }
 
     pub fn generic_token(token: TType) -> Token {
         Token {
             t_type: token,
-            lexeme: Rc::new("".to_string()),
+            lexeme: SmolStr::new_inline(""),
             index: 0,
-            line: 1,
-            len: 0,
+            line: 1
         }
     }
 }

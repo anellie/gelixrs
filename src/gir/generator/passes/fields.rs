@@ -42,7 +42,7 @@ impl GIRGenerator {
             }
 
             let member = Rc::new(Field {
-                name: Rc::clone(&field.name.lexeme),
+                name: field.name.lexeme.clone(),
                 mutable: field.mutable,
                 ty,
                 initializer: initializer.map(Box::new),
@@ -52,7 +52,7 @@ impl GIRGenerator {
             let existing_entry = adt
                 .borrow_mut()
                 .fields
-                .insert(Rc::clone(&field.name.lexeme), Rc::clone(&member));
+                .insert(field.name.lexeme.clone(), Rc::clone(&member));
             if existing_entry.is_some() {
                 self.err(
                     &field.name,

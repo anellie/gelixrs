@@ -1,4 +1,4 @@
-use crate::gir::{nodes::types::TypeArguments, Function, ADT};
+use crate::gir::{nodes::types::TypeArguments};
 use indexmap::map::IndexMap;
 use inkwell::{
     types::StructType,

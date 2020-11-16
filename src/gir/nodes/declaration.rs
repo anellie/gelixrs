@@ -23,6 +23,7 @@ use crate::{
 };
 use indexmap::map::IndexMap;
 use std::cell::RefCell;
+use smol_str::SmolStr;
 
 /// A declaration is a top-level user-defined
 /// item inside a module. This can be
@@ -72,14 +73,14 @@ pub struct ADT {
     /// The name of the ADT.
     pub name: Token,
     /// All fields on the ADT.
-    pub fields: IndexMap<Rc<String>, Rc<Field>>,
+    pub fields: IndexMap<SmolStr, Rc<Field>>,
 
     /// All methods of this ADT.
     /// Some ADTs have a few more special methods:
     /// - "new-instance(&ADT) -> &ADT": Initializes an empty allocation of the ADT with default members, called before constructor.
     /// - "free-wr(&ADT, act)": Frees a WR by decrementing the refcount of all fields if act == true
     /// - "free-sr(&ADT, act)": Frees a SR by decrementing the refcount of all fields and calling free if act == true
-    pub methods: HashMap<Rc<String>, MutRc<Function>>,
+    pub methods: HashMap<SmolStr, MutRc<Function>>,
     /// All constructors of the ADT, if any. They are simply methods
     /// with special constraints to enforce safety.
     pub constructors: Vec<MutRc<Function>>,
@@ -162,7 +163,7 @@ impl ADT {
         generator: &GIRGenerator,
         parent_rc: &MutRc<ADT>,
         ast: ast::ADT,
-    ) -> (Rc<String>, MutRc<ADT>) {
+    ) -> (SmolStr, MutRc<ADT>) {
         let parent = parent_rc.borrow();
         let ty = ADTType::EnumCase {
             parent: Rc::clone(&parent_rc),
@@ -252,7 +253,7 @@ pub enum ADTType {
     /// An enum, with unknown case.
     Enum {
         /// All cases.
-        cases: HashMap<Rc<String>, MutRc<ADT>>,
+        cases: HashMap<SmolStr, MutRc<ADT>>,
     },
 
     /// An enum with known case.
@@ -267,7 +268,7 @@ impl ADTType {
 
     /// Returns the cases of an enum type.
     /// Use on any other type will result in a panic.
-    pub fn cases(&self) -> &HashMap<Rc<String>, MutRc<ADT>> {
+    pub fn cases(&self) -> &HashMap<SmolStr, MutRc<ADT>> {
         if let ADTType::Enum { cases } = self {
             cases
         } else {
@@ -294,7 +295,7 @@ impl ADTType {
 #[derive(Clone, Debug)]
 pub struct Field {
     /// The name of the field.
-    pub name: Rc<String>,
+    pub name: SmolStr,
     /// If this field is mutable by user code. ("val" vs "var")
     pub mutable: bool,
     /// The type of this field, either specified or inferred by initializer
@@ -332,7 +333,7 @@ pub struct Function {
     /// A list of expressions that make up the func, executed in order.
     pub exprs: Vec<Expr>,
     /// All variables declared inside the function.
-    pub variables: HashMap<Rc<String>, Rc<LocalVariable>>,
+    pub variables: HashMap<SmolStr, Rc<LocalVariable>>,
     /// The return type of the function; Type::None if omitted.
     pub ret_type: Type,
     /// The AST for this function.
@@ -346,11 +347,11 @@ pub struct Function {
 impl Function {
     /// Inserts a variable into the functions allocation table.
     /// Returns the name of it (should be used since a change can be needed due to colliding names).
-    pub fn insert_var(&mut self, mut name: Rc<String>, var: Rc<LocalVariable>) -> Rc<String> {
+    pub fn insert_var(&mut self, mut name: SmolStr, var: Rc<LocalVariable>) -> SmolStr {
         if self.variables.contains_key(&name) {
-            name = Rc::new(format!("{}-{}", name, self.variables.len()));
+            name = SmolStr::new(format!("{}-{}", name, self.variables.len()));
         }
-        self.variables.insert(Rc::clone(&name), var);
+        self.variables.insert(name.clone(), var);
         name
     }
 

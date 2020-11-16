@@ -23,6 +23,7 @@ use crate::{
     lexer::token::Token,
 };
 use std::cell::Cell;
+use smol_str::SmolStr;
 
 pub type TypeArguments = Vec<Type>;
 pub type TypeParameters = Vec<TypeParameter>;
@@ -437,7 +438,7 @@ impl<T> Instance<T> {
 }
 
 impl Instance<ADT> {
-    pub fn get_method(&self, name: &Rc<String>) -> Instance<Function> {
+    pub fn get_method(&self, name: &str) -> Instance<Function> {
         Instance::new(
             Rc::clone(self.ty.borrow().methods.get(name).unwrap()),
             Rc::clone(&self.args),
@@ -495,7 +496,7 @@ impl<T: Hash> Hash for Instance<T> {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct TypeVariable {
     pub index: usize,
-    pub name: Rc<String>,
+    pub name: SmolStr,
 }
 
 /// A closure signature.
@@ -618,7 +619,7 @@ pub enum Bound {
 pub struct IFaceImpl {
     pub implementor: Type,
     pub iface: Instance<ADT>,
-    pub methods: HashMap<Rc<String>, MutRc<Function>>,
+    pub methods: HashMap<SmolStr, MutRc<Function>>,
     /// Module that the impl block is in.
     pub module: MutRc<Module>,
     pub ast: MutRc<ast::IFaceImpl>,
@@ -634,5 +635,5 @@ pub struct IFaceImpls {
     /// Key isn't an interface directly due to needed
     /// Hash and Eq traits that only [Type] implements.
     pub interfaces: HashMap<Type, IFaceImpl>,
-    pub methods: HashMap<Rc<String>, MutRc<Function>>,
+    pub methods: HashMap<SmolStr, MutRc<Function>>,
 }

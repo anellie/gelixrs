@@ -15,6 +15,7 @@ use crate::{
     lexer::token::Token,
 };
 use indexmap::map::IndexMap;
+use smol_str::SmolStr;
 
 impl GIRGenerator {
     pub fn generate(&mut self, decl: Declaration) {
@@ -109,7 +110,7 @@ impl GIRGenerator {
     fn set_uninitialized_members(
         &mut self,
         constructor: &Constructor,
-        class_mems: &IndexMap<Rc<String>, Rc<Field>>,
+        class_mems: &IndexMap<SmolStr, Rc<Field>>,
     ) {
         self.uninitialized_this_fields.clear();
         for (name, mem) in class_mems.iter() {

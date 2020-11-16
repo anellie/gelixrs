@@ -17,7 +17,7 @@ use inkwell::{
 use std::{cell::Ref, rc::Rc};
 
 impl IRGenerator {
-    pub(super) fn fill_intrinsic_functions(&mut self, module: &MutRc<Module>) {
+    pub fn fill_intrinsic_functions(&mut self, module: &MutRc<Module>) {
         for func in &module.borrow().functions {
             let func = func.borrow();
             for (ir, ty_args) in func.ir.borrow().into_iter() {

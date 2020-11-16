@@ -10,6 +10,7 @@
 use std::rc::Rc;
 
 use either::Either;
+use smol_str::SmolStr;
 
 use crate::{
     ast::{
@@ -218,7 +219,7 @@ impl Parser {
     }
 
     fn enum_case(&mut self, mut name: Token, parent_name: &Token) -> Option<ADT> {
-        let new_name = Rc::new(format!("{}:{}", parent_name.lexeme, name.lexeme));
+        let new_name = SmolStr::new(format!("{}:{}", parent_name.lexeme, name.lexeme));
         let case_name = std::mem::replace(&mut name.lexeme, new_name);
 
         let mut methods: Vec<Function> = Vec::new();
@@ -979,7 +980,7 @@ impl Parser {
 
     fn integer(&mut self) -> Option<Expression> {
         let token = self.advance();
-        let clone = Rc::clone(&token.lexeme);
+        let clone = token.lexeme.clone();
 
         // Search for 'i' or 'u' indicating literal type
         let search = clone
@@ -1043,7 +1044,7 @@ impl Parser {
 
     fn string(&mut self) -> Expression {
         let token = self.advance();
-        Expression::Literal(Literal::String(Rc::clone(&token.lexeme)), token)
+        Expression::Literal(Literal::String(token.lexeme.clone()), token)
     }
 
     // Reads an identifier followed by optional generic type parameters.

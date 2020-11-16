@@ -11,6 +11,7 @@ use crate::gir::nodes::declaration::Variable;
 use std::mem;
 use crate::lexer::token::TType;
 use inkwell::{IntPredicate, FloatPredicate};
+use crate::gir::nodes::types::Instance;
 
 impl IRGenerator {
     pub fn expression(&mut self, expr: &Expr) -> BasicValueEnum {
@@ -117,12 +118,17 @@ impl IRGenerator {
     ) -> BasicValueEnum {
         let (ir_ty, tyinfo) = self.ir_ty_raw(ty);
         let alloc = self.create_alloc(ir_ty, ty.is_strong_ref());
-        self.maybe_init_type_info(&ty.try_adt().unwrap().ty, alloc, tyinfo);
+
+        let adt = ty.try_adt().unwrap();
+        let constructor = self.get_or_create(&Instance::new(Rc::clone(constructor), Rc::clone(adt.args())));
+        let instantiator = self.get_or_create(&adt.get_method("new-instance")).as_global_value().as_pointer_value();
+
+        self.maybe_init_type_info(&adt.ty, alloc, tyinfo);
         self.build_alloc_and_init(
             alloc,
             ty,
-            todo!(),
-            todo!(),
+            instantiator,
+            constructor.as_global_value().as_pointer_value(),
             constructor_args,
         )
     }
@@ -463,7 +469,7 @@ impl IRGenerator {
     fn get_free_function(&self, ty: &Type) -> Option<PointerValue> {
         Some(match ty {
             Type::StrongRef(adt) => {
-                let method = adt.get_method(&Rc::new("free-sr".to_string()));
+                let method = adt.get_method("free-sr");
                 let m_ty = method.ty.borrow();
                 let ir = m_ty.ir.borrow();
                 ir.get_inst(method.args())
@@ -472,7 +478,7 @@ impl IRGenerator {
                     .as_pointer_value()
             }
             Type::WeakRef(adt) => {
-                let method = adt.get_method(&Rc::new("free-wr".to_string()));
+                let method = adt.get_method("free-wr");
                 let m_ty = method.ty.borrow();
                 let ir = m_ty.ir.borrow();
                 ir.get_inst(method.args())

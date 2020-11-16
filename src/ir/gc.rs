@@ -104,7 +104,7 @@ impl IRGenerator {
         if adt.ty.borrow().ty.is_extern_class() {
             return;
         }
-        if let Some(destructor) = &adt.ty.borrow().methods.get(&"free-sr".to_string()) {
+        if let Some(destructor) = &adt.ty.borrow().methods.get("free-sr") {
             let func = destructor
                 .borrow()
                 .ir

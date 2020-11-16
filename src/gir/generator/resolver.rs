@@ -151,13 +151,13 @@ impl Resolver {
         })
     }
 
-    fn search_type_param(&self, name: &String) -> Option<Type> {
+    fn search_type_param(&self, name: &str) -> Option<Type> {
         if let Some(params) = &self.type_params {
             for param in params.iter() {
                 if *param.name.lexeme == *name {
                     return Some(Type::Variable(TypeVariable {
                         index: param.index,
-                        name: Rc::clone(&param.name.lexeme),
+                        name: param.name.lexeme.clone(),
                     }));
                 }
             }

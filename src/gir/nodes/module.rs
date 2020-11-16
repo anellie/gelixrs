@@ -12,13 +12,14 @@ use crate::{
     },
     lexer::token::Token,
 };
+use smol_str::SmolStr;
 
 /// A module as represented in GIR.
 /// Simplified to a list of declarations.
 #[derive(Default, Debug)]
 pub struct Module {
     /// All declarations (classes/functions/ifaces) in this module.
-    pub declarations: HashMap<Rc<String>, Declaration>,
+    pub declarations: HashMap<SmolStr, Declaration>,
     /// All functions declared in all modules.
     /// Defined here additionally allow easily compiling all in IR.
     pub functions: Vec<MutRc<Function>>,
@@ -30,7 +31,7 @@ pub struct Module {
 
     /// A list of all global names (classes/interfaces/functions) in this module.
     /// Used to ensure that no naming collision occurs.
-    pub used_names: HashSet<Rc<String>>,
+    pub used_names: HashSet<SmolStr>,
 
     pub path: Rc<ModulePath>,
     pub src: Rc<String>,
@@ -40,13 +41,13 @@ pub struct Module {
 
 impl Module {
     /// Find a declaration based on name, also looking at imports/exports.
-    pub fn find_decl(&self, name: &String) -> Option<Declaration> {
+    pub fn find_decl(&self, name: &str) -> Option<Declaration> {
         self.find_import(name)
             .or_else(|| self.imports.get(name).cloned())
     }
 
     /// Find a declaration on name, only checking local or exported declarations.
-    pub fn find_import(&self, name: &String) -> Option<Declaration> {
+    pub fn find_import(&self, name: &str) -> Option<Declaration> {
         self.declarations
             .get(name)
             .cloned()
@@ -70,8 +71,8 @@ impl Module {
 
     /// Tries to reserve the given name.
     /// Uses given token for error reporting.
-    pub fn try_reserve_name_rc(&mut self, gen: &GIRGenerator, name: &Rc<String>, tok: &Token) {
-        if !self.used_names.insert(Rc::clone(name)) {
+    pub fn try_reserve_name_rc(&mut self, gen: &GIRGenerator, name: &SmolStr, tok: &Token) {
+        if !self.used_names.insert(name.clone()) {
             gen.error_(
                 gir_err(
                     tok,
@@ -95,4 +96,4 @@ impl Module {
 }
 
 /// A list of imports inside a module.
-pub type Imports = HashMap<Rc<String>, Declaration>;
+pub type Imports = HashMap<SmolStr, Declaration>;

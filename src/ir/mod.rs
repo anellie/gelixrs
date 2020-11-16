@@ -100,7 +100,7 @@ impl IRGenerator {
 
         let intrinsics_module = gir.iter().find(|m| {
             let module = m.borrow();
-            **module.path.0[0] == *"std" && **module.path.0[1] == *"intrinsics"
+            module.path.0 == ["std", "intrinsics"]
         });
         // self.fill_intrinsic_functions(intrinsics_module.unwrap());
 

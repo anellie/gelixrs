@@ -3,6 +3,8 @@ use std::{
     rc::Rc,
 };
 
+use smol_str::SmolStr;
+
 use crate::{
     ast,
     ast::{
@@ -36,7 +38,7 @@ impl GIRGenerator {
                     case.methods.reserve(adt.borrow().methods.len());
                     for method in &adt.borrow().methods {
                         case.methods
-                            .insert(Rc::clone(method.0), Rc::clone(method.1));
+                            .insert(method.0.clone(), Rc::clone(method.1));
                     }
                 }
             }
@@ -61,7 +63,7 @@ impl GIRGenerator {
                 ast::Type::Strong(Box::new(this_param.type_))
             };
 
-            let name = Rc::clone(&method.sig.name.lexeme);
+            let name = method.sig.name.lexeme.clone();
             let gir_method = self.generate_gir_fn(
                 method,
                 Some(this_param.clone()),
@@ -151,7 +153,7 @@ impl GIRGenerator {
             .collect::<Res<Vec<FunctionParam>>>()?;
         parameters.insert(0, this_param);
         Ok(FuncSignature {
-            name: Token::generic_identifier("constructor".to_string()),
+            name: Token::generic_identifier("constructor"),
             visibility: constructor.visibility,
             generics: None,
             return_type: None,
@@ -259,7 +261,7 @@ impl GIRGenerator {
         let impls = get_or_create_iface_impls(ty);
         let mut impls = impls.borrow_mut();
 
-        let mut methods: HashMap<Rc<String>, _> =
+        let mut methods: HashMap<SmolStr, _> =
             HashMap::with_capacity(impls.interfaces.len() * 2);
         for iface_impl in impls.interfaces.values_mut() {
             self.switch_module(Rc::clone(&iface_impl.module));
@@ -271,7 +273,7 @@ impl GIRGenerator {
 
             for ast_method in ast.methods.drain(..) {
                 let iface = iface.borrow();
-                let name = Rc::clone(&ast_method.sig.name.lexeme);
+                let name = ast_method.sig.name.lexeme.clone();
                 let iface_method = eatc!(
                     self,
                     iface.methods.get(&name).on_err(
@@ -289,11 +291,11 @@ impl GIRGenerator {
                 );
                 iface_impl
                     .methods
-                    .insert(Rc::clone(&name), Rc::clone(&impl_method));
+                    .insert(name.clone(), Rc::clone(&impl_method));
                 if methods.contains_key(&name) {
                     methods.remove(&name);
                 } else {
-                    methods.insert(Rc::clone(&name), Rc::clone(&impl_method));
+                    methods.insert(name.clone(), Rc::clone(&impl_method));
                 }
 
                 self.check_equal_signature(&impl_method, iface_method);
