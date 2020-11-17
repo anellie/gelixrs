@@ -218,7 +218,12 @@ impl Parser {
         })
     }
 
-    fn enum_case(&mut self, mut name: Token, parent_name: &Token, generics: Option<Vec<GenericParam>>) -> Option<ADT> {
+    fn enum_case(
+        &mut self,
+        mut name: Token,
+        parent_name: &Token,
+        generics: Option<Vec<GenericParam>>,
+    ) -> Option<ADT> {
         let new_name = SmolStr::new(format!("{}:{}", parent_name.lexeme, name.lexeme));
         let case_name = std::mem::replace(&mut name.lexeme, new_name);
 

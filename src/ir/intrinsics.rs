@@ -154,7 +154,7 @@ impl IRGenerator {
             }
 
             "load_value" => {
-                let mut value = ir.get_first_param().unwrap();
+                let value = ir.get_first_param().unwrap();
                 self.builder.build_return(Some(
                     &self.builder.build_load(value.into_pointer_value(), "var"),
                 ));

@@ -13,7 +13,8 @@ use crate::{
         nodes::{
             expression::Expr,
             types::{
-                ClosureType, Instance, Type, TypeParameter, TypeParameterBound, TypeParameters,
+                ClosureType, Instance, Type, TypeArguments, TypeParameter, TypeParameterBound,
+                TypeParameters,
             },
         },
         Module, MutRc,
@@ -23,8 +24,7 @@ use crate::{
 };
 use indexmap::map::IndexMap;
 use smol_str::SmolStr;
-use std::cell::{Cell, RefCell};
-use crate::gir::nodes::types::TypeArguments;
+use std::cell::RefCell;
 
 /// A declaration is a top-level user-defined
 /// item inside a module. This can be

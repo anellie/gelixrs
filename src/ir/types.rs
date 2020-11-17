@@ -8,9 +8,9 @@ use crate::{
     gir::{
         nodes::{
             declaration::{ADTType, LocalVariable},
-            types::{ClosureType, Instance, TypeVariable},
+            types::{ClosureType, Instance, TypeArguments, TypeVariable},
         },
-        Function, Type, ADT,
+        Type, ADT,
     },
     ir::{adapter::IRAdtInfo, IRGenerator},
 };
@@ -20,7 +20,6 @@ use inkwell::{
     AddressSpace::Generic,
 };
 use std::{cell::Ref, rc::Rc};
-use crate::gir::nodes::types::TypeArguments;
 
 impl IRGenerator {
     /// Converts a `MIRType` to the corresponding LLVM type.
@@ -59,7 +58,7 @@ impl IRGenerator {
 
     pub fn ir_ty_raw(&mut self, gir: &Type) -> (BasicTypeEnum, Option<PointerValue>) {
         let (ty, ptr) = match gir {
-            Type::Any | Type::None => (self.none_const.get_type().into(), None),
+            Type::Any | Type::None => (self.none_const.get_type(), None),
             Type::Bool => (self.context.bool_type().into(), None),
             Type::I8 | Type::U8 => (self.context.i8_type().into(), None),
             Type::I16 | Type::U16 => (self.context.i16_type().into(), None),
@@ -154,27 +153,29 @@ impl IRGenerator {
         self.push_ty_args(Some(inst.args()));
         let adt = inst.ty.borrow();
         let ret = match adt.ty {
-            ADTType::Class { external } if external => self
-                .build_struct(
-                    &adt.name.lexeme,
-                    adt.fields.iter().map(|(_, m)| &m.ty),
-                    false,
-                    false,
-                ),
+            ADTType::Class { external } if external => self.build_struct(
+                &adt.name.lexeme,
+                adt.fields.iter().map(|(_, m)| &m.ty),
+                false,
+                false,
+            ),
 
             ADTType::Interface => self.build_iface_type(adt, weak),
 
-            _ => self
-                .build_struct(
-                    &format!("{}-{}-{}", prefix, &adt.name.lexeme, adt.ir.count()),
-                    adt.fields.iter().map(|(_, m)| &m.ty),
-                    !weak,
-                    true,
-                )
+            _ => self.build_struct(
+                &format!("{}-{}-{}", prefix, &adt.name.lexeme, adt.ir.count()),
+                adt.fields.iter().map(|(_, m)| &m.ty),
+                !weak,
+                true,
+            ),
         };
         self.types_bw.insert(
             ret.get_name().unwrap().to_str().unwrap().to_string(),
-            if weak { Type::WeakRef(inst.clone()) } else { Type::StrongRef(inst.clone()) },
+            if weak {
+                Type::WeakRef(inst.clone())
+            } else {
+                Type::StrongRef(inst.clone())
+            },
         );
         self.pop_ty_args();
         ret

@@ -7,11 +7,7 @@
 use std::rc::Rc;
 
 use crate::{
-    lexer::{
-        token::{TType, TType::EndOfFile, Token},
-        Lexer,
-    },
-    parser::parsing::MODIFIERS,
+    lexer::token::{TType, TType::EndOfFile, Token},
     Error, ModulePath,
 };
 use std::collections::VecDeque;

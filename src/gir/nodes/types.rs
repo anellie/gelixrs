@@ -168,26 +168,17 @@ impl Type {
 
     /// Is this type a signed integer?
     pub fn is_signed_int(&self) -> bool {
-        match self {
-            Type::I8 | Type::I16 | Type::I32 | Type::I64 => true,
-            _ => false,
-        }
+        matches!(self, Type::I8 | Type::I16 | Type::I32 | Type::I64)
     }
 
     /// Is this type an unsigned integer?
     pub fn is_unsigned_int(&self) -> bool {
-        match self {
-            Type::U8 | Type::U16 | Type::U32 | Type::U64 => true,
-            _ => false,
-        }
+        matches!(self, Type::U8 | Type::U16 | Type::U32 | Type::U64)
     }
 
     /// Is this type a floating-point number?
     pub fn is_float(&self) -> bool {
-        match self {
-            Type::F32 | Type::F64 => true,
-            _ => false,
-        }
+        matches!(self, Type::F32 | Type::F64)
     }
 
     /// Is this type a pointer at machine level?
@@ -436,7 +427,7 @@ impl<T> Instance<T> {
         &self.args
     }
 
-    pub fn set_args(&mut self, args: Rc<TypeArguments>)  {
+    pub fn set_args(&mut self, args: Rc<TypeArguments>) {
         self.args = args;
     }
 }

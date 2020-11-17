@@ -2,10 +2,9 @@ use std::rc::Rc;
 
 use crate::{
     ast,
-    ast::module::ModulePath,
     error::{Error, Errors},
     gir::{
-        generator::{intrinsics::INTRINSICS, GIRGenerator},
+        generator::GIRGenerator,
         gir_err,
         nodes::{declaration::Declaration, module::Module},
         MutRc,

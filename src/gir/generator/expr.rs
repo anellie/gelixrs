@@ -594,7 +594,10 @@ impl GIRGenerator {
                 if let Some(case) = cases.get(&name.lexeme) {
                     match ADT::get_singleton_inst(case, ty.args()) {
                         Some(inst) if allow_simple => Ok(inst),
-                        _ => Ok(Expr::TypeGet(Type::Value(Instance::new(Rc::clone(case), Rc::clone(ty.args()))))),
+                        _ => Ok(Expr::TypeGet(Type::Value(Instance::new(
+                            Rc::clone(case),
+                            Rc::clone(ty.args()),
+                        )))),
                     }
                 } else {
                     Err(self.err_(name, "Unknown enum case.".to_string()))

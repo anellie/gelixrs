@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    rc::Rc,
-};
+use std::rc::Rc;
 
 use smol_str::SmolStr;
 
@@ -47,7 +44,7 @@ impl GIRGenerator {
         );
         adt.methods.insert(SmolStr::new_inline("free-wr"), wr);
 
-        let sr_destructor_fn = Self::get_destructor_ast(this_param.clone(), true);
+        let sr_destructor_fn = Self::get_destructor_ast(this_param, true);
         let sr = eat!(
             self,
             self.generate_gir_fn(sr_destructor_fn, None, Some(&adt.type_parameters))

@@ -14,7 +14,6 @@ use inkwell::{
     values::{BasicValue, BasicValueEnum, PointerValue},
     AddressSpace::Generic,
 };
-use std::rc::Rc;
 use std::mem;
 
 impl IRGenerator {
@@ -280,22 +279,29 @@ impl IRGenerator {
     }
 
     fn get_destructor(&mut self, ptr: PointerValue) -> Option<PointerValue> {
-        let inst = self.types_bw.get(
-            ptr.get_type()
-                .get_element_type()
-                .as_struct_type()
-                .get_name()
-                .unwrap()
-                .to_str()
-                .unwrap(),
-        )?.clone();
-        let mut method = match inst {
+        let inst = self
+            .types_bw
+            .get(
+                ptr.get_type()
+                    .get_element_type()
+                    .as_struct_type()
+                    .get_name()
+                    .unwrap()
+                    .to_str()
+                    .unwrap(),
+            )?
+            .clone();
+        let method = match inst {
             Type::WeakRef(ref adt) => adt.get_method("free-wr"),
             Type::StrongRef(ref adt) => adt.get_method("free-sr"),
             // Primitive, simply calling free is enough since it must be a raw pointer
             _ => return None,
         };
-        Some(self.get_or_create(&method).as_global_value().as_pointer_value())
+        Some(
+            self.get_or_create(&method)
+                .as_global_value()
+                .as_pointer_value(),
+        )
     }
 
     pub fn nullptr(&self) -> PointerValue {

@@ -14,13 +14,11 @@ use crate::{
     ir::IRGenerator,
     lexer::token::TType,
 };
-use either::Either::Right;
 use inkwell::{
-    types::{AnyTypeEnum, BasicTypeEnum, StructType},
+    types::{BasicTypeEnum, StructType},
     values::{BasicValueEnum, IntValue, PointerValue},
     FloatPredicate, IntPredicate,
 };
-use std::mem;
 
 impl IRGenerator {
     pub fn expression(&mut self, expr: &Expr) -> BasicValueEnum {

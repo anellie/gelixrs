@@ -335,11 +335,7 @@ impl Expr {
     /// Done instead of deriving `EnumIsA` to save compilation time.
     /// TODO: is this used?
     pub fn is_variable(&self) -> bool {
-        if let Expr::Variable(_) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Expr::Variable(_))
     }
 
     pub fn visit<T: Visitor>(&mut self, v: &mut T) -> Res<()> {

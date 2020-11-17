@@ -177,7 +177,6 @@ impl Lexer {
 
     /// Creates a string token
     fn string(&mut self) -> LRes {
-        let start_line = self.line;
         while !self.check('"') && !self.is_at_end() {
             if self.check('\n') {
                 self.line += 1;
