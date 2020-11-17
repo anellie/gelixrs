@@ -58,6 +58,12 @@ impl GIRGenerator {
     }
 
     pub fn generate_function(&mut self, function: &MutRc<Function>) {
+        if !function.borrow().exprs.is_empty() {
+            // Shared function references can cause this fn to be called
+            // multiple times (enum cases for example)
+            return
+        }
+
         self.prepare_function(&function);
         let ast = Rc::clone(&function.borrow().ast);
 
