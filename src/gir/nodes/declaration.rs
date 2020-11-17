@@ -215,11 +215,12 @@ pub fn ast_generics_to_gir(
     generics: &Option<Vec<GenericParam>>,
     parent_generics: Option<&TypeParameters>,
 ) -> Rc<TypeParameters> {
+    let parent_size = parent_generics.map(|g| g.len()).unwrap_or(0);
     let gen_iter = generics.as_ref().map(|g| {
         g.iter().enumerate().map(|elem| {
             TypeParameter {
                 name: elem.1.name.clone(),
-                index: elem.0,
+                index: elem.0 + parent_size,
                 bound: TypeParameterBound::from_ast(&generator.resolver, elem.1.bound.as_ref())
                     .unwrap_or_else(|e| {
                         generator.error(e);
