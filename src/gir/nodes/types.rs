@@ -115,6 +115,18 @@ impl Type {
         }
     }
 
+    /// Returns type parameters of this type's prototype, if applicable.
+    pub fn type_params(&self) -> Option<Rc<TypeParameters>> {
+        Some(match self {
+            Self::Function(inst) => Rc::clone(&inst.ty.borrow().type_parameters),
+            Self::Value(inst) | Self::WeakRef(inst) | Self::StrongRef(inst) => {
+                Rc::clone(&inst.ty.borrow().type_parameters)
+            }
+            Self::Type(ty) => return ty.type_params(),
+            _ => return None,
+        })
+    }
+
     /// Sets type arguments of this type, if applicable.
     /// Returns success.
     pub fn set_type_args(&mut self, args: Rc<TypeArguments>) -> bool {
@@ -329,7 +341,11 @@ impl Type {
     pub fn resolve(&self, args: &Rc<TypeArguments>) -> Type {
         // Start by replacing any type variables with their concrete type
         let mut ty = match self {
-            Type::Variable(var) => args[var.index].clone(),
+            Type::Variable(var) => match var.modifier {
+                VariableModifier::Value => args[var.index].clone(),
+                VariableModifier::Weak => args[var.index].to_weak(),
+                VariableModifier::Strong => args[var.index].to_strong(),
+            },
             _ => self.clone(),
         };
 
@@ -492,6 +508,14 @@ impl<T: Hash> Hash for Instance<T> {
 pub struct TypeVariable {
     pub index: usize,
     pub name: SmolStr,
+    pub modifier: VariableModifier,
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum VariableModifier {
+    Value,
+    Weak,
+    Strong,
 }
 
 /// A closure signature.

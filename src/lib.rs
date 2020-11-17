@@ -6,6 +6,7 @@
 
 #![feature(drain_filter)]
 #![feature(refcell_take)]
+#![feature(try_find)]
 
 #[macro_use]
 extern crate enum_methods;

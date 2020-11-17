@@ -13,7 +13,10 @@ use crate::{
         nodes::{
             declaration::{ADTType, LocalVariable, Variable, ADT},
             expression::{CastType, Expr},
-            types::{Instance, Type, TypeArguments},
+            types::{
+                Instance, Type, TypeArguments, TypeParameter, TypeParameters, TypeVariable,
+                VariableModifier,
+            },
         },
         result::EmitGIRError,
         MutRc,
@@ -260,19 +263,31 @@ impl GIRGenerator {
                     .right()
                     .on_err(&self.path, name, "Fields cannot be called.")?;
 
-                let ty_args = type_args.iter().map(|t| self.resolver.find_type(t));
-                let ty_args = object
-                    .get_type()
-                    .type_args()
-                    .unwrap()
+                let obj_ty = object.get_type();
+                let parent_ty_args = obj_ty.type_args().unwrap();
+                args.insert(0, object);
+
+                let ty_args = if !type_args.is_empty() {
+                    type_args
+                        .iter()
+                        .map(|t| self.resolver.find_type(t))
+                        .collect::<Res<Vec<_>>>()?
+                } else {
+                    self.maybe_infer_ty_args(
+                        &func.borrow().parameters,
+                        &func.borrow().type_parameters,
+                        &args,
+                        parent_ty_args.len(),
+                        name,
+                    )?
+                };
+                let ty_args = parent_ty_args
                     .iter()
                     .cloned()
-                    .map(Ok)
-                    .chain(ty_args)
-                    .collect::<Res<Vec<Type>>>()?;
+                    .chain(ty_args.into_iter())
+                    .collect::<Vec<_>>();
                 let func = Instance::new(Rc::clone(&func), Rc::new(ty_args));
 
-                args.insert(0, object);
                 self.check_func_args_(
                     &Type::Function(func.clone()),
                     &mut args,
@@ -285,26 +300,47 @@ impl GIRGenerator {
 
             // Can be either a constructor or function call
             _ => {
-                let callee = self.expression(ast_callee);
-                let callee_type = callee.get_type();
+                let mut callee = self.expression(ast_callee);
+                let mut callee_type = callee.get_type();
 
                 if let Some(constructors) = callee_type.get_constructors() {
-                    let ty_vars = callee_type.type_args().unwrap();
+                    let mut ty_vars = Rc::clone(callee_type.type_args().unwrap());
                     let constructor = Rc::clone(
                         constructors
                             .iter()
-                            .find(|constructor| {
+                            .try_find(|constructor| {
                                 let constructor = constructor.borrow();
-                                // If args count and types match
-                                (constructor.parameters.len() - 1 == args.len())
-                                    && constructor.parameters.iter().skip(1).zip(args.iter()).all(
+
+                                // Different args count
+                                if !(constructor.parameters.len() - 1 == args.len()) {
+                                    return Ok(false);
+                                }
+
+                                // If there's no type args yet try inferring them
+                                if ty_vars.is_empty() {
+                                    args.insert(0, Expr::none_const_());
+                                    ty_vars = Rc::new(self.maybe_infer_ty_args(
+                                        &constructor.parameters,
+                                        &constructor.type_parameters,
+                                        &args,
+                                        0,
+                                        &constructor.name,
+                                    )?);
+                                    args.remove(0);
+                                };
+
+                                // Now check if the args are the correct type
+                                let correct_args_types =
+                                    constructor.parameters.iter().skip(1).zip(args.iter()).all(
                                         |(param, arg)| {
                                             let ty1 = arg.get_type();
-                                            let ty2 = param.ty.resolve(ty_vars);
+                                            let ty2 = param.ty.resolve(&ty_vars);
                                             ty1 == ty2 || ty1.can_cast_to(&ty2).is_some()
                                         },
-                                    )
-                            })
+                                    );
+
+                                Ok(correct_args_types)
+                            })?
                             .on_err(
                                 &self.path,
                                 ast_callee.get_token(),
@@ -312,7 +348,7 @@ impl GIRGenerator {
                             )?,
                     );
 
-                    {
+                    { // Cast/convert all arguments to fit
                         for (param, arg) in constructor
                             .borrow()
                             .parameters
@@ -321,10 +357,11 @@ impl GIRGenerator {
                             .zip(args.iter_mut())
                         {
                             self.resolver
-                                .try_cast_in_place(arg, &param.ty.resolve(ty_vars));
+                                .try_cast_in_place(arg, &param.ty.resolve(&ty_vars));
                         }
                     }
 
+                    callee_type.set_type_args(ty_vars);
                     Ok(Expr::Allocate {
                         ty: callee_type.into_type().to_weak(),
                         constructor,
@@ -332,8 +369,25 @@ impl GIRGenerator {
                         tok: ast_callee.get_token().clone(),
                     })
                 } else {
+                    // If this is a function call, check it has
+                    // its type arguments inferred should it have any
+                    if let Expr::Variable(Variable::Function(func)) = &mut callee {
+                        let ty_args = if !func.args().is_empty() {
+                            Rc::clone(func.args())
+                        } else {
+                            Rc::new(self.maybe_infer_ty_args(
+                                &func.ty.borrow().parameters,
+                                &func.ty.borrow().type_parameters,
+                                &args,
+                                0,
+                                &func.ty.borrow().name,
+                            )?)
+                        };
+                        func.set_args(ty_args)
+                    }
+
                     self.check_func_args_(
-                        &callee_type,
+                        &callee.get_type(), // Get it again to ensure inferred type args are present
                         &mut args,
                         arguments,
                         ast_callee.get_token(),
@@ -452,6 +506,64 @@ impl GIRGenerator {
             ),
 
             _ => Err(self.err_(err_tok, "This cannot be called.".to_string())),
+        }
+    }
+
+    /// Try inferring a set of type arguments from a call.
+    /// TODO: This should be optimized to not allocate
+    /// an Rc for every function call...
+    pub fn maybe_infer_ty_args(
+        &mut self,
+        parameters: &[Rc<LocalVariable>],
+        type_params: &[TypeParameter],
+        arguments: &[Expr],
+        skip: usize,
+        err_tok: &Token,
+    ) -> Res<TypeArguments> {
+        if type_params.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let arg_tys = arguments.iter().map(|a| a.get_type()).collect::<Vec<_>>();
+        let search_res = type_params
+            .iter()
+            .skip(skip)
+            .map(|param| {
+                self.resolve_type_param(param, parameters.iter().map(|p| &p.ty), arg_tys.iter())
+            })
+            .collect::<Option<Vec<_>>>();
+
+        search_res.on_err(
+            &self.path,
+            err_tok,
+            "Cannot infer types (please specify explicitly).",
+        )
+    }
+
+    fn resolve_type_param<'a, T1: Iterator<Item = &'a Type>, T2: Iterator<Item = &'a Type>>(
+        &self,
+        ty_param: &TypeParameter,
+        call_params: T1,
+        arguments: T2,
+    ) -> Option<Type> {
+        call_params
+            .zip(arguments)
+            .find_map(|(param, arg)| self.match_param(param, arg, &ty_param))
+    }
+
+    fn match_param(&self, param: &Type, arg: &Type, ty_param: &TypeParameter) -> Option<Type> {
+        match (param, arg) {
+            (Type::Variable(var), _) if var.name == ty_param.name.lexeme => match var.modifier {
+                VariableModifier::Value => Some(arg.clone()),
+                VariableModifier::Weak => Some(arg.to_value()),
+                VariableModifier::Strong => Some(arg.to_value()),
+            },
+
+            (Type::RawPtr(param_inner), Type::RawPtr(arg_inner)) => {
+                self.match_param(param_inner, arg_inner, ty_param)
+            }
+
+            _ => None,
         }
     }
 

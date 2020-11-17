@@ -8,7 +8,7 @@ use crate::{
     gir::{
         nodes::{
             declaration::{ADTType, LocalVariable},
-            types::{ClosureType, Instance, TypeArguments, TypeVariable},
+            types::{ClosureType, Instance, TypeArguments, TypeVariable, VariableModifier},
         },
         Type, ADT,
     },
@@ -122,14 +122,13 @@ impl IRGenerator {
     }
 
     pub fn unwrap_var(&self, var: &TypeVariable) -> Type {
-        // TODO is this multi-unwrapping even needed anymore?
         let mut index = self.type_args.len() - 1;
-        let mut ty = self.type_args[index].as_ref().unwrap()[var.index].clone();
-        while let Type::Variable(var) = ty {
-            index -= 1;
-            ty = self.type_args[index].as_ref().unwrap()[var.index].clone();
+        let ty = self.type_args[index].as_ref().unwrap()[var.index].clone();
+        match var.modifier {
+            VariableModifier::Value => ty,
+            VariableModifier::Weak => ty.to_weak(),
+            VariableModifier::Strong => ty.to_strong(),
         }
-        ty
     }
 
     fn get_or_build_adt(&mut self, inst: &Instance<ADT>) -> IRAdtInfo {

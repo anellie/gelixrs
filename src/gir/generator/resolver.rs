@@ -10,7 +10,7 @@ use crate::{
             declaration::ADTType,
             expression::{CastType, CastType::Bitcast, Expr},
             module::Module,
-            types::{ClosureType, Instance, Type, TypeParameters, TypeVariable},
+            types::{ClosureType, Instance, Type, TypeParameters, TypeVariable, VariableModifier},
         },
         result::EmitGIRError,
         MutRc,
@@ -62,27 +62,33 @@ impl Resolver {
 
             ast::Type::Weak(inner) => {
                 let inner = self.find_type(inner)?;
-                if let Type::Value(adt) = inner {
-                    Ok(Type::WeakRef(adt))
-                } else {
-                    Err(gir_err(
+                match inner {
+                    Type::Value(adt) => Ok(Type::WeakRef(adt)),
+                    Type::Variable(mut var) => {
+                        var.modifier = VariableModifier::Weak;
+                        Ok(Type::Variable(var))
+                    }
+                    _ => Err(gir_err(
                         ast.token(),
                         format!("Weak is only applicable to ADTs, not {}.", inner),
                         &self.path,
-                    ))
+                    )),
                 }
             }
 
             ast::Type::Strong(inner) => {
                 let inner = self.find_type(inner)?;
-                if let Type::Value(adt) = inner {
-                    Ok(Type::StrongRef(adt))
-                } else {
-                    Err(gir_err(
+                match inner {
+                    Type::Value(adt) => Ok(Type::StrongRef(adt)),
+                    Type::Variable(mut var) => {
+                        var.modifier = VariableModifier::Strong;
+                        Ok(Type::Variable(var))
+                    }
+                    _ => Err(gir_err(
                         ast.token(),
                         format!("Strong is only applicable to ADTs, not {}.", inner),
                         &self.path,
-                    ))
+                    )),
                 }
             }
 
@@ -162,6 +168,7 @@ impl Resolver {
                     return Some(Type::Variable(TypeVariable {
                         index: param.index,
                         name: param.name.lexeme.clone(),
+                        modifier: VariableModifier::Value,
                     }));
                 }
             }

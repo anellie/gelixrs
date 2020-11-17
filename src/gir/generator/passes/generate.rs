@@ -61,7 +61,7 @@ impl GIRGenerator {
         if !function.borrow().exprs.is_empty() {
             // Shared function references can cause this fn to be called
             // multiple times (enum cases for example)
-            return
+            return;
         }
 
         self.prepare_function(&function);
