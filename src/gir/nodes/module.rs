@@ -43,7 +43,7 @@ impl Module {
     /// Find a declaration based on name, also looking at imports/exports.
     pub fn find_decl(&self, name: &str) -> Option<Declaration> {
         self.find_import(name)
-            .or_else(|| self.imports.get(name).cloned())
+            .or_else(|| self.imports.get(name))
     }
 
     /// Find a declaration on name, only checking local or exported declarations.
@@ -51,7 +51,7 @@ impl Module {
         self.declarations
             .get(name)
             .cloned()
-            .or_else(|| self.exports.get(name).cloned())
+            .or_else(|| self.exports.get(name))
     }
 
     /// "Borrow" ownership of the AST for temporary use/modification. Return with [return_ast]
@@ -96,4 +96,14 @@ impl Module {
 }
 
 /// A list of imports inside a module.
-pub type Imports = HashMap<SmolStr, Declaration>;
+#[derive(Default, Debug)]
+pub struct Imports {
+    pub decls: HashMap<SmolStr, Declaration>,
+    pub modules: Vec<MutRc<Module>>
+}
+
+impl Imports {
+    fn get(&self, name: &str) -> Option<Declaration> {
+        self.decls.get(name).cloned().or_else(|| self.modules.iter().find_map(|m| m.borrow().find_import(name)))
+    }
+}

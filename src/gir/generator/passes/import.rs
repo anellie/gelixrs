@@ -20,20 +20,24 @@ impl GIRModuleGenerator {
                 let src_module = src_module_rc.borrow();
 
                 if import.symbol.t_type == TType::Plus {
-                    for (name, decl) in src_module.declarations.iter() {
-                        module.try_reserve_name_rc(&this.generator, name, &import.symbol);
-                        Self::get_imports(module, is_export).insert(name.clone(), decl.clone());
+                    if second_stage {
+                        for name in src_module.declarations.keys() {
+                            module.try_reserve_name_rc(&this.generator, name, &import.symbol);
+                        }
+                    } else {
+                        Self::get_imports(module, is_export).modules.push(src_module_rc.clone());
                     }
                     Ok(second_stage)
                 } else {
-                    module.try_reserve_name(&this.generator, &import.symbol);
                     let decl = src_module.find_import(&import.symbol.lexeme);
 
                     if let Some(decl) = decl {
-                        Self::get_imports(module, is_export)
-                            .insert(import.symbol.lexeme.clone(), decl);
+                        module.try_reserve_name(&this.generator, &import.symbol);
+                        Self::get_imports(module, is_export).decls.insert(import.symbol.lexeme.clone(), decl);
                     } else if second_stage {
                         gen.err(&import.symbol, "Unknown declaration.".to_string())
+                    } else {
+                        return Ok(false)
                     }
 
                     Ok(true)

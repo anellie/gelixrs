@@ -24,6 +24,7 @@ use crate::{
     lexer::token::Token,
 };
 use smol_str::SmolStr;
+use crate::lexer::token::TType;
 
 pub mod ast;
 //#[cfg(test)]
@@ -109,7 +110,7 @@ pub fn auto_import_prelude(modules: &mut Vec<Module>) {
             SmolStr::new_inline("std"),
             SmolStr::new_inline("prelude"),
         ])),
-        symbol: Token::generic_identifier("+"),
+        symbol: Token::generic_token(TType::Plus),
     };
 
     for module in modules
