@@ -257,6 +257,7 @@ impl Lexer {
             ),
             index: self.line_index,
             line: self.line,
+            len: self.current - self.start,
         }
     }
 

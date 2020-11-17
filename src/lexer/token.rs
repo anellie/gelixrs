@@ -19,6 +19,8 @@ pub struct Token {
     pub index: usize,
     /// The line of the token.
     pub line: usize,
+    /// Length of the token, separate since some tokens are modified.
+    pub len: usize
 }
 
 impl Token {
@@ -28,6 +30,7 @@ impl Token {
             lexeme: SmolStr::new_inline("\0"),
             index: 1,
             line,
+            len: 0
         }
     }
 
@@ -40,6 +43,7 @@ impl Token {
             lexeme: SmolStr::new_inline(lexeme),
             index,
             line: 1,
+            len: 0
         }
     }
 
@@ -49,6 +53,7 @@ impl Token {
             lexeme: SmolStr::new_inline(""),
             index: 0,
             line: 1,
+            len: 0
         }
     }
 }
