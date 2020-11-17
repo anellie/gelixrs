@@ -51,10 +51,10 @@ impl GIRModuleGenerator {
         let mut module = target.borrow_mut();
         let mut ast = module.borrow_ast();
         ast.imports.drain_filter(|im| {
-            cond(self, &mut module, im, false).unwrap_or_else(|e| self.import_err(e))
+            cond(self, &mut module, im, false).unwrap_or_else(|e| self.import_err(e, &module))
         });
         ast.exports.drain_filter(|im| {
-            cond(self, &mut module, im, true).unwrap_or_else(|e| self.import_err(e))
+            cond(self, &mut module, im, true).unwrap_or_else(|e| self.import_err(e, &module))
         });
         module.return_ast(ast);
     }
@@ -76,8 +76,8 @@ impl GIRModuleGenerator {
         }
     }
 
-    fn import_err(&self, err: Error) -> bool {
-        self.err_(err);
+    fn import_err(&self, err: Error, module: &Module) -> bool {
+        self.generator.error_(err, module);
         true
     }
 }
