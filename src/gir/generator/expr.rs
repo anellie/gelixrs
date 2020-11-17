@@ -589,12 +589,12 @@ impl GIRGenerator {
     fn get_static(&mut self, object: &AExpr, name: &Token, allow_simple: bool) -> Res<Expr> {
         let obj = self.expression(object);
         if let Type::Type(ty) = obj.get_type() {
-            if let ADTType::Enum { cases, .. } = &ty.as_value().ty.borrow().ty {
+            let ty = ty.as_value();
+            if let ADTType::Enum { cases, .. } = &ty.ty.borrow().ty {
                 if let Some(case) = cases.get(&name.lexeme) {
-                    match ADT::get_singleton_inst(case) {
+                    match ADT::get_singleton_inst(case, ty.args()) {
                         Some(inst) if allow_simple => Ok(inst),
-                        // TODO: Type arguments!!
-                        _ => Ok(Expr::TypeGet(Type::Value(Instance::new_(Rc::clone(case))))),
+                        _ => Ok(Expr::TypeGet(Type::Value(Instance::new(Rc::clone(case), Rc::clone(ty.args()))))),
                     }
                 } else {
                     Err(self.err_(name, "Unknown enum case.".to_string()))

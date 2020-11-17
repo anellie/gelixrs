@@ -190,7 +190,7 @@ impl Parser {
                 TType::Var => variables.push(self.class_variable(true)?),
                 TType::Val => variables.push(self.class_variable(false)?),
                 TType::Func => methods.push(self.function(&METHOD_MODIFIERS)?),
-                TType::Identifier => cases.push(self.enum_case(next, &name)?),
+                TType::Identifier => cases.push(self.enum_case(next, &name, generics.clone())?),
 
                 _ => self.error_at_current("Encountered invalid declaration inside enum.")?,
             }
@@ -218,7 +218,7 @@ impl Parser {
         })
     }
 
-    fn enum_case(&mut self, mut name: Token, parent_name: &Token) -> Option<ADT> {
+    fn enum_case(&mut self, mut name: Token, parent_name: &Token, generics: Option<Vec<GenericParam>>) -> Option<ADT> {
         let new_name = SmolStr::new(format!("{}:{}", parent_name.lexeme, name.lexeme));
         let case_name = std::mem::replace(&mut name.lexeme, new_name);
 
@@ -285,7 +285,7 @@ impl Parser {
         Some(ADT {
             name,
             visibility: Visibility::Public,
-            generics: None,
+            generics,
             methods,
             ty: ADTType::EnumCase {
                 variables,

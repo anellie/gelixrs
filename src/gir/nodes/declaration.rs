@@ -24,6 +24,7 @@ use crate::{
 use indexmap::map::IndexMap;
 use smol_str::SmolStr;
 use std::cell::{Cell, RefCell};
+use crate::gir::nodes::types::TypeArguments;
 
 /// A declaration is a top-level user-defined
 /// item inside a module. This can be
@@ -185,15 +186,14 @@ impl ADT {
         )
     }
 
-    pub fn get_singleton_inst(inst: &MutRc<ADT>) -> Option<Expr> {
+    pub fn get_singleton_inst(inst: &MutRc<ADT>, args: &Rc<TypeArguments>) -> Option<Expr> {
         if let ADTType::EnumCase {
             simple: no_body, ..
         } = &inst.borrow().ty
         {
             if *no_body {
                 Some(Expr::Allocate {
-                    // TODO: generics, how do they work
-                    ty: Type::WeakRef(Instance::new_(Rc::clone(inst))),
+                    ty: Type::WeakRef(Instance::new(Rc::clone(inst), Rc::clone(args))),
                     constructor: Rc::clone(&inst.borrow().constructors[0]),
                     args: vec![],
                     tok: Token::eof_token(1),
