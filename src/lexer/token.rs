@@ -41,9 +41,9 @@ impl Token {
         Token {
             t_type: TType::Identifier,
             lexeme: SmolStr::new_inline(lexeme),
-            index,
+            index: index + 1,
             line: 1,
-            len: 0,
+            len: index,
         }
     }
 
@@ -51,7 +51,7 @@ impl Token {
         Token {
             t_type: token,
             lexeme: SmolStr::new_inline(""),
-            index: 0,
+            index: 1,
             line: 1,
             len: 0,
         }
