@@ -1,11 +1,16 @@
-use crate::gir::{
-    generator::{intrinsics::INTRINSICS, module::GIRModuleGenerator},
-    nodes::{
-        module::Module,
-        types::{Instance, Type},
+use crate::{
+    ast::module::ModulePath,
+    error::Errors,
+    gir::{
+        generator::{intrinsics::INTRINSICS, module::GIRModuleGenerator},
+        nodes::{
+            module::Module,
+            types::{Instance, Type},
+        },
+        MutRc,
     },
-    MutRc,
 };
+use std::rc::Rc;
 
 impl GIRModuleGenerator {
     pub fn populate_intrinsics(&mut self, module: MutRc<Module>) {
@@ -45,5 +50,17 @@ impl GIRModuleGenerator {
                     .map(|d| d.into_function());
             })
         }
+    }
+
+    pub fn validate_intrinsics(&self) {
+        INTRINSICS
+            .with(|i| i.borrow_mut().validate())
+            .map_err(|e| {
+                self.generator.errors.borrow_mut().insert(
+                    Rc::new(ModulePath(vec![])),
+                    Errors(vec![e], Rc::new("".to_string())),
+                )
+            })
+            .ok();
     }
 }

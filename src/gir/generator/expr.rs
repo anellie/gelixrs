@@ -751,9 +751,7 @@ impl GIRGenerator {
         let mut gen = Self::for_closure(self);
         let function = gen.create_function(
             ast_func,
-            Some(FunctionParam::this_param(&Token::generic_identifier(
-                "i64",
-            ))),
+            Some(FunctionParam::this_param(&Token::generic_identifier("i64"))),
             None, // TODO: always none? maybe not
         )?;
         gen.generate_function(&function);

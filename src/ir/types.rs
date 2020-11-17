@@ -20,6 +20,7 @@ use inkwell::{
     AddressSpace::Generic,
 };
 use std::{cell::Ref, rc::Rc};
+use crate::gir::nodes::types::TypeArguments;
 
 impl IRGenerator {
     /// Converts a `MIRType` to the corresponding LLVM type.
@@ -67,9 +68,10 @@ impl IRGenerator {
             Type::F32 => (self.context.f32_type().into(), None),
             Type::F64 => (self.context.f64_type().into(), None),
 
-            Type::Function(func) => {
-                (self.get_or_create(func).get_type().ptr_type(Generic).into(), None)
-            },
+            Type::Function(func) => (
+                self.get_or_create(func).get_type().ptr_type(Generic).into(),
+                None,
+            ),
 
             Type::Closure(closure) => {
                 let ty = if let Some(ty) = closure.ir.get() {
@@ -97,26 +99,20 @@ impl IRGenerator {
                 (inner.ptr_type(Generic).into(), ptr)
             }
 
-            Type::Variable(var) => {
-                self.ir_ty_raw(&self.unwrap_var(var))
-            },
+            Type::Variable(var) => self.ir_ty_raw(&self.unwrap_var(var)),
 
             Type::Type(_) => panic!("invalid type"),
         };
 
-        // TODO: This causes insertion to happen more than once
-        // should be optimized
-        match ty {
-            BasicTypeEnum::StructType(struc) if !gir.is_value() => {
-                self.types_bw.insert(
-                    struc.get_name().unwrap().to_str().unwrap().to_string(),
-                    gir.clone(),
-                );
-            }
-            _ => (),
-        }
-
         (ty, ptr)
+    }
+
+    pub fn process_args(&self, args: &Rc<TypeArguments>) -> Rc<TypeArguments> {
+        Rc::new(
+            args.iter()
+                .map(|a| self.maybe_unwrap_var(a))
+                .collect::<Vec<_>>(),
+        )
     }
 
     pub fn maybe_unwrap_var(&self, ty: &Type) -> Type {
@@ -138,13 +134,14 @@ impl IRGenerator {
     }
 
     fn get_or_build_adt(&mut self, inst: &Instance<ADT>) -> IRAdtInfo {
+        let inst = Instance::new(Rc::clone(&inst.ty), self.process_args(inst.args()));
         let info = inst.ty.borrow().ir.get_inst(inst.args());
         match info {
             Some(info) => info,
             None => {
                 let info = IRAdtInfo {
-                    strong: self.build_adt(inst, false, "SR"),
-                    weak: self.build_adt(inst, true, "WR"),
+                    strong: self.build_adt(&inst, false, "SR"),
+                    weak: self.build_adt(&inst, true, "WR"),
                     typeinfo: self.build_type_info(),
                 };
                 inst.ty.borrow_mut().ir.add_inst(inst.args(), info);
@@ -154,7 +151,7 @@ impl IRGenerator {
     }
 
     fn build_adt(&mut self, inst: &Instance<ADT>, weak: bool, prefix: &str) -> StructType {
-        self.push_args(Some(inst.args()));
+        self.push_ty_args(Some(inst.args()));
         let adt = inst.ty.borrow();
         let ret = match adt.ty {
             ADTType::Class { external } if external => self
@@ -163,21 +160,23 @@ impl IRGenerator {
                     adt.fields.iter().map(|(_, m)| &m.ty),
                     false,
                     false,
-                )
-                .into(),
+                ),
 
-            ADTType::Interface => self.build_iface_type(adt, weak).into(),
+            ADTType::Interface => self.build_iface_type(adt, weak),
 
             _ => self
                 .build_struct(
-                    &format!("{}-{}", prefix, &adt.name.lexeme),
+                    &format!("{}-{}-{}", prefix, &adt.name.lexeme, adt.ir.count()),
                     adt.fields.iter().map(|(_, m)| &m.ty),
                     !weak,
                     true,
                 )
-                .into(),
         };
-        self.pop_args();
+        self.types_bw.insert(
+            ret.get_name().unwrap().to_str().unwrap().to_string(),
+            if weak { Type::WeakRef(inst.clone()) } else { Type::StrongRef(inst.clone()) },
+        );
+        self.pop_ty_args();
         ret
     }
 

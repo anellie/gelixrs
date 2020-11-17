@@ -119,7 +119,7 @@ impl GIRGenerator {
                 .iter()
                 .filter(|p| p.1.is_none())
                 .any(|p| &p.0.lexeme == name);
-            if !initialized && mem.initializer.is_none() {
+            if !initialized && mem.initializer.borrow().is_none() {
                 self.uninitialized_this_fields.insert(Rc::clone(&mem));
             }
         }
@@ -138,9 +138,7 @@ impl GIRGenerator {
     /// Will append an 'entry' block to the fn and set the pointer at
     /// that location, then insert all parameters as variables.
     fn prepare_function(&mut self, function: &MutRc<Function>) {
-        self.set_pointer(Rc::clone(function));
-        self.resolver
-            .set_context(&function.borrow().type_parameters);
+        self.set_pointer(function);
         self.begin_scope();
         let func = function.borrow();
         for param in &func.parameters {

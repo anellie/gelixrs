@@ -18,11 +18,10 @@ use std::{env, fs, path::PathBuf, rc::Rc};
 use crate::{
     ast::module::{Import, Module, ModulePath},
     error::{Error, Errors},
+    gir::{generator::module::GIRModuleGenerator, MutRc},
+    ir::IRGenerator,
     lexer::token::Token,
 };
-use crate::gir::MutRc;
-use crate::gir::generator::module::GIRModuleGenerator;
-use crate::ir::IRGenerator;
 use smol_str::SmolStr;
 
 pub mod ast;
@@ -119,7 +118,6 @@ pub fn auto_import_prelude(modules: &mut Vec<Module>) {
         module.imports.push(prelude_import.clone())
     }
 }
-
 
 pub fn compile_gir(modules: Vec<Module>) -> Result<Vec<MutRc<gir::Module>>, Vec<Errors>> {
     GIRModuleGenerator::new(modules).consume()

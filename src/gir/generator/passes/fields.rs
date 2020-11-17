@@ -1,4 +1,7 @@
-use std::rc::Rc;
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 
 use crate::gir::{
     generator::GIRGenerator,
@@ -45,8 +48,8 @@ impl GIRGenerator {
                 name: field.name.lexeme.clone(),
                 mutable: field.mutable,
                 ty,
-                initializer: initializer.map(Box::new),
-                index
+                initializer: RefCell::new(initializer.map(Box::new)),
+                index,
             });
 
             let existing_entry = adt

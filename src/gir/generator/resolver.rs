@@ -42,7 +42,11 @@ impl Resolver {
             ast::Type::Ident(tok) => {
                 let ty = self.search_type_param(&tok.lexeme);
                 let ty = ty.or_else(|| self.find_type_by_name(&tok));
-                let ty = ty.on_err(&self.path, ast.token(), "Unknown type.")?;
+                let ty = ty.on_err(
+                    &self.path,
+                    ast.token(),
+                    &format!("Unknown type '{}'.", tok.lexeme),
+                )?;
                 // TODO generics validation
 
                 if !ty.is_function() || allow_fn {

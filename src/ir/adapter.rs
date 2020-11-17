@@ -1,4 +1,4 @@
-use crate::gir::{nodes::types::TypeArguments};
+use crate::gir::nodes::types::TypeArguments;
 use indexmap::map::IndexMap;
 use inkwell::{
     types::StructType,
@@ -36,10 +36,10 @@ impl<T: Copy> IRAdapter<T> {
         match self {
             IRAdapter::NoTypeArgs(opt) => {
                 opt.replace(ir);
-            },
+            }
             IRAdapter::TypeArgs(map) => {
                 map.insert(Rc::clone(args), ir);
-            },
+            }
         };
     }
 
@@ -80,9 +80,7 @@ impl<'a, T: Copy> Iterator for AdapterIter<'a, T> {
     fn next(&mut self) -> Option<Self::Item> {
         let ret = match self.inner {
             IRAdapter::NoTypeArgs(item) if self.count == 0 => item.as_ref().map(|i| (i, None)),
-            TypeArgs(map) => map
-                .get_index(self.count)
-                .map(|(k, v)| (v, Some(k))),
+            TypeArgs(map) => map.get_index(self.count).map(|(k, v)| (v, Some(k))),
             _ => None,
         };
         self.count += 1;

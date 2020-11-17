@@ -34,24 +34,17 @@ impl GIRModuleGenerator {
         self.run_ast(Self::declare_iface_impls);
         self.run_ast(Self::declare_functions);
         self.run_mod(Self::populate_intrinsics_fn);
+        self.validate_intrinsics();
         self.imports(true);
 
         self.run_dec(GIRGenerator::declare_methods);
         self.generator.primitive_impls();
         self.run_dec(GIRGenerator::fill_impls);
         self.run_dec(GIRGenerator::insert_adt_fields);
-        self.run_dec(GIRGenerator::constructor_setters);
+        // self.run_dec(GIRGenerator::constructor_setters);
         self.run_dec(GIRGenerator::generate);
         self.generator.generate_primitive();
-        INTRINSICS
-            .with(|i| i.borrow_mut().validate())
-            .map_err(|e| {
-                self.generator.errors.borrow_mut().insert(
-                    Rc::new(ModulePath(vec![])),
-                    Errors(vec![e], Rc::new("".to_string())),
-                )
-            })
-            .ok();
+        self.run_dec(GIRGenerator::intrinsic_methods);
 
         let errs = self
             .generator

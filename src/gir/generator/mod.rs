@@ -324,8 +324,10 @@ impl GIRGenerator {
 
     /// Sets the insertion pointer.
     /// Insertion is always at the end of a function.
-    pub fn set_pointer(&mut self, function: MutRc<Function>) {
-        self.position = Some(function)
+    /// Also sets resolver type parameters.
+    pub fn set_pointer(&mut self, func: &MutRc<Function>) {
+        self.resolver.set_context(&func.borrow().type_parameters);
+        self.position = Some(Rc::clone(func))
     }
 
     /// Returns the function of the insertion pointer.

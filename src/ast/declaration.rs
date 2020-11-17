@@ -55,7 +55,8 @@ impl ADT {
         match &self.ty {
             ADTType::EnumCase { case_name, .. } => case_name,
             _ => &self.name.lexeme,
-        }.clone()
+        }
+        .clone()
     }
 
     /// Returns if this is a simple enum case or false if not enum case
@@ -165,6 +166,24 @@ impl FunctionParam {
         FunctionParam {
             name: Token::generic_identifier("this"),
             type_: ty.clone(),
+        }
+    }
+
+    /// See above.
+    pub fn this_param_g(ty: &ADT) -> FunctionParam {
+        let type_ = match &ty.generics {
+            Some(generics) => Type::Generic {
+                token: ty.name.clone(),
+                types: generics
+                    .iter()
+                    .map(|p| Type::Ident(p.name.clone()))
+                    .collect(),
+            },
+            None => Type::Ident(ty.name.clone()),
+        };
+        FunctionParam {
+            name: Token::generic_identifier("this"),
+            type_,
         }
     }
 }

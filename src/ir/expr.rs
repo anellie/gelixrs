@@ -1,17 +1,26 @@
 use std::rc::Rc;
 
-use crate::{gir::nodes::expression::Expr, ir::IRGenerator};
-use inkwell::values::{BasicValueEnum, PointerValue, IntValue};
-use crate::ast::Literal;
+use crate::{
+    ast::Literal,
+    gir::{
+        get_or_create_iface_impls,
+        nodes::{
+            declaration::Variable,
+            expression::{CastType, Expr},
+            types::Instance,
+        },
+        Function, MutRc, Type, ADT,
+    },
+    ir::IRGenerator,
+    lexer::token::TType,
+};
 use either::Either::Right;
-use inkwell::types::{AnyTypeEnum, BasicTypeEnum, StructType};
-use crate::gir::nodes::expression::CastType;
-use crate::gir::{Type, get_or_create_iface_impls, MutRc, ADT, Function};
-use crate::gir::nodes::declaration::Variable;
+use inkwell::{
+    types::{AnyTypeEnum, BasicTypeEnum, StructType},
+    values::{BasicValueEnum, IntValue, PointerValue},
+    FloatPredicate, IntPredicate,
+};
 use std::mem;
-use crate::lexer::token::TType;
-use inkwell::{IntPredicate, FloatPredicate};
-use crate::gir::nodes::types::Instance;
 
 impl IRGenerator {
     pub fn expression(&mut self, expr: &Expr) -> BasicValueEnum {
@@ -19,7 +28,6 @@ impl IRGenerator {
     }
 
     pub fn expression_(&mut self, expr: &Expr, no_load: bool) -> BasicValueEnum {
-        self.flags.no_load = no_load;
         if self.builder.get_insert_block().is_none() {
             return self.none_const;
         }
@@ -27,29 +35,47 @@ impl IRGenerator {
         match expr {
             Expr::Block(block) => {
                 self.push_local_scope();
-                let ret = block.iter().fold(self.none_const, |_, ex| self.expression(ex));
+                let ret = block
+                    .iter()
+                    .fold(self.none_const, |_, ex| self.expression(ex));
                 self.pop_locals_lift(ret);
                 ret
-            },
+            }
 
             Expr::Literal(literal, _) => self.literal(literal),
 
-            Expr::Allocate { ty, constructor, args, tok } => self.allocate(ty, constructor, args),
+            Expr::Allocate {
+                ty,
+                constructor,
+                args,
+                ..
+            } => self.allocate(ty, constructor, args),
 
-            Expr::Variable(var) => {
-                match var {
-                    Variable::Local(_) => self.load_ptr_gir(self.get_variable(var), &var.get_type()),
-                    Variable::Function(func) => self.get_or_create(func).as_global_value().as_pointer_value().into(),
-                }
+            Expr::Variable(var) => match var {
+                Variable::Local(_) if no_load => self.get_variable(var).into(),
+                Variable::Local(_) => self.load_ptr_gir(self.get_variable(var), &var.get_type()),
+                Variable::Function(func) => self
+                    .get_or_create(func)
+                    .as_global_value()
+                    .as_pointer_value()
+                    .into(),
             },
 
             Expr::Load { object, field } => {
                 let obj = self.expression(object);
                 let ptr = self.struct_gep(obj.into_pointer_value(), field.index);
-                self.load_ptr_gir(ptr, &field.ty)
-            },
+                if no_load {
+                    ptr.into()
+                } else {
+                    self.load_ptr_gir(ptr, &field.ty)
+                }
+            }
 
-            Expr::Store { location, value, first_store } => {
+            Expr::Store {
+                location,
+                value,
+                first_store,
+            } => {
                 let store = self.expression_(location, true);
                 let value = self.expression(value);
                 self.build_store(store.into_pointer_value(), value, *first_store);
@@ -58,9 +84,13 @@ impl IRGenerator {
                 }
 
                 value
-            },
+            }
 
-            Expr::Binary { left, operator, right } => {
+            Expr::Binary {
+                left,
+                operator,
+                right,
+            } => {
                 let left = self.expression(left);
                 if operator.t_type == TType::Is {
                     self.binary_is(left, right.get_type().as_type()).into()
@@ -68,14 +98,14 @@ impl IRGenerator {
                     let right = self.expression(right);
                     self.binary(left, operator.t_type, right)
                 }
-            },
+            }
 
             Expr::Unary { operator, right } => self.unary(right, operator.t_type),
 
             Expr::Call { callee, arguments } => {
                 let callee = self.expression(callee);
                 self.build_call(callee.into_pointer_value(), arguments.iter())
-            },
+            }
 
             Expr::Return(value) => {
                 let value = self.expression(value);
@@ -90,25 +120,23 @@ impl IRGenerator {
 
                 self.builder.clear_insertion_position();
                 self.none_const
-            },
+            }
 
             Expr::Cast { inner, to, method } => self.cast(inner, to, *method),
 
             _ => {
                 dbg!(expr);
                 todo!()
-            }
-            /*
+            } /*
 
-            Expr::If { .. } => {},
-            Expr::Switch { .. } => {},
-            Expr::Loop { .. } => {},
-            Expr::Break(_) => {},
-            Expr::Closure { .. } => {},
-            Expr::TypeGet(_) => {},*/
+              Expr::If { .. } => {},
+              Expr::Switch { .. } => {},
+              Expr::Loop { .. } => {},
+              Expr::Break(_) => {},
+              Expr::Closure { .. } => {},
+              Expr::TypeGet(_) => {},*/
         }
     }
-
 
     fn allocate(
         &mut self,
@@ -120,8 +148,14 @@ impl IRGenerator {
         let alloc = self.create_alloc(ir_ty, ty.is_strong_ref());
 
         let adt = ty.try_adt().unwrap();
-        let constructor = self.get_or_create(&Instance::new(Rc::clone(constructor), Rc::clone(adt.args())));
-        let instantiator = self.get_or_create(&adt.get_method("new-instance")).as_global_value().as_pointer_value();
+        let constructor = self.get_or_create(&Instance::new(
+            Rc::clone(constructor),
+            Rc::clone(adt.args()),
+        ));
+        let instantiator = self
+            .get_or_create(&adt.get_method("new-instance"))
+            .as_global_value()
+            .as_pointer_value();
 
         self.maybe_init_type_info(&adt.ty, alloc, tyinfo);
         self.build_alloc_and_init(
@@ -133,7 +167,12 @@ impl IRGenerator {
         )
     }
 
-    fn maybe_init_type_info(&mut self, ty: &MutRc<ADT>, alloc: PointerValue, info: Option<PointerValue>) {
+    fn maybe_init_type_info(
+        &mut self,
+        ty: &MutRc<ADT>,
+        alloc: PointerValue,
+        info: Option<PointerValue>,
+    ) {
         if ty.borrow().ty.ref_is_ptr() && !ty.borrow().ty.is_extern_class() {
             let gep = self.get_type_info_field(alloc);
             self.builder.build_store(gep, info.unwrap());
@@ -146,17 +185,17 @@ impl IRGenerator {
         ty: &Type,
         instantiator: PointerValue,
         constructor: PointerValue,
-        constructor_args: &[Expr]
+        constructor_args: &[Expr],
     ) -> BasicValueEnum {
         let ptr = if let Type::StrongRef(ty) = ty {
-            self.cast_sr_to_wr(alloc, &Type::WeakRef(ty.clone())).into_pointer_value()
+            self.cast_sr_to_wr(alloc, &Type::WeakRef(ty.clone()))
+                .into_pointer_value()
         } else {
             alloc
         };
 
         self.increment_refcount(alloc.into(), true);
-        self.builder
-            .build_call(instantiator, &[ptr.into()], "inst");
+        self.builder.build_call(instantiator, &[ptr.into()], "inst");
 
         let mut arguments: Vec<BasicValueEnum> = constructor_args
             .iter()
@@ -174,7 +213,7 @@ impl IRGenerator {
         self.locals().push((alloc.into(), true));
         alloc.into()
     }
-    
+
     fn binary(
         &self,
         left: BasicValueEnum,
@@ -237,7 +276,7 @@ impl IRGenerator {
     fn build_call<'a, T: Iterator<Item = &'a Expr>>(
         &mut self,
         ptr: PointerValue,
-        arguments: T
+        arguments: T,
     ) -> BasicValueEnum {
         let arguments: Vec<_> = arguments.map(|a| self.expression(a)).collect();
 
@@ -324,7 +363,6 @@ impl IRGenerator {
                 }
                 alloc
             }*/
-
             _ => panic!("unknown literal"),
         }
     }
@@ -344,31 +382,31 @@ impl IRGenerator {
                 let cast_ty = self.ir_ty_generic(to);
 
                 match (obj.get_type(), cast_ty, to.is_signed_int()) {
-                    (BasicTypeEnum::IntType(_), BasicTypeEnum::IntType(ty), _) => {
-                        self.builder.build_int_cast(obj.into_int_value(), ty, "cast").into()
-                    }
-                    (BasicTypeEnum::FloatType(_), BasicTypeEnum::FloatType(ty), _) => {
-                        self.builder.build_float_cast(obj.into_float_value(), ty, "cast").into()
-                    }
-                    (BasicTypeEnum::FloatType(_), BasicTypeEnum::IntType(ty), true) => self.builder.build_float_to_signed_int(
-                        obj.into_float_value(),
-                        ty,
-                        "cast",
-                    ).into(),
-                    (BasicTypeEnum::FloatType(_),  BasicTypeEnum::IntType(ty), false) => self
+                    (BasicTypeEnum::IntType(_), BasicTypeEnum::IntType(ty), _) => self
                         .builder
-                        .build_float_to_unsigned_int(obj.into_float_value(), ty, "cast").into(),
+                        .build_int_cast(obj.into_int_value(), ty, "cast")
+                        .into(),
+                    (BasicTypeEnum::FloatType(_), BasicTypeEnum::FloatType(ty), _) => self
+                        .builder
+                        .build_float_cast(obj.into_float_value(), ty, "cast")
+                        .into(),
+                    (BasicTypeEnum::FloatType(_), BasicTypeEnum::IntType(ty), true) => self
+                        .builder
+                        .build_float_to_signed_int(obj.into_float_value(), ty, "cast")
+                        .into(),
+                    (BasicTypeEnum::FloatType(_), BasicTypeEnum::IntType(ty), false) => self
+                        .builder
+                        .build_float_to_unsigned_int(obj.into_float_value(), ty, "cast")
+                        .into(),
 
-                    (BasicTypeEnum::IntType(_), BasicTypeEnum::FloatType(ty), true) => self.builder.build_signed_int_to_float(
-                        obj.into_int_value(),
-                        ty,
-                        "cast",
-                    ).into(),
-                    (BasicTypeEnum::IntType(_), BasicTypeEnum::FloatType(ty), false) => self.builder.build_unsigned_int_to_float(
-                        obj.into_int_value(),
-                        ty,
-                        "cast",
-                    ).into(),
+                    (BasicTypeEnum::IntType(_), BasicTypeEnum::FloatType(ty), true) => self
+                        .builder
+                        .build_signed_int_to_float(obj.into_int_value(), ty, "cast")
+                        .into(),
+                    (BasicTypeEnum::IntType(_), BasicTypeEnum::FloatType(ty), false) => self
+                        .builder
+                        .build_unsigned_int_to_float(obj.into_int_value(), ty, "cast")
+                        .into(),
 
                     _ => panic!(),
                 }
@@ -394,7 +432,7 @@ impl IRGenerator {
                 TType::Minus => self.builder.build_int_neg(int, "unaryneg"),
                 _ => panic!("Invalid unary operator"),
             }
-                .into(),
+            .into(),
 
             BasicValueEnum::FloatValue(float) => {
                 self.builder.build_float_neg(float, "unaryneg").into()
@@ -466,26 +504,16 @@ impl IRGenerator {
         */
     }
 
-    fn get_free_function(&self, ty: &Type) -> Option<PointerValue> {
+    fn get_free_function(&mut self, ty: &Type) -> Option<PointerValue> {
         Some(match ty {
-            Type::StrongRef(adt) => {
-                let method = adt.get_method("free-sr");
-                let m_ty = method.ty.borrow();
-                let ir = m_ty.ir.borrow();
-                ir.get_inst(method.args())
-                    .unwrap()
-                    .as_global_value()
-                    .as_pointer_value()
-            }
-            Type::WeakRef(adt) => {
-                let method = adt.get_method("free-wr");
-                let m_ty = method.ty.borrow();
-                let ir = m_ty.ir.borrow();
-                ir.get_inst(method.args())
-                    .unwrap()
-                    .as_global_value()
-                    .as_pointer_value()
-            }
+            Type::StrongRef(adt) => self
+                .get_or_create(&adt.get_method("free-sr"))
+                .as_global_value()
+                .as_pointer_value(),
+            Type::WeakRef(adt) => self
+                .get_or_create(&adt.get_method("free-wr"))
+                .as_global_value()
+                .as_pointer_value(),
             _ => self.void_ptr().const_zero(),
         })
     }

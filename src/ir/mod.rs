@@ -4,7 +4,7 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::{cell::RefMut, collections::HashMap, path::Path, rc::Rc, mem};
+use std::{cell::RefMut, collections::HashMap, mem, path::Path, rc::Rc};
 
 use inkwell::{
     basic_block::BasicBlock,
@@ -18,15 +18,16 @@ use inkwell::{
 use crate::{
     gir,
     gir::{
-        nodes::{declaration::Variable, types::TypeArguments},
+        nodes::{
+            declaration::Variable,
+            types::{Instance, TypeArguments},
+        },
         Function, MutRc, Type,
     },
-    ir::adapter::IRAdapter,
+    ir::adapter::{IRAdapter, IRFunction},
 };
 use inkwell::types::StructType;
 use std::{cell::Ref, option::Option::Some};
-use crate::gir::nodes::types::Instance;
-use crate::ir::adapter::IRFunction;
 
 pub mod adapter;
 mod expr;
@@ -81,9 +82,6 @@ pub struct IRGenerator {
     /// by removing from this vector until it is empty.
     functions_left: Vec<(MutRc<Function>, Rc<TypeArguments>)>,
 
-    /// Flags used when compiling expressions
-    flags: IRFlags,
-
     /// Needed state about the current loop, if compiling one.
     loop_data: Option<LoopData>,
 }
@@ -121,10 +119,10 @@ impl IRGenerator {
         // Compile all functions with type args
         // See docs on functions_left
         while let Some((func, args)) = self.functions_left.pop() {
-            self.push_args(Some(&args));
+            self.push_ty_args(Some(&args));
             let ir = func.borrow().ir.borrow().get_inst(&args).unwrap();
             self.function(&func, ir);
-            self.pop_args();
+            self.pop_ty_args();
         }
 
         self.module
@@ -143,7 +141,7 @@ impl IRGenerator {
 
     pub fn get_or_create(&mut self, func: &Instance<Function>) -> FunctionValue {
         let args = func.args();
-        let args = Rc::new(args.iter().map(|a| self.maybe_unwrap_var(a)).collect::<Vec<_>>());
+        let args = self.process_args(args);
 
         let func_ref = func.ty.borrow();
         let mut ir = func_ref.ir.borrow_mut();
@@ -155,22 +153,27 @@ impl IRGenerator {
         }
     }
 
-    fn create_function(&mut self, func: &Instance<Function>, ir: &mut IRFunction, args: Rc<TypeArguments>) -> FunctionValue {
-        self.push_args(Some(&args));
+    fn create_function(
+        &mut self,
+        func: &Instance<Function>,
+        ir: &mut IRFunction,
+        args: Rc<TypeArguments>,
+    ) -> FunctionValue {
+        self.push_ty_args(Some(&args));
         let func_ir = self.declare_function_inst(&func.ty.borrow(), &format!("[{}]", ir.count()));
         ir.add_inst(&args, func_ir);
         self.functions_left.push((Rc::clone(&func.ty), args));
-        self.pop_args();
+        self.pop_ty_args();
         func_ir
     }
 
-    /// Declares a function and all it's instances if applicable
+    /// Declares a function.
     fn declare_function(&mut self, func: &MutRc<Function>) {
         let func = func.borrow();
         let mut ir = func.ir.borrow_mut();
         match &mut *ir {
             IRAdapter::NoTypeArgs(opt) => *opt = Some(self.declare_function_inst(&func, "")),
-            IRAdapter::TypeArgs(_) => ()
+            IRAdapter::TypeArgs(_) => (),
         }
     }
 
@@ -286,11 +289,11 @@ impl IRGenerator {
         self.last_block.unwrap()
     }
 
-    pub fn push_args(&mut self, args: Option<&Rc<TypeArguments>>) {
+    pub fn push_ty_args(&mut self, args: Option<&Rc<TypeArguments>>) {
         self.type_args.push(args.map(|a| Rc::clone(a)));
     }
 
-    pub fn pop_args(&mut self) {
+    pub fn pop_ty_args(&mut self) {
         self.type_args.pop();
     }
 
@@ -324,19 +327,10 @@ impl IRGenerator {
             none_const: none_const.into(),
             type_args: Vec::with_capacity(3),
             functions_left: Vec::with_capacity(20),
-            flags: IRFlags::default(),
 
             loop_data: None,
         }
     }
-}
-
-#[derive(Debug, Default)]
-pub struct IRFlags {
-    /// Do not load pointers produced from storage locations,
-    /// mainly local variables and struct GEPs.
-    /// Used by Expr::store.
-    no_load: bool
 }
 
 pub struct LoopData {

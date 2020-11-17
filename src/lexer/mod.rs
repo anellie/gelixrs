@@ -10,8 +10,8 @@ use crate::{
     ast::module::ModulePath,
     error::{Error, Res},
 };
-use std::collections::VecDeque;
 use smol_str::SmolStr;
+use std::collections::VecDeque;
 use token::{TType, Token};
 
 pub mod token;
@@ -251,9 +251,13 @@ impl Lexer {
         Token {
             t_type,
             // TODO Any way to avoid this allocation? probably not without fiddling with smol_str internals
-            lexeme: SmolStr::new(self.chars[(self.start)..(self.current)].iter().collect::<String>()),
+            lexeme: SmolStr::new(
+                self.chars[(self.start)..(self.current)]
+                    .iter()
+                    .collect::<String>(),
+            ),
             index: self.line_index,
-            line: self.line
+            line: self.line,
         }
     }
 

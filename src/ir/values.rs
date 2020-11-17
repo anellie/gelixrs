@@ -15,6 +15,7 @@ use inkwell::{
     AddressSpace::Generic,
 };
 use std::rc::Rc;
+use std::mem;
 
 impl IRGenerator {
     /// Force any type to be turned into a void pointer.
@@ -82,7 +83,6 @@ impl IRGenerator {
     /// This is sometimes required to prevent unintentionally loading
     /// a value, for example when dealing with primitive pointers.
     pub fn load_ptr_gir(&self, ptr: PointerValue, mir_ty: &Type) -> BasicValueEnum {
-        if self.flags.no_load { return ptr.into() }
         match (ptr.get_type().get_element_type(), mir_ty) {
             (AnyTypeEnum::IntType(_), Type::RawPtr(_)) => ptr.into(),
             (AnyTypeEnum::PointerType(inner), Type::RawPtr(_))
@@ -248,14 +248,17 @@ impl IRGenerator {
         self.kill_local_allocs(&local_allocs);
     }
 
-    pub fn decrement_all_locals(&self) {
+    pub fn decrement_all_locals(&mut self) {
         for locals in &self.locals {
             self.decrement_locals(locals);
         }
 
-        for allocs in &self.local_allocs {
-            self.kill_local_allocs(allocs);
+        // Work around borrowck being a pain
+        let locals = mem::replace(&mut self.local_allocs, vec![]);
+        for allocs in &locals {
+            self.kill_local_allocs(&allocs);
         }
+        self.local_allocs = locals;
     }
 
     fn decrement_locals(&self, locals: &[(BasicValueEnum, bool)]) {
@@ -266,7 +269,7 @@ impl IRGenerator {
         }
     }
 
-    fn kill_local_allocs(&self, local_allocs: &[PointerValue]) {
+    fn kill_local_allocs(&mut self, local_allocs: &[PointerValue]) {
         if self.builder.get_insert_block().is_some() {
             for local in local_allocs {
                 if let Some(dest) = self.get_destructor(*local) {
@@ -276,7 +279,7 @@ impl IRGenerator {
         }
     }
 
-    fn get_destructor(&self, ptr: PointerValue) -> Option<PointerValue> {
+    fn get_destructor(&mut self, ptr: PointerValue) -> Option<PointerValue> {
         let inst = self.types_bw.get(
             ptr.get_type()
                 .get_element_type()
@@ -285,35 +288,14 @@ impl IRGenerator {
                 .unwrap()
                 .to_str()
                 .unwrap(),
-        )?;
-        match inst {
-            Type::WeakRef(adt) => {
-                let method = adt.get_method(&Rc::new("free-wr".to_string()));
-                let ty = method.ty.borrow();
-                let ir = ty.ir.borrow();
-                Some(
-                    ir.get_inst(method.args())
-                        .unwrap()
-                        .as_global_value()
-                        .as_pointer_value(),
-                )
-            }
-
-            Type::StrongRef(adt) => {
-                let method = adt.get_method(&Rc::new("free-sr".to_string()));
-                let ty = method.ty.borrow();
-                let ir = ty.ir.borrow();
-                Some(
-                    ir.get_inst(method.args())
-                        .unwrap()
-                        .as_global_value()
-                        .as_pointer_value(),
-                )
-            }
-
+        )?.clone();
+        let mut method = match inst {
+            Type::WeakRef(ref adt) => adt.get_method("free-wr"),
+            Type::StrongRef(ref adt) => adt.get_method("free-sr"),
             // Primitive, simply calling free is enough since it must be a raw pointer
-            _ => None,
-        }
+            _ => return None,
+        };
+        Some(self.get_or_create(&method).as_global_value().as_pointer_value())
     }
 
     pub fn nullptr(&self) -> PointerValue {

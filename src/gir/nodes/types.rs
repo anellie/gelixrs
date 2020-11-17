@@ -19,11 +19,11 @@ use crate::{
         },
         MutRc,
     },
-    ir::adapter::{IRClosure},
+    ir::adapter::IRClosure,
     lexer::token::Token,
 };
-use std::cell::Cell;
 use smol_str::SmolStr;
+use std::cell::Cell;
 
 pub type TypeArguments = Vec<Type>;
 pub type TypeParameters = Vec<TypeParameter>;
@@ -434,6 +434,10 @@ impl<T> Instance<T> {
 
     pub fn args(&self) -> &Rc<TypeArguments> {
         &self.args
+    }
+
+    pub fn set_args(&mut self, args: Rc<TypeArguments>)  {
+        self.args = args;
     }
 }
 

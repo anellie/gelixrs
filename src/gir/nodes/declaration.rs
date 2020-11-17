@@ -22,8 +22,8 @@ use crate::{
     lexer::token::Token,
 };
 use indexmap::map::IndexMap;
-use std::cell::RefCell;
 use smol_str::SmolStr;
+use std::cell::{Cell, RefCell};
 
 /// A declaration is a top-level user-defined
 /// item inside a module. This can be
@@ -78,7 +78,7 @@ pub struct ADT {
     /// All methods of this ADT.
     /// Some ADTs have a few more special methods:
     /// - "new-instance(&ADT) -> &ADT": Initializes an empty allocation of the ADT with default members, called before constructor.
-    /// - "free-wr(&ADT, act)": Frees a WR by decrementing the refcount of all fields if act == true
+    /// - "free-wr(&ADT)": Frees a WR by decrementing the refcount of all fields
     /// - "free-sr(&ADT, act)": Frees a SR by decrementing the refcount of all fields and calling free if act == true
     pub methods: HashMap<SmolStr, MutRc<Function>>,
     /// All constructors of the ADT, if any. They are simply methods
@@ -292,7 +292,7 @@ impl ADTType {
 }
 
 /// Field on an ADT.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Field {
     /// The name of the field.
     pub name: SmolStr,
@@ -301,9 +301,9 @@ pub struct Field {
     /// The type of this field, either specified or inferred by initializer
     pub ty: Type,
     /// The initializer for this field, if any.
-    pub initializer: Option<Box<Expr>>,
+    pub initializer: RefCell<Option<Box<Expr>>>,
     /// The index of the field inside the ADT.
-    pub index: usize
+    pub index: usize,
 }
 
 impl PartialEq for Field {

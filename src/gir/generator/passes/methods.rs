@@ -37,8 +37,7 @@ impl GIRGenerator {
                     let mut case = case.borrow_mut();
                     case.methods.reserve(adt.borrow().methods.len());
                     for method in &adt.borrow().methods {
-                        case.methods
-                            .insert(method.0.clone(), Rc::clone(method.1));
+                        case.methods.insert(method.0.clone(), Rc::clone(method.1));
                     }
                 }
             }
@@ -48,7 +47,7 @@ impl GIRGenerator {
     fn declare_user_methods(&mut self, adt: &MutRc<ADT>) {
         let ast = Rc::clone(&adt.borrow().ast);
         let mut ast = ast.borrow_mut();
-        let this_param = FunctionParam::this_param(&ast.name);
+        let this_param = FunctionParam::this_param_g(&ast);
 
         for method in ast.methods.drain(..) {
             let mut this_param = this_param.clone();
@@ -64,17 +63,15 @@ impl GIRGenerator {
             };
 
             let name = method.sig.name.lexeme.clone();
-            let gir_method = self.generate_gir_fn(
-                method,
-                Some(this_param.clone()),
-                Some(&adt.borrow().type_parameters),
+            let gir_method = eat!(
+                self,
+                self.generate_gir_fn(
+                    method,
+                    Some(this_param.clone()),
+                    Some(&adt.borrow().type_parameters),
+                )
             );
-            match gir_method {
-                Ok(gir_method) => {
-                    adt.borrow_mut().methods.insert(name, gir_method);
-                }
-                Err(err) => self.error(err),
-            }
+            adt.borrow_mut().methods.insert(name, gir_method);
         }
 
         if let Some(constructors) = ast.constructors() {
@@ -176,12 +173,13 @@ impl GIRGenerator {
     /// should the ADT not contain a constructor and
     /// all members have default values.
     fn maybe_default_constructor(&self, adt: &ast::ADT) -> Option<Constructor> {
-        let no_uninitialized_members = !adt
-            .members()
-            .unwrap()
-            .iter()
-            .any(|v| v.initializer.is_none());
-        if adt.constructors().unwrap().is_empty() && no_uninitialized_members {
+        let no_uninitialized_members = || {
+            !adt.members()
+                .unwrap()
+                .iter()
+                .any(|v| v.initializer.is_none())
+        };
+        if adt.constructors().unwrap().is_empty() && no_uninitialized_members() {
             Some(Constructor {
                 parameters: vec![],
                 visibility: Visibility::Public,
@@ -261,8 +259,7 @@ impl GIRGenerator {
         let impls = get_or_create_iface_impls(ty);
         let mut impls = impls.borrow_mut();
 
-        let mut methods: HashMap<SmolStr, _> =
-            HashMap::with_capacity(impls.interfaces.len() * 2);
+        let mut methods: HashMap<SmolStr, _> = HashMap::with_capacity(impls.interfaces.len() * 2);
         for iface_impl in impls.interfaces.values_mut() {
             self.switch_module(Rc::clone(&iface_impl.module));
 
