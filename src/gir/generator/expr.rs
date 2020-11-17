@@ -159,7 +159,8 @@ impl GIRGenerator {
         let left_ty = left.get_type();
         let right_ty = right.get_type();
 
-        if (left_ty.is_int() && right_ty.is_int())
+        if (left_ty == right_ty && left_ty.is_number())
+            || (left_ty.is_int() && right_ty.is_int())
             || left_ty.is_float() && right_ty.is_float()
             || (operator.t_type == TType::Is && right_ty.is_type())
         {

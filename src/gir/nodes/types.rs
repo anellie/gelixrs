@@ -170,32 +170,32 @@ impl Type {
 
     /// Is this type a number?
     pub fn is_number(&self) -> bool {
-        self.is_int() || self.is_float()
+        self.is_int() || self.is_float() || self.is_var_with_marker(Bound::Number)
     }
 
     /// Is this type an integer?
     pub fn is_int(&self) -> bool {
-        self.is_signed_int() || self.is_unsigned_int() || self.is_bool()
+        self.is_signed_int() || self.is_unsigned_int() || self.is_bool() || self.is_var_with_marker(Bound::Integer)
     }
 
     /// Is this type a signed integer?
     pub fn is_signed_int(&self) -> bool {
-        matches!(self, Type::I8 | Type::I16 | Type::I32 | Type::I64)
+        matches!(self, Type::I8 | Type::I16 | Type::I32 | Type::I64) || self.is_var_with_marker(Bound::SignedInt)
     }
 
     /// Is this type an unsigned integer?
     pub fn is_unsigned_int(&self) -> bool {
-        matches!(self, Type::U8 | Type::U16 | Type::U32 | Type::U64)
+        matches!(self, Type::U8 | Type::U16 | Type::U32 | Type::U64) || self.is_var_with_marker(Bound::UnsignedInt)
     }
 
     /// Is this type a floating-point number?
     pub fn is_float(&self) -> bool {
-        matches!(self, Type::F32 | Type::F64)
+        matches!(self, Type::F32 | Type::F64) || self.is_var_with_marker(Bound::Float)
     }
 
     /// Is this type a pointer at machine level?
     pub fn is_ptr(&self) -> bool {
-        self.is_strong_ref() || self.is_weak_ref()
+        self.is_strong_ref() || self.is_weak_ref() || self.is_var_with_marker(Bound::StrongRef) || self.is_var_with_marker(Bound::WeakRef)
     }
 
     /// Can this type be assigned to variables?
@@ -208,6 +208,18 @@ impl Type {
     /// True for everything except weak references.
     pub fn can_escape(&self) -> bool {
         !self.is_weak_ref()
+    }
+
+    pub fn is_var_with_marker(&self, marker: Bound) -> bool {
+        if let Type::Variable(var) = self {
+            if let TypeParameterBound::Bound(bound) = &var.bound {
+                marker == *bound
+            } else {
+                false
+            }
+        } else {
+            false
+        }
     }
 
     /// Try turning this type into an ADT,
@@ -402,7 +414,7 @@ impl Display for Type {
             Type::WeakRef(adt) => write!(f, "&{}", adt),
             Type::RawPtr(inner) => write!(f, "*{}", inner),
             Type::StrongRef(adt) => write!(f, "@{}", adt),
-            Type::Variable(var) => write!(f, "{}", var.name),
+            Type::Variable(var) => write!(f, "{}: {}", var.name, var.bound),
             Type::Type(ty) => match **ty {
                 Type::Function(_) => write!(f, "<function>"),
                 Type::Closure(_) => write!(f, "<closure>"),
@@ -509,6 +521,7 @@ pub struct TypeVariable {
     pub index: usize,
     pub name: SmolStr,
     pub modifier: VariableModifier,
+    pub bound: TypeParameterBound
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -614,6 +627,15 @@ impl TypeParameterBound {
 impl Default for TypeParameterBound {
     fn default() -> Self {
         TypeParameterBound::Bound(Bound::Unbounded)
+    }
+}
+
+impl Display for TypeParameterBound {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            TypeParameterBound::Interface(iface) => write!(f, "{}", iface),
+            TypeParameterBound::Bound(b) => write!(f, "{:?}", b)
+        }
     }
 }
 
