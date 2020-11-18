@@ -42,6 +42,7 @@ impl GIRGenerator {
             self,
             self.generate_gir_fn(wr_destructor_fn, None, Some(&adt.type_parameters))
         );
+        self.generate_wr_destructor(&mut adt, &wr);
         adt.methods.insert(SmolStr::new_inline("free-wr"), wr);
 
         let sr_destructor_fn = Self::get_destructor_ast(this_param, true);
@@ -49,6 +50,7 @@ impl GIRGenerator {
             self,
             self.generate_gir_fn(sr_destructor_fn, None, Some(&adt.type_parameters))
         );
+        self.generate_sr_destructor(&mut adt, &sr);
         adt.methods.insert(SmolStr::new_inline("free-sr"), sr);
     }
 
@@ -72,6 +74,24 @@ impl GIRGenerator {
         self.insert_at_ptr(Expr::none_const_())
     }
 
+    fn generate_wr_destructor(&mut self, adt: &mut ADT, func: &MutRc<Function>) {
+        self.set_pointer(func);
+        let var = Rc::clone(&func.borrow().parameters[0]);
+
+        todo!();
+
+        self.insert_at_ptr(Expr::none_const_())
+    }
+
+    fn generate_sr_destructor(&mut self, adt: &mut ADT, func: &MutRc<Function>) {
+        self.set_pointer(func);
+        let var = Rc::clone(&func.borrow().parameters[0]);
+
+        todo!();
+
+        self.insert_at_ptr(Expr::none_const_())
+    }
+
     /// Returns AST of the ADT instantiator.
     fn get_instantiator_ast(mut this_param: FunctionParam) -> ast::Function {
         this_param.type_ = ast::Type::Weak(Box::new(this_param.type_));
@@ -91,7 +111,9 @@ impl GIRGenerator {
 
     /// Returns signature of the ADT destructor.
     fn get_destructor_ast(mut this_param: FunctionParam, strong_ref: bool) -> ast::Function {
-        if !strong_ref {
+        if strong_ref {
+            this_param.type_ = ast::Type::Strong(Box::new(this_param.type_));
+        } else {
             this_param.type_ = ast::Type::Weak(Box::new(this_param.type_));
         }
 

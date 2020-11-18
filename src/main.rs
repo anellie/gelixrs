@@ -59,8 +59,8 @@ fn run(args: Opt) -> Result<(), &'static str> {
         return Err("Given path does not exist.");
     }
 
-    let _std_mod = find_std_module()?;
-    let modules = vec![args.file.clone()];
+    let std_mod = find_std_module()?;
+    let modules = vec![args.file.clone(), std_mod];
 
     let mut code = gelixrs::parse_source(modules).map_err(|errors| {
         for file in errors {

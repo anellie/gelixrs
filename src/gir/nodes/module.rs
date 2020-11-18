@@ -42,8 +42,7 @@ pub struct Module {
 impl Module {
     /// Find a declaration based on name, also looking at imports/exports.
     pub fn find_decl(&self, name: &str) -> Option<Declaration> {
-        self.find_import(name)
-            .or_else(|| self.imports.get(name))
+        self.find_import(name).or_else(|| self.imports.get(name))
     }
 
     /// Find a declaration on name, only checking local or exported declarations.
@@ -99,11 +98,15 @@ impl Module {
 #[derive(Default, Debug)]
 pub struct Imports {
     pub decls: HashMap<SmolStr, Declaration>,
-    pub modules: Vec<MutRc<Module>>
+    pub modules: Vec<MutRc<Module>>,
 }
 
 impl Imports {
     fn get(&self, name: &str) -> Option<Declaration> {
-        self.decls.get(name).cloned().or_else(|| self.modules.iter().find_map(|m| m.borrow().find_import(name)))
+        self.decls.get(name).cloned().or_else(|| {
+            self.modules
+                .iter()
+                .find_map(|m| m.borrow().find_import(name))
+        })
     }
 }

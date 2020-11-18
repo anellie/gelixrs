@@ -52,7 +52,7 @@ impl IRGenerator {
 
     /// Write a set of values to a given struct.
     pub fn write_struct<'a, T: Iterator<Item = &'a BasicValueEnum>>(
-        &self,
+        &mut self,
         location: PointerValue,
         values: T,
     ) {
@@ -248,19 +248,22 @@ impl IRGenerator {
     }
 
     pub fn decrement_all_locals(&mut self) {
-        for locals in &self.locals {
-            self.decrement_locals(locals);
-        }
-
         // Work around borrowck being a pain
-        let locals = mem::replace(&mut self.local_allocs, vec![]);
+        let locals = mem::replace(&mut self.locals, vec![]);
+        let local_allocs = mem::replace(&mut self.local_allocs, vec![]);
+
         for allocs in &locals {
+            self.decrement_locals(&allocs);
+        }
+        self.locals = locals;
+
+        for allocs in &local_allocs {
             self.kill_local_allocs(&allocs);
         }
-        self.local_allocs = locals;
+        self.local_allocs = local_allocs;
     }
 
-    fn decrement_locals(&self, locals: &[(BasicValueEnum, bool)]) {
+    fn decrement_locals(&mut self, locals: &[(BasicValueEnum, bool)]) {
         if self.builder.get_insert_block().is_some() {
             for (local, is_ptr) in locals {
                 self.decrement_refcount(*local, *is_ptr);

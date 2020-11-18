@@ -102,6 +102,9 @@ impl GIRGenerator {
                 if let Some(body) = &ast.body {
                     let body = self.expression(body);
                     self.insert_at_ptr(body);
+                } else {
+                    // Ensure IR compiles an empty function instead of only declaring
+                    self.insert_at_ptr(Expr::none_const_())
                 }
                 self.end_scope();
                 self.check_no_uninitialized(&adt.name);

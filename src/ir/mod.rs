@@ -4,7 +4,7 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::{collections::HashMap, path::Path, rc::Rc};
+use std::{collections::HashMap, mem, path::Path, rc::Rc};
 
 use inkwell::{
     basic_block::BasicBlock,
@@ -18,6 +18,7 @@ use inkwell::{
 use crate::{
     gir,
     gir::{
+        generator::intrinsics::INTRINSICS,
         nodes::{
             declaration::Variable,
             types::{Instance, TypeArguments},
@@ -25,6 +26,7 @@ use crate::{
         Function, MutRc, Type,
     },
     ir::adapter::{IRAdapter, IRFunction},
+    lexer::token::TType,
 };
 use inkwell::types::StructType;
 use std::{cell::Ref, option::Option::Some};
@@ -75,11 +77,10 @@ pub struct IRGenerator {
     /// Type arguments to substitute if encountering Type::Variable
     type_args: Vec<Option<Rc<TypeArguments>>>,
 
-    /// A list of functions with type args that still require being generated.
-    /// When a generic function use/call is encountered in another function, it will only
-    /// be declared and added to this list.
-    /// The actual compilation then occurs after all non-generic functions
-    /// by removing from this vector until it is empty.
+    /// A list of functions that still require being generated.
+    /// The compiler only generates `main` and a few intrinsic functions first,
+    /// adding all referenced functions here.
+    /// The actual compilation of them then occurs by removing from this vector until it is empty.
     functions_left: Vec<(MutRc<Function>, Rc<TypeArguments>)>,
 
     /// Needed state about the current loop, if compiling one.
@@ -89,41 +90,32 @@ pub struct IRGenerator {
 impl IRGenerator {
     /// Generates IR. Will process all GIR modules given.
     pub fn generate(mut self, gir: Vec<MutRc<gir::Module>>) -> Module {
-        for module in &gir {
-            let module = module.borrow();
-            for function in &module.functions {
-                self.declare_function(function);
-            }
-        }
+        // Get required-to-compile fns from INTRINSICS
+        let required_fns =
+            INTRINSICS.with(|i| mem::replace(&mut i.borrow_mut().required_compile_fns, vec![]));
+        // Declare them and collect into new vec
+        let fns_ir = required_fns
+            .into_iter()
+            .map(|f| (self.declare_function(&f), f))
+            .collect::<Vec<_>>();
+        // Compile their bodies
+        fns_ir
+            .into_iter()
+            .for_each(|(ir, f)| self.function(&f, ir.unwrap()));
 
-        let intrinsics_module = gir.iter().find(|m| {
-            let module = m.borrow();
-            module.path.0 == ["std", "intrinsics"]
-        });
-        // self.fill_intrinsic_functions(intrinsics_module.unwrap());
-
-        for module in gir {
-            let module = module.borrow();
-            for function in &module.functions {
-                let function_ref = function.borrow();
-                let ir = function_ref.ir.borrow();
-                // Only compile functions without type arguments,
-                // ones with them are compiled on-demand/after
-                match &*ir {
-                    IRAdapter::NoTypeArgs(func) => self.function(function, func.unwrap()),
-                    IRAdapter::TypeArgs(_) => (),
-                }
-            }
-        }
-
-        // Compile all functions with type args
-        // See docs on functions_left
+        // Compile all functions out from required, See docs on functions_left
         while let Some((func, args)) = self.functions_left.pop() {
             self.push_ty_args(Some(&args));
             let ir = func.borrow().ir.borrow().get_inst(&args).unwrap();
             self.function(&func, ir);
             self.pop_ty_args();
         }
+
+        let intrinsics_module = gir.iter().find(|m| {
+            let module = m.borrow();
+            module.path.0 == ["std", "intrinsics"]
+        });
+        self.fill_intrinsic_functions(intrinsics_module.unwrap());
 
         self.module
             .verify()
@@ -168,12 +160,16 @@ impl IRGenerator {
     }
 
     /// Declares a function.
-    fn declare_function(&mut self, func: &MutRc<Function>) {
+    fn declare_function(&mut self, func: &MutRc<Function>) -> Option<FunctionValue> {
         let func = func.borrow();
         let mut ir = func.ir.borrow_mut();
         match &mut *ir {
-            IRAdapter::NoTypeArgs(opt) => *opt = Some(self.declare_function_inst(&func, "")),
-            IRAdapter::TypeArgs(_) => (),
+            IRAdapter::NoTypeArgs(opt) => {
+                let inst = self.declare_function_inst(&func, "");
+                *opt = Some(inst);
+                Some(inst)
+            }
+            IRAdapter::TypeArgs(_) => None,
         }
     }
 
@@ -181,12 +177,19 @@ impl IRGenerator {
     fn declare_function_inst(&mut self, func: &Ref<Function>, suffix: &str) -> FunctionValue {
         let params = func.parameters.iter().map(|param| &param.ty);
         let fn_ty = self.fn_type_from_raw(params, &func.ret_type, func.ast.borrow().sig.variadic);
-        let name = format!(
-            "{}::{}{}",
-            func.module.borrow().path,
-            func.name.lexeme,
-            suffix
-        );
+
+        // If extern fn OR main: don't prepend module name
+        let name = if func.ast.borrow().body.is_none() || func.name.lexeme == "main" {
+            format!("{}", func.name.lexeme)
+        } else {
+            format!(
+                "{}::{}{}",
+                func.module.borrow().path,
+                func.name.lexeme,
+                suffix
+            )
+        };
+
         self.module.add_function(&name, fn_ty, None)
     }
 

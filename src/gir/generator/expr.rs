@@ -230,7 +230,7 @@ impl GIRGenerator {
             .as_ref()
             .map(|expr| {
                 let expression = self.expression(&expr);
-                self.set_loop_type(&expression.get_type());
+                self.set_loop_type(&expression.get_type(), expr.get_token());
                 expression
             })
             .unwrap_or_else(|| Expr::none_const(err_tok.clone()));
@@ -349,7 +349,8 @@ impl GIRGenerator {
                             )?,
                     );
 
-                    { // Cast/convert all arguments to fit
+                    {
+                        // Cast/convert all arguments to fit
                         for (param, arg) in constructor
                             .borrow()
                             .parameters
@@ -596,14 +597,14 @@ impl GIRGenerator {
     /// - phi type
     fn for_body(
         &mut self,
-        body: &AExpr,
+        body_ast: &AExpr,
         else_b: &Option<Box<AExpr>>,
     ) -> (Expr, Expr, Option<Type>) {
         let prev_loop_ty = std::mem::replace(&mut self.current_loop_ty, Some(Type::Any));
 
-        let body = self.expression(body);
+        let body = self.expression(body_ast);
         let body_type = body.get_type();
-        self.set_loop_type(&body_type);
+        self.set_loop_type(&body_type, body_ast.get_token());
 
         let else_val = else_b.as_ref().map_or(Expr::none_const_(), |else_branch| {
             self.expression(&else_branch)
@@ -900,7 +901,10 @@ impl GIRGenerator {
         let value = self.resolver.cast_or_none(value, &ret_type).on_err(
             &self.path,
             err_tok,
-            &format!("Return expression in function has wrong type (Expected {}, was {})", ret_type, value_type),
+            &format!(
+                "Return expression in function has wrong type (Expected {}, was {})",
+                ret_type, value_type
+            ),
         )?;
 
         Ok(Expr::ret(value))

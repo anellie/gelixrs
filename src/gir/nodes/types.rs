@@ -175,17 +175,22 @@ impl Type {
 
     /// Is this type an integer?
     pub fn is_int(&self) -> bool {
-        self.is_signed_int() || self.is_unsigned_int() || self.is_bool() || self.is_var_with_marker(Bound::Integer)
+        self.is_signed_int()
+            || self.is_unsigned_int()
+            || self.is_bool()
+            || self.is_var_with_marker(Bound::Integer)
     }
 
     /// Is this type a signed integer?
     pub fn is_signed_int(&self) -> bool {
-        matches!(self, Type::I8 | Type::I16 | Type::I32 | Type::I64) || self.is_var_with_marker(Bound::SignedInt)
+        matches!(self, Type::I8 | Type::I16 | Type::I32 | Type::I64)
+            || self.is_var_with_marker(Bound::SignedInt)
     }
 
     /// Is this type an unsigned integer?
     pub fn is_unsigned_int(&self) -> bool {
-        matches!(self, Type::U8 | Type::U16 | Type::U32 | Type::U64) || self.is_var_with_marker(Bound::UnsignedInt)
+        matches!(self, Type::U8 | Type::U16 | Type::U32 | Type::U64)
+            || self.is_var_with_marker(Bound::UnsignedInt)
     }
 
     /// Is this type a floating-point number?
@@ -195,7 +200,10 @@ impl Type {
 
     /// Is this type a pointer at machine level?
     pub fn is_ptr(&self) -> bool {
-        self.is_strong_ref() || self.is_weak_ref() || self.is_var_with_marker(Bound::StrongRef) || self.is_var_with_marker(Bound::WeakRef)
+        self.is_strong_ref()
+            || self.is_weak_ref()
+            || self.is_var_with_marker(Bound::StrongRef)
+            || self.is_var_with_marker(Bound::WeakRef)
     }
 
     /// Can this type be assigned to variables?
@@ -358,6 +366,11 @@ impl Type {
                 VariableModifier::Weak => args[var.index].to_weak(),
                 VariableModifier::Strong => args[var.index].to_strong(),
             },
+            Type::RawPtr(box Type::Variable(var)) => Type::RawPtr(box match var.modifier {
+                VariableModifier::Value => args[var.index].clone(),
+                VariableModifier::Weak => args[var.index].to_weak(),
+                VariableModifier::Strong => args[var.index].to_strong(),
+            }),
             _ => self.clone(),
         };
 
@@ -521,7 +534,7 @@ pub struct TypeVariable {
     pub index: usize,
     pub name: SmolStr,
     pub modifier: VariableModifier,
-    pub bound: TypeParameterBound
+    pub bound: TypeParameterBound,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -634,7 +647,7 @@ impl Display for TypeParameterBound {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             TypeParameterBound::Interface(iface) => write!(f, "{}", iface),
-            TypeParameterBound::Bound(b) => write!(f, "{:?}", b)
+            TypeParameterBound::Bound(b) => write!(f, "{:?}", b),
         }
     }
 }

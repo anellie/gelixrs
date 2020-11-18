@@ -169,7 +169,7 @@ impl Resolver {
                         index: param.index,
                         name: param.name.lexeme.clone(),
                         modifier: VariableModifier::Value,
-                        bound: param.bound.clone()
+                        bound: param.bound.clone(),
                     }));
                 }
             }

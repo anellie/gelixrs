@@ -238,15 +238,15 @@ impl GIRGenerator {
 
     /// Returns the variable of the current loop or creates it if it does not exist yet.
     /// This variable stores the value of the last loop iteration.
-    fn set_loop_type(&mut self, type_: &Type) {
+    fn set_loop_type(&mut self, type_: &Type, errtok: &Token) {
         match &self.current_loop_ty {
-            Some(ty) if ty != type_ => {
-                self.err(
-                    // todo!!
-                    &Token::generic_token(TType::Break),
-                    "Break expressions and for body must have same type".to_string(),
-                )
-            }
+            Some(ty) if !ty.equal(type_, false) => self.err(
+                errtok,
+                format!(
+                    "Break expressions and for body must have same type (Expected {}, was {})",
+                    ty, type_
+                ),
+            ),
 
             None | Some(Type::Any) => self.current_loop_ty = Some(type_.clone()),
             _ => (),

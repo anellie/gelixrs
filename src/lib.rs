@@ -7,6 +7,8 @@
 #![feature(drain_filter)]
 #![feature(refcell_take)]
 #![feature(try_find)]
+#![feature(box_syntax)]
+#![feature(box_patterns)]
 
 #[macro_use]
 extern crate enum_methods;
@@ -21,10 +23,9 @@ use crate::{
     error::{Error, Errors},
     gir::{generator::module::GIRModuleGenerator, MutRc},
     ir::IRGenerator,
-    lexer::token::Token,
+    lexer::token::{TType, Token},
 };
 use smol_str::SmolStr;
-use crate::lexer::token::TType;
 
 pub mod ast;
 //#[cfg(test)]

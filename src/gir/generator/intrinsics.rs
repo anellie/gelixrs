@@ -54,6 +54,9 @@ pub struct Intrinsics {
     /// The entry point of the program - more than one function
     /// named main is a compile error
     pub main_fn: Option<MutRc<Function>>,
+    /// A list of functions required for compilation.
+    /// Currently main_fn and a few intrinsics.
+    pub required_compile_fns: Vec<MutRc<Function>>,
 }
 
 impl Intrinsics {
@@ -90,6 +93,7 @@ impl Intrinsics {
             None
         } else {
             self.main_fn = Some(Rc::clone(func));
+            self.required_compile_fns.push(Rc::clone(&func));
             Some(())
         }
     }

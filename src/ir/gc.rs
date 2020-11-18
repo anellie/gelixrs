@@ -14,10 +14,11 @@ use inkwell::{
     AddressSpace::Generic,
     IntPredicate,
 };
+use std::rc::Rc;
 
 impl IRGenerator {
     /// Build a store; will do required refcount modification.
-    pub fn build_store(&self, ptr: PointerValue, value: BasicValueEnum, is_null: bool) {
+    pub fn build_store(&mut self, ptr: PointerValue, value: BasicValueEnum, is_null: bool) {
         if !is_null {
             self.decrement_refcount(ptr.into(), true);
         }
@@ -28,7 +29,7 @@ impl IRGenerator {
     /// Increment the refcount of a value.
     /// is_ptr specifies if the value is a pointer or a value in
     /// the context of the MIR type system.
-    pub fn increment_refcount(&self, value: BasicValueEnum, is_ptr: bool) {
+    pub fn increment_refcount(&mut self, value: BasicValueEnum, is_ptr: bool) {
         if let Some(val) = self.get_rc_value(value, is_ptr) {
             self.mod_refcount(val, false)
         }
@@ -37,7 +38,7 @@ impl IRGenerator {
     /// Decrement the refcount of a value, and check if it needs to be freed
     /// is_ptr specifies if the value is a pointer or a value in
     /// the context of the MIR type system.
-    pub fn decrement_refcount(&self, value: BasicValueEnum, is_ptr: bool) {
+    pub fn decrement_refcount(&mut self, value: BasicValueEnum, is_ptr: bool) {
         if let Some(val) = self.get_rc_value(value, is_ptr) {
             self.mod_refcount(val, true)
         }
@@ -74,7 +75,7 @@ impl IRGenerator {
             .map_or(false, |name| name.to_str().unwrap().starts_with("SR-"))
     }
 
-    fn mod_refcount(&self, value: BasicValueEnum, decrement: bool) {
+    fn mod_refcount(&mut self, value: BasicValueEnum, decrement: bool) {
         match value {
             BasicValueEnum::StructValue(struc) => {
                 let name = struc.get_name().to_str().unwrap();
@@ -85,12 +86,13 @@ impl IRGenerator {
 
             BasicValueEnum::PointerValue(ptr) => {
                 let ty = ptr.get_type().get_element_type().into_struct_type();
-                match &self
+                let ty = &self
                     .types_bw
                     .get(ty.get_name().unwrap().to_str().unwrap())
                     .unwrap()
-                {
-                    Type::StrongRef(adt) => self.mod_refcount_adt(ptr, adt, decrement),
+                    .clone();
+                match ty {
+                    Type::StrongRef(adt) => self.mod_refcount_adt(ptr, &adt, decrement),
                     Type::Closure(_) => self.mod_refcount_closure(ptr, decrement),
                     Type::Value(_) => (),
                     _ => panic!("Cannot mod refcount on this"),
@@ -100,17 +102,14 @@ impl IRGenerator {
         }
     }
 
-    fn mod_refcount_adt(&self, ptr: PointerValue, adt: &Instance<ADT>, decrement: bool) {
+    fn mod_refcount_adt(&mut self, ptr: PointerValue, adt: &Instance<ADT>, decrement: bool) {
         if adt.ty.borrow().ty.is_extern_class() {
             return;
         }
         if let Some(destructor) = &adt.ty.borrow().methods.get("free-sr") {
-            let func = destructor
-                .borrow()
-                .ir
-                .borrow()
-                .get_inst(adt.args())
-                .unwrap();
+            let inst = Instance::new(Rc::clone(destructor), Rc::clone(adt.args()));
+            let func = self.get_or_create(&inst);
+
             let refcount = unsafe { self.builder.build_struct_gep(ptr, 0, "rcgep") };
             let refcount = self.write_new_refcount(refcount, decrement);
             if decrement {

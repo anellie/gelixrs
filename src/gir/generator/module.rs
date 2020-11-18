@@ -11,6 +11,7 @@ use crate::{
     },
     lexer::token::Token,
 };
+use crate::gir::generator::intrinsics::INTRINSICS;
 
 /// Generator responsible for compiling the full GIR
 /// list of modules as one unit.
@@ -40,7 +41,7 @@ impl GIRModuleGenerator {
         self.generator.primitive_impls();
         self.run_dec(GIRGenerator::fill_impls);
         self.run_dec(GIRGenerator::insert_adt_fields);
-        // self.run_dec(GIRGenerator::constructor_setters);
+        self.run_dec(GIRGenerator::constructor_setters);
         self.run_dec(GIRGenerator::generate);
         self.generator.generate_primitive();
         self.run_dec(GIRGenerator::intrinsic_methods);
@@ -116,7 +117,9 @@ impl GIRModuleGenerator {
     }
 
     /// Reset global state and ready for the next compilation.
-    fn reset() {}
+    fn reset() {
+        INTRINSICS.with(|i| i.borrow_mut().reset())
+    }
 
     /// Create a new generator from AST modules.
     pub fn new(modules: Vec<ast::Module>) -> Self {

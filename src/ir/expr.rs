@@ -19,6 +19,9 @@ use inkwell::{
     values::{BasicValueEnum, IntValue, PointerValue},
     FloatPredicate, IntPredicate,
 };
+use inkwell::basic_block::BasicBlock;
+use crate::ir::LoopData;
+use std::mem;
 
 impl IRGenerator {
     pub fn expression(&mut self, expr: &Expr) -> BasicValueEnum {
@@ -105,6 +108,15 @@ impl IRGenerator {
                 self.build_call(callee.into_pointer_value(), arguments.iter())
             }
 
+            Expr::If {
+                condition,
+                then_branch,
+                else_branch,
+                phi_type,
+            } => self.if_(condition, then_branch, else_branch, phi_type.is_some()),
+
+            Expr::Loop { condition, body, else_branch, phi_type } => self.loop_(condition, body, else_branch, phi_type),
+
             Expr::Return(value) => {
                 let value = self.expression(value);
                 self.increment_refcount(value, false);
@@ -123,13 +135,10 @@ impl IRGenerator {
             Expr::Cast { inner, to, method } => self.cast(inner, to, *method),
 
             _ => {
-                dbg!(expr);
-                todo!()
+                todo!();
+                self.none_const
             } /*
-
-              Expr::If { .. } => {},
               Expr::Switch { .. } => {},
-              Expr::Loop { .. } => {},
               Expr::Break(_) => {},
               Expr::Closure { .. } => {},
               Expr::TypeGet(_) => {},*/
@@ -362,6 +371,108 @@ impl IRGenerator {
                 alloc
             }*/
             _ => panic!("unknown literal"),
+        }
+    }
+
+    fn if_(&mut self, cond: &Expr, then: &Expr, else_: &Expr, phi: bool) -> BasicValueEnum {
+        let cond = self.expression(cond);
+        let then_bb = self.append_block("then");
+        let else_bb = self.append_block("else");
+        let cont_bb = self.append_block("cont");
+
+        self.builder
+            .build_conditional_branch(cond.into_int_value(), &then_bb, &else_bb);
+
+        let mut build_block = |expr: &Expr, block: BasicBlock| {
+            self.position_at_block(block);
+            self.push_local_scope();
+            let val = self.expression(expr);
+            let bb = self.last_block();
+            if phi {
+                self.pop_locals_remove(val);
+            } else {
+                self.pop_dec_locals()
+            }
+            self.builder.build_unconditional_branch(&cont_bb);
+            (val, bb)
+        };
+
+        let (then_val, then_bb) = build_block(then, then_bb);
+        let (else_val, else_bb) = build_block(else_, else_bb);
+
+        self.position_at_block(cont_bb);
+        if phi {
+            self.build_phi(&[(then_val, then_bb), (else_val, else_bb)])
+        } else {
+            self.none_const
+        }
+    }
+
+    fn loop_(
+        &mut self,
+        condition: &Expr,
+        body: &Expr,
+        else_: &Expr,
+        phi_type: &Option<Type>,
+    ) -> BasicValueEnum {
+        let loop_bb = self.append_block("for-loop");
+        let else_bb = self.append_block("for-else");
+        let cont_bb = self.append_block("for-cont");
+
+        let prev_loop = std::mem::replace(
+            &mut self.loop_data,
+            Some(LoopData {
+                end_block: cont_bb,
+                phi_nodes: if phi_type.is_some() {
+                    Some(vec![])
+                } else {
+                    None
+                },
+            }),
+        );
+
+        let result_store = phi_type.as_ref().map(|ty| {
+            let alloc_ty = self.ir_ty_allocs(ty);
+            self.builder.build_alloca(alloc_ty, "loop-result-store")
+        });
+
+        let cond = self.expression(condition).into_int_value();
+        self.builder
+            .build_conditional_branch(cond, &loop_bb, &else_bb);
+
+        self.position_at_block(loop_bb);
+        self.push_local_scope();
+        let body = self.expression(body);
+        let loop_end_bb = self.last_block();
+        if let Some(result_store) = result_store {
+            self.build_store(result_store, body, false);
+        }
+        self.pop_dec_locals();
+        let cond = self.expression(condition).into_int_value();
+        let phi_node = if let Some(result_store) = result_store {
+            Some(self.load_ptr(result_store))
+        } else {
+            None
+        };
+        self.builder
+            .build_conditional_branch(cond, &loop_bb, &cont_bb);
+
+        self.position_at_block(else_bb);
+        self.push_local_scope();
+        let else_val = self.expression(else_);
+        let else_bb = self.last_block();
+        self.pop_dec_locals();
+        self.builder.build_unconditional_branch(&cont_bb);
+
+        self.position_at_block(cont_bb);
+        let loop_data = mem::replace(&mut self.loop_data, prev_loop).unwrap();
+        if result_store.is_some() {
+            let mut phi_nodes = loop_data.phi_nodes.unwrap();
+            phi_nodes.push((phi_node.unwrap(), loop_end_bb));
+            phi_nodes.push((else_val, else_bb));
+            self.build_phi(&phi_nodes)
+        } else {
+            self.none_const
         }
     }
 

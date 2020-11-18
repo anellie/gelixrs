@@ -25,7 +25,9 @@ impl GIRModuleGenerator {
                             module.try_reserve_name_rc(&this.generator, name, &import.symbol);
                         }
                     } else {
-                        Self::get_imports(module, is_export).modules.push(src_module_rc.clone());
+                        Self::get_imports(module, is_export)
+                            .modules
+                            .push(src_module_rc.clone());
                     }
                     Ok(second_stage)
                 } else {
@@ -33,11 +35,13 @@ impl GIRModuleGenerator {
 
                     if let Some(decl) = decl {
                         module.try_reserve_name(&this.generator, &import.symbol);
-                        Self::get_imports(module, is_export).decls.insert(import.symbol.lexeme.clone(), decl);
+                        Self::get_imports(module, is_export)
+                            .decls
+                            .insert(import.symbol.lexeme.clone(), decl);
                     } else if second_stage {
                         gen.err(&import.symbol, "Unknown declaration.".to_string())
                     } else {
-                        return Ok(false)
+                        return Ok(false);
                     }
 
                     Ok(true)
