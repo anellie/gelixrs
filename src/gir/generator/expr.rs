@@ -895,11 +895,12 @@ impl GIRGenerator {
             .map(|v| self.expression(&*v))
             .unwrap_or_else(|| Expr::none_const(err_tok.clone()));
 
+        let value_type = value.get_type();
         let ret_type = self.cur_fn().borrow().ret_type.clone();
         let value = self.resolver.cast_or_none(value, &ret_type).on_err(
             &self.path,
             err_tok,
-            "Return expression in function has wrong type",
+            &format!("Return expression in function has wrong type (Expected {}, was {})", ret_type, value_type),
         )?;
 
         Ok(Expr::ret(value))
