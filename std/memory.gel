@@ -37,7 +37,7 @@ public func allocate[T](size: i64) -> *T {
 ///
 /// Mainly intended to be used with extern classes or raw pointers,
 /// as they require manual memory management.
-func drop[T: IsPointer](value: T) = gelixrs_free_type(value)
+func drop[T](value: T) = gelixrs_free_type(value)
 
 /// Will increment the reference count on a value by 1.
 /// Will cause memory leaks if not careful!
@@ -48,7 +48,7 @@ public func inc_ref[T](value: T) = gelixrs_inc_ref(value)
 public func dec_ref[T](value: T) = gelixrs_dec_ref(value)
 
 /// Will simply load the given value.
-func load_value[T](value: &T) -> ~T = gelixrs_load_value(value)
+func load_value[T](value: *T) -> T = gelixrs_load_value(value)
 /// Will simply load the given value, with an index.
 func load_value_index[T](value: *T, index: i64) -> T = gelixrs_load_value(index_ptr(value, index))
 
@@ -83,6 +83,7 @@ class Gc[T] {
     construct(inner)
 }
 
+/*
 impl Free for Gc[T] {
     func free() = free(this.inner)
-}
+}*/

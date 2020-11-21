@@ -59,7 +59,7 @@ impl GIRGenerator {
             {
                 ast::Type::Weak(Box::new(this_param.type_))
             } else {
-                ast::Type::Strong(Box::new(this_param.type_))
+                this_param.type_
             };
 
             let name = method.sig.name.lexeme.clone();

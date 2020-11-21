@@ -111,9 +111,7 @@ impl GIRGenerator {
 
     /// Returns signature of the ADT destructor.
     fn get_destructor_ast(mut this_param: FunctionParam, strong_ref: bool) -> ast::Function {
-        if strong_ref {
-            this_param.type_ = ast::Type::Strong(Box::new(this_param.type_));
-        } else {
+        if !strong_ref {
             this_param.type_ = ast::Type::Weak(Box::new(this_param.type_));
         }
 

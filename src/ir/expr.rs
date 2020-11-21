@@ -54,7 +54,7 @@ impl IRGenerator {
 
             Expr::Variable(var) => match var {
                 Variable::Local(_) if no_load => self.get_variable(var).into(),
-                Variable::Local(_) => self.load_ptr_gir(self.get_variable(var), &var.get_type()),
+                Variable::Local(_) => self.load_ptr_gir(self.get_variable(var), &self.maybe_unwrap_var(&var.get_type())),
                 Variable::Function(func) => self
                     .get_or_create(func)
                     .as_global_value()
@@ -80,7 +80,7 @@ impl IRGenerator {
                 let store = self.expression_(location, true);
                 let value = self.expression(value);
                 self.build_store(store.into_pointer_value(), value, *first_store);
-                if *first_store {
+                if *first_store && !location.is_struct_get() {
                     self.locals().push((store, true))
                 }
 

@@ -63,7 +63,7 @@ impl Resolver {
             ast::Type::Weak(inner) => {
                 let inner = self.find_type(inner)?;
                 match inner {
-                    Type::Value(adt) => Ok(Type::WeakRef(adt)),
+                    Type::StrongRef(adt) => Ok(Type::WeakRef(adt)),
                     Type::Variable(mut var) => {
                         var.modifier = VariableModifier::Weak;
                         Ok(Type::Variable(var))
@@ -76,17 +76,17 @@ impl Resolver {
                 }
             }
 
-            ast::Type::Strong(inner) => {
+            ast::Type::Value(inner) => {
                 let inner = self.find_type(inner)?;
                 match inner {
-                    Type::Value(adt) => Ok(Type::StrongRef(adt)),
+                    Type::StrongRef(adt) => Ok(Type::Value(adt)),
                     Type::Variable(mut var) => {
-                        var.modifier = VariableModifier::Strong;
+                        var.modifier = VariableModifier::Value;
                         Ok(Type::Variable(var))
                     }
                     _ => Err(gir_err(
                         ast.token(),
-                        format!("Strong is only applicable to ADTs, not {}.", inner),
+                        format!("Value is only applicable to ADTs, not {}.", inner),
                         &self.path,
                     )),
                 }
@@ -168,7 +168,7 @@ impl Resolver {
                     return Some(Type::Variable(TypeVariable {
                         index: param.index,
                         name: param.name.lexeme.clone(),
-                        modifier: VariableModifier::Value,
+                        modifier: VariableModifier::Strong,
                         bound: param.bound.clone(),
                     }));
                 }

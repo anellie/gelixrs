@@ -125,7 +125,9 @@ impl IRGenerator {
                 println!("This is a bug, and should be reported (please include the code when doing so).");
                 println!("The error message reported by LLVM:\n");
                 println!("{}\n", e.to_string().replace("\\n", "\n"));
-                std::process::exit(1);
+                if !cfg!(test) {
+                    std::process::exit(1);
+                }
             })
             .unwrap();
         self.module

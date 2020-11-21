@@ -2,7 +2,7 @@
 
 import std/memory/+
 
-extern class Test {
+class Test {
     val a: i64
     val b: i8
 

@@ -273,7 +273,7 @@ impl Type {
     pub fn get_constructors(&self) -> Option<Vec<MutRc<Function>>> {
         // Thanks, no box pattern matching!
         if let Type::Type(ty) = self {
-            if let Type::Value(ty) = &**ty {
+            if let Some(ty) = ty.try_adt() {
                 Some(ty.ty.borrow().constructors.clone())
             } else {
                 None

@@ -703,7 +703,7 @@ impl GIRGenerator {
     fn get_static(&mut self, object: &AExpr, name: &Token, allow_simple: bool) -> Res<Expr> {
         let obj = self.expression(object);
         if let Type::Type(ty) = obj.get_type() {
-            let ty = ty.as_value();
+            let ty = ty.try_adt().unwrap();
             if let ADTType::Enum { cases, .. } = &ty.ty.borrow().ty {
                 if let Some(case) = cases.get(&name.lexeme) {
                     match ADT::get_singleton_inst(case, ty.args()) {

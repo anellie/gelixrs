@@ -333,9 +333,8 @@ impl Expr {
 
     /// Simple helper for `gen_expr` call match arms.
     /// Done instead of deriving `EnumIsA` to save compilation time.
-    /// TODO: is this used?
-    pub fn is_variable(&self) -> bool {
-        matches!(self, Expr::Variable(_))
+    pub fn is_struct_get(&self) -> bool {
+        matches!(self, Expr::Load { .. })
     }
 
     pub fn visit<T: Visitor>(&mut self, v: &mut T) -> Res<()> {

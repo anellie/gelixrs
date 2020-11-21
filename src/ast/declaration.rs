@@ -213,7 +213,7 @@ pub enum Type {
     Weak(Box<Type>),
 
     /// A strong reference.
-    Strong(Box<Type>),
+    Value(Box<Type>),
 
     /// A raw pointer.
     RawPtr(Box<Type>),
@@ -239,7 +239,7 @@ impl Type {
                 closing_paren: token,
                 ..
             } => token,
-            Type::Weak(inner) | Type::Strong(inner) | Type::RawPtr(inner) => inner.token(),
+            Type::Weak(inner) | Type::Value(inner) | Type::RawPtr(inner) => inner.token(),
         }
     }
 
@@ -247,7 +247,7 @@ impl Type {
         match self {
             Type::Ident(_) => false,
 
-            Type::Strong(inner) | Type::Weak(inner) | Type::RawPtr(inner) => inner.has_generics(),
+            Type::Value(inner) | Type::Weak(inner) | Type::RawPtr(inner) => inner.has_generics(),
 
             Type::Closure {
                 params, ret_type, ..
@@ -268,7 +268,7 @@ impl fmt::Display for Type {
 
             Type::Weak(type_) => write!(f, "&{}", type_),
 
-            Type::Strong(type_) => write!(f, "@{}", type_),
+            Type::Value(type_) => write!(f, "~{}", type_),
 
             Type::RawPtr(type_) => write!(f, "*{}", type_),
 

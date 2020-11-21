@@ -116,6 +116,12 @@ impl Intrinsics {
     /// Reset itself for next compilation.
     pub fn reset(&mut self) {
         self.ops.clear();
+        self.string_type = None;
+        self.iter_proto = None;
+        self.to_iter_proto = None;
+        self.free_iface = None;
+        self.libc_free = None;
         self.main_fn = None;
+        self.required_compile_fns.clear();
     }
 }

@@ -7,7 +7,7 @@
 /// You should almost never have to use this module outside of 'std'.
 ///
 /// Many of these functions perform raw pointer arithmetic without any checks.
-/// If you need to use low-level pointers, look at stdffi and Ptr instead.
+/// If you need to use low-level pointers, look at std/memory instead.
 
 import std/memory/+
 
@@ -40,7 +40,7 @@ extern func gelixrs_dec_ref_iface(implementor: usize, vtable: usize)
 
 /// Will call the given value's destructor, causing it to be deallocated
 /// immediately. Can be very unsafe - does not check for dangling references!
-extern func gelixrs_free_type[T: IsPointer](value: T)
+extern func gelixrs_free_type[T](value: T)
 
 /// Will load the given pointer's value
 extern func gelixrs_load_value[T](value: *T) -> T

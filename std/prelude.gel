@@ -1,23 +1,23 @@
 import std/intrinsics/puts
 import std/intrinsics/quick_exit
-import std/string/ToString
+// import std/string/ToString
 
-export std/collections/Array
-export std/iter/Range
+// export std/collections/Array
+// export std/iter/Range
 export std/string/String
 
-func print(a: ToString) = puts(a.to_string().ptr)
+func print(a: &String) = puts(a.ptr)
 
 func cast[T](value: T) -> T = value
 
-func try_cast[T, V](value: T) -> Opt[V] {
+func try_cast[T, V](value: T) -> ~Opt[V] {
     if (value is V) Opt[V]:Some(value)
-    else Opt[V]:None()
+    else Opt[V]:None
 }
 
 func panic(msg: String) {
-    print("[gelix] Panicked at: " + msg)
-    print("[gelix] Exiting.")
+    // print("[gelix] Panicked at: " + msg)
+    // print("[gelix] Exiting.")
     quick_exit(1i32)
 }
 

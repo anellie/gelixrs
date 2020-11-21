@@ -1148,7 +1148,7 @@ impl Parser {
 
             TType::Tilde => {
                 let inner = self.type_(msg)?;
-                Type::Strong(Box::new(inner))
+                Type::Value(Box::new(inner))
             }
 
             TType::AndSym => {

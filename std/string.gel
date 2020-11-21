@@ -1,7 +1,7 @@
 import std/intrinsics/+
 import std/math/max
 import std/memory/+
-import std/ops/Add
+// import std/ops/Add
 
 /// A UTF-8 string.
 /// Currently, strings are null-terminated.
@@ -63,6 +63,7 @@ class String {
     }
 }
 
+/*
 impl Free for &String {
     func free() {
         drop(this.ptr)
@@ -146,3 +147,4 @@ impl ToString for f64 {
 impl ToString for f32 {
     func to_string() -> String = sprintf_buf(40, "%g", this)
 }
+*/
