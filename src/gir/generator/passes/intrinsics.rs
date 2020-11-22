@@ -56,7 +56,6 @@ impl GIRModuleGenerator {
                     .map(|d| d.into_function());
 
                 add_fn(i, "free");
-                add_fn(i, "build_string_literal");
                 add_fn(i, "malloc");
             })
         }

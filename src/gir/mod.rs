@@ -62,5 +62,5 @@ pub fn gir_err(tok: &Token, msg: String, path: &Rc<ModulePath>) -> Error {
 pub struct CompiledGIR {
     pub modules: Vec<MutRc<Module>>,
     pub intrinsics: Intrinsics,
-    pub iface_impls: HashMap<Type, MutRc<IFaceImpls>>
+    pub iface_impls: HashMap<Type, MutRc<IFaceImpls>>,
 }

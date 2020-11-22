@@ -16,13 +16,17 @@ use std::{
     rc::Rc,
 };
 
-use crate::{error::{Error, Res}, gir::{
+use crate::{
+    error::{Error, Res},
+    gir::{
         nodes::{
             declaration::{Function, ADT},
             module::Module,
         },
-        MutRc,
-    }, lexer::token::TType, gir::Type};
+        MutRc, Type,
+    },
+    lexer::token::TType,
+};
 
 thread_local! {
     pub static INTRINSICS: RefCell<Intrinsics> = RefCell::new(Intrinsics::default());

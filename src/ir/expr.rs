@@ -158,6 +158,19 @@ impl IRGenerator {
         constructor: &MutRc<Function>,
         constructor_args: &[Expr],
     ) -> BasicValueEnum {
+        let args = constructor_args
+            .iter()
+            .map(|a| self.expression(a))
+            .collect();
+        self.allocate_raw_args(ty, constructor, args)
+    }
+
+    fn allocate_raw_args(
+        &mut self,
+        ty: &Type,
+        constructor: &MutRc<Function>,
+        constructor_args: Vec<BasicValueEnum>,
+    ) -> BasicValueEnum {
         let (ir_ty, tyinfo) = self.ir_ty_raw(ty);
         let alloc = self.create_alloc(ir_ty, ty.is_strong_ref());
 
@@ -199,7 +212,7 @@ impl IRGenerator {
         ty: &Type,
         instantiator: PointerValue,
         constructor: PointerValue,
-        constructor_args: &[Expr],
+        mut arguments: Vec<BasicValueEnum>,
     ) -> BasicValueEnum {
         let ptr = if let Type::StrongRef(ty) = ty {
             self.cast_sr_to_wr(alloc, &Type::WeakRef(ty.clone()))
@@ -211,10 +224,6 @@ impl IRGenerator {
         self.increment_refcount(alloc.into(), true);
         self.builder.build_call(instantiator, &[ptr.into()], "inst");
 
-        let mut arguments: Vec<BasicValueEnum> = constructor_args
-            .iter()
-            .map(|a| self.expression(a))
-            .collect();
         for arg in &arguments {
             self.increment_refcount(*arg, false);
         }
@@ -339,28 +348,26 @@ impl IRGenerator {
 
             Literal::String(string) => {
                 let const_str = self.builder.build_global_string_ptr(&string, "str");
-                let string_builder = self
-                    .module
-                    .get_function("std/intrinsics::build_string_literal")
-                    .unwrap();
-                let st = self
-                    .builder
-                    .build_call(
-                        string_builder,
-                        &[
-                            const_str.as_pointer_value().into(),
-                            self.context
-                                .i64_type()
-                                .const_int((string.len() + 1) as u64, false)
-                                .into(),
-                        ],
-                        "str",
-                    )
-                    .try_as_basic_value()
-                    .left()
-                    .unwrap();
-                self.locals().push((st, false));
-                st
+                let string_ty = self
+                    .gir_data
+                    .intrinsics
+                    .string_type
+                    .as_ref()
+                    .unwrap()
+                    .to_weak();
+                let constructor = Rc::clone(&string_ty.as_weak_ref().ty.borrow().constructors[0]);
+
+                self.allocate_raw_args(
+                    &string_ty,
+                    &constructor,
+                    vec![
+                        const_str.as_pointer_value().into(),
+                        self.context
+                            .i64_type()
+                            .const_int((string.len() + 1) as u64, false)
+                            .into(),
+                    ],
+                )
             }
 
             /*Literal::Array(Right(literal)) => {

@@ -4,15 +4,16 @@ use crate::{
     ast,
     error::{Error, Errors},
     gir::{
-        generator::GIRGenerator,
+        generator::{
+            intrinsics::{Intrinsics, INTRINSICS},
+            GIRGenerator,
+        },
         gir_err,
         nodes::{declaration::Declaration, module::Module},
-        CompiledGIR, MutRc,
+        CompiledGIR, MutRc, IFACE_IMPLS,
     },
     lexer::token::Token,
 };
-use crate::gir::generator::intrinsics::{INTRINSICS, Intrinsics};
-use crate::gir::IFACE_IMPLS;
 use std::collections::HashMap;
 
 /// Generator responsible for compiling the full GIR
@@ -57,7 +58,7 @@ impl GIRModuleGenerator {
             Ok(CompiledGIR {
                 modules: self.modules,
                 intrinsics: INTRINSICS.with(|i| i.replace(Intrinsics::default())),
-                iface_impls: IFACE_IMPLS.with(|i| i.replace(HashMap::default()))
+                iface_impls: IFACE_IMPLS.with(|i| i.replace(HashMap::default())),
             })
         } else {
             Err(errs)

@@ -251,7 +251,9 @@ impl Expr {
                 Literal::F32(_) => Type::F32,
                 Literal::F64(_) => Type::F64,
                 Literal::Char(_) => unimplemented!(),
-                Literal::String(_) => INTRINSICS.with(|i| i.borrow().string_type.clone().unwrap().to_strong()),
+                Literal::String(_) => {
+                    INTRINSICS.with(|i| i.borrow().string_type.clone().unwrap().to_weak())
+                }
                 // Literal::Array(Right(arr)) => arr.type_.clone(), TODO
                 Literal::Closure(_) | Literal::Array(_) => panic!("invalid literal"),
             },
