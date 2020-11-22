@@ -92,6 +92,7 @@ fn run(args: Opt) -> Result<(), &'static str> {
     if args.gir || args.gir_all {
         let stem = stem_to_smol(&args.file);
         for module in gir
+            .modules
             .iter()
             .filter(|m| (m.borrow().path.0.first().unwrap() == &stem) || args.gir_all)
         {

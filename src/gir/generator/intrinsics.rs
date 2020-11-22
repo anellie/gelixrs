@@ -16,18 +16,13 @@ use std::{
     rc::Rc,
 };
 
-use crate::{
-    error::{Error, Res},
-    gir::{
+use crate::{error::{Error, Res}, gir::{
         nodes::{
             declaration::{Function, ADT},
             module::Module,
-            types::Type,
         },
         MutRc,
-    },
-    lexer::token::TType,
-};
+    }, lexer::token::TType, gir::Type};
 
 thread_local! {
     pub static INTRINSICS: RefCell<Intrinsics> = RefCell::new(Intrinsics::default());
@@ -111,17 +106,5 @@ impl Intrinsics {
             });
         }
         Ok(())
-    }
-
-    /// Reset itself for next compilation.
-    pub fn reset(&mut self) {
-        self.ops.clear();
-        self.string_type = None;
-        self.iter_proto = None;
-        self.to_iter_proto = None;
-        self.free_iface = None;
-        self.libc_free = None;
-        self.main_fn = None;
-        self.required_compile_fns.clear();
     }
 }

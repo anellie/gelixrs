@@ -28,6 +28,7 @@ pub struct Resolver {
     pub module: MutRc<Module>,
     /// Path of [module]
     pub path: Rc<ModulePath>,
+    /// Type parameters of currently compiling declaration
     pub type_params: Option<Rc<TypeParameters>>,
 }
 

@@ -11,16 +11,15 @@ use crate::{
         },
         Function, MutRc, Type, ADT,
     },
-    ir::IRGenerator,
+    ir::{IRGenerator, LoopData},
     lexer::token::TType,
 };
 use inkwell::{
+    basic_block::BasicBlock,
     types::{BasicTypeEnum, StructType},
     values::{BasicValueEnum, IntValue, PointerValue},
     FloatPredicate, IntPredicate,
 };
-use inkwell::basic_block::BasicBlock;
-use crate::ir::LoopData;
 use std::mem;
 
 impl IRGenerator {
@@ -54,7 +53,10 @@ impl IRGenerator {
 
             Expr::Variable(var) => match var {
                 Variable::Local(_) if no_load => self.get_variable(var).into(),
-                Variable::Local(_) => self.load_ptr_gir(self.get_variable(var), &self.maybe_unwrap_var(&var.get_type())),
+                Variable::Local(_) => self.load_ptr_gir(
+                    self.get_variable(var),
+                    &self.maybe_unwrap_var(&var.get_type()),
+                ),
                 Variable::Function(func) => self
                     .get_or_create(func)
                     .as_global_value()
@@ -115,7 +117,12 @@ impl IRGenerator {
                 phi_type,
             } => self.if_(condition, then_branch, else_branch, phi_type.is_some()),
 
-            Expr::Loop { condition, body, else_branch, phi_type } => self.loop_(condition, body, else_branch, phi_type),
+            Expr::Loop {
+                condition,
+                body,
+                else_branch,
+                phi_type,
+            } => self.loop_(condition, body, else_branch, phi_type),
 
             Expr::Return(value) => {
                 let value = self.expression(value);

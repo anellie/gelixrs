@@ -97,7 +97,12 @@ impl GIRGenerator {
     fn generate_constructors(&mut self, adt: &ADT) {
         let ast = adt.ast.borrow();
         if let Some(constructors) = ast.constructors() {
-            for (ast, constructor) in constructors.iter().map(Some).chain(iter::repeat(None)).zip(adt.constructors.iter()) {
+            for (ast, constructor) in constructors
+                .iter()
+                .map(Some)
+                .chain(iter::repeat(None))
+                .zip(adt.constructors.iter())
+            {
                 self.prepare_function(constructor);
                 self.insert_at_ptr(Expr::none_const_());
 

@@ -7,11 +7,13 @@ use crate::{
         generator::GIRGenerator,
         gir_err,
         nodes::{declaration::Declaration, module::Module},
-        MutRc,
+        CompiledGIR, MutRc,
     },
     lexer::token::Token,
 };
-use crate::gir::generator::intrinsics::INTRINSICS;
+use crate::gir::generator::intrinsics::{INTRINSICS, Intrinsics};
+use crate::gir::IFACE_IMPLS;
+use std::collections::HashMap;
 
 /// Generator responsible for compiling the full GIR
 /// list of modules as one unit.
@@ -25,9 +27,7 @@ pub struct GIRModuleGenerator {
 impl GIRModuleGenerator {
     /// Consumes AST modules given, processing them to GIR.
     /// Returns errors if any occurred.
-    pub fn consume(mut self) -> Result<Vec<MutRc<Module>>, Vec<Errors>> {
-        Self::reset();
-
+    pub fn consume(mut self) -> Result<CompiledGIR, Vec<Errors>> {
         self.run_ast(Self::declare_adts);
         self.run_mod(Self::populate_intrinsics);
         self.imports(false);
@@ -54,7 +54,11 @@ impl GIRModuleGenerator {
             .map(|(_, v)| v)
             .collect::<Vec<_>>();
         if errs.is_empty() {
-            Ok(self.modules)
+            Ok(CompiledGIR {
+                modules: self.modules,
+                intrinsics: INTRINSICS.with(|i| i.replace(Intrinsics::default())),
+                iface_impls: IFACE_IMPLS.with(|i| i.replace(HashMap::default()))
+            })
         } else {
             Err(errs)
         }
@@ -114,11 +118,6 @@ impl GIRModuleGenerator {
                 runner(&mut self.generator, decl)
             }
         }
-    }
-
-    /// Reset global state and ready for the next compilation.
-    fn reset() {
-        INTRINSICS.with(|i| i.borrow_mut().reset())
     }
 
     /// Create a new generator from AST modules.

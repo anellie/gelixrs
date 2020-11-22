@@ -16,17 +16,14 @@ use inkwell::{
 };
 
 use crate::{
-    gir,
     gir::{
-        generator::intrinsics::INTRINSICS,
         nodes::{
             declaration::Variable,
             types::{Instance, TypeArguments},
         },
-        Function, MutRc, Type,
+        CompiledGIR, Function, MutRc, Type,
     },
     ir::adapter::{IRAdapter, IRFunction},
-    lexer::token::TType,
 };
 use inkwell::types::StructType;
 use std::{cell::Ref, option::Option::Some};
@@ -85,14 +82,16 @@ pub struct IRGenerator {
 
     /// Needed state about the current loop, if compiling one.
     loop_data: Option<LoopData>,
+
+    /// GIR compilation data.
+    gir_data: CompiledGIR,
 }
 
 impl IRGenerator {
     /// Generates IR. Will process all GIR modules given.
-    pub fn generate(mut self, gir: Vec<MutRc<gir::Module>>) -> Module {
+    pub fn generate(mut self) -> Module {
         // Get required-to-compile fns from INTRINSICS
-        let required_fns =
-            INTRINSICS.with(|i| mem::replace(&mut i.borrow_mut().required_compile_fns, vec![]));
+        let required_fns = mem::replace(&mut self.gir_data.intrinsics.required_compile_fns, vec![]);
         // Declare them and collect into new vec
         let fns_ir = required_fns
             .into_iter()
@@ -111,11 +110,16 @@ impl IRGenerator {
             self.pop_ty_args();
         }
 
-        let intrinsics_module = gir.iter().find(|m| {
-            let module = m.borrow();
-            module.path.0 == ["std", "intrinsics"]
-        });
-        self.fill_intrinsic_functions(intrinsics_module.unwrap());
+        let intrinsics_module = self
+            .gir_data
+            .modules
+            .iter()
+            .find(|m| {
+                let module = m.borrow();
+                module.path.0 == ["std", "intrinsics"]
+            })
+            .cloned();
+        self.fill_intrinsic_functions(&intrinsics_module.unwrap());
 
         self.module
             .verify()
@@ -302,7 +306,7 @@ impl IRGenerator {
         self.type_args.pop();
     }
 
-    pub fn new() -> IRGenerator {
+    pub fn new(gir_data: CompiledGIR) -> IRGenerator {
         let context = Context::create();
         let module = context.create_module("main");
         let builder = context.create_builder();
@@ -334,6 +338,7 @@ impl IRGenerator {
             functions_left: Vec::with_capacity(20),
 
             loop_data: None,
+            gir_data,
         }
     }
 }

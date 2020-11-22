@@ -13,10 +13,7 @@ use crate::{
         nodes::{
             declaration::{ADTType, LocalVariable, Variable, ADT},
             expression::{CastType, Expr},
-            types::{
-                Instance, Type, TypeArguments, TypeParameter, TypeParameters, TypeVariable,
-                VariableModifier,
-            },
+            types::{Instance, Type, TypeArguments, TypeParameter, VariableModifier},
         },
         result::EmitGIRError,
         MutRc,
@@ -313,7 +310,7 @@ impl GIRGenerator {
                                 let constructor = constructor.borrow();
 
                                 // Different args count
-                                if !(constructor.parameters.len() - 1 == args.len()) {
+                                if constructor.parameters.len() - 1 != args.len() {
                                     return Ok(false);
                                 }
 

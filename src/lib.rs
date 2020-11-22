@@ -25,6 +25,7 @@ use crate::{
     ir::IRGenerator,
     lexer::token::{TType, Token},
 };
+use gir::CompiledGIR;
 use smol_str::SmolStr;
 
 pub mod ast;
@@ -122,12 +123,12 @@ pub fn auto_import_prelude(modules: &mut Vec<Module>) {
     }
 }
 
-pub fn compile_gir(modules: Vec<Module>) -> Result<Vec<MutRc<gir::Module>>, Vec<Errors>> {
+pub fn compile_gir(modules: Vec<Module>) -> Result<CompiledGIR, Vec<Errors>> {
     GIRModuleGenerator::new(modules).consume()
 }
 
-pub fn compile_ir(modules: Vec<MutRc<gir::Module>>) -> inkwell::module::Module {
-    IRGenerator::new().generate(modules)
+pub fn compile_ir(gir: CompiledGIR) -> inkwell::module::Module {
+    IRGenerator::new(gir).generate()
 }
 
 pub fn stem_to_smol(path: &PathBuf) -> SmolStr {
