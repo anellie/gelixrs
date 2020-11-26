@@ -9,6 +9,7 @@ use std::{
     fmt::{Display, Formatter},
     iter::repeat,
 };
+use std::fmt::Debug;
 
 const INDENT: usize = 4;
 type R = Result<(), fmt::Error>;
@@ -51,7 +52,7 @@ impl Function {
             write!(f, ", {}: {}", param.name.lexeme, param.ty,)?;
         }
 
-        writeln!(f, ") {{")?;
+        writeln!(f, ") -> {} {{", self.ret_type)?;
         for typ in self.type_parameters.iter() {
             writeln!(
                 f,
@@ -79,6 +80,12 @@ impl Function {
             writeln!(f)?;
         }
         writeln!(f, "{}}}", indent)
+    }
+}
+
+impl Debug for Function {
+    fn fmt(&self, f: &mut Formatter<'_>) -> R {
+        self.display(f, 0)
     }
 }
 
@@ -117,6 +124,12 @@ impl ADT {
             writeln!(f)?;
         }
         writeln!(f, "{}}}", indent)
+    }
+}
+
+impl Debug for ADT {
+    fn fmt(&self, f: &mut Formatter<'_>) -> R {
+        self.display(f, 0)
     }
 }
 

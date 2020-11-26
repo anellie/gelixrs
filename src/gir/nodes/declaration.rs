@@ -1,8 +1,4 @@
-use std::{
-    collections::HashMap,
-    hash::{Hash, Hasher},
-    rc::Rc,
-};
+use std::{collections::HashMap, hash::{Hash, Hasher}, rc::Rc, fmt};
 
 use crate::{
     ast,
@@ -69,7 +65,6 @@ impl Clone for Declaration {
 
 /// A general purpose struct used for all user-defined data structures.
 /// The ty field inside is used for further specialization.
-#[derive(Debug)]
 pub struct ADT {
     /// The name of the ADT.
     pub name: Token,
@@ -322,7 +317,6 @@ impl Hash for Field {
 }
 
 /// A function.
-#[derive(Debug)]
 pub struct Function {
     /// The name of the function, with its module before it ($mod:$func)
     /// The only functions with no name change are external functions
