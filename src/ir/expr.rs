@@ -356,7 +356,7 @@ impl IRGenerator {
                     .as_ref()
                     .unwrap()
                     .to_strong();
-                let constructor = Rc::clone(&string_ty.as_weak_ref().ty.borrow().constructors[0]);
+                let constructor = Rc::clone(&string_ty.as_strong_ref().ty.borrow().constructors[0]);
 
                 self.allocate_raw_args(
                     &string_ty,

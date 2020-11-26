@@ -277,7 +277,7 @@ impl GIRGenerator {
                 // TODO: Type parameters on impls
                 let impl_method = eatc!(
                     self,
-                    self.create_function(ast_method, Some(this_arg.clone()), None)
+                    self.generate_gir_fn(ast_method, Some(this_arg.clone()), None)
                 );
                 iface_impl
                     .methods

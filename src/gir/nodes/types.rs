@@ -386,9 +386,9 @@ impl Type {
             ty.set_type_args(new);
         }
 
-        // If the type has empty type args, attach given ones
+        // If the type has empty type args but needs some, attach given ones
         // Done after arg resolution to prevent resolving given ones when that is not needed
-        if self.type_args().map(|a| a.is_empty()).unwrap_or(false) {
+        if self.type_args().map(|a| a.is_empty()).unwrap_or(false) && self.type_params().map(|a| !a.is_empty()).unwrap_or(false) {
             ty.set_type_args(Rc::clone(args));
         }
 

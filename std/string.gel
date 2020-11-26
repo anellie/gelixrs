@@ -99,7 +99,6 @@ enum String {
     }
 }
 
-/*
 impl Free for &String {
     func free() {
         drop(this.ptr)
@@ -109,12 +108,11 @@ impl Free for &String {
 impl ToString for String {
     func to_string() -> String = this
 }
-
 impl Add[&ToString, String] for &String {
     func add(other: &ToString) -> String {
         val other = other.to_string()
         // +1 to account for the null terminator
-        val new_str = new String(this.len() + other.len() + 1)
+        val new_str = new String:Heap(this.len() + other.len() + 1)
         new_str.append(this)
         new_str.append(other)
     }
@@ -139,7 +137,7 @@ impl ToString for bool {
 
 /// Simply creates a buffer and writes to it with sprintf.
 func sprintf_buf[T: Primitive](buf_len: usize, format: String, value: T) -> String {
-    var buffer = new String(buf_len)
+    var buffer = new String:Heap(buf_len)
     buffer.length = snprintf(buffer.ptr, buf_len, format.ptr, value)
     buffer
 }
@@ -183,4 +181,3 @@ impl ToString for f64 {
 impl ToString for f32 {
     func to_string() -> String = sprintf_buf(40, "%g", this)
 }
-*/
