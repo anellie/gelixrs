@@ -296,6 +296,8 @@ impl Type {
                     .find_cast_ty(&goal)
                     .map(|c| (c, Some((CastType::ToValue, Type::Value(inst.clone()))))),
 
+                // TODO: Value to WR
+
                 Type::StrongRef(inst) => Type::Value(inst.clone())
                     .find_cast_ty(&goal)
                     .map(|c| (c, Some((CastType::ToValue, Type::Value(inst.clone())))))
@@ -314,6 +316,9 @@ impl Type {
     /// Does not account for the types being identical.
     fn find_cast_ty(&self, goal: &Type) -> Option<CastType> {
         match (self, goal) {
+            // Any, just return a no-op cast
+            (Type::Any, _) | (_, Type::Any) => Some(CastType::Bitcast),
+
             // Interface cast
             _ if get_or_create_iface_impls(&self)
                 .borrow()
