@@ -22,11 +22,15 @@ impl GIRModuleGenerator {
             INTRINSICS.with(|i| i.borrow_mut().fill_ops_table(module))
         } else if module.path.0 == ["std", "string"] {
             INTRINSICS.with(|i| {
-                i.borrow_mut().string_type = module
-                    .find_decl("String")
-                    .map(|d| d.into_adt())
+                let str_ty = module.find_decl("String").map(|d| d.into_adt()).unwrap();
+                let str_ty = str_ty.borrow();
+                i.borrow_mut().string_type = str_ty
+                    .ty
+                    .cases()
+                    .get("Static")
+                    .cloned()
                     .map(Instance::new_)
-                    .map(Type::Value);
+                    .map(Type::StrongRef)
             })
         } else if module.path.0 == ["std", "memory"] {
             INTRINSICS.with(|i| {

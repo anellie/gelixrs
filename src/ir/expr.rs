@@ -56,6 +56,7 @@ impl IRGenerator {
                 Variable::Local(_) => self.load_ptr_gir(
                     self.get_variable(var),
                     &self.maybe_unwrap_var(&var.get_type()),
+                    false
                 ),
                 Variable::Function(func) => self
                     .get_or_create(func)
@@ -70,7 +71,7 @@ impl IRGenerator {
                 if no_load {
                     ptr.into()
                 } else {
-                    self.load_ptr_gir(ptr, &field.ty)
+                    self.load_ptr_gir(ptr, &field.ty, false)
                 }
             }
 
@@ -354,18 +355,18 @@ impl IRGenerator {
                     .string_type
                     .as_ref()
                     .unwrap()
-                    .to_weak();
+                    .to_strong();
                 let constructor = Rc::clone(&string_ty.as_weak_ref().ty.borrow().constructors[0]);
 
                 self.allocate_raw_args(
                     &string_ty,
                     &constructor,
                     vec![
-                        const_str.as_pointer_value().into(),
                         self.context
                             .i64_type()
                             .const_int((string.len() + 1) as u64, false)
                             .into(),
+                        const_str.as_pointer_value().into(),
                     ],
                 )
             }
@@ -537,7 +538,7 @@ impl IRGenerator {
 
             CastType::ToValue => {
                 let ptr = self.expression(object).into_pointer_value();
-                self.load_ptr_gir(ptr, to)
+                self.load_ptr_gir(ptr, to, true)
             }
 
             CastType::StrongToWeak => {

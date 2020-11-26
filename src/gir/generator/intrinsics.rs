@@ -40,7 +40,7 @@ pub struct Intrinsics {
     /// For IndexGet, its LeftBracket.
     /// For IndexSet, its RightBracket.
     ops: HashMap<TType, MutRc<ADT>>,
-    /// String type, used for string literals.
+    /// String:Static type, used for string literals.
     pub string_type: Option<Type>,
     /// `std/iter/Iter` prototype
     pub iter_proto: Option<MutRc<ADT>>,
