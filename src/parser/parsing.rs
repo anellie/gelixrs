@@ -1141,6 +1141,17 @@ impl Parser {
                     self.consume(TType::RightBracket, "Expected ']' after type parameters.")?;
 
                     Type::Generic { token, types }
+                } else if self.matches(TType::Colon) {
+                    let subtype =
+                        self.consume(TType::Identifier, "Expected case name after ':'.")?;
+                    let merged_token = Token {
+                        t_type: TType::Identifier,
+                        lexeme: SmolStr::new(format!("{}:{}", token.lexeme, subtype.lexeme)),
+                        index: subtype.index,
+                        line: subtype.line,
+                        len: token.len + subtype.len + 1,
+                    };
+                    Type::Ident(merged_token)
                 } else {
                     Type::Ident(token)
                 }
