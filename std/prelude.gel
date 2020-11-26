@@ -6,13 +6,13 @@ import std/intrinsics/quick_exit
 // export std/iter/Range
 export std/string/String
 
-func print(a: &String) = puts(a.ptr)
+func print(a: String) = puts(a.ptr)
 
 func cast[T](value: T) -> T = value
 
-func try_cast[T, V](value: T) -> ~Opt[V] {
-    if (value is V) Opt[V]:Some(value)
-    else Opt[V]:None
+func try_cast[T, V](value: T) -> Opt[V] {
+    if (value is V) new Opt[V]:Some(value)
+    else new Opt[V]:None
 }
 
 func panic(msg: String) {
@@ -25,9 +25,9 @@ enum Opt[T] {
     Some(val value: T)
     None
 
-    func map[M](map_fn: (T): M) -> ~Opt[M] {
-        if (this is Opt[T]:Some) return Opt:Some(map_fn(this.value))
-        Opt[M]:None
+    func map[M](map_fn: (T): M) -> Opt[M] {
+        if (this is Opt[T]:Some) return new Opt:Some(map_fn(this.value))
+        new Opt[M]:None
     }
 }
 
