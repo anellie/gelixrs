@@ -149,7 +149,7 @@ impl GIRGenerator {
         let implementor = eat!(self, self.resolver.find_type(&iface_impl.implementor));
 
         let iface = eat!(self, self.resolver.find_type(&iface_impl.iface));
-        if !iface.is_value() || !iface.as_value().ty.borrow().ty.is_interface() {
+        if !iface.is_strong_ref() || !iface.as_strong_ref().ty.borrow().ty.is_interface() {
             self.err(&iface_impl.iface.token(), "Not an interface".to_string());
         }
 
@@ -157,7 +157,7 @@ impl GIRGenerator {
         let impls = get_or_create_iface_impls(&implementor);
         let gir_impl = IFaceImpl {
             implementor,
-            iface: iface.as_value().clone(),
+            iface: iface.as_strong_ref().clone(),
             methods: HashMap::with_capacity(iface_impl.methods.len()),
             module: Rc::clone(&self.module),
             ast: mutrc_new(iface_impl),

@@ -39,8 +39,7 @@ impl GIRModuleGenerator {
         self.imports(true);
 
         self.run_dec(GIRGenerator::declare_methods);
-        self.generator.primitive_impls();
-        self.run_dec(GIRGenerator::fill_impls);
+        self.generator.fill_impls();
         self.run_dec(GIRGenerator::insert_adt_fields);
         self.run_dec(GIRGenerator::constructor_setters);
         self.run_dec(GIRGenerator::generate);

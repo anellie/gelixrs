@@ -64,7 +64,7 @@ impl Resolver {
             ast::Type::Weak(inner) => {
                 let inner = self.find_type(inner)?;
                 match inner {
-                    Type::StrongRef(adt) => Ok(Type::WeakRef(adt)),
+                    Type::StrongRef(adt) | Type::Value(adt) | Type::WeakRef(adt) => Ok(Type::WeakRef(adt)),
                     Type::Variable(mut var) => {
                         var.modifier = VariableModifier::Weak;
                         Ok(Type::Variable(var))
@@ -80,7 +80,7 @@ impl Resolver {
             ast::Type::Value(inner) => {
                 let inner = self.find_type(inner)?;
                 match inner {
-                    Type::StrongRef(adt) => Ok(Type::Value(adt)),
+                    Type::StrongRef(adt) | Type::Value(adt) | Type::WeakRef(adt) => Ok(Type::Value(adt)),
                     Type::Variable(mut var) => {
                         var.modifier = VariableModifier::Value;
                         Ok(Type::Variable(var))
