@@ -18,10 +18,10 @@ use crate::{
         nodes::{
             declaration::{ADTType, Declaration, Function, LocalVariable, ADT},
             expression::Expr,
-            types::{Instance, Type},
+            types::{IFaceImpls, Instance, Type, TypeArguments},
         },
         result::{EmitGIRError, ToGIRResult},
-        MutRc,
+        MutRc, IFACE_IMPLS,
     },
     lexer::token::{TType, Token},
 };
@@ -197,17 +197,18 @@ impl GIRGenerator {
     pub fn constructor_setters(&mut self, decl: Declaration) {
         if let Declaration::Adt(adt) = decl {
             if let Some(constructors) = adt.borrow().ast.borrow().constructors() {
-                for (i, constructor) in constructors.iter().enumerate() {
-                    let func = &adt.borrow().constructors[i];
-                    let mut fn_mut = func.borrow_mut();
-                    fn_mut.exprs = eatc!(
+                for (constructor, func) in constructors.iter().zip(adt.borrow().constructors.iter())
+                {
+                    let exprs = eatc!(
                         self,
                         self.insert_constructor_setters(
                             &adt.borrow(),
                             constructor,
-                            &fn_mut.parameters
+                            &func.borrow().parameters
                         )
                     );
+                    // (local variable to prevent 'already borrowed' panic)
+                    func.borrow_mut().exprs = exprs;
                 }
             }
         }
@@ -240,23 +241,15 @@ impl GIRGenerator {
         Ok(block)
     }
 
-    pub fn fill_impls(&mut self, decl: Declaration) {
-        if let Declaration::Adt(adt) = decl {
-            let inst = Instance::new_(adt);
-            self.fill_impls_(&Type::Value(inst.clone()));
-            self.fill_impls_(&Type::WeakRef(inst.clone()));
-            self.fill_impls_(&Type::StrongRef(inst));
-        }
+    pub fn fill_impls(&mut self) {
+        IFACE_IMPLS.with(|i| {
+            for (ty, impls) in i.borrow().iter() {
+                self.fill_impls_(ty, impls)
+            }
+        })
     }
 
-    pub fn primitive_impls(&mut self) {
-        for ty in &Type::primitives() {
-            self.fill_impls_(&ty);
-        }
-    }
-
-    fn fill_impls_(&mut self, ty: &Type) {
-        let impls = get_or_create_iface_impls(ty);
+    fn fill_impls_(&mut self, ty: &Type, impls: &MutRc<IFaceImpls>) {
         let mut impls = impls.borrow_mut();
 
         let mut methods: HashMap<SmolStr, _> = HashMap::with_capacity(impls.interfaces.len() * 2);
@@ -295,7 +288,7 @@ impl GIRGenerator {
                     methods.insert(name.clone(), Rc::clone(&impl_method));
                 }
 
-                self.check_equal_signature(&impl_method, iface_method);
+                self.check_equal_signature(&impl_method, iface_method, iface_impl.iface.args());
             }
 
             if iface.borrow().methods.len() > iface_impl.methods.len() {
@@ -310,12 +303,17 @@ impl GIRGenerator {
     }
 
     /// Ensures that the implemented interface method matches the expected signature.
-    fn check_equal_signature(&self, impl_method: &MutRc<Function>, iface_method: &MutRc<Function>) {
+    fn check_equal_signature(
+        &self,
+        impl_method: &MutRc<Function>,
+        iface_method: &MutRc<Function>,
+        iface_args: &Rc<TypeArguments>,
+    ) {
         let impl_method = impl_method.borrow();
         let iface_method = iface_method.borrow();
         let ast = impl_method.ast.borrow();
 
-        if impl_method.ret_type != iface_method.ret_type {
+        if impl_method.ret_type != iface_method.ret_type.resolve(iface_args) {
             let tok = ast
                 .sig
                 .return_type
