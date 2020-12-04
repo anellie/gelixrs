@@ -5,8 +5,7 @@ import std/memory/+
 
 func main() {
     val t = Test()
-    hm(load_value(t))
-    drop(t)
+    hm(t)
 }
 
 func hm(a: ~Test) {}

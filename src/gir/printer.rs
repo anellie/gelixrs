@@ -9,6 +9,7 @@ use std::{
     fmt::{Debug, Display, Formatter},
     iter::repeat,
 };
+use crate::gir::nodes::expression::Intrinsic;
 
 const INDENT: usize = 4;
 type R = Result<(), fmt::Error>;
@@ -271,8 +272,23 @@ impl Expr {
 
             Expr::TypeGet(ty) => write!(f, "get_type({})", ty),
 
-            Expr::Intrinsic(int) => write!(f, "intrinsic({:?})", int),
+            Expr::Intrinsic(int) => write!(f, "intrinsic({})", int),
         }
+    }
+}
+
+impl Display for Intrinsic {
+    fn fmt(&self, f: &mut Formatter<'_>) -> R {
+        match self {
+            Intrinsic::DecRc(_) => write!(f, "dec_rc("),
+            Intrinsic::IncRc(_) => write!(f, "dec_rc("),
+            Intrinsic::Free(_) => write!(f, "free("),
+            Intrinsic::IfaceCall { .. } =>  write!(f, "vcall(")
+        }?;
+        match self {
+            Intrinsic::IfaceCall { iface: e, .. } | Intrinsic::Free(e) | Intrinsic::IncRc(e) | Intrinsic::DecRc(e) => e.display(f, 0)
+        }?;
+        write!(f, ")")
     }
 }
 

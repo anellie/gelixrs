@@ -60,10 +60,13 @@ class String {
     /// If the string already has the needed capacity, this does nothing.
     func reserve(amount: usize) {
         if (this.capacity > (this.length + amount)) return
+        val was_heap = this.capacity > 0
         this.capacity = this.length + amount
+
         val new_ptr = allocate[i8](this.capacity)
         copy_ptr(this.ptr, new_ptr, this.length)
-        drop(this.ptr)
+
+        if (was_heap) drop(this.ptr)
         this.ptr = new_ptr
     }
 }

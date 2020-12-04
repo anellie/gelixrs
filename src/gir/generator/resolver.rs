@@ -189,7 +189,6 @@ impl Resolver {
         if success {
             Some(value)
         } else {
-            println!("{} {}", value.get_type(), ty);
             None
         }
     }

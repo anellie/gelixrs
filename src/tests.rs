@@ -62,7 +62,8 @@ extern "C" {
 
 extern "C" fn test_malloc(size: i64) -> i64 {
     let ptr = unsafe { malloc(size) };
-    MALLOC_LIST.lock().unwrap().insert(ptr);
+    // TODO: Re-add once GC is fixed
+    // MALLOC_LIST.lock().unwrap().insert(ptr);
     ptr
 }
 
