@@ -29,7 +29,7 @@ impl GIRModuleGenerator {
                             .modules
                             .push(src_module_rc.clone());
                     }
-                    Ok(second_stage)
+                    Ok(!second_stage)
                 } else {
                     let decl = src_module.find_import(&import.symbol.lexeme);
 
@@ -41,16 +41,16 @@ impl GIRModuleGenerator {
                     } else if second_stage {
                         gen.err(&import.symbol, "Unknown declaration.".to_string())
                     } else {
-                        return Ok(false);
+                        return Ok(true);
                     }
 
-                    Ok(true)
+                    Ok(false)
                 }
             })
         })
     }
 
-    /// This function runs `drain_filter` on all imports in the given module, using the given function as a filter.
+    /// This function runs `retain` on all imports in the given module, using the given function as a filter.
     fn drain_mod_imports<T: FnMut(&Self, &mut RefMut<Module>, &Import, bool) -> Res<bool>>(
         &self,
         target: MutRc<Module>,
@@ -58,10 +58,10 @@ impl GIRModuleGenerator {
     ) {
         let mut module = target.borrow_mut();
         let mut ast = module.borrow_ast();
-        ast.imports.drain_filter(|im| {
+        ast.imports.retain(|im| {
             cond(self, &mut module, im, false).unwrap_or_else(|e| self.import_err(e, &module))
         });
-        ast.exports.drain_filter(|im| {
+        ast.exports.retain(|im| {
             cond(self, &mut module, im, true).unwrap_or_else(|e| self.import_err(e, &module))
         });
         module.return_ast(ast);

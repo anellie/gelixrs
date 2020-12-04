@@ -36,7 +36,7 @@ pub fn get_iface_impls(ty: &Type) -> Option<MutRc<IFaceImpls>> {
 }
 
 /// Gets the interfaces implemented by a type.
-pub fn get_or_create_iface_impls(ty: &Type) -> MutRc<IFaceImpls> {
+fn get_or_create_iface_impls(ty: &Type) -> MutRc<IFaceImpls> {
     match get_iface_impls(ty) {
         Some(impls) => impls,
         None => IFACE_IMPLS.with(|impls| {

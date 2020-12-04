@@ -23,14 +23,7 @@ impl GIRModuleGenerator {
         } else if module.path.0 == ["std", "string"] {
             INTRINSICS.with(|i| {
                 let str_ty = module.find_decl("String").map(|d| d.into_adt()).unwrap();
-                let str_ty = str_ty.borrow();
-                i.borrow_mut().string_type = str_ty
-                    .ty
-                    .cases()
-                    .get("Static")
-                    .cloned()
-                    .map(Instance::new_)
-                    .map(Type::StrongRef)
+                i.borrow_mut().string_type = Some(Type::StrongRef(Instance::new_(str_ty)))
             })
         } else if module.path.0 == ["std", "memory"] {
             INTRINSICS.with(|i| {

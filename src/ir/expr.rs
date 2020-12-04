@@ -3,10 +3,9 @@ use std::rc::Rc;
 use crate::{
     ast::Literal,
     gir::{
-        get_or_create_iface_impls,
         nodes::{
             declaration::Variable,
-            expression::{CastType, Expr},
+            expression::{CastType, Expr, Intrinsic},
             types::Instance,
         },
         Function, MutRc, Type, ADT,
@@ -56,7 +55,7 @@ impl IRGenerator {
                 Variable::Local(_) => self.load_ptr_gir(
                     self.get_variable(var),
                     &self.maybe_unwrap_var(&var.get_type()),
-                    false
+                    false,
                 ),
                 Variable::Function(func) => self
                     .get_or_create(func)
@@ -97,7 +96,7 @@ impl IRGenerator {
             } => {
                 let left = self.expression(left);
                 if operator.t_type == TType::Is {
-                    self.binary_is(left, right.get_type().as_type()).into()
+                    self.binary_is(left, &right.get_type_get_type()).into()
                 } else {
                     let right = self.expression(right);
                     self.binary(left, operator.t_type, right)
@@ -140,7 +139,9 @@ impl IRGenerator {
                 self.none_const
             }
 
-            Expr::Cast { inner, to, method } => self.cast(inner, to, *method),
+            Expr::Cast { inner, to, method } => self.cast(inner, to, method),
+
+            Expr::Intrinsic(int) => self.intrinsic(int),
 
             _ => {
                 todo!();
@@ -356,7 +357,7 @@ impl IRGenerator {
                     .as_ref()
                     .unwrap()
                     .to_strong();
-                let constructor = Rc::clone(&string_ty.as_strong_ref().ty.borrow().constructors[0]);
+                let constructor = Rc::clone(&string_ty.as_strong_ref().ty.borrow().constructors[1]);
 
                 self.allocate_raw_args(
                     &string_ty,
@@ -366,6 +367,7 @@ impl IRGenerator {
                             .i64_type()
                             .const_int((string.len() + 1) as u64, false)
                             .into(),
+                        self.context.i64_type().const_int(0 as u64, false).into(),
                         const_str.as_pointer_value().into(),
                     ],
                 )
@@ -491,9 +493,9 @@ impl IRGenerator {
         }
     }
 
-    fn cast(&mut self, object: &Expr, to: &Type, method: CastType) -> BasicValueEnum {
+    fn cast(&mut self, object: &Expr, to: &Type, method: &CastType) -> BasicValueEnum {
         match method {
-            CastType::ToInterface => self.cast_to_interface(object, to),
+            CastType::ToInterface(implementor) => self.cast_to_interface(object, implementor, to),
 
             CastType::Bitcast => {
                 let obj = self.expression(object);
@@ -576,7 +578,12 @@ impl IRGenerator {
         self.builder.build_bitcast(gep, to, "wrcast")
     }
 
-    fn cast_to_interface(&mut self, object: &Expr, to: &Type) -> BasicValueEnum {
+    fn cast_to_interface(
+        &mut self,
+        object: &Expr,
+        implementor: &Type,
+        to: &Type,
+    ) -> BasicValueEnum {
         let obj = self.expression(object);
         let iface_ty = self.ir_ty_generic(to).into_struct_type();
         let vtable_ty = iface_ty.get_field_types()[1]
@@ -584,7 +591,7 @@ impl IRGenerator {
             .get_element_type()
             .into_struct_type();
 
-        let vtable = self.get_vtable(&object.get_type(), to, vtable_ty);
+        let vtable = self.get_vtable(implementor, to, vtable_ty);
         let store = self.create_alloc(iface_ty.into(), false);
         self.write_struct(store, [self.coerce_to_void_ptr(obj), vtable].iter());
         self.builder.build_load(store, "ifaceload")
@@ -600,32 +607,30 @@ impl IRGenerator {
     ) -> BasicValueEnum {
         let field_tys = vtable.get_field_types();
         let mut field_tys = field_tys.iter();
-        let impls = get_or_create_iface_impls(&implementor.to_strong());
+        let impls = Rc::clone(self.gir_data.iface_impls.get(implementor).unwrap());
         let impls = impls.borrow();
-        todo!();
-        /*
-        let methods_iter = self
-            .get_free_function(&implementor)
+        // todo order
+        let methods_iter = self.get_free_function(&implementor).into_iter().chain(
+            impls.interfaces[&iface.to_strong()]
+                .methods
+                .iter()
+                .map(|(_, method)| self.get_or_create(&Instance::new_(Rc::clone(method)))) // todo tyargs
+                .map(|f| f.as_global_value().as_pointer_value()),
+        );
+        let methods = methods_iter.collect::<Vec<_>>();
+        let methods = methods
             .into_iter()
-            .chain(
-                impls.interfaces[&iface.to_strong()]
-                    .methods
-                    .iter()
-                    .map(|(_, method)| self.functions[&PtrEqRc::new(method)])
-                    .map(|f| f.as_global_value().as_pointer_value()),
-            )
             .map(|func| {
                 self.builder.build_bitcast(
                     func,
                     *field_tys.next().unwrap().as_pointer_type(),
                     "funccast",
                 )
-            });
-        let methods = methods_iter.collect::<Vec<_>>();
+            })
+            .collect::<Vec<_>>();
         let global = self.module.add_global(vtable, None, "vtable");
         global.set_initializer(&vtable.const_named_struct(&methods));
         global.as_pointer_value().into()
-        */
     }
 
     fn get_free_function(&mut self, ty: &Type) -> Option<PointerValue> {
@@ -640,6 +645,59 @@ impl IRGenerator {
                 .as_pointer_value(),
             _ => self.void_ptr().const_zero(),
         })
+    }
+
+    pub fn intrinsic(&mut self, int: &Intrinsic) -> BasicValueEnum {
+        match int {
+            Intrinsic::IncRc(val) => {
+                let val = self.expression(val);
+                self.increment_refcount(val, false)
+            }
+
+            Intrinsic::DecRc(val) => {
+                let val = self.expression(val);
+                self.decrement_refcount(val, false)
+            }
+
+            Intrinsic::Free(val) => {
+                let val = self.expression(val);
+                self.builder.build_free(val.into_pointer_value());
+            }
+
+            Intrinsic::IfaceCall {
+                iface,
+                index,
+                arguments,
+            } => {
+                let callee = self.expression(iface).into_struct_value();
+                let vtable = self
+                    .builder
+                    .build_extract_value(callee, 1, "vtable")
+                    .unwrap();
+                let func = unsafe {
+                    let ptr = self.builder.build_struct_gep(
+                        vtable.into_pointer_value(),
+                        *index as u32,
+                        "ifacefn",
+                    );
+                    self.builder.build_load(ptr, "fnload").into_pointer_value()
+                };
+
+                let first_arg = self.builder.build_extract_value(callee, 0, "implementor");
+                let mut args = first_arg
+                    .into_iter()
+                    .chain(arguments.iter().map(|e| self.expression(e)))
+                    .collect::<Vec<_>>();
+
+                return self
+                    .builder
+                    .build_call(func, &args, "vcall")
+                    .try_as_basic_value()
+                    .left()
+                    .unwrap_or(self.none_const);
+            }
+        }
+        self.none_const
     }
 }
 

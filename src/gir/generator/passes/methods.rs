@@ -27,18 +27,16 @@ use crate::{
 };
 
 impl GIRGenerator {
-    pub fn declare_methods(&mut self, decl: Declaration) {
-        if let Declaration::Adt(adt) = decl {
-            self.declare_user_methods(&adt);
+    pub fn declare_methods(&mut self, adt: &MutRc<ADT>) {
+        self.declare_user_methods(&adt);
 
-            // TODO: This is a little ugly... it works i guess?
-            if let ADTType::Enum { cases } = &adt.borrow().ty {
-                for case in cases.values() {
-                    let mut case = case.borrow_mut();
-                    case.methods.reserve(adt.borrow().methods.len());
-                    for method in &adt.borrow().methods {
-                        case.methods.insert(method.0.clone(), Rc::clone(method.1));
-                    }
+        // TODO: This is a little ugly... it works i guess?
+        if let ADTType::Enum { cases } = &adt.borrow().ty {
+            for case in cases.values() {
+                let mut case = case.borrow_mut();
+                case.methods.reserve(adt.borrow().methods.len());
+                for method in &adt.borrow().methods {
+                    case.methods.insert(method.0.clone(), Rc::clone(method.1));
                 }
             }
         }
@@ -47,15 +45,17 @@ impl GIRGenerator {
     fn declare_user_methods(&mut self, adt: &MutRc<ADT>) {
         let ast = Rc::clone(&adt.borrow().ast);
         let mut ast = ast.borrow_mut();
+        let is_iface = matches!(ast.ty, ast::ADTType::Interface);
         let this_param = FunctionParam::this_param_g(&ast);
 
         for method in ast.methods.drain(..) {
             let mut this_param = this_param.clone();
-            this_param.type_ = if !method
-                .sig
-                .modifiers
-                .iter()
-                .any(|t| t.t_type == TType::Strong)
+            this_param.type_ = if !is_iface
+                && !method
+                    .sig
+                    .modifiers
+                    .iter()
+                    .any(|t| t.t_type == TType::Strong)
             {
                 ast::Type::Weak(Box::new(this_param.type_))
             } else {
@@ -194,22 +194,19 @@ impl GIRGenerator {
     /// block of their GIR function.
     /// This has to be a separate pass since constructors are declared
     /// before fields are.
-    pub fn constructor_setters(&mut self, decl: Declaration) {
-        if let Declaration::Adt(adt) = decl {
-            if let Some(constructors) = adt.borrow().ast.borrow().constructors() {
-                for (constructor, func) in constructors.iter().zip(adt.borrow().constructors.iter())
-                {
-                    let exprs = eatc!(
-                        self,
-                        self.insert_constructor_setters(
-                            &adt.borrow(),
-                            constructor,
-                            &func.borrow().parameters
-                        )
-                    );
-                    // (local variable to prevent 'already borrowed' panic)
-                    func.borrow_mut().exprs = exprs;
-                }
+    pub fn constructor_setters(&mut self, adt: &MutRc<ADT>) {
+        if let Some(constructors) = adt.borrow().ast.borrow().constructors() {
+            for (constructor, func) in constructors.iter().zip(adt.borrow().constructors.iter()) {
+                let exprs = eatc!(
+                    self,
+                    self.insert_constructor_setters(
+                        &adt.borrow(),
+                        constructor,
+                        &func.borrow().parameters
+                    )
+                );
+                // (local variable to prevent 'already borrowed' panic)
+                func.borrow_mut().exprs = exprs;
             }
         }
     }

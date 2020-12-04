@@ -5,7 +5,6 @@
  */
 
 #![feature(drain_filter)]
-#![feature(refcell_take)]
 #![feature(try_find)]
 #![feature(box_syntax)]
 #![feature(box_patterns)]
@@ -21,7 +20,7 @@ use std::{env, fs, path::PathBuf, rc::Rc};
 use crate::{
     ast::module::{Import, Module, ModulePath},
     error::{Error, Errors},
-    gir::{generator::module::GIRModuleGenerator, MutRc},
+    gir::generator::module::GIRModuleGenerator,
     ir::IRGenerator,
     lexer::token::{TType, Token},
 };

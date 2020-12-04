@@ -1,12 +1,12 @@
 import std/intrinsics/puts
 import std/intrinsics/quick_exit
-// import std/string/ToString
+import std/string/ToString
 
 // export std/collections/Array
 // export std/iter/Range
 export std/string/String
 
-func print(a: String) = puts(a.ptr)
+func print(a: ToString) = puts(a.to_string().ptr)
 
 func cast[T](value: T) -> T = value
 

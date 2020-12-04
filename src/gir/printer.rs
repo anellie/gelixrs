@@ -1,15 +1,14 @@
 use crate::gir::nodes::{
     declaration::{ADTType, Declaration, Function, Variable, ADT},
-    expression::Expr,
+    expression::{CastType, Expr},
     module::Module,
     types::print_type_args,
 };
 use std::{
     fmt,
-    fmt::{Display, Formatter},
+    fmt::{Debug, Display, Formatter},
     iter::repeat,
 };
-use std::fmt::Debug;
 
 const INDENT: usize = 4;
 type R = Result<(), fmt::Error>;
@@ -263,7 +262,7 @@ impl Expr {
             Expr::Cast { inner, to, method } => {
                 write!(f, "cast[{}](", to)?;
                 inner.display(f, indent_size + INDENT)?;
-                write!(f, ", {:?})", method)
+                write!(f, ", {})", method)
             }
 
             Expr::Closure { function, .. } => {
@@ -271,6 +270,17 @@ impl Expr {
             }
 
             Expr::TypeGet(ty) => write!(f, "get_type({})", ty),
+
+            Expr::Intrinsic(int) => write!(f, "intrinsic({:?})", int),
+        }
+    }
+}
+
+impl Display for CastType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> R {
+        match self {
+            CastType::ToInterface(t) => write!(f, "ToInterface({})", t),
+            _ => Debug::fmt(self, f),
         }
     }
 }

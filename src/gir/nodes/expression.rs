@@ -13,7 +13,7 @@ use crate::{
         generator::{intrinsics::INTRINSICS, visitors::Visitor},
         nodes::{
             declaration::{Field, Function, LocalVariable, Variable},
-            types::{Instance, Type},
+            types::{Instance, ToInstance, Type},
         },
         MutRc,
     },
@@ -129,7 +129,14 @@ pub enum Expr {
         captured: Rc<Vec<Rc<LocalVariable>>>,
     },
 
+    /// A 'type get', similar to a variable but resolves to a type.
+    /// Produced when the user uses an ADT like a variable
     TypeGet(Type),
+
+    /// An intrinsic that is only ever produced by compiler code.
+    /// Therefore, some methods like get_token or get_type do not
+    /// need to be implemented for this.
+    Intrinsic(Intrinsic),
 }
 
 impl Expr {
@@ -147,6 +154,10 @@ impl Expr {
 
     pub fn var(var: Variable) -> Expr {
         Expr::Variable(var)
+    }
+
+    pub fn fvar(func: &MutRc<Function>) -> Expr {
+        Expr::Variable(Variable::Function(func.to_inst()))
     }
 
     pub fn lvar(var: &Rc<LocalVariable>) -> Expr {
@@ -232,7 +243,23 @@ impl Expr {
         }
     }
 
-    pub fn get_type(&self) -> Type {
+    pub fn dec_rc(val: Expr) -> Expr {
+        Expr::Intrinsic(Intrinsic::DecRc(box val))
+    }
+
+    pub fn free(val: Expr) -> Expr {
+        Expr::Intrinsic(Intrinsic::Free(box val))
+    }
+
+    pub fn iface_call(callee: Expr, index: usize, arguments: Vec<Expr>) -> Expr {
+        Expr::Intrinsic(Intrinsic::IfaceCall {
+            iface: box callee,
+            index,
+            arguments,
+        })
+    }
+
+    pub(in crate::gir) fn get_type(&self) -> Type {
         match self {
             Expr::Block(exprs) => exprs.last().unwrap().get_type(),
 
@@ -300,6 +327,16 @@ impl Expr {
             Expr::Closure { function, .. } => function.borrow().to_closure_type(),
 
             Expr::TypeGet(ty) => Type::Type(Box::new(ty.clone())),
+
+            Expr::Intrinsic(_) => Type::Any,
+        }
+    }
+
+    pub fn get_type_get_type(&self) -> Type {
+        if let Expr::TypeGet(ty) = self {
+            ty.clone()
+        } else {
+            panic!("Not TypeGet");
         }
     }
 
@@ -327,7 +364,9 @@ impl Expr {
 
             Expr::Block(exprs) => exprs.first().unwrap().get_token(),
 
-            Expr::Closure { .. } | Expr::TypeGet(_) => panic!("no token here!"),
+            Expr::Closure { .. } | Expr::TypeGet(_) | Expr::Intrinsic(_) => {
+                panic!("no token here!")
+            }
         }
     }
 
@@ -455,15 +494,37 @@ impl Expr {
             Expr::Closure { function, captured } => v.visit_closure(function, captured),
 
             Expr::TypeGet(ty) => v.visit_type_get(ty),
+
+            Expr::Intrinsic(_) => Ok(()), // TODO?
         }
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
+pub enum Intrinsic {
+    /// Manually increment a value's refcount.
+    IncRc(Box<Expr>),
+    /// Manually decrement a value's refcount.
+    DecRc(Box<Expr>),
+    /// Manually free a value. Only calls free,
+    /// does not do anything else.
+    Free(Box<Expr>),
+    /// Perform a virtual call. callee must
+    /// be a type with an embedded vtable
+    /// (currently only interfaces).
+    IfaceCall {
+        iface: Box<Expr>,
+        index: usize,
+        arguments: Vec<Expr>,
+    },
+}
+
+#[derive(Clone, Debug)]
 pub enum CastType {
     Number,
     StrongToWeak,
     ToValue,
     Bitcast,
-    ToInterface,
+    // Type is the implementor type
+    ToInterface(Type),
 }

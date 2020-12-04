@@ -92,7 +92,15 @@ impl IRGenerator {
                     .unwrap()
                     .clone();
                 match ty {
-                    Type::StrongRef(adt) => self.mod_refcount_adt(ptr, &adt, decrement),
+                    Type::StrongRef(adt) if adt.ty.borrow().ty.ref_is_ptr() => {
+                        self.mod_refcount_adt(ptr, &adt, decrement)
+                    }
+                    Type::StrongRef(_) => self.mod_refcount_iface(
+                        self.builder
+                            .build_load(ptr, "ifaceload")
+                            .into_struct_value(),
+                        decrement,
+                    ),
                     Type::Closure(_) => self.mod_refcount_closure(ptr, decrement),
                     Type::Value(_) => (),
                     _ => panic!("Cannot mod refcount on this"),

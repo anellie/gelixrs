@@ -5,10 +5,23 @@ import std/memory/+
 
 /// A UTF-8 string.
 /// Currently, strings are null-terminated.
-enum String {
+class String {
 
     var length: usize
+    var capacity: usize
     var ptr: *i8
+
+    /// Construct an empty string with the given capacity.
+    /// Will allocate the amount given on the heap (malloc),
+    /// capacity of 0 results in no allocation until first insertion.
+    construct(capacity) {
+        this.ptr = allocate[i8](capacity)
+        this.length = 0
+    }
+
+    /// Simply construct a string out of raw parts.
+    /// Rarely useful, unless dealing with low-level code.
+    construct(length, capacity, ptr)
 
     /// The length of the string, in bytes.
     /// Note that byte length in UTF-8 does not
@@ -19,83 +32,39 @@ enum String {
     }
 
     /// Ensures this string is on the heap, allocating if required.
-    strong func to_heap() -> String:Heap {
-        when (this) {
-            String:Heap -> this
-            String:Static -> this.heap()
-        }
+    func to_heap() = this.reserve(0)
+
+    /// Clears the string, setting the len to 0
+    /// and writing a null terminator to the first
+    /// index of its pointer.
+    /// Will reallocate on the heap if not there yet.
+    func clear() {
+        this.to_heap()
+        if (this.length == 0) return
+        val null_char = load_value_index(this.ptr, this.length - 1)
+        write_value(this.ptr, null_char)
+        this.length = 1
     }
 
-    /// A immutable static variant that can be from anywhere -
-    /// allocated on the stack or heap; or inside the program binary.
-    Static {
-        /// Simply construct a string out of raw parts.
-        /// Rarely useful, unless dealing with low-level code.
-        construct(length, ptr)
-
-        /// Convert to a heap-allocated string.
-        func heap() -> String:Heap {
-            val new_ptr = allocate[i8](this.length)
-            copy_ptr(this.ptr, new_ptr, this.length)
-            new String:Heap(this.length, this.length, new_ptr)
-        }
-
-        /// Convert to a heap-allocated string, adding
-        /// the given capacity to the amount of bytes allocated.
-        func with_capacity(added_capacity: usize) -> String:Heap {
-            val capacity = this.length + added_capacity
-            val new_ptr = allocate[i8](capacity)
-            copy_ptr(this.ptr, new_ptr, this.length)
-            new String:Heap(this.length, capacity, new_ptr)
-        }
+    /// Appends the given string to itself.
+    /// Will not modify the other string.
+    /// Returns itself for easy chaining.
+    strong func append(other: &String) -> String {
+        this.reserve(other.length)
+        copy_ptr(other.ptr, index_ptr(this.ptr, this.length), other.length)
+        this.length = this.length + other.len()
+        this
     }
 
-    /// A mutable variant always allocated on the heap.
-    Heap {
-        var capacity: usize
-
-        /// Construct an empty string with the given capacity.
-        /// Will allocate the amount given on the heap (malloc),
-        /// capacity of 0 results in no allocation until first insertion.
-        construct(capacity) {
-            this.ptr = allocate[i8](capacity)
-            this.length = 0
-        }
-
-        /// Simply construct a string out of raw parts.
-        /// Rarely useful, unless dealing with low-level code.
-        construct(length, capacity, ptr)
-
-        /// Clears the string, setting the len to 0
-        /// and writing a null terminator to the first
-        /// index of its pointer.
-        func clear() {
-            if (this.length == 0) return
-            val null_char = load_value_index(this.ptr, this.length - 1)
-            write_value(this.ptr, null_char)
-            this.length = 1
-        }
-
-        /// Appends the given string to itself.
-        /// Will not modify the other string.
-        /// Returns itself for easy chaining.
-        strong func append(other: &String) -> String:Heap {
-            this.reserve(other.length)
-            copy_ptr(other.ptr, index_ptr(this.ptr, this.length), other.length)
-            this.length = this.length + other.len()
-            this
-        }
-
-        /// Allocate enough memory to hold `amount` more elements.
-        /// If the string already has the needed capacity, this does nothing.
-        func reserve(amount: usize) {
-            if (this.capacity > (this.length + amount)) return
-            this.capacity = this.length + amount
-            val new_ptr = allocate[i8](this.capacity)
-            copy_ptr(this.ptr, new_ptr, this.length)
-            drop(this.ptr)
-            this.ptr = new_ptr
-        }
+    /// Allocate enough memory to hold `amount` more elements.
+    /// If the string already has the needed capacity, this does nothing.
+    func reserve(amount: usize) {
+        if (this.capacity > (this.length + amount)) return
+        this.capacity = this.length + amount
+        val new_ptr = allocate[i8](this.capacity)
+        copy_ptr(this.ptr, new_ptr, this.length)
+        drop(this.ptr)
+        this.ptr = new_ptr
     }
 }
 
@@ -108,6 +77,8 @@ impl Free for &String {
 impl ToString for String {
     func to_string() -> String = this
 }
+
+/*
 impl Add[&ToString, String] for &String {
     func add(other: &ToString) -> String {
         val other = other.to_string()
@@ -116,7 +87,7 @@ impl Add[&ToString, String] for &String {
         new_str.append(this)
         new_str.append(other)
     }
-}
+}*/
 
 // An interface for types that can be represented as a string.
 // Note that generally, ToString should not expose the implementation
@@ -137,7 +108,7 @@ impl ToString for bool {
 
 /// Simply creates a buffer and writes to it with sprintf.
 func sprintf_buf[T: Primitive](buf_len: usize, format: String, value: T) -> String {
-    var buffer = new String:Heap(buf_len)
+    var buffer = new String(buf_len)
     buffer.length = snprintf(buffer.ptr, buf_len, format.ptr, value)
     buffer
 }

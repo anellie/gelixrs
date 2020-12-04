@@ -1,4 +1,9 @@
-use std::{collections::HashMap, hash::{Hash, Hasher}, rc::Rc, fmt};
+use std::{
+    collections::HashMap,
+    fmt,
+    hash::{Hash, Hasher},
+    rc::Rc,
+};
 
 use crate::{
     ast,
@@ -76,7 +81,7 @@ pub struct ADT {
     /// - "new-instance(&ADT) -> &ADT": Initializes an empty allocation of the ADT with default members, called before constructor.
     /// - "free-wr(&ADT)": Frees a WR by decrementing the refcount of all fields
     /// - "free-sr(&ADT, act)": Frees a SR by decrementing the refcount of all fields and calling free if act == true
-    pub methods: HashMap<SmolStr, MutRc<Function>>,
+    pub methods: IndexMap<SmolStr, MutRc<Function>>,
     /// All constructors of the ADT, if any. They are simply methods
     /// with special constraints to enforce safety.
     pub constructors: Vec<MutRc<Function>>,
@@ -135,7 +140,7 @@ impl ADT {
         let adt = mutrc_new(ADT {
             name: ast.name.clone(),
             fields: IndexMap::with_capacity(mem_size),
-            methods: HashMap::with_capacity(method_size),
+            methods: IndexMap::with_capacity(method_size),
             constructors: Vec::with_capacity(const_size),
             type_parameters: ast_generics_to_gir(&generator, &ast.generics, None),
             ty,
@@ -170,7 +175,7 @@ impl ADT {
             mutrc_new(ADT {
                 name: ast.name.clone(),
                 fields: IndexMap::with_capacity(ast.members().unwrap().len() + parent.fields.len()),
-                methods: HashMap::with_capacity(ast.methods.len() + parent.methods.len()),
+                methods: IndexMap::with_capacity(ast.methods.len() + parent.methods.len()),
                 constructors: Vec::with_capacity(ast.constructors().unwrap().len()),
                 type_parameters: Rc::clone(&parent.type_parameters),
                 ty,

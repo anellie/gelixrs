@@ -14,7 +14,7 @@ use crate::{
             declaration::{Declaration, Field, Function, LocalVariable, Variable, ADT},
             expression::Expr,
             module::Module,
-            types::{Instance, Type},
+            types::{Instance, ToInstance, Type},
         },
         result::EmitGIRError,
         MutRc,
@@ -187,7 +187,7 @@ impl GIRGenerator {
                 self.resolver.try_cast_in_place(right, ty);
                 if *ty == right.get_type() {
                     // TODO: Type arguments
-                    return Some(Instance::new_(Rc::clone(method)));
+                    return Some(method.to_inst());
                 }
             }
         }

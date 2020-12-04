@@ -10,7 +10,7 @@ use crate::{
         },
         gir_err,
         nodes::{declaration::Declaration, module::Module},
-        CompiledGIR, MutRc, IFACE_IMPLS,
+        CompiledGIR, MutRc, ADT, IFACE_IMPLS,
     },
     lexer::token::Token,
 };
@@ -38,13 +38,14 @@ impl GIRModuleGenerator {
         self.validate_intrinsics();
         self.imports(true);
 
-        self.run_dec(GIRGenerator::declare_methods);
+        self.run_adt(GIRGenerator::declare_methods);
         self.generator.fill_impls();
         self.run_dec(GIRGenerator::insert_adt_fields);
-        self.run_dec(GIRGenerator::constructor_setters);
+        self.run_adt(GIRGenerator::constructor_setters);
+        self.run_adt(GIRGenerator::declare_lifecycle_methods);
+        self.run_adt(GIRGenerator::generate_lifecycle_methods);
         self.run_dec(GIRGenerator::generate);
-        self.generator.generate_primitive();
-        self.run_dec(GIRGenerator::intrinsic_methods);
+        self.generator.generate_impls();
 
         let errs = self
             .generator
@@ -118,6 +119,14 @@ impl GIRModuleGenerator {
                 runner(&mut self.generator, decl)
             }
         }
+    }
+
+    fn run_adt<T: FnMut(&mut GIRGenerator, &MutRc<ADT>)>(&mut self, mut runner: T) {
+        self.run_dec(|this, dec| {
+            if let Declaration::Adt(adt) = &dec {
+                runner(this, adt)
+            }
+        })
     }
 
     /// Create a new generator from AST modules.

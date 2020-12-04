@@ -7,6 +7,7 @@
 use std::fmt;
 
 use super::{super::lexer::token::Token, expression::Expression};
+use crate::lexer::token::TType;
 use smol_str::SmolStr;
 
 /// Visibilities of a declaration.
@@ -143,6 +144,12 @@ pub struct FuncSignature {
     pub parameters: Vec<FunctionParam>,
     pub variadic: bool,
     pub modifiers: Vec<Token>,
+}
+
+impl FuncSignature {
+    pub fn is_extern(&self) -> bool {
+        self.modifiers.iter().any(|t| t.t_type == TType::Extern)
+    }
 }
 
 /// A function argument.

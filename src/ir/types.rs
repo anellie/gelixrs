@@ -10,7 +10,7 @@ use crate::{
             declaration::{ADTType, LocalVariable},
             types::{ClosureType, Instance, TypeArguments, TypeVariable, VariableModifier},
         },
-        Type, ADT,
+        Function, MutRc, Type, ADT,
     },
     ir::{adapter::IRAdtInfo, IRGenerator},
 };
@@ -267,59 +267,70 @@ impl IRGenerator {
         }
     }
 
+    const IFACE_EXCLUDE_METHODS: [&'static str; 3] = ["new-instance", "free-wr", "free-sr"];
+
     /// Generate the type of an interface when used as a standalone type,
     /// which is a struct with 2 pointers (vtable + implementor).
     fn build_iface_type(&mut self, iface: Ref<ADT>, weak: bool) -> StructType {
-        todo!();
-        /* TODO: Figure out interface methods in GIR
-            let free_method_sig = Some(
-                self.context
-                    .void_type()
-                    .fn_type(
-                        &[self.void_ptr().into(), self.context.bool_type().into()],
-                        false,
-                    )
-                    .ptr_type(Generic)
-                    .into(),
-            );
-            let vtable: Vec<BasicTypeEnum> = free_method_sig
-                .into_iter()
-                .chain(
-                    iface
-                        .dyn_methods
-                        .iter()
-                        .map(|(_, method)| self.build_iface_method_type(method)),
+        let free_method_sig = Some(
+            self.context
+                .void_type()
+                .fn_type(
+                    &[self.void_ptr().into(), self.context.bool_type().into()],
+                    false,
                 )
-                .collect();
-            let vtable_struct = self.build_struct_ir("vtable", vtable.into_iter(), false, false);
-
-            self.build_struct_ir(
-                &format!("iface-{}{}", if weak { "WR-" } else { "" }, &iface.name),
-                vec![
-                    self.context.i64_type().ptr_type(Generic).into(),
-                    vtable_struct.ptr_type(Generic).into(),
-                ]
-                    .into_iter(),
-                false,
-                false,
-            )
-        }
-
-        fn build_iface_method_type(&mut self, method: &AbstractMethod) -> BasicTypeEnum {
-            let params: Vec<BasicTypeEnum> = Some(self.void_ptr().into())
-                .into_iter()
-                .chain(method.parameters.iter().map(|param| self.ir_ty_ptr(&param)))
-                .collect();
-
-            if method.ret_type == Type::None {
-                self.context.void_type().fn_type(params.as_slice(), false)
-            } else {
-                let ret_type = self.ir_ty_ptr(&method.ret_type);
-                ret_type.fn_type(params.as_slice(), false)
-            }
                 .ptr_type(Generic)
-                .into()
-                */
+                .into(),
+        );
+        let vtable: Vec<BasicTypeEnum> = free_method_sig
+            .into_iter()
+            .chain(
+                iface
+                    .methods
+                    .iter()
+                    .filter(|(name, _)| !Self::IFACE_EXCLUDE_METHODS.contains(&&***name))
+                    .map(|(_, method)| self.build_iface_method_type(method)),
+            )
+            .collect();
+        let vtable_struct = self.build_struct_ir("vtable", vtable.into_iter(), false, false);
+
+        self.build_struct_ir(
+            &format!(
+                "iface-{}{}",
+                if weak { "WR-" } else { "" },
+                &iface.name.lexeme
+            ),
+            vec![
+                self.context.i64_type().ptr_type(Generic).into(),
+                vtable_struct.ptr_type(Generic).into(),
+            ]
+            .into_iter(),
+            false,
+            false,
+        )
+    }
+
+    fn build_iface_method_type(&mut self, method: &MutRc<Function>) -> BasicTypeEnum {
+        let params: Vec<BasicTypeEnum> = Some(self.void_ptr().into())
+            .into_iter()
+            .chain(
+                method
+                    .borrow()
+                    .parameters
+                    .iter()
+                    .skip(1)
+                    .map(|param| self.ir_ty_generic(&param.ty)),
+            )
+            .collect();
+
+        if method.borrow().ret_type == Type::None {
+            self.context.void_type().fn_type(params.as_slice(), false)
+        } else {
+            let ret_type = self.ir_ty_generic(&method.borrow().ret_type);
+            ret_type.fn_type(params.as_slice(), false)
+        }
+        .ptr_type(Generic)
+        .into()
     }
 
     fn build_type_info(&self) -> PointerValue {

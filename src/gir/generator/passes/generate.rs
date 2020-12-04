@@ -8,9 +8,9 @@ use crate::{
         nodes::{
             declaration::{Declaration, Field, Function, ADT},
             expression::Expr,
-            types::{Instance, Type},
+            types::{IFaceImpls, Instance, Type},
         },
-        MutRc,
+        MutRc, IFACE_IMPLS,
     },
     lexer::token::Token,
 };
@@ -24,32 +24,25 @@ impl GIRGenerator {
             Declaration::Function(func) => self.generate_function(&func),
 
             Declaration::Adt(adt_rc) => {
-                {
-                    let adt = adt_rc.borrow();
-                    self.generate_constructors(&adt);
-                    for method in adt.methods.values() {
-                        self.generate_function(method);
-                    }
+                let adt = adt_rc.borrow();
+                self.generate_constructors(&adt);
+                for (index, method) in adt.methods.values().enumerate() {
+                    self.generate_function_(method, index);
                 }
-
-                let inst = Instance::new_(adt_rc);
-                self.generate_impl(&Type::Value(inst.clone()));
-                self.generate_impl(&Type::WeakRef(inst.clone()));
-                self.generate_impl(&Type::StrongRef(inst));
             }
         }
     }
 
-    pub fn generate_primitive(&mut self) {
-        for ty in &Type::primitives() {
-            self.generate_impl(ty);
-        }
+    pub fn generate_impls(&mut self) {
+        IFACE_IMPLS.with(|i| {
+            for impls in i.borrow().values() {
+                self.generate_impl(impls)
+            }
+        })
     }
 
-    pub fn generate_impl(&mut self, ty: &Type) {
-        let impls = get_or_create_iface_impls(ty);
+    pub fn generate_impl(&mut self, impls: &MutRc<IFaceImpls>) {
         let impls = impls.borrow();
-
         for im in impls.interfaces.values() {
             self.switch_module(Rc::clone(&im.module));
             for method in im.methods.values() {
@@ -59,6 +52,10 @@ impl GIRGenerator {
     }
 
     pub fn generate_function(&mut self, function: &MutRc<Function>) {
+        self.generate_function_(function, 0);
+    }
+
+    fn generate_function_(&mut self, function: &MutRc<Function>, index: usize) {
         if !function.borrow().exprs.is_empty() {
             // Shared function references can cause this fn to be called
             // multiple times (enum cases for example)
@@ -70,7 +67,8 @@ impl GIRGenerator {
 
         let body = match &ast.borrow().body.as_ref() {
             Some(body) => self.expression(body),
-            None => return,
+            None if ast.borrow().sig.is_extern() => return,
+            None => self.iface_method_body(function, index),
         };
 
         let ret_type = function.borrow().ret_type.clone();
@@ -92,6 +90,23 @@ impl GIRGenerator {
             self.insert_at_ptr(Expr::ret(body));
         }
         self.end_scope();
+    }
+
+    /// This method generates the method body for an iface function.
+    /// The method simply delegates to the implementor.
+    fn iface_method_body(&mut self, function: &MutRc<Function>, index: usize) -> Expr {
+        let args = function
+            .borrow()
+            .parameters
+            .iter()
+            .skip(1)
+            .map(|p| Expr::lvar(p))
+            .collect();
+        Expr::iface_call(
+            Expr::lvar(&function.borrow().parameters[0]),
+            index + 1,
+            args,
+        )
     }
 
     fn generate_constructors(&mut self, adt: &ADT) {

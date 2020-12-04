@@ -297,7 +297,6 @@ impl Type {
                     .map(|c| (c, Some((CastType::ToValue, Type::Value(inst.clone()))))),
 
                 // TODO: Value to WR
-
                 Type::StrongRef(inst) => Type::Value(inst.clone())
                     .find_cast_ty(&goal)
                     .map(|c| (c, Some((CastType::ToValue, Type::Value(inst.clone())))))
@@ -326,7 +325,7 @@ impl Type {
                 .get(goal)
                 .is_some() =>
             {
-                Some(CastType::ToInterface)
+                Some(CastType::ToInterface(self.clone()))
             }
 
             // Strong reference to weak reference cast
@@ -388,7 +387,9 @@ impl Type {
 
         // If the type has empty type args but needs some, attach given ones
         // Done after arg resolution to prevent resolving given ones when that is not needed
-        if self.type_args().map(|a| a.is_empty()).unwrap_or(false) && self.type_params().map(|a| !a.is_empty()).unwrap_or(false) {
+        if self.type_args().map(|a| a.is_empty()).unwrap_or(false)
+            && self.type_params().map(|a| !a.is_empty()).unwrap_or(false)
+        {
             ty.set_type_args(Rc::clone(args));
         }
 
@@ -428,7 +429,7 @@ impl Display for Type {
         match self {
             Type::Function(_) => write!(f, "<function>"),
             Type::Closure(closure) => write!(f, "{}", closure),
-            Type::Value(adt) => write!(f, "{}", adt),
+            Type::Value(adt) => write!(f, "~{}", adt),
             Type::WeakRef(adt) => write!(f, "&{}", adt),
             Type::RawPtr(inner) => write!(f, "*{}", inner),
             Type::StrongRef(adt) => write!(f, "@{}", adt),
@@ -485,6 +486,13 @@ impl Instance<ADT> {
             Rc::clone(&self.args),
         )
     }
+
+    pub fn try_get_method(&self, name: &str) -> Option<Instance<Function>> {
+        Some(Instance::new(
+            Rc::clone(self.ty.borrow().methods.get(name)?),
+            Rc::clone(&self.args),
+        ))
+    }
 }
 
 impl Display for Instance<ADT> {
@@ -530,6 +538,31 @@ impl<T: Hash> Hash for Instance<T> {
         if !self.args.is_empty() {
             self.args.hash(state)
         }
+    }
+}
+
+pub trait ToInstance<T> {
+    fn to_inst(&self) -> Instance<T>;
+    fn to_type(&self) -> Type;
+}
+
+impl ToInstance<ADT> for MutRc<ADT> {
+    fn to_inst(&self) -> Instance<ADT> {
+        Instance::new_(Rc::clone(self))
+    }
+
+    fn to_type(&self) -> Type {
+        Type::StrongRef(self.to_inst())
+    }
+}
+
+impl ToInstance<Function> for MutRc<Function> {
+    fn to_inst(&self) -> Instance<Function> {
+        Instance::new_(Rc::clone(self))
+    }
+
+    fn to_type(&self) -> Type {
+        Type::Function(self.to_inst())
     }
 }
 
@@ -693,6 +726,7 @@ pub struct IFaceImpls {
     /// Key is the implemented interface, value the impl.
     /// Key isn't an interface directly due to needed
     /// Hash and Eq traits that only [Type] implements.
+    /// Interface is always a strong reference.
     pub interfaces: HashMap<Type, IFaceImpl>,
     pub methods: HashMap<SmolStr, MutRc<Function>>,
 }
