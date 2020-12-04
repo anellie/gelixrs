@@ -129,7 +129,7 @@ impl IRGenerator {
         }
     }
 
-    fn mod_refcount_iface(&self, struc: StructValue, decrement: bool) {
+    pub fn mod_refcount_iface(&self, struc: StructValue, decrement: bool) {
         let func = if decrement {
             self.module.get_function("gelixrs_dec_ref_iface")
         } else {

@@ -70,7 +70,7 @@ class String {
 
 impl Free for &String {
     func free() {
-        drop(this.ptr)
+        if (this.capacity > 0) drop(this.ptr)
     }
 }
 

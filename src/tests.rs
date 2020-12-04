@@ -9,8 +9,15 @@ use std::{
     path::PathBuf, sync::Mutex,
 };
 
-use crate::error::Errors;
+use crate::{
+    error::Errors,
+    gir::{
+        generator::intrinsics::{Intrinsics, INTRINSICS},
+        IFACE_IMPLS,
+    },
+};
 use inkwell::{execution_engine::JitFunction, OptimizationLevel};
+use std::collections::HashMap;
 
 type MainFn = unsafe extern "C" fn();
 
@@ -122,7 +129,8 @@ fn run_test(path: PathBuf, total: &mut usize, failed: &mut usize) {
 }
 
 fn exec_jit(path: PathBuf) -> Result<String, Failure> {
-    MALLOC_LIST.lock().unwrap().clear();
+    clear_state();
+
     let mut code = super::parse_source(vec![path, STD_LIB.lock().unwrap().clone()])
         .map_err(|_| Failure::Parse)?;
     super::auto_import_prelude(&mut code);
@@ -157,6 +165,12 @@ fn exec_jit(path: PathBuf) -> Result<String, Failure> {
         return Err(Failure::Leak(leaked));
     }
     Ok(result_copy)
+}
+
+fn clear_state() {
+    MALLOC_LIST.lock().unwrap().clear();
+    INTRINSICS.with(|i| i.replace(Intrinsics::default()));
+    IFACE_IMPLS.with(|i| i.replace(HashMap::default()));
 }
 
 fn get_expected_result(mut path: PathBuf) -> Result<String, Failure> {

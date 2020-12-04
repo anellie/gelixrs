@@ -274,28 +274,13 @@ impl IRGenerator {
     fn kill_local_allocs(&mut self, local_allocs: &[PointerValue]) {
         if self.builder.get_insert_block().is_some() {
             for local in local_allocs {
-                let value = self.load_ptr(*local);
-                match self.get_destructor(*local) {
-                    Some((dest, true)) => {
-                        self.builder.build_call(
-                            dest,
-                            &[value, self.context.bool_type().const_int(1, false).into()],
-                            "free",
-                        );
-                    }
-                    Some((dest, false)) => {
-                        self.builder.build_call(dest, &[value], "free");
-                    }
-                    _ => (),
-                }
+                self.build_free(*local);
             }
         }
     }
 
-    // Returns destructor for type, returned bool indicates if the
-    // destructor needs a second bool arg indicating if it should act
-    // TODO: This is fucking stupid, rework GC already
-    fn get_destructor(&mut self, ptr: PointerValue) -> Option<(PointerValue, bool)> {
+    fn build_free(&mut self, ptr: PointerValue) -> Option<()> {
+        let value = self.load_ptr(ptr);
         let inst = self
             .types_bw
             .get(
@@ -308,18 +293,39 @@ impl IRGenerator {
                     .unwrap(),
             )?
             .clone();
-        let (method, needs_2_arg) = match inst {
-            Type::WeakRef(ref adt) => (adt.try_get_method("free-wr")?, false),
-            Type::StrongRef(ref adt) => (adt.try_get_method("free-sr")?, true),
+
+        match inst {
+            Type::StrongRef(ref adt) if adt.ty.borrow().ty.is_interface() => {
+                self.mod_refcount_iface(value.into_struct_value(), true);
+            }
+
+            Type::StrongRef(ref adt) => {
+                let method = adt.try_get_method("free-sr")?;
+                let ir = self
+                    .get_or_create(&method)
+                    .as_global_value()
+                    .as_pointer_value();
+
+                self.builder.build_call(
+                    ir,
+                    &[value, self.context.bool_type().const_int(1, false).into()],
+                    "free",
+                );
+            }
+
+            Type::WeakRef(ref adt) => {
+                let method = adt.try_get_method("free-wr")?;
+                let ir = self
+                    .get_or_create(&method)
+                    .as_global_value()
+                    .as_pointer_value();
+                self.builder.build_call(ir, &[value], "free");
+            }
+
             // Primitive, simply calling free is enough since it must be a raw pointer
-            _ => return None,
+            _ => (),
         };
-        Some((
-            self.get_or_create(&method)
-                .as_global_value()
-                .as_pointer_value(),
-            needs_2_arg,
-        ))
+        None
     }
 
     pub fn nullptr(&self) -> PointerValue {

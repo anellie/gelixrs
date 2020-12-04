@@ -54,6 +54,8 @@ impl GIRModuleGenerator {
 
                 add_fn(i, "free");
                 add_fn(i, "malloc");
+                add_fn(i, "gelixrs_inc_ref_iface");
+                add_fn(i, "gelixrs_dec_ref_iface");
             })
         }
     }

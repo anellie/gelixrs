@@ -27,7 +27,7 @@ thread_local! {
     /// A map containing all interface implementations.
     /// This is global state since it is shared across modules.
     /// TODO: Why the MutRc?
-    static IFACE_IMPLS: RefCell<HashMap<Type, MutRc<IFaceImpls>>> = RefCell::new(HashMap::with_capacity(20));
+    pub static IFACE_IMPLS: RefCell<HashMap<Type, MutRc<IFaceImpls>>> = RefCell::new(HashMap::with_capacity(20));
 }
 
 // todo remove?
