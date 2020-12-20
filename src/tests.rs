@@ -4,10 +4,7 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::{
-    collections::HashSet, env, ffi::CStr, fs::read_to_string, os::raw::c_char, panic,
-    path::PathBuf, sync::Mutex,
-};
+use std::{collections::HashSet, env, ffi::CStr, fs::read_to_string, os::raw::c_char, panic, path::PathBuf, sync::Mutex, io};
 
 use crate::{
     error::Errors,
@@ -18,6 +15,8 @@ use crate::{
 };
 use inkwell::{execution_engine::JitFunction, OptimizationLevel};
 use std::collections::HashMap;
+use ansi_term::{Style, Color};
+use std::io::Write;
 
 type MainFn = unsafe extern "C" fn();
 
@@ -88,7 +87,7 @@ extern "C" fn test_free(ptr: i64) {
 
 #[test]
 fn gelix_tests() -> Result<(), ()> {
-    let (mut test_total, mut test_failed) = (0, 0);
+    let (mut test_total, mut test_failed) = (0, Vec::new());
     let mut test_path = env::current_dir().expect("Couldn't get current dir.");
     test_path.push("tests");
 
@@ -106,27 +105,38 @@ fn gelix_tests() -> Result<(), ()> {
         }
     }
 
+    for fail in test_failed.iter().rev() {
+        println!("{}", fail);
+    }
     println!(
-        "\n\nResult: {} out of {} tests succeeded.\n\n",
-        (test_total - test_failed),
+        "\n{} out of {} tests succeeded\n",
+        (test_total - test_failed.len()),
         test_total
     );
     Ok(())
 }
 
-fn run_test(path: PathBuf, total: &mut usize, failed: &mut usize) {
+fn run_test(path: PathBuf, total: &mut usize, failed: &mut Vec<String>) {
     *total += 1;
-    println!("Running test #{}: {}", total, relative_path(&path));
     let expected = get_expected_result(path.clone());
-    let result = panic::catch_unwind(|| exec_jit(path)).unwrap_or(Err(Failure::Panic));
+    let result = catch_unwind_silent(|| exec_jit(path.clone())).unwrap_or(Err(Failure::Panic));
 
-    if result != expected {
-        *failed += 1;
-        println!(
-            "Test failed!\nResult:   {:?}\nExpected: {:?}\n",
-            result, expected
-        );
-    }
+    let style = if result == expected {
+        GREEN_BOLD
+    } else {
+        failed.push(format!(
+            "{}\n{}\n{}   {:?}\n{} {:?}\n",
+            RED_BOLD.paint(format!("Test #{} failed!", total)),
+            BOLD.paint(format!("Test: {}", relative_path(&path))),
+            BOLD.paint("Result:"),
+            result,
+            BOLD.paint("Expected:"),
+            expected
+        ));
+        RED_BOLD
+    };
+    print!("{}", style.paint("."));
+    io::stdout().flush().unwrap();
 }
 
 fn exec_jit(path: PathBuf) -> Result<String, Failure> {
@@ -206,3 +216,57 @@ fn relative_path(path: &PathBuf) -> String {
         path.file_name().unwrap().to_str().unwrap()
     )
 }
+
+// https://stackoverflow.com/a/59211505
+fn catch_unwind_silent<F: FnOnce() -> R + panic::UnwindSafe, R>(f: F) -> std::thread::Result<R> {
+    let prev_hook = panic::take_hook();
+    panic::set_hook(Box::new(|_| {}));
+    let result = panic::catch_unwind(f);
+    panic::set_hook(prev_hook);
+    result
+}
+
+const GREEN_BOLD: Style = {
+    Style {
+        foreground: Some(Color::Green),
+        background: None,
+        is_bold: true,
+        is_dimmed: false,
+        is_italic: false,
+        is_underline: false,
+        is_blink: false,
+        is_reverse: false,
+        is_hidden: false,
+        is_strikethrough: false,
+    }
+};
+
+const BOLD: Style = {
+    Style {
+        foreground: None,
+        background: None,
+        is_bold: true,
+        is_dimmed: false,
+        is_italic: false,
+        is_underline: false,
+        is_blink: false,
+        is_reverse: false,
+        is_hidden: false,
+        is_strikethrough: false,
+    }
+};
+
+const RED_BOLD: Style = {
+    Style {
+        foreground: Some(Color::Red),
+        background: None,
+        is_bold: true,
+        is_dimmed: false,
+        is_italic: false,
+        is_underline: false,
+        is_blink: false,
+        is_reverse: false,
+        is_hidden: false,
+        is_strikethrough: false,
+    }
+};

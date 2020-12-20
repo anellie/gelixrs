@@ -125,12 +125,14 @@ impl IRGenerator {
             .verify()
             .map_err(|e| {
                 self.module.print_to_file(Path::new("invalid_code.ll")).unwrap_or(());
-                println!("The compiler generated invalid code, which can be found in 'invalid_code.ll'.");
-                println!("This is a bug, and should be reported (please include the code when doing so).");
-                println!("The error message reported by LLVM:\n");
-                println!("{}\n", e.to_string().replace("\\n", "\n"));
                 if !cfg!(test) {
+                    println!("The compiler generated invalid code, which can be found in 'invalid_code.ll'.");
+                    println!("This is a bug, and should be reported (please include the code when doing so).");
+                    println!("The error message reported by LLVM:\n");
+                    println!("{}\n", e.to_string().replace("\\n", "\n"));
                     std::process::exit(1);
+                } else {
+                    panic!("Invalid IR")
                 }
             })
             .unwrap();
