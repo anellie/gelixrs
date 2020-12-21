@@ -1,27 +1,13 @@
-[package]
-name = "gelixrs"
-version = "0.1.0"
-authors = ["Felix Ang. <felix.ang@protonmail.com>"]
-edition = "2018"
+[workspace]
 
-[dependencies]
-dirs = "2.0.2"
-structopt = "0.2.18"
-either = "1.5.2"
-indexmap = "1.2.0"
-enum-methods = "0.0.8"
-ansi_term = "0.12.1"
-smol_str = "0.1.17"
-
-# Inkwell recently added reqwest as a build dependency.
-# This caused the amount of crates to build to triple
-# resulting in much longer build times,
-# and broke compability with libreSSL3 when compiling,
-# so gelixrs is using a commit before this change occured.
-[dependencies.inkwell]
-git = "https://github.com/TheDan64/inkwell"
-rev = "136dd5e06db47f77cb329cd5f6625273dfd3afd7"
-features = ["llvm8-0"]
-
-[dev-dependencies]
-lazy_static = "1.3.0"
+members = [
+    "gelixrs-cli",
+    "gelixrs",
+    "error",
+    "gir",
+    "ir",
+    "parser",
+    "lexer",
+    "syntax",
+    "common"
+]
