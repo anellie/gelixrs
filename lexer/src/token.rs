@@ -110,7 +110,7 @@ pub enum Token {
 
     #[regex("[a-zA-Z][a-zA-Z0-9]+", crate::to_smol_str)]
     Identifier(SmolStr),
-    #[regex(r#""(.|\n)*""#, crate::string)]
+    #[regex("\"[^\"]*\"", crate::string)]
     String(SmolStr),
     #[regex(r"[0-9]+(?:(i|u)(size|8|16|32|64))?", crate::to_smol_str)]
     Int(SmolStr),
@@ -176,10 +176,12 @@ pub enum Token {
     Variadic,
 
     #[regex(r"[ \t\n\f]+", logos::skip)]
+    #[regex(r"/\*([^*]|\*+[^*/])*\*?")]  // https://github.com/maciejhirsz/logos/issues/180
     #[error]
     Error,
 
     #[regex(r"//[^\n]*")]
+    #[regex(r"/\*([^*]|\**[^*/])*\*+/")]
     Comment,
 
     EndOfFile,

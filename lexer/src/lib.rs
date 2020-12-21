@@ -27,7 +27,7 @@ fn string(lex: &mut Lexer<Token>) -> Result<SmolStr, &'static str> {
 /// and return either an error or the finished string token
 fn str_escape_seq(literal: &str) -> Result<SmolStr, &'static str> {
     let mut chars = literal.chars().collect::<Vec<_>>();
-    let i = 0;
+    let mut i = 0;
     while i < chars.len() {
         if chars[i] == '\\' {
             chars.remove(i);
@@ -45,7 +45,7 @@ fn str_escape_seq(literal: &str) -> Result<SmolStr, &'static str> {
 
                 'u' => {
                     let mut esq_chars = Vec::with_capacity(6);
-                    while chars[i + 1].is_ascii_hexdigit() {
+                    while chars.get(i + 1).map(char::is_ascii_hexdigit) == Some(true) {
                         esq_chars.push(chars.remove(i + 1));
                     }
                     u32::from_str_radix(&String::from_iter(esq_chars), 16)
@@ -57,6 +57,7 @@ fn str_escape_seq(literal: &str) -> Result<SmolStr, &'static str> {
                 _ => return Err("Unknown escape sequence."),
             }
         }
+        i += 1;
     }
     Ok(SmolStr::from(chars.into_iter().collect::<String>()))
 }

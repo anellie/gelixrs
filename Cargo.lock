@@ -43,6 +43,9 @@ version = "0.1.0"
 [[package]]
 name = "gelixrs_cli"
 version = "0.1.0"
+dependencies = [
+ "lexer",
+]
 
 [[package]]
 name = "gir"
