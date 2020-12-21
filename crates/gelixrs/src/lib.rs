@@ -15,6 +15,11 @@ pub fn parse_source(input: Vec<PathBuf>) -> Result<ParsedModules, Vec<Errors>> {
     Ok(modules)
 }
 
+pub fn clear_compiler_state() {
+    // INTRINSICS.with(|i| i.replace(Intrinsics::default()));
+    // IFACE_IMPLS.with(|i| i.replace(HashMap::default()));
+}
+
 fn make_modules(
     input: PathBuf,
     path: &mut ModPath,

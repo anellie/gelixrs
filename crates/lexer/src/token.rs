@@ -58,7 +58,7 @@ pub enum Token {
     #[token("<=")]
     LessEqual,
 
-    #[regex("[a-zA-Z][a-zA-Z0-9]*")]
+    #[regex("[a-zA-Z_][a-zA-Z0-9_]*")]
     Identifier,
     #[regex("\"[^\"]*\"")]
     String,

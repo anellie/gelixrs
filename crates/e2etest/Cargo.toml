@@ -1,0 +1,19 @@
+[package]
+name = "e2e"
+version = "0.1.0"
+authors = ["Felix Ang. <felix.ang@protonmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ansi_term = "0.12.1"
+lazy_static = "1.3.0"
+
+gelixrs = { path = "../gelixrs" }
+
+
+[[test]]
+name = "e2e"
+path = "src/test.rs"
+harness = false

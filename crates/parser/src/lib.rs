@@ -35,6 +35,7 @@ struct Parser<'p> {
 
     /// A list of all errors encountered during parsing.
     errors: Vec<Error>,
+    poisoned: bool,
 
     /// Stores the modifiers of the current global declaration.
     modifiers: Vec<SyntaxKind>,
@@ -43,8 +44,11 @@ struct Parser<'p> {
 impl<'p> Parser<'p> {
     pub fn parse(mut self) -> Result<ParseResult, Vec<Error>> {
         self.start_node(SyntaxKind::Root);
-        while self.source.has_next() {
+        while self.peek() != SyntaxKind::EndOfFile {
             self.declaration();
+            if self.poisoned {
+                self.try_depoison();
+            }
         }
         self.end_node();
 
@@ -68,10 +72,8 @@ impl<'p> Parser<'p> {
     }
 
     fn consume(&mut self, kind: SyntaxKind, msg: &str) {
-        if self.peek() != kind {
+        if self.advance_checked() != kind {
             self.error_at_current(msg);
-        } else {
-            self.advance();
         }
     }
 
@@ -84,12 +86,36 @@ impl<'p> Parser<'p> {
     }
 
     fn error_at_current(&mut self, msg: &str) {
+        if self.poisoned {
+            self.advance_checked();
+            return;
+        }
+
+        let current = self.peek_full().unwrap_or(Lexeme { kind: SyntaxKind::EndOfFile, lexeme: "<EOF>" });
         let err = Error {
             index: ErrorSpan::Token(self.source.position()),
             code: "E001", // TODO: Error codes.
-            message: msg.to_string(),
+            message: format!("{} (Was: '{}' of type {:?})", msg, current.lexeme, current.kind),
         };
         self.errors.push(err);
+        self.poisoned = true;
+    }
+
+    fn try_depoison(&mut self) {
+        let recoverable = &[
+            SyntaxKind::Enum,
+            SyntaxKind::Class,
+            SyntaxKind::Func,
+            SyntaxKind::Import,
+            SyntaxKind::Export,
+            SyntaxKind::Impl,
+            SyntaxKind::Interface,
+            SyntaxKind::EndOfFile,
+        ];
+        while !recoverable.contains(&self.peek()) {
+            self.advance_checked();
+        }
+        self.poisoned = false;
     }
 
     /// Is the current token the given kind?
@@ -137,6 +163,11 @@ impl<'p> Parser<'p> {
         self.peek_raw().unwrap_or(SyntaxKind::EndOfFile)
     }
 
+    fn peek_full(&mut self) -> Option<Lexeme<'p>> {
+        self.skip_whitespace();
+        self.source.get_current()
+    }
+
     fn peek_next(&mut self) -> SyntaxKind {
         self.skip_whitespace();
         self.peek_raw().unwrap_or(SyntaxKind::EndOfFile)
@@ -153,7 +184,7 @@ impl<'p> Parser<'p> {
     }
 
     fn is_at_end(&self) -> bool {
-        !self.source.has_next()
+        self.source.get_current().is_none()
     }
 
     fn node_with<T: FnOnce(&mut Self)>(&mut self, kind: SyntaxKind, content: T) {
@@ -183,6 +214,7 @@ impl<'p> Parser<'p> {
             source: Source::new(lexemes),
             events: Vec::with_capacity(100),
             errors: vec![],
+            poisoned: false,
             modifiers: Vec::with_capacity(4),
         }
     }

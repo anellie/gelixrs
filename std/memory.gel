@@ -64,9 +64,9 @@ func index_ptr[T](value: *T, index: i64) -> *T = gelixrs_gep(value, index)
 /// copying from index 0 until `len`.
 /// Does not do any memory safety checks.
 public func copy_ptr[T](src: *T, dst: *T, len: i64) {
-    for (i from 0 to len) {
-        write_value_index(dst, i, load_value_index(src, i))
-    }
+    // for (i from 0 to len) {
+    //     write_value_index(dst, i, load_value_index(src, i))
+    //}
 }
 
 /// Will clone a pointer for the given amount of elements.

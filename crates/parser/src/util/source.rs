@@ -19,10 +19,6 @@ impl<'s> Source<'s> {
         self.current += 1;
     }
 
-    pub fn has_next(&self) -> bool {
-        self.current < self.lexemes.len() - 1
-    }
-
     pub fn save(&mut self) {
         self.saved = self.current;
     }

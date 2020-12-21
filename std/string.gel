@@ -40,7 +40,7 @@ class String {
     /// Will reallocate on the heap if not there yet.
     func clear() {
         this.to_heap()
-        if (this.length == 0) return
+        if (this.length == 0) return None
         val null_char = load_value_index(this.ptr, this.length - 1)
         write_value(this.ptr, null_char)
         this.length = 1
@@ -59,7 +59,7 @@ class String {
     /// Allocate enough memory to hold `amount` more elements.
     /// If the string already has the needed capacity, this does nothing.
     func reserve(amount: usize) {
-        if (this.capacity > (this.length + amount)) return
+        if (this.capacity > (this.length + amount)) return None
         val was_heap = this.capacity > 0
         this.capacity = this.length + amount
 

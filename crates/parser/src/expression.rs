@@ -2,15 +2,6 @@ use crate::Parser;
 use syntax::kind::SyntaxKind;
 
 impl<'p> Parser<'p> {
-    fn variable(&mut self) {
-        self.start_node(SyntaxKind::Variable);
-        self.advance(); // Consume 'var' or 'val'
-        self.consume(SyntaxKind::Identifier, "Expected variable name.");
-        self.consume(SyntaxKind::Equal, "Expected '=' after variable name.");
-        self.node_with(SyntaxKind::Initializer, Self::expression);
-        self.end_node();
-    }
-
     /// A 'higher' expression is an expression that is only allowed to appear
     /// as top-level inside a block.
     /// This function can also produce a top-level non-higher expression.
@@ -19,6 +10,15 @@ impl<'p> Parser<'p> {
             SyntaxKind::Var | SyntaxKind::Val => self.variable(),
             _ => self.expression(),
         }
+    }
+
+    fn variable(&mut self) {
+        self.start_node(SyntaxKind::Variable);
+        self.advance(); // Consume 'var' or 'val'
+        self.consume(SyntaxKind::Identifier, "Expected variable name.");
+        self.consume(SyntaxKind::Equal, "Expected '=' after variable name.");
+        self.node_with(SyntaxKind::Initializer, Self::expression);
+        self.end_node();
     }
 
     pub fn expression(&mut self) {
@@ -56,6 +56,8 @@ impl<'p> Parser<'p> {
         if self.matches(SyntaxKind::Else) {
             self.node_with(SyntaxKind::ExprElse, Self::expression);
         }
+
+        self.end_node();
     }
 
     fn for_expression(&mut self) {
@@ -80,6 +82,8 @@ impl<'p> Parser<'p> {
         if self.matches(SyntaxKind::Else) {
             self.node_with(SyntaxKind::ExprElse, Self::expression);
         }
+
+        self.end_node();
     }
 
     fn ret_or_break_expr(&mut self, kind: SyntaxKind) {
@@ -116,6 +120,8 @@ impl<'p> Parser<'p> {
             }
             self.end_node()
         }
+
+        self.end_node();
     }
 
     fn binary(&mut self, minimum_binding_power: u8) {
