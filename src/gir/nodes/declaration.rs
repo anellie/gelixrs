@@ -192,7 +192,7 @@ impl ADT {
         {
             if *no_body {
                 Some(Expr::Allocate {
-                    ty: Type::WeakRef(Instance::new(Rc::clone(inst), Rc::clone(args))),
+                    ty: Type::StrongRef(Instance::new(Rc::clone(inst), Rc::clone(args))),
                     constructor: Rc::clone(&inst.borrow().constructors[0]),
                     args: vec![],
                     tok: Token::eof_token(1),

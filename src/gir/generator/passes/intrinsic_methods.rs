@@ -13,7 +13,7 @@ use crate::{
             expression::{CastType, Expr},
             types::ToInstance,
         },
-        MutRc
+        MutRc,
     },
     lexer::token::{TType, Token},
 };

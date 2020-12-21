@@ -1,6 +1,6 @@
 use crate::gir::nodes::{
     declaration::{ADTType, Declaration, Function, Variable, ADT},
-    expression::{CastType, Expr},
+    expression::{CastType, Expr, Intrinsic},
     module::Module,
     types::print_type_args,
 };
@@ -9,7 +9,6 @@ use std::{
     fmt::{Debug, Display, Formatter},
     iter::repeat,
 };
-use crate::gir::nodes::expression::Intrinsic;
 
 const INDENT: usize = 4;
 type R = Result<(), fmt::Error>;
@@ -283,10 +282,13 @@ impl Display for Intrinsic {
             Intrinsic::DecRc(_) => write!(f, "dec_rc("),
             Intrinsic::IncRc(_) => write!(f, "dec_rc("),
             Intrinsic::Free(_) => write!(f, "free("),
-            Intrinsic::IfaceCall { .. } =>  write!(f, "vcall(")
+            Intrinsic::IfaceCall { .. } => write!(f, "vcall("),
         }?;
         match self {
-            Intrinsic::IfaceCall { iface: e, .. } | Intrinsic::Free(e) | Intrinsic::IncRc(e) | Intrinsic::DecRc(e) => e.display(f, 0)
+            Intrinsic::IfaceCall { iface: e, .. }
+            | Intrinsic::Free(e)
+            | Intrinsic::IncRc(e)
+            | Intrinsic::DecRc(e) => e.display(f, 0),
         }?;
         write!(f, ")")
     }

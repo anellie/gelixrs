@@ -117,7 +117,11 @@ impl IRGenerator {
                 phi_type,
             } => self.if_(condition, then_branch, else_branch, phi_type.is_some()),
 
-            Expr::Switch { branches, else_branch, phi_type } => self.switch(branches, else_branch, phi_type.is_some()),
+            Expr::Switch {
+                branches,
+                else_branch,
+                phi_type,
+            } => self.switch(branches, else_branch, phi_type.is_some()),
 
             Expr::Loop {
                 condition,
@@ -141,7 +145,7 @@ impl IRGenerator {
                     .build_unconditional_branch(&self.loop_data.as_ref().unwrap().end_block);
                 self.builder.clear_insertion_position();
                 self.none_const
-            },
+            }
 
             Expr::Return(value) => {
                 let value = self.expression(value);
@@ -439,12 +443,7 @@ impl IRGenerator {
         }
     }
 
-    fn switch(
-        &mut self,
-        cases: &[(Expr, Expr)],
-        else_: &Expr,
-        phi: bool,
-    ) -> BasicValueEnum {
+    fn switch(&mut self, cases: &[(Expr, Expr)], else_: &Expr, phi: bool) -> BasicValueEnum {
         let cond = self.context.bool_type().const_int(1, false);
         let end_bb = self.append_block("when-end");
 

@@ -4,7 +4,10 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::{collections::HashSet, env, ffi::CStr, fs::read_to_string, os::raw::c_char, panic, path::PathBuf, sync::Mutex, io};
+use std::{
+    collections::HashSet, env, ffi::CStr, fs, fs::read_to_string, io, os::raw::c_char, panic,
+    path::PathBuf, sync::Mutex,
+};
 
 use crate::{
     error::Errors,
@@ -13,10 +16,9 @@ use crate::{
         IFACE_IMPLS,
     },
 };
+use ansi_term::{Color, Style};
 use inkwell::{execution_engine::JitFunction, OptimizationLevel};
-use std::collections::HashMap;
-use ansi_term::{Style, Color};
-use std::io::Write;
+use std::{collections::HashMap, io::Write};
 
 type MainFn = unsafe extern "C" fn();
 
@@ -88,7 +90,9 @@ extern "C" fn test_free(ptr: i64) {
 #[test]
 fn gelix_tests() -> Result<(), ()> {
     let (mut test_total, mut test_failed) = (0, Vec::new());
-    let mut test_path = env::current_dir().expect("Couldn't get current dir.");
+
+    let cwd = env::current_dir().expect("Couldn't get current dir.");
+    let mut test_path = cwd.clone();
     test_path.push("tests");
 
     let iter = test_path.read_dir().expect("Test path is a file?");
@@ -105,9 +109,10 @@ fn gelix_tests() -> Result<(), ()> {
         }
     }
 
-    for fail in test_failed.iter().rev() {
-        println!("{}", fail);
-    }
+    let mut snapshot = cwd.clone();
+    snapshot.push("test-snapshot");
+    print_failed(snapshot, &test_failed);
+
     println!(
         "\n{} out of {} tests succeeded\n",
         (test_total - test_failed.len()),
@@ -116,7 +121,37 @@ fn gelix_tests() -> Result<(), ()> {
     Ok(())
 }
 
-fn run_test(path: PathBuf, total: &mut usize, failed: &mut Vec<String>) {
+const SNAPSHOT_OUTPUT: bool = true;
+
+fn print_failed(path: PathBuf, failed: &[(String, String)]) {
+    println!();
+    if SNAPSHOT_OUTPUT {
+        let snapshot = read_to_string(&path).unwrap_or("".to_string());
+        let mut prev_failed = snapshot.lines().collect::<HashSet<&str>>();
+        for (fail, msg) in failed {
+            if !prev_failed.remove(fail.as_str()) {
+                println!("{} {}", RED_BOLD.paint("New failure:"), msg);
+            }
+        }
+        for fixed in prev_failed {
+            println!("{} {}", GREEN_BOLD.paint("Test fixed:"), fixed);
+        }
+    } else {
+        for (_, msg) in failed.into_iter().rev() {
+            println!("{}", msg);
+        }
+    }
+
+    let mut snapshots_file =
+        fs::File::create(path.as_path()).expect("Failed to write snapshots file");
+    for (fail, _) in failed {
+        snapshots_file
+            .write_all(format!("{}\n", fail).as_bytes())
+            .expect("Write failed");
+    }
+}
+
+fn run_test(path: PathBuf, total: &mut usize, failed: &mut Vec<(String, String)>) {
     *total += 1;
     let expected = get_expected_result(path.clone());
     let result = catch_unwind_silent(|| exec_jit(path.clone())).unwrap_or(Err(Failure::Panic));
@@ -124,14 +159,18 @@ fn run_test(path: PathBuf, total: &mut usize, failed: &mut Vec<String>) {
     let style = if result == expected {
         GREEN_BOLD
     } else {
-        failed.push(format!(
-            "{}\n{}\n{}   {:?}\n{} {:?}\n",
-            RED_BOLD.paint(format!("Test #{} failed!", total)),
-            BOLD.paint(format!("Test: {}", relative_path(&path))),
-            BOLD.paint("Result:"),
-            result,
-            BOLD.paint("Expected:"),
-            expected
+        let rel_path = relative_path(&path);
+        failed.push((
+            rel_path,
+            format!(
+                "{}\n{}\n{}   {:?}\n{} {:?}\n",
+                RED_BOLD.paint(format!("Test #{} failed!", total)),
+                BOLD.paint(format!("Test: {}", relative_path(&path))),
+                BOLD.paint("Result:"),
+                result,
+                BOLD.paint("Expected:"),
+                expected
+            ),
         ));
         RED_BOLD
     };

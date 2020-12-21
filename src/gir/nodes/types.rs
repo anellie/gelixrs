@@ -212,6 +212,12 @@ impl Type {
         !self.is_type()
     }
 
+    /// Can this type be called?
+    /// True for functions and closures.
+    pub fn is_callable(&self) -> bool {
+        self.is_function() || self.is_closure()
+    }
+
     /// Can this type 'escape' the function it is in?
     /// True for everything except weak references.
     pub fn can_escape(&self) -> bool {

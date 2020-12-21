@@ -10,6 +10,7 @@ use crate::{
     error::Res,
     gir::{
         generator::GIRGenerator,
+        gir_err,
         nodes::{
             declaration::{ADTType, LocalVariable, Variable, ADT},
             expression::{CastType, Expr},
@@ -368,6 +369,39 @@ impl GIRGenerator {
                         tok: ast_callee.get_token().clone(),
                     })
                 } else {
+                    // IndexGet impl
+                    if !callee_type.is_callable() {
+                        if args.is_empty() {
+                            return Err(gir_err(
+                                ast_callee.get_token(),
+                                "Invalid argument count for IndexGet (does this implement IndexGet?)".to_string(), 
+                                &self.path
+                            ));
+                        }
+                        let func = self
+                            .get_operator_overloading_method(
+                                TType::LeftBracket,
+                                &mut callee,
+                                &mut args[0],
+                            )
+                            .on_err(
+                                &self.path,
+                                ast_callee.get_token(),
+                                "No matching IndexGet impl found.",
+                            )?;
+                        args.insert(0, callee);
+
+                        self.check_func_args_(
+                            &Type::Function(func.clone()),
+                            &mut args,
+                            arguments,
+                            ast_callee.get_token(),
+                            true,
+                        )?;
+
+                        return Ok(Expr::call(Expr::Variable(Variable::Function(func)), args));
+                    }
+
                     // If this is a function call, check it has
                     // its type arguments inferred should it have any
                     if let Expr::Variable(Variable::Function(func)) = &mut callee {
@@ -504,7 +538,7 @@ impl GIRGenerator {
                 is_method,
             ),
 
-            _ => Err(self.err_(err_tok, "This cannot be called.".to_string())),
+            _ => Err(self.err_(err_tok, format!("'{}' cannot be called.", func))),
         }
     }
 
