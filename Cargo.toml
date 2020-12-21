@@ -1,14 +1,2 @@
 [workspace]
-
-members = [
-    "gelixrs-cli",
-    "gelixrs",
-    "error",
-    "gir",
-    "ir",
-    "parser",
-    "lexer",
-    "syntax",
-    "common",
-    "ast"
-]
+members = ["crates/*"]
