@@ -14,11 +14,10 @@ use crate::{
     error::Res,
     gir::{
         generator::GIRGenerator,
-        get_or_create_iface_impls,
         nodes::{
-            declaration::{ADTType, Declaration, Function, LocalVariable, ADT},
+            declaration::{ADTType, Function, LocalVariable, ADT},
             expression::Expr,
-            types::{IFaceImpls, Instance, Type, TypeArguments},
+            types::{IFaceImpls, TypeArguments},
         },
         result::{EmitGIRError, ToGIRResult},
         MutRc, IFACE_IMPLS,
@@ -240,13 +239,13 @@ impl GIRGenerator {
 
     pub fn fill_impls(&mut self) {
         IFACE_IMPLS.with(|i| {
-            for (ty, impls) in i.borrow().iter() {
-                self.fill_impls_(ty, impls)
+            for impls in i.borrow().values() {
+                self.fill_impls_(impls)
             }
         })
     }
 
-    fn fill_impls_(&mut self, ty: &Type, impls: &MutRc<IFaceImpls>) {
+    fn fill_impls_(&mut self, impls: &MutRc<IFaceImpls>) {
         let mut impls = impls.borrow_mut();
 
         let mut methods: HashMap<SmolStr, _> = HashMap::with_capacity(impls.interfaces.len() * 2);
@@ -325,17 +324,18 @@ impl GIRGenerator {
         for (i, (method_param, iface_param)) in impl_method
             .parameters
             .iter()
-            .skip(1)
             .zip(iface_method.parameters.iter())
+            .skip(1)
             .enumerate()
         {
-            if method_param.ty != iface_param.ty {
+            let iface_ty = iface_param.ty.resolve(iface_args);
+            if method_param.ty != iface_ty {
                 let tok = &ast.sig.parameters[i].name;
                 self.err(
                     tok,
                     format!(
                         "Incorrect parameter type on interface method (Expected {}, was {}).",
-                        iface_param.ty, method_param.ty
+                        iface_ty, method_param.ty
                     ),
                 );
             }

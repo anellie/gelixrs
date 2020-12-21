@@ -13,7 +13,7 @@ use crate::{
         generator::{intrinsics::INTRINSICS, visitors::Visitor},
         nodes::{
             declaration::{Field, Function, LocalVariable, Variable},
-            types::{Instance, ToInstance, Type},
+            types::{ToInstance, Type},
         },
         MutRc,
     },

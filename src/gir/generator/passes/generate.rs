@@ -4,11 +4,10 @@ use crate::{
     ast::Constructor,
     gir::{
         generator::GIRGenerator,
-        get_or_create_iface_impls,
         nodes::{
             declaration::{Declaration, Field, Function, ADT},
             expression::Expr,
-            types::{IFaceImpls, Instance, Type},
+            types::{IFaceImpls, Type},
         },
         MutRc, IFACE_IMPLS,
     },

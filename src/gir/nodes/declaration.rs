@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    fmt,
     hash::{Hash, Hasher},
     rc::Rc,
 };

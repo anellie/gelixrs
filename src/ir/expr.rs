@@ -117,12 +117,31 @@ impl IRGenerator {
                 phi_type,
             } => self.if_(condition, then_branch, else_branch, phi_type.is_some()),
 
+            Expr::Switch { branches, else_branch, phi_type } => self.switch(branches, else_branch, phi_type.is_some()),
+
             Expr::Loop {
                 condition,
                 body,
                 else_branch,
                 phi_type,
             } => self.loop_(condition, body, else_branch, phi_type),
+
+            Expr::Break(value) => {
+                if self.loop_data.as_ref().unwrap().phi_nodes.is_some() {
+                    let node = (self.expression(value), self.last_block());
+                    self.loop_data
+                        .as_mut()
+                        .unwrap()
+                        .phi_nodes
+                        .as_mut()
+                        .unwrap()
+                        .push(node);
+                }
+                self.builder
+                    .build_unconditional_branch(&self.loop_data.as_ref().unwrap().end_block);
+                self.builder.clear_insertion_position();
+                self.none_const
+            },
 
             Expr::Return(value) => {
                 let value = self.expression(value);
@@ -143,14 +162,9 @@ impl IRGenerator {
 
             Expr::Intrinsic(int) => self.intrinsic(int),
 
-            _ => {
-                todo!();
-                self.none_const
-            } /*
-              Expr::Switch { .. } => {},
-              Expr::Break(_) => {},
-              Expr::Closure { .. } => {},
-              Expr::TypeGet(_) => {},*/
+            Expr::TypeGet(_) => panic!("Invalid IR instruction"),
+
+            Expr::Closure { .. } => todo!(),
         }
     }
 
@@ -425,6 +439,66 @@ impl IRGenerator {
         }
     }
 
+    fn switch(
+        &mut self,
+        cases: &[(Expr, Expr)],
+        else_: &Expr,
+        phi: bool,
+    ) -> BasicValueEnum {
+        let cond = self.context.bool_type().const_int(1, false);
+        let end_bb = self.append_block("when-end");
+
+        let mut phi_nodes = Vec::with_capacity(cases.len());
+        let mut next_bb = self.append_block("when-case-false");
+        for (br_cond, branch) in cases {
+            let case_bb = self.append_block("when-case");
+
+            self.push_local_scope();
+            let br_cond = self.expression(br_cond).into_int_value();
+            self.pop_dec_locals();
+            let cmp = self
+                .builder
+                .build_int_compare(IntPredicate::EQ, cond, br_cond, "when-cmp");
+            self.builder
+                .build_conditional_branch(cmp, &case_bb, &next_bb);
+
+            self.position_at_block(case_bb);
+            self.push_local_scope();
+            let value = self.expression(branch);
+            if phi {
+                self.pop_locals_remove(value)
+            } else {
+                self.pop_dec_locals()
+            };
+            phi_nodes.push((value, self.last_block()));
+            self.builder.build_unconditional_branch(&end_bb);
+
+            self.position_at_block(next_bb);
+            next_bb = self.append_block("when-case-false");
+        }
+        // Next case is 'else', this BB is not needed
+        next_bb.remove_from_function().unwrap();
+
+        // If the last case falls though, do the else case
+        self.push_local_scope();
+        let else_val = self.expression(else_);
+        if phi {
+            self.pop_locals_remove(else_val)
+        } else {
+            self.pop_dec_locals()
+        };
+        let else_end_bb = self.last_block();
+        self.builder.build_unconditional_branch(&end_bb);
+        phi_nodes.push((else_val, else_end_bb));
+
+        self.position_at_block(end_bb);
+        if phi {
+            self.build_phi(&phi_nodes)
+        } else {
+            self.none_const
+        }
+    }
+
     fn loop_(
         &mut self,
         condition: &Expr,
@@ -684,7 +758,7 @@ impl IRGenerator {
                 };
 
                 let first_arg = self.builder.build_extract_value(callee, 0, "implementor");
-                let mut args = first_arg
+                let args = first_arg
                     .into_iter()
                     .chain(arguments.iter().map(|e| self.expression(e)))
                     .collect::<Vec<_>>();

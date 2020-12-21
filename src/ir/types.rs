@@ -122,7 +122,7 @@ impl IRGenerator {
     }
 
     pub fn unwrap_var(&self, var: &TypeVariable) -> Type {
-        let mut index = self.type_args.len() - 1;
+        let index = self.type_args.len() - 1;
         let ty = self.type_args[index].as_ref().unwrap()[var.index].clone();
         match var.modifier {
             VariableModifier::Value => ty,

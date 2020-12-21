@@ -7,13 +7,13 @@ use crate::{
     ast::declaration::{FuncSignature, FunctionParam, Visibility},
     gir::{
         generator::{intrinsics::INTRINSICS, GIRGenerator},
-        get_iface_impls, get_or_create_iface_impls,
+        get_iface_impls,
         nodes::{
-            declaration::{ADTType, Declaration, Function, ADT},
-            expression::{CastType, Expr, Intrinsic},
+            declaration::{ADTType, Function, ADT},
+            expression::{CastType, Expr},
             types::ToInstance,
         },
-        MutRc, Type,
+        MutRc
     },
     lexer::token::{TType, Token},
 };
@@ -95,7 +95,7 @@ impl GIRGenerator {
 
             ADTType::Enum { cases } => {
                 let dest = Self::build_enum_destructor(Expr::lvar(&adt_var), cases);
-                // self.insert_at_ptr(dest); todo ir support
+                self.insert_at_ptr(dest);
             }
 
             _ => {
