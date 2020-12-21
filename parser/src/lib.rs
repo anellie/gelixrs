@@ -3,11 +3,12 @@ mod expression;
 mod util;
 
 use crate::util::{event::Event, sink::Sink, source::Source};
+use error::{Error, ErrorSpan};
 use lexer::Lexer;
 use rowan::{GreenNode, SyntaxNode};
 use syntax::{kind::SyntaxKind, language::GelixLang};
 
-pub fn parse(input: &str) -> ParseResult {
+pub fn parse(input: &str) -> Result<ParseResult, Vec<Error>> {
     let lexer = Lexer::new(input);
     let lexemes = lexer
         .map(|(tok, lexeme)| Lexeme {
@@ -33,25 +34,27 @@ struct Parser<'p> {
     events: Vec<Event>,
 
     /// A list of all errors encountered during parsing.
-    errors: Vec<(usize, String)>,
+    errors: Vec<Error>,
 
     /// Stores the modifiers of the current global declaration.
     modifiers: Vec<SyntaxKind>,
 }
 
 impl<'p> Parser<'p> {
-    pub fn parse(mut self) -> ParseResult {
+    pub fn parse(mut self) -> Result<ParseResult, Vec<Error>> {
         self.start_node(SyntaxKind::Root);
-
         while self.source.has_next() {
             self.declaration();
         }
-
         self.end_node();
 
-        let sink = Sink::new(self.source.clone(), self.events);
-        ParseResult {
-            green_node: sink.finish(),
+        if self.errors.is_empty() {
+            let sink = Sink::new(self.source.clone(), self.events);
+            Ok(ParseResult {
+                green_node: sink.finish(),
+            })
+        } else {
+            Err(self.errors)
         }
     }
 
@@ -81,7 +84,12 @@ impl<'p> Parser<'p> {
     }
 
     fn error_at_current(&mut self, msg: &str) {
-        self.errors.push((self.source.position(), msg.to_string()))
+        let err = Error {
+            index: ErrorSpan::Token(self.source.position()),
+            code: "E001", // TODO: Error codes.
+            message: msg.to_string(),
+        };
+        self.errors.push(err);
     }
 
     /// Is the current token the given kind?
@@ -180,6 +188,7 @@ impl<'p> Parser<'p> {
     }
 }
 
+#[derive(Debug)]
 pub struct ParseResult {
     green_node: GreenNode,
 }

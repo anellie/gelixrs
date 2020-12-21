@@ -9,5 +9,6 @@ members = [
     "parser",
     "lexer",
     "syntax",
-    "common"
+    "common",
+    "ast"
 ]

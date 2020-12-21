@@ -9,23 +9,26 @@ use std::{
     rc::Rc,
 };
 
-use ansi_term::{
-    ANSIString, ANSIStrings,
-    Color::{Blue, Red},
-    Style,
-};
-use common::ModulePath;
+use lexer::Span;
 use std::fmt::Debug;
 
 pub type Res<T> = Result<T, Error>;
 
-/// A struct for a list of errors that occurred along with the source.
-pub struct Errors(pub Vec<Error>, pub Rc<String>);
+/// A struct for a list of errors that occurred at a given location.
+pub struct Errors {
+    // All errors that occurred.
+    pub errors: Vec<Error>,
+    // The source code of the origin, if any
+    pub src: Option<Rc<String>>,
+    // The origin of the error, usually a module (path), can be anything
+    pub origin: String,
+}
 
 impl Display for Errors {
     fn fmt(&self, f: &mut Formatter) -> Result<(), FmtErr> {
-        for err in &self.0 {
-            writeln!(f, "{}\n", err.to_string(&self.1))?;
+        writeln!(f, "Errors inside {}:", self.origin)?;
+        for err in &self.errors {
+            writeln!(f, "{}\n", err.to_string(self.src.as_ref()))?;
         }
         Ok(())
     }
@@ -39,17 +42,15 @@ impl Debug for Errors {
 
 /// An error produced by all parts of the compiler.
 pub struct Error {
-    pub line: usize,
-    pub start: usize,
-    pub len: usize,
-    pub producer: &'static str,
+    pub index: ErrorSpan,
+    pub code: &'static str,
     pub message: String,
-    pub module: ModulePath,
 }
 
 impl Error {
     /// Produces a nice looking string representation to be shown to the user.
-    pub fn to_string<'a>(&self, source: &'a str) -> String {
+    pub fn to_string<'a>(&self, _source: Option<&Rc<String>>) -> String {
+        /*
         let regular = Style::new();
         let bold = regular.bold();
         let dimmed = regular.dimmed();
@@ -98,5 +99,12 @@ impl Error {
         ];
 
         ANSIStrings(formatted).to_string()
+                 */
+        todo!()
     }
+}
+
+pub enum ErrorSpan {
+    Token(usize),
+    Span(Span),
 }

@@ -1,7 +1,8 @@
-use std::fs::read_to_string;
+use std::path::PathBuf;
 
 fn main() {
-    let src = read_to_string("parsetest.gel").unwrap();
-    let result = parser::parse(&src);
-    result.debug_print();
+    let parse = gelixrs::parse_source(vec![PathBuf::from("parsetest.gel")]).unwrap();
+    for m in parse {
+        m.cst.debug_print();
+    }
 }

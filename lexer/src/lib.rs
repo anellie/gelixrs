@@ -1,6 +1,6 @@
 mod token;
 
-pub use logos::Logos;
+pub use logos::{Logos, Span};
 pub use token::Token;
 
 pub struct Lexer<'l> {
