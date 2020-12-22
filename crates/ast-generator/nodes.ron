@@ -345,7 +345,7 @@
                 Item(
                     name: "right",
                     type: "Expression",
-                    strategy: "children().skip(2).next().map(Expression::cast).unwrap().unwrap()"
+                    strategy: "children().nth(2).map(Expression::cast).unwrap().unwrap()"
                 ),
             ],
         )

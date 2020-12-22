@@ -534,8 +534,7 @@ impl Binary {
     pub fn right(&self) -> Expression {
         self.cst
             .children()
-            .skip(2)
-            .next()
+            .nth(2)
             .map(Expression::cast)
             .unwrap()
             .unwrap()

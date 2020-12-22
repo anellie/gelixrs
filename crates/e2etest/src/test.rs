@@ -4,7 +4,10 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::{collections::HashSet, env, ffi::CStr, fs, fs::read_to_string, io, os::raw::c_char, panic, path::PathBuf, sync::Mutex, mem};
+use std::{
+    collections::HashSet, env, ffi::CStr, fs, fs::read_to_string, io, mem, os::raw::c_char, panic,
+    path::PathBuf, sync::Mutex,
+};
 
 use ansi_term::{Color, Style};
 use gelixrs::Errors;
@@ -83,7 +86,7 @@ extern "C" fn test_free(ptr: i64) {
     }
 }
 
-fn main() -> Result<(), ()> {
+fn main() {
     let (mut test_total, mut test_failed) = (0, Vec::new());
 
     let cwd = env::current_dir().expect("Couldn't get current dir.");
@@ -104,7 +107,7 @@ fn main() -> Result<(), ()> {
         }
     }
 
-    let mut snapshot = cwd.clone();
+    let mut snapshot = cwd;
     snapshot.push("test-snapshot");
     print_failed(snapshot, &test_failed);
 
@@ -113,13 +116,12 @@ fn main() -> Result<(), ()> {
         (test_total - test_failed.len()),
         test_total
     );
-    Ok(())
 }
 
 fn print_failed(path: PathBuf, failed: &[(String, String)]) {
     println!();
     if env::args().any(|arg| arg == "--snapshot") {
-        let snapshot = read_to_string(&path).unwrap_or("".to_string());
+        let snapshot = read_to_string(&path).unwrap_or_else(|_| "".to_string());
         let mut prev_failed = snapshot.lines().collect::<HashSet<&str>>();
         for (fail, msg) in failed {
             if !prev_failed.remove(fail.as_str()) {
@@ -130,7 +132,7 @@ fn print_failed(path: PathBuf, failed: &[(String, String)]) {
             println!("{} {}", GREEN_BOLD.paint("Test fixed:"), fixed);
         }
     } else {
-        for (_, msg) in failed.into_iter().rev() {
+        for (_, msg) in failed.iter().rev() {
             println!("{}", msg);
         }
     }

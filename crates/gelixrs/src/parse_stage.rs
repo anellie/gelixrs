@@ -1,8 +1,8 @@
 use ast::Module;
 use common::ModPath;
+use error::Errors;
 use smol_str::SmolStr;
 use std::{env, fs, path::PathBuf, rc::Rc};
-use error::Errors;
 
 pub type ParsedModules = Vec<Module>;
 

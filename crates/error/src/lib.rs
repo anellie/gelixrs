@@ -4,10 +4,7 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::{
-    fmt::{Display, Error as FmtErr, Formatter},
-    rc::Rc,
-};
+use std::{fmt::{Display, Error as FmtErr, Formatter}, ops::Range, rc::Rc};
 
 use ansi_term::{
     ANSIString, ANSIStrings,
@@ -133,6 +130,7 @@ fn span_to_info(src: &str, span: Span) -> (usize, usize, usize) {
 #[derive(Debug)]
 pub enum ErrorSpan {
     Token(usize),
+    Span(Range<u32>),
     None,
 }
 
@@ -146,6 +144,8 @@ impl ErrorSpan {
                 }
                 lex.span()
             }
+
+            Self::Span(span) => (span.start as usize)..(span.end as usize), 
 
             Self::None => panic!("Not supposed to have a source"),
         }

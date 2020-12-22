@@ -93,12 +93,12 @@ fn generate(e: Exec) {
 }
 
 fn process_context(ctx: &mut Ctx) {
-    if ctx.kind == "" {
+    if ctx.kind.is_empty() {
         ctx.kind = ctx.name.clone();
     }
 
     for item in &mut ctx.items {
-        if item.kind == "" {
+        if item.kind.is_empty() {
             item.kind = item.r#type.clone();
         }
 
@@ -119,9 +119,9 @@ fn process_context(ctx: &mut Ctx) {
                 item.kind, item.r#type
             ),
 
-            "token" => format!("children_with_tokens()\
+            "token" => "children_with_tokens()\
             .find(|c| c.as_token().map(SyntaxToken::<GelixLang>::kind).as_ref().map(SyntaxKind::is_token) == Some(true))\
-            .unwrap().as_token().unwrap().kind()"),
+            .unwrap().as_token().unwrap().kind()".to_string(),
             "nested_token" => format!("children().find(|i| i.kind() == SyntaxKind::{}).unwrap().children_with_tokens()\
             .find(|c| c.as_token().map(SyntaxToken::<GelixLang>::kind).as_ref().map(SyntaxKind::is_token) == Some(true))\
             .unwrap().as_token().unwrap().kind()", item.kind),
@@ -129,12 +129,12 @@ fn process_context(ctx: &mut Ctx) {
             .find(|c| c.as_token().map(SyntaxToken::kind).as_ref().map(SyntaxKind::is_token) == Some(true)))\
             .flatten().map(|c| c.as_token().unwrap().kind())", item.kind),
 
-            "ident" => format!("children_with_tokens()\
+            "ident" => "children_with_tokens()\
             .find(|c| c.as_token().map(SyntaxToken::<GelixLang>::kind) == Some(SyntaxKind::Identifier))\
-            .unwrap().as_token().unwrap().text().clone()"),
-            "ident_list" => format!("children_with_tokens()\
+            .unwrap().as_token().unwrap().text().clone()".to_string(),
+            "ident_list" => "children_with_tokens()\
             .filter(|c| c.as_token().map(SyntaxToken::<GelixLang>::kind) == Some(SyntaxKind::Identifier))\
-            .map(|c| c.as_token().unwrap().text().clone())"),
+            .map(|c| c.as_token().unwrap().text().clone())".to_string(),
 
             _ => item.strategy.clone()
         };
