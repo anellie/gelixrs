@@ -98,15 +98,12 @@ string/escaping.gel
 string/unicode_escape.gel
 string/multiline.gel
 closures/no_loop_leak.gel
-closures/no_weak.gel
-closures/wrong_param_type.gel
 closures/capture_class.gel
 closures/none_ret_type.gel
 closures/closure.gel
 closures/no_return_leak.gel
 closures/capture.gel
 closures/as_func_type.gel
-closures/wrong_ret_type.gel
 interfaces/implementing_non_class.gel
 interfaces/iface_param.gel
 interfaces/implementing.gel

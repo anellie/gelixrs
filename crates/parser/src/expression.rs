@@ -243,28 +243,28 @@ impl<'p> Parser<'p> {
     }
 
     fn grouping_or_closure(&mut self) {
+        let checkpoint = self.checkpoint();
+        self.advance(); // Consume '('
+
         if (self.check(SyntaxKind::Identifier)
             && (self.check_next(SyntaxKind::Colon) || self.check_next(SyntaxKind::Comma)))
             || self.check(SyntaxKind::RightParen)
         {
+            self.start_node_at(checkpoint, SyntaxKind::ClosureLiteral);
             self.closure()
         } else {
+            self.start_node_at(checkpoint, SyntaxKind::Grouping);
             self.grouping()
         }
     }
 
     fn grouping(&mut self) {
-        self.start_node(SyntaxKind::Grouping);
-        self.advance();
         self.expression();
         self.consume(SyntaxKind::RightParen, "Expected ')' after expression.");
         self.end_node();
     }
 
     fn closure(&mut self) {
-        self.start_node(SyntaxKind::ClosureLiteral);
-        self.advance();
-
         self.start_node(SyntaxKind::FunctionSignature);
         self.func_parameters();
         if self.matches(SyntaxKind::Colon) {

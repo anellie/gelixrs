@@ -141,7 +141,7 @@ impl ErrorSpan {
         match self {
             Self::Token(index) => {
                 let mut lex = Lexer::new(src);
-                for _ in 0..(*index - 1) {
+                for _ in 0..*index {
                     lex.next();
                 }
                 lex.span()

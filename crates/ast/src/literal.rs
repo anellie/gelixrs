@@ -4,50 +4,32 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use crate::CSTNode;
+use crate::Literal;
 use syntax::kind::SyntaxKind;
-
-/// An enum containing all literals possible in Gelix.
-/// TODO: Rework production of this, use generator similar to Type
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Literal {
-    pub data: LiteralData,
-    pub cst: CSTNode
-}
+use smol_str::SmolStr;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum LiteralData {
-    Any,
-    None,
+pub enum LiteralType {
     True,
     False,
     Int,
     Float,
     String,
-    Closure,
 }
 
 impl Literal {
     #[allow(unused)]
-    pub fn cast(node: CSTNode) -> Option<Self> {
-        if node.kind() == SyntaxKind::Literal {
-            let child = node.children_with_tokens().next().unwrap();
-            let data = match child.as_token().unwrap().kind() {
-                SyntaxKind::False => LiteralData::False,
-                SyntaxKind::True => LiteralData::True,
-                SyntaxKind::Int => LiteralData::Int,
-                SyntaxKind::Float => LiteralData::Float,
-                SyntaxKind::String => LiteralData::String,
-                SyntaxKind::ClosureLiteral => LiteralData::Closure,
-                _ => panic!("AST encountered unknown CST literal")
-            };
-
-            Some(Self {
-                data,
-                cst: node
-            })
-        } else {
-            None
-        }
+    pub fn get(&self) -> (SmolStr, LiteralType) {
+        let child = self.cst.children_with_tokens().next().unwrap();
+        let token = child.as_token().unwrap();
+        let kind = match token.kind() {
+            SyntaxKind::False => LiteralType::False,
+            SyntaxKind::True => LiteralType::True,
+            SyntaxKind::Int => LiteralType::Int,
+            SyntaxKind::Float => LiteralType::Float,
+            SyntaxKind::String => LiteralType::String,
+            _ => panic!("AST encountered unknown CST literal")
+        };
+        (token.text().clone(), kind)
     }
 }

@@ -1,5 +1,4 @@
 pub use generated_nodes::*;
-pub use literal::Literal;
 pub use module::Module;
 
 use parser::SyntaxNode;

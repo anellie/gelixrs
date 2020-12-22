@@ -24,6 +24,9 @@
     // Types (Implementation of getting type data in types.rs, not generated)
     Node(context: Ctx(name: "Type")),
 
+    // Types (Implementation of getting literal data in literal.rs, not generated)
+    Node(context: Ctx(name: "Literal")),
+
     // ADTs
     Node(
         context: Ctx(
@@ -84,7 +87,7 @@
     Node(
         context: Ctx(
             name: "Function",
-            kind: "FunctionDecl | SyntaxKind::Method",
+            kind: "FunctionDecl | SyntaxKind::Method | SyntaxKind::ClosureLiteral",
             items: [
                 Item(
                     name: "sig",
@@ -199,14 +202,24 @@
                     type: "Binary",
                 ),
                 Item(
-                    name: "Prefix",
-                    kind: "PrefixExpr",
-                    type: "Prefix",
+                    name: "Block",
+                    kind: "Block",
+                    type: "Block",
+                ),
+                Item(
+                    name: "Break",
+                    kind: "Break",
+                    type: "Break",
                 ),
                 Item(
                     name: "Call",
                     kind: "CallExpr",
                     type: "Call"
+                ),
+                Item(
+                    name: "For",
+                    kind: "ForExpr",
+                    type: "ForExpr",
                 ),
                 Item(
                     name: "Get",
@@ -219,9 +232,9 @@
                     type: "GetStatic"
                 ),
                 Item(
-                    name: "Block",
-                    kind: "Block",
-                    type: "Block",
+                    name: "Grouping",
+                    kind: "Grouping",
+                    type: "Grouping"
                 ),
                 Item(
                     name: "If",
@@ -229,24 +242,24 @@
                     type: "IfExpr",
                 ),
                 Item(
-                    name: "For",
-                    kind: "ForExpr",
-                    type: "ForExpr",
+                    name: "Literal",
+                    kind: "Literal",
+                    type: "Literal"
+                ),
+                Item(
+                    name: "LiteralClosure",
+                    kind: "ClosureLiteral",
+                    type: "Function"
+                )
+                Item(
+                    name: "Prefix",
+                    kind: "PrefixExpr",
+                    type: "Prefix",
                 ),
                 Item(
                     name: "Return",
                     kind: "Return",
                     type: "Return",
-                ),
-                Item(
-                    name: "Break",
-                    kind: "Break",
-                    type: "Break",
-                ),
-                Item(
-                    name: "When",
-                    kind: "When",
-                    type: "When",
                 ),
                 Item(
                     name: "Variable",
@@ -258,15 +271,10 @@
                     type: "Variable",
                 ),
                 Item(
-                    name: "Grouping",
-                    kind: "Grouping",
-                    type: "Grouping"
+                    name: "When",
+                    kind: "When",
+                    type: "When",
                 ),
-                Item(
-                    name: "Literal",
-                    kind: "Literal",
-                    type: "Literal"
-                )
             ]
         )
     ),

@@ -1,7 +1,7 @@
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct {{ name }} {
-    cst: CSTNode,
+    pub cst: CSTNode,
 }
 impl {{ name }} {
     #[allow(unused)]
