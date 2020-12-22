@@ -1,5 +1,5 @@
 [package]
-name = "gir"
+name = "gir_nodes"
 version = "0.1.0"
 authors = ["Felix Ang. <felix.ang@protonmail.com>"]
 edition = "2018"
