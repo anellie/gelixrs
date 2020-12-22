@@ -9,9 +9,13 @@ use std::{
     rc::Rc,
 };
 
+use ansi_term::{
+    ANSIString, ANSIStrings,
+    Color::{Blue, Red},
+    Style,
+};
 use lexer::{Lexer, Span};
 use std::fmt::Debug;
-use ansi_term::{Style, ANSIString, ANSIStrings, Color::{Red, Blue}};
 
 pub type Res<T> = Result<T, Error>;
 
@@ -85,10 +89,7 @@ impl Error {
                 .skip(start - 1)
                 .take(len)
                 .collect::<String>();
-            let line_end = line_str
-                .chars()
-                .skip(start + len - 1)
-                .collect::<String>();
+            let line_end = line_str.chars().skip(start + len - 1).collect::<String>();
 
             let formatted: &[ANSIString<'a>] = &[
                 regular.paint(result),
@@ -117,16 +118,22 @@ impl Error {
 }
 
 fn span_to_info(src: &str, span: Span) -> (usize, usize, usize) {
-    let (line, line_offset) = src[0..span.start].lines().rev().skip(1).fold((0, 0), |(lc, offs), line| {
-        (lc + 1, offs + line.len() + 1)
-    });
-    (line + 1, span.start - line_offset + 1, span.end - span.start)
+    let (line, line_offset) = src[0..span.start]
+        .lines()
+        .rev()
+        .skip(1)
+        .fold((0, 0), |(lc, offs), line| (lc + 1, offs + line.len() + 1));
+    (
+        line + 1,
+        span.start - line_offset + 1,
+        span.end - span.start,
+    )
 }
 
 #[derive(Debug)]
 pub enum ErrorSpan {
     Token(usize),
-    None
+    None,
 }
 
 impl ErrorSpan {
@@ -140,7 +147,7 @@ impl ErrorSpan {
                 lex.span()
             }
 
-            Self::None => panic!("Not supposed to have a source")
+            Self::None => panic!("Not supposed to have a source"),
         }
     }
 }

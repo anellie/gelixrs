@@ -133,7 +133,9 @@ impl<'p> Parser<'p> {
                 return;
             }
 
-            self.advance(); // Consume operator token
+            self.node_with(SyntaxKind::Operator, |this| {
+                this.advance();
+            });
 
             self.start_node_at(checkpoint, SyntaxKind::BinaryExpr);
             self.binary(rbp);
@@ -144,7 +146,9 @@ impl<'p> Parser<'p> {
     fn unary(&mut self) {
         if let Some(rbp) = self.peek().prefix_binding_power() {
             self.start_node(SyntaxKind::PrefixExpr);
-            self.advance(); // Consume operator token
+            self.node_with(SyntaxKind::Operator, |this| {
+                this.advance();
+            });
             self.binary(rbp);
             self.end_node();
         } else {

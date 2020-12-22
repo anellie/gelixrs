@@ -1,0 +1,587 @@
+[
+    // Prelude
+    Node(template: "prelude.rs"),
+
+    // Identifier
+    Node(
+        context: Ctx(
+            name: "GenericIdent",
+            kind: "Ident",
+            items: [
+                Item(
+                    name: "name",
+                    strategy: "ident"
+                ),
+                Item(
+                    name: "type_args",
+                    type: "Type",
+                    strategy: "list"
+                ),
+            ]
+        )
+    ),
+
+    // Types (Implementation of getting type data in types.rs, not generated)
+    Node(context: Ctx(name: "Type")),
+
+    // ADTs
+    Node(
+        context: Ctx(
+            name: "Adt",
+            kind: "AdtDecl | SyntaxKind::EnumCase",
+            items: [
+                Item(
+                    name: "kind",
+                    strategy: "token"
+                ),
+                Item(
+                    name: "ident",
+                    type: "GenericIdent"
+                ),
+                Item(
+                    name: "members",
+                    type: "Variable",
+                    strategy: "list"
+                ),
+                Item(
+                    name: "constructors",
+                    type: "Constructor",
+                    strategy: "list"
+                ),
+                Item(
+                    name: "methods",
+                    type: "Function",
+                    strategy: "list"
+                ),
+                Item(
+                    name: "cases",
+                    type: "Adt",
+                    strategy: "list"
+                )
+            ]
+        )
+    ),
+    // Constructors
+    Node(
+        context: Ctx(
+            name: "Constructor",
+            items: [
+                Item(
+                    name: "sig",
+                    type: "FunctionSignature"
+                ),
+                Item(
+                    name: "body",
+                    kind: "FunctionBody",
+                    type: "Expression",
+                    strategy: "nested_opt_single"
+                )
+            ]
+        )
+    ),
+
+    // Functions
+    Node(
+        context: Ctx(
+            name: "Function",
+            kind: "FunctionDecl | SyntaxKind::Method",
+            items: [
+                Item(
+                    name: "sig",
+                    type: "FunctionSignature"
+                ),
+                Item(
+                    name: "modifiers",
+                    type: "Modifier",
+                    strategy: "nested_token_list"
+                ),
+                Item(
+                    name: "body",
+                    kind: "FunctionBody",
+                    type: "Expression",
+                    strategy: "nested_opt_single"
+                )
+            ]
+        )
+    ),
+    // Function signature
+    Node(
+        context: Ctx(
+            name: "FunctionSignature",
+            items: [
+                Item(
+                    name: "ident",
+                    type: "GenericIdent"
+                ),
+                Item(
+                    name: "ret_type",
+                    type: "Type",
+                ),
+                Item(
+                    name: "parameters",
+                    type: "Parameter",
+                    strategy: "list"
+                )
+            ]
+        )
+    ),
+    // Parameter
+    Node(
+        context: Ctx(
+            name: "Parameter",
+            items: [
+                Item(
+                    name: "name",
+                    strategy: "ident"
+                ),
+                Item(
+                    name: "_type",
+                    type: "Type"
+                ),
+                Item(
+                    name: "maybe_type",
+                    type: "Type",
+                    strategy: "opt_single"
+                )
+            ]
+        )
+    ),
+
+    // Imports
+    Node(
+        context: Ctx(
+            name: "Import",
+            items: [
+                Item(
+                    name: "parts",
+                    type: "Identifier",
+                    strategy: "ident_list"
+                )
+            ]
+        )
+    ),
+
+    // Interface implementations
+    Node(
+        context: Ctx(
+            name: "IfaceImpl",
+            kind: "ImplDecl",
+            items: [
+                Item(
+                    name: "implementor",
+                    kind: "Implementor",
+                    type: "Type",
+                    strategy: "nested_single"
+                ),
+                Item(
+                    name: "iface",
+                    kind: "Implementing",
+                    type: "Type",
+                    strategy: "nested_single"
+                ),
+                Item(
+                    name: "methods",
+                    type: "Function",
+                    strategy: "list"
+                ),
+            ]
+        )
+    ),
+
+    // ######### Expressions #########
+    Node(
+        template: "expression.rs",
+        context: Ctx(
+            items: [
+                Item(
+                    name: "Binary",
+                    kind: "BinaryExpr",
+                    type: "Binary",
+                ),
+                Item(
+                    name: "Prefix",
+                    kind: "PrefixExpr",
+                    type: "Prefix",
+                ),
+                Item(
+                    name: "Call",
+                    kind: "CallExpr",
+                    type: "Call"
+                ),
+                Item(
+                    name: "Get",
+                    kind: "GetExpr",
+                    type: "Get"
+                ),
+                Item(
+                    name: "GetStatic",
+                    kind: "GetStaticExpr",
+                    type: "GetStatic"
+                ),
+                Item(
+                    name: "Block",
+                    kind: "Block",
+                    type: "Block",
+                ),
+                Item(
+                    name: "If",
+                    kind: "IfExpr",
+                    type: "IfExpr",
+                ),
+                Item(
+                    name: "For",
+                    kind: "ForExpr",
+                    type: "ForExpr",
+                ),
+                Item(
+                    name: "Return",
+                    kind: "Return",
+                    type: "Return",
+                ),
+                Item(
+                    name: "Break",
+                    kind: "Break",
+                    type: "Break",
+                ),
+                Item(
+                    name: "When",
+                    kind: "When",
+                    type: "When",
+                ),
+                Item(
+                    name: "Variable",
+                    kind: "Ident",
+                    type: "GenericIdent",
+                ),
+                Item(
+                    name: "VarDef",
+                    type: "Variable",
+                ),
+                Item(
+                    name: "Grouping",
+                    kind: "Grouping",
+                    type: "Grouping"
+                ),
+                Item(
+                    name: "Literal",
+                    kind: "Literal",
+                    type: "Literal"
+                )
+            ]
+        )
+    ),
+
+    // Variables
+    Node(
+        context: Ctx(
+            name: "Variable",
+            items: [
+                Item(
+                    name: "kind",
+                    strategy: "token"
+                ),
+                Item(
+                    name: "name",
+                    strategy: "ident"
+                ),
+                Item(
+                    name: "_type",
+                    type: "Type",
+                    strategy: "opt_single"
+                ),
+                Item(
+                    name: "initializer",
+                    kind: "Initializer",
+                    type: "Expression",
+                    strategy: "nested_single"
+                ),
+                Item(
+                    name: "maybe_initializer",
+                    kind: "Initializer",
+                    type: "Expression",
+                    strategy: "nested_opt_single"
+                )
+            ]
+        )
+    ),
+
+    // Grouping
+    Node(
+        context: Ctx(
+            name: "Grouping",
+            items: [
+                Item(
+                    name: "inner",
+                    type: "Expression"
+                ),
+            ]
+        )
+    ),
+
+    // Binary
+    Node(
+        context: Ctx(
+            name: "Binary",
+            kind: "BinaryExpr",
+            items: [
+                Item(
+                    name: "operator",
+                    kind: "Operator",
+                    strategy: "nested_token"
+                ),
+                Item(
+                    name: "left",
+                    type: "Expression",
+                    strategy: "children().next().map(Expression::cast).unwrap().unwrap()"
+                ),
+                Item(
+                    name: "right",
+                    type: "Expression",
+                    strategy: "children().skip(2).next().map(Expression::cast).unwrap().unwrap()"
+                ),
+            ],
+        )
+    ),
+    // Prefix
+    Node(
+        context: Ctx(
+            name: "Prefix",
+            kind: "PrefixExpr",
+            items: [
+                Item(
+                    name: "operator",
+                    kind: "Operator",
+                    strategy: "nested_token"
+                ),
+                Item(
+                    name: "right",
+                    type: "Expression",
+                    strategy: "children().next().map(Expression::cast).unwrap().unwrap()"
+                ),
+            ]
+        )
+    ),
+
+    // Call
+    Node(
+        context: Ctx(
+            name: "Call",
+            kind: "CallExpr",
+            items: [
+                Item(
+                    name: "callee",
+                    kind: "Callee",
+                    type: "Expression",
+                    strategy: "nested_single"
+                ),
+                Item(
+                    name: "args",
+                    kind: "CallArgument",
+                    type: "Expression",
+                    strategy: "nested_list"
+                )
+            ]
+        )
+    ),
+
+    // Get
+    Node(
+        context: Ctx(
+            name: "Get",
+            kind: "GetExpr",
+            items: [
+                Item(
+                    name: "callee",
+                    kind: "Callee",
+                    type: "Expression",
+                    strategy: "nested_single"
+                ),
+                Item(
+                    name: "property",
+                    type: "GenericIdent"
+                )
+            ]
+        )
+    ),
+
+    // static Get
+    Node(
+        context: Ctx(
+            name: "GetStatic",
+            kind: "GetStaticExpr",
+            items: [
+                Item(
+                    name: "callee",
+                    kind: "Callee",
+                    type: "Expression",
+                    strategy: "nested_single"
+                ),
+                Item(
+                    name: "property",
+                    strategy: "ident"
+                )
+            ]
+        )
+    ),
+
+    // Block
+    Node(
+        context: Ctx(
+            name: "Block",
+            kind: "Block",
+            items: [
+                Item(
+                    name: "expressions",
+                    type: "Expression",
+                    strategy: "list"
+                ),
+            ]
+        )
+    ),
+
+    // If
+    Node(
+        context: Ctx(
+            name: "IfExpr",
+            items: [
+                Item(
+                    name: "condition",
+                    kind: "ExprCondition",
+                    type: "Expression",
+                    strategy: "nested_single"
+                ),
+                Item(
+                    name: "then_branch",
+                    kind: "ExprBody",
+                    type: "Expression",
+                    strategy: "nested_single"
+                ),
+                Item(
+                    name: "else_branch",
+                    kind: "ExprElse",
+                    type: "Expression",
+                    strategy: "nested_opt_single"
+                ),
+            ]
+        )
+    ),
+
+    // For
+    Node(
+        context: Ctx(
+            name: "ForExpr",
+            items: [
+                Item(
+                    name: "condition",
+                    kind: "ExprCondition",
+                    type: "Expression",
+                    strategy: "nested_opt_single"
+                ),
+                Item(
+                    name: "iter_cond",
+                    kind: "ForIterCond",
+                    type: "ForIterCond",
+                    strategy: "nested_opt_single"
+                ),
+                Item(
+                    name: "body",
+                    kind: "ExprBody",
+                    type: "Expression",
+                    strategy: "nested_single"
+                ),
+                Item(
+                    name: "else_branch",
+                    kind: "ExprElse",
+                    type: "Expression",
+                    strategy: "nested_opt_single"
+                )
+            ]
+        )
+    ),
+    // For iter condition
+    Node(
+        context: Ctx(
+            name: "ForIterCond",
+            items: [
+                Item(
+                    name: "name",
+                    strategy: "ident"
+                ),
+                Item(
+                    name: "iterator",
+                    type: "Expression"
+                )
+            ]
+        )
+    ),
+
+    // Return
+    Node(
+        context: Ctx(
+            name: "Return",
+            kind: "ReturnExpr",
+            items: [
+                Item(
+                    name: "value",
+                    type: "Expression",
+                    strategy: "opt_single"
+                ),
+            ]
+        )
+    ),
+    // Break
+    Node(
+        context: Ctx(
+            name: "Break",
+            kind: "BreakExpr",
+            items: [
+                Item(
+                    name: "value",
+                    type: "Expression",
+                    strategy: "opt_single"
+                ),
+            ]
+        )
+    ),
+
+    // When
+    Node(
+        context: Ctx(
+            name: "When",
+            kind: "WhenExpr",
+            items: [
+                Item(
+                    name: "condition",
+                    kind: "ExprCondition",
+                    type: "Expression",
+                    strategy: "nested_single"
+                ),
+                Item(
+                    name: "branches",
+                    type: "WhenBranch",
+                    strategy: "list"
+                )
+            ]
+        )
+    ),
+    // When branch
+    Node(
+        context: Ctx(
+            name: "WhenBranch",
+            items: [
+                Item(
+                    name: "condition",
+                    kind: "ExprCondition",
+                    type: "Expression",
+                    strategy: "nested_opt_single"
+                ),
+                Item(
+                    name: "branch",
+                    kind: "ExprBody",
+                    type: "Expression",
+                    strategy: "nested_single"
+                ),
+            ]
+        )
+    )
+]

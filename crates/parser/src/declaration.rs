@@ -30,8 +30,17 @@ static IMPORT_MODIFIERS: [SyntaxKind; 0] = [];
 
 impl<'p> Parser<'p> {
     pub(crate) fn declaration(&mut self) {
-        self.start_node(SyntaxKind::Declaration);
+        let checkpoint = self.checkpoint();
         self.consume_modifiers();
+
+        let ty = match self.peek() {
+            SyntaxKind::Func => SyntaxKind::FunctionDecl,
+            SyntaxKind::Import | SyntaxKind::Export => SyntaxKind::ImportDecl,
+            SyntaxKind::Impl => SyntaxKind::ImplDecl,
+            _ => SyntaxKind::AdtDecl,
+        };
+        self.start_node_at(checkpoint, ty);
+
         match self.advance_checked() {
             SyntaxKind::Func => self.function(&FUNC_MODIFIERS),
             SyntaxKind::Class => self.generic_adt(CLASS_CONF),
@@ -272,8 +281,11 @@ impl<'p> Parser<'p> {
     fn consume_modifiers(&mut self) {
         self.modifiers.clear();
         while MODIFIERS.contains(&self.peek()) {
-            let token = self.advance();
-            self.modifiers.push(token.kind)
+            let modifier = self.peek();
+            self.modifiers.push(modifier);
+            self.node_with(SyntaxKind::Modifier, |this| {
+                this.advance();
+            });
         }
     }
 

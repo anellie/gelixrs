@@ -1,12 +1,12 @@
 [package]
-name = "gelixrs_cli"
+name = "ast_generator"
 version = "0.1.0"
 authors = ["Felix Ang. <felix.ang@protonmail.com>"]
 edition = "2018"
-default-run = "gelixrs_cli"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ast = { path = "../ast" }
-gelixrs = { path = "../gelixrs" }
+serde = "1.0.118"
+ron = "0.6.4"
+tera = "1.6.0"

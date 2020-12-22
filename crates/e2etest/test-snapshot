@@ -50,7 +50,6 @@ enums/if_cast.gel
 enums/data.gel
 enums/when_cast.gel
 enums/methods.gel
-enums/no_incorrect_data.gel
 enums/identity.gel
 enums/when_omit_else.gel
 enums/fields.gel

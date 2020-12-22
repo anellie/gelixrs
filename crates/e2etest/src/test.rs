@@ -19,7 +19,14 @@ type MainFn = unsafe extern "C" fn();
 lazy_static! {
     static ref RESULT: Mutex<String> = Mutex::new(String::from(""));
     static ref STD_LIB: Mutex<PathBuf> = {
-        let mut std_mod = PathBuf::from(env::current_dir().unwrap().parent().unwrap().parent().unwrap());
+        let mut std_mod = PathBuf::from(
+            env::current_dir()
+                .unwrap()
+                .parent()
+                .unwrap()
+                .parent()
+                .unwrap(),
+        );
         std_mod.push("std");
         Mutex::new(std_mod)
     };

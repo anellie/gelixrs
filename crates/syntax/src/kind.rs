@@ -9,13 +9,20 @@ pub enum SyntaxKind {
     // The root node of a parse tree.
     Root,
 
-    // A top-level declaration.
-    Declaration,
+    // An import or export declaration
+    ImportDecl,
+    // A top-level function declaration
+    FunctionDecl,
+    // A top-level ADT declaration
+    AdtDecl,
+    // A top-level interface implementation declaration
+    ImplDecl,
+
     // An identifier of a declaration, containing generic parameters.
     Ident,
+    // A modifier on a declaration.
+    Modifier,
 
-    // A function.
-    Function,
     // A function signature.
     FunctionSignature,
     // A parameter inside a function signature.
@@ -35,6 +42,9 @@ pub enum SyntaxKind {
     Implementing,
     // A case inside of an enum declaration
     EnumCase,
+
+    // An expression.
+    Expression,
 
     // A variable declaration like 'var x: String = "hello"'
     Variable,
@@ -68,6 +78,8 @@ pub enum SyntaxKind {
     BinaryExpr,
     // A prefix expression, currently only '!false'
     PrefixExpr,
+    // Operator of a binary or prefix expression.
+    Operator,
     // A call expression.
     CallExpr,
     // A get expression ('x.y', 'Callee.Ident')
@@ -87,6 +99,8 @@ pub enum SyntaxKind {
 
     // A type literal like "String", "&String", "(u32, u32): u64"
     Type,
+
+    __TokenStart,
 
     LeftParen,
     RightParen,
@@ -153,6 +167,8 @@ pub enum SyntaxKind {
     Extern,
     Variadic,
 
+    __TokenEnd,
+
     Error,
     Comment,
     Whitespace,
@@ -183,6 +199,10 @@ impl SyntaxKind {
             Self::Minus | Self::Bang | Self::New => 30,
             _ => return None,
         })
+    }
+
+    pub fn is_token(&self) -> bool {
+        (*self as u16) < (SyntaxKind::__TokenStart as u16) && (*self as u16) > (SyntaxKind::__TokenEnd as u16)
     }
 }
 

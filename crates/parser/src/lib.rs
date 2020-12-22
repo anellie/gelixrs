@@ -5,7 +5,8 @@ mod util;
 use crate::util::{event::Event, sink::Sink, source::Source};
 use error::{Error, ErrorSpan};
 use lexer::Lexer;
-use rowan::{GreenNode, SyntaxNode};
+use rowan::GreenNode;
+pub use rowan::{SyntaxNode, SyntaxToken};
 use syntax::{kind::SyntaxKind, language::GelixLang};
 
 pub fn parse(input: &str) -> Result<ParseResult, Vec<Error>> {
@@ -91,11 +92,17 @@ impl<'p> Parser<'p> {
             return;
         }
 
-        let current = self.peek_full().unwrap_or(Lexeme { kind: SyntaxKind::EndOfFile, lexeme: "<EOF>" });
+        let current = self.peek_full().unwrap_or(Lexeme {
+            kind: SyntaxKind::EndOfFile,
+            lexeme: "<EOF>",
+        });
         let err = Error {
             index: ErrorSpan::Token(self.source.position()),
             code: "E001", // TODO: Error codes.
-            message: format!("{} (Was: '{}' of type {:?})", msg, current.lexeme, current.kind),
+            message: format!(
+                "{} (Was: '{}' of type {:?})",
+                msg, current.lexeme, current.kind
+            ),
         };
         self.errors.push(err);
         self.poisoned = true;
@@ -169,8 +176,13 @@ impl<'p> Parser<'p> {
     }
 
     fn peek_next(&mut self) -> SyntaxKind {
+        self.source.save();
         self.skip_whitespace();
-        self.peek_raw().unwrap_or(SyntaxKind::EndOfFile)
+        self.source.next();
+        self.skip_whitespace();
+        let ret = self.peek_raw().unwrap_or(SyntaxKind::EndOfFile);
+        self.source.restore();
+        ret
     }
 
     fn peek_raw(&self) -> Option<SyntaxKind> {
@@ -226,6 +238,10 @@ pub struct ParseResult {
 }
 
 impl ParseResult {
+    pub fn root(self) -> SyntaxNode<GelixLang> {
+        SyntaxNode::new_root(self.green_node)
+    }
+
     pub fn debug_print(&self) {
         let syntax_node = SyntaxNode::<GelixLang>::new_root(self.green_node.clone());
         print!("{:#?}", syntax_node);

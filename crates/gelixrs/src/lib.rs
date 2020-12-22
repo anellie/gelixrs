@@ -1,4 +1,4 @@
-use ast::module::Module;
+use ast::Module;
 use common::ModPath;
 pub use error::Errors;
 pub use parser::ParseResult;
