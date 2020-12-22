@@ -13,4 +13,5 @@ smol_str = "0.1.17"
 ast = { path = "../ast" }
 common = { path = "../common" }
 error = { path = "../error" }
+ir = { path = "../ir" }
 parser = { path = "../parser" }

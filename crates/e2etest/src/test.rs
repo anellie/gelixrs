@@ -4,17 +4,12 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::{
-    collections::HashSet, env, ffi::CStr, fs, fs::read_to_string, io, os::raw::c_char, panic,
-    path::PathBuf, sync::Mutex,
-};
+use std::{collections::HashSet, env, ffi::CStr, fs, fs::read_to_string, io, os::raw::c_char, panic, path::PathBuf, sync::Mutex, mem};
 
 use ansi_term::{Color, Style};
 use gelixrs::Errors;
 use lazy_static::lazy_static;
-use std::{collections::HashMap, io::Write};
-
-type MainFn = unsafe extern "C" fn();
+use std::io::Write;
 
 lazy_static! {
     static ref RESULT: Mutex<String> = Mutex::new(String::from(""));
@@ -121,11 +116,9 @@ fn main() -> Result<(), ()> {
     Ok(())
 }
 
-const SNAPSHOT_OUTPUT: bool = true;
-
 fn print_failed(path: PathBuf, failed: &[(String, String)]) {
     println!();
-    if SNAPSHOT_OUTPUT {
+    if env::args().any(|arg| arg == "--snapshot") {
         let snapshot = read_to_string(&path).unwrap_or("".to_string());
         let mut prev_failed = snapshot.lines().collect::<HashSet<&str>>();
         for (fail, msg) in failed {
@@ -184,40 +177,26 @@ fn exec_jit(path: PathBuf) -> Result<String, Failure> {
     let mut _code = gelixrs::parse_source(vec![path, STD_LIB.lock().unwrap().clone()])
         .map_err(|_| Failure::Parse)?;
 
-    Err(Failure::Compile(vec![]))
+    return Err(Failure::Compile(vec![]));
     /*
-    gelixrs::auto_import_prelude(&mut code);
     let gir = gelixrs::compile_gir(code).map_err(Failure::Compile)?;
     let module = gelixrs::compile_ir(gir);
-
-    let engine = module
-        .create_jit_execution_engine(OptimizationLevel::None)
-        .map_err(|_| Failure::IR("Failed to create JIT".to_string()))?;
-    if let Some(fun) = &module.get_function("puts") {
-        engine.add_global_mapping(fun, test_puts as usize);
-    }
-    engine.add_global_mapping(
-        &module.get_function("malloc").unwrap(),
-        test_malloc as usize,
-    );
-    engine.add_global_mapping(&module.get_function("free").unwrap(), test_free as usize);
-
-    unsafe {
-        let main_fn: JitFunction<MainFn> = engine
-            .get_function("main")
-            .map_err(|_| Failure::IR("No main fn".to_string()))?;
-        main_fn.call();
-    }
-
-    let mut result = RESULT.lock().unwrap();
-    let result_copy = result.clone();
-    result.clear();
-
-    let leaked = MALLOC_LIST.lock().unwrap().len();
-    if leaked > 0 {
-        return Err(Failure::Leak(leaked));
-    }
     */
+
+    let mut jit = gelixrs::JIT::new(todo!());
+    jit.link_fn("puts", test_puts as usize);
+    jit.link_fn("malloc", test_malloc as usize);
+    jit.link_fn("free", test_free as usize);
+    unsafe { jit.call("main") }
+
+    let result = mem::replace(&mut *RESULT.lock().unwrap(), String::with_capacity(100));
+    let leaked = MALLOC_LIST.lock().unwrap().len();
+
+    if leaked == 0 {
+        Ok(result)
+    } else {
+        Err(Failure::Leak(leaked))
+    }
 }
 
 fn clear_state() {

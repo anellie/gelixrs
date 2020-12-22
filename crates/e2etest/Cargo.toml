@@ -12,7 +12,6 @@ lazy_static = "1.3.0"
 
 gelixrs = { path = "../gelixrs" }
 
-
 [[test]]
 name = "e2e"
 path = "src/test.rs"

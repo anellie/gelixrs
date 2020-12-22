@@ -15,8 +15,11 @@ pub enum TypeE {
 
     Closure {
         params: Vec<Type>,
-        ret_type: Option<Type>
+        ret_type: Option<Type>,
     },
 
-    Generic { ident: SmolStr, types: Vec<Type> }
+    Generic {
+        ident: SmolStr,
+        types: Vec<Type>,
+    },
 }

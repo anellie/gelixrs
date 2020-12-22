@@ -7,3 +7,14 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+
+
+# Inkwell recently added reqwest as a build dependency.
+# This caused the amount of crates to build to triple
+# resulting in much longer build times,
+# and broke compability with libreSSL3 when compiling,
+# so gelixrs is using a commit before this change occured.
+[dependencies.inkwell]
+git = "https://github.com/TheDan64/inkwell"
+rev = "136dd5e06db47f77cb329cd5f6625273dfd3afd7"
+features = ["llvm8-0"]

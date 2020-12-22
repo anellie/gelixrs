@@ -5,8 +5,8 @@
  */
 
 use crate::Literal;
-use syntax::kind::SyntaxKind;
 use smol_str::SmolStr;
+use syntax::kind::SyntaxKind;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum LiteralType {
@@ -28,7 +28,7 @@ impl Literal {
             SyntaxKind::Int => LiteralType::Int,
             SyntaxKind::Float => LiteralType::Float,
             SyntaxKind::String => LiteralType::String,
-            _ => panic!("AST encountered unknown CST literal")
+            _ => panic!("AST encountered unknown CST literal"),
         };
         (token.text().clone(), kind)
     }
