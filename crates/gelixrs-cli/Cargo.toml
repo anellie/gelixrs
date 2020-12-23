@@ -10,5 +10,4 @@ default-run = "gelixrs_cli"
 [dependencies]
 structopt = "0.2.18"
 
-ast = { path = "../ast" }
 gelixrs = { path = "../gelixrs" }

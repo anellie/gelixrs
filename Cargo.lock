@@ -337,7 +337,6 @@ dependencies = [
 name = "gelixrs_cli"
 version = "0.1.0"
 dependencies = [
- "ast",
  "gelixrs",
  "structopt",
 ]
