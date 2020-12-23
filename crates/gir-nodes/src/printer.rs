@@ -1,4 +1,10 @@
-use crate::{declaration::{ADTType, Declaration, Function, Variable, ADT}, expression::{CastType, Expr, Intrinsic}, module::Module, types::print_type_args, Literal};
+use crate::{
+    declaration::{ADTType, Declaration, Function, Variable, ADT},
+    expression::{CastType, Expr, Intrinsic},
+    module::Module,
+    types::print_type_args,
+    Literal,
+};
 use std::{
     fmt,
     fmt::{Debug, Display, Formatter},
@@ -48,11 +54,7 @@ impl Function {
 
         writeln!(f, ") -> {} {{", self.ret_type)?;
         for typ in self.type_parameters.iter() {
-            writeln!(
-                f,
-                "    {}tyvar {}: {:?}",
-                indent, typ.name, typ.bound
-            )?;
+            writeln!(f, "    {}tyvar {}: {:?}", indent, typ.name, typ.bound)?;
         }
         for (name, var) in &self.variables {
             writeln!(
@@ -96,11 +98,7 @@ impl ADT {
         writeln!(f, " {} {{\n", self.name)?;
 
         for typ in self.type_parameters.iter() {
-            writeln!(
-                f,
-                "    {}tyvar {}: {:?}",
-                indent, typ.name, typ.bound
-            )?;
+            writeln!(f, "    {}tyvar {}: {:?}", indent, typ.name, typ.bound)?;
         }
         for field in self.fields.values() {
             writeln!(

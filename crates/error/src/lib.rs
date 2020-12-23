@@ -4,7 +4,11 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::{fmt::{Display, Error as FmtErr, Formatter}, ops::Range, rc::Rc};
+use std::{
+    fmt::{Display, Error as FmtErr, Formatter},
+    ops::Range,
+    rc::Rc,
+};
 
 use ansi_term::{
     ANSIString, ANSIStrings,
@@ -145,7 +149,7 @@ impl ErrorSpan {
                 lex.span()
             }
 
-            Self::Span(span) => (span.start as usize)..(span.end as usize), 
+            Self::Span(span) => (span.start as usize)..(span.end as usize),
 
             Self::None => panic!("Not supposed to have a source"),
         }

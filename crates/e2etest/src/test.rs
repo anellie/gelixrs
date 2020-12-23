@@ -36,7 +36,7 @@ lazy_static! {
 enum Failure {
     Parse,
     Compile(Vec<Errors>),
-    IR(String),
+    IR,
     Panic,
     Leak(usize),
 }
@@ -176,20 +176,16 @@ fn run_test(path: PathBuf, total: &mut usize, failed: &mut Vec<(String, String)>
 fn exec_jit(path: PathBuf) -> Result<String, Failure> {
     clear_state();
 
-    let mut _code = gelixrs::parse_source(vec![path, STD_LIB.lock().unwrap().clone()])
+    let code = gelixrs::parse_source(vec![path, STD_LIB.lock().unwrap().clone()])
         .map_err(|_| Failure::Parse)?;
-
-    return Err(Failure::Compile(vec![]));
-    /*
     let gir = gelixrs::compile_gir(code).map_err(Failure::Compile)?;
     let module = gelixrs::compile_ir(gir);
-    */
 
-    let mut jit = gelixrs::JIT::new(todo!());
+    let mut jit = gelixrs::JIT::new(module);
     jit.link_fn("puts", test_puts as usize);
     jit.link_fn("malloc", test_malloc as usize);
     jit.link_fn("free", test_free as usize);
-    unsafe { jit.call("main") }
+    unsafe { jit.call("main").ok_or(Failure::IR)? }
 
     let result = mem::replace(&mut *RESULT.lock().unwrap(), String::with_capacity(100));
     let leaked = MALLOC_LIST.lock().unwrap().len();

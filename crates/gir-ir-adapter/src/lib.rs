@@ -3,7 +3,12 @@ use inkwell::{
     types::StructType,
     values::{FunctionValue, PointerValue},
 };
-use std::{fmt, fmt::{Debug, Formatter}, hash::Hash, rc::Rc};
+use std::{
+    fmt,
+    fmt::{Debug, Formatter},
+    hash::Hash,
+    rc::Rc,
+};
 
 pub enum IRAdapter<T: Copy, A: Hash + Eq> {
     NoTypeArgs(Option<T>),

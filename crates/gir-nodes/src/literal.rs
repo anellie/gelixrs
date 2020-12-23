@@ -12,7 +12,7 @@ impl Literal {
         match self {
             Literal::Any => Type::Any,
             Literal::None => Type::None,
-            Literal::Bool(_) => Type::Bool
+            Literal::Bool(_) => Type::Bool,
         }
     }
 }

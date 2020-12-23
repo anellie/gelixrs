@@ -6,14 +6,16 @@ use std::{
     rc::Rc,
 };
 
-use enum_methods::{EnumAsGetters, EnumIsA, EnumIntoGetters};
+use crate::{
+    declaration::{ADTType, LocalVariable},
+    expression::CastType,
+    get_iface_impls, Function, Module, ADT,
+};
+use common::MutRc;
+use enum_methods::{EnumAsGetters, EnumIntoGetters, EnumIsA};
+use gir_ir_adapter::IRClosure;
 use smol_str::SmolStr;
 use std::cell::Cell;
-use crate::{Function, ADT, Module, get_iface_impls};
-use crate::declaration::{LocalVariable, ADTType};
-use common::MutRc;
-use crate::expression::CastType;
-use gir_ir_adapter::IRClosure;
 
 pub type TypeArguments = Vec<Type>;
 pub type TypeParameters = Vec<TypeParameter>;

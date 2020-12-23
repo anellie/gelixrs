@@ -1,10 +1,12 @@
-use std::rc::Rc;
-use crate::{Expr, Literal, Type, Function};
+use crate::{
+    declaration::{Field, LocalVariable, Variable},
+    expression::CastType,
+    Expr, Function, Literal, Type,
+};
 use common::MutRc;
-use crate::declaration::{Field, LocalVariable, Variable};
-use syntax::kind::SyntaxKind;
-use crate::expression::CastType;
 use error::Res;
+use std::rc::Rc;
+use syntax::kind::SyntaxKind;
 
 pub trait Visitor {
     fn visit_block(&mut self, _block: &mut Vec<Expr>) -> Res<()> {
@@ -41,7 +43,12 @@ pub trait Visitor {
         Ok(())
     }
 
-    fn visit_binary(&mut self, _left: &mut Expr, _op: &mut SyntaxKind, _right: &mut Expr) -> Res<()> {
+    fn visit_binary(
+        &mut self,
+        _left: &mut Expr,
+        _op: &mut SyntaxKind,
+        _right: &mut Expr,
+    ) -> Res<()> {
         Ok(())
     }
 

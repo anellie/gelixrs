@@ -13,15 +13,14 @@ pub struct JIT {
 
 impl JIT {
     /// Calls a function inside the module this JIT is inside.
+    /// Returns None if function does not exist.
     /// # Safety
     /// Since the called function can perform unsafe behavior, calling
     /// it is unsafe.
-    pub unsafe fn call(&mut self, name: &str) {
-        let func: SimpleFn = self
-            .engine
-            .get_function(name)
-            .expect("Unknown JIT function");
+    pub unsafe fn call(&mut self, name: &str) -> Option<()> {
+        let func: SimpleFn = self.engine.get_function(name).ok()?;
         func.call();
+        Some(())
     }
 
     pub fn link_fn(&mut self, name: &str, address: usize) {

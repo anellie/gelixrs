@@ -1,12 +1,12 @@
+use crate::{gir_err, Declaration, Function};
+use ast::CSTNode;
+use common::{mutrc_new, ModulePath, MutRc};
+use error::Res;
+use smol_str::SmolStr;
 use std::{
     collections::{HashMap, HashSet},
     rc::Rc,
 };
-use ast::CSTNode;
-use error::Res;
-use smol_str::SmolStr;
-use crate::{Declaration, Function, gir_err};
-use common::{ModulePath, MutRc, mutrc_new};
 
 /// A module as represented in GIR.
 /// Simplified to a list of declarations.
@@ -62,7 +62,7 @@ impl Module {
         if !self.used_names.insert(name.clone()) {
             Err(gir_err(
                 node,
-                format!("Name {} already defined in this module", name)
+                format!("Name {} already defined in this module", name),
             ))
         } else {
             Ok(())

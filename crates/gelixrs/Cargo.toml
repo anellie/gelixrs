@@ -13,5 +13,6 @@ smol_str = "0.1.17"
 ast = { path = "../ast" }
 common = { path = "../common" }
 error = { path = "../error" }
+gir_generator = { path = "../gir-generator" }
 ir = { path = "../ir" }
 parser = { path = "../parser" }

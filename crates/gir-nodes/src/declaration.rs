@@ -1,3 +1,8 @@
+use crate::{
+    types::{ClosureType, TypeArguments, TypeParameters},
+    Expr, Instance, Module, Type,
+};
+use ast::CSTNode;
 use common::MutRc;
 use enum_methods::{EnumAsGetters, EnumIntoGetters, EnumIsA};
 use gir_ir_adapter::{IRAdt, IRFunction};
@@ -9,9 +14,6 @@ use std::{
     hash::{Hash, Hasher},
     rc::Rc,
 };
-use crate::{Expr, Instance, Module, Type, types::TypeArguments};
-use crate::types::{TypeParameters, ClosureType};
-use ast::CSTNode;
 
 /// A declaration is a top-level user-defined
 /// item inside a module. This can be
@@ -422,5 +424,5 @@ pub struct LocalVariable {
     /// If it is mutable; user-decided on variables, false on fn arguments
     pub mutable: bool,
     /// The AST node of this variable.
-    pub ast: ast::Variable
+    pub ast: ast::Variable,
 }

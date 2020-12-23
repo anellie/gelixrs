@@ -4,13 +4,15 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use std::rc::Rc;
-use crate::{Literal, Type, Function, Visitor};
-use crate::declaration::{Variable, Field, LocalVariable};
+use crate::{
+    declaration::{Field, LocalVariable, Variable},
+    types::ToInstance,
+    Function, Literal, Type, Visitor,
+};
 use common::MutRc;
 use error::Res;
+use std::rc::Rc;
 use syntax::kind::SyntaxKind;
-use crate::types::ToInstance;
 
 /// All binary operand types that return a bool instead of the types of their values.
 pub static LOGICAL_BINARY: [SyntaxKind; 10] = [
@@ -48,7 +50,7 @@ pub enum Expr {
     Allocate {
         ty: Type,
         constructor: MutRc<Function>,
-        args: Vec<Expr>
+        args: Vec<Expr>,
     },
 
     // A field getter on an ADT.

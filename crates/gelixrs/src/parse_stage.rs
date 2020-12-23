@@ -68,7 +68,7 @@ fn parse_module(input: PathBuf, path: &mut ModPath) -> Result<Module, Errors> {
     Ok(Module::new(&path, &code, cst))
 }
 
-fn stem_to_smol(path: &PathBuf) -> SmolStr {
+pub fn stem_to_smol(path: &PathBuf) -> SmolStr {
     SmolStr::new(path.file_stem().unwrap().to_str().unwrap())
 }
 

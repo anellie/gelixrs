@@ -1,9 +1,6 @@
-use crate::Type;
-use common::{MutRc, mutrc_new};
-use crate::types::IFaceImpls;
-use std::collections::HashMap;
-use std::cell::RefCell;
-use std::rc::Rc;
+use crate::{types::IFaceImpls, Type};
+use common::{mutrc_new, MutRc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 thread_local! {
     /// A map containing all interface implementations.

@@ -8,5 +8,7 @@ default-run = "gelixrs_cli"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+structopt = "0.2.18"
+
 ast = { path = "../ast" }
 gelixrs = { path = "../gelixrs" }

@@ -16,6 +16,10 @@ impl ModPath {
         ModPath(Vec::with_capacity(10))
     }
 
+    pub fn index(&self, i: usize) -> Option<&SmolStr> {
+        self.0.get(i)
+    }
+
     pub fn push(&mut self, s: SmolStr) {
         self.0.push(s);
     }
