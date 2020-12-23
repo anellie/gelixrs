@@ -4,9 +4,9 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use structopt::StructOpt;
-use std::path::PathBuf;
 use gelixrs::stem_to_smol;
+use std::path::PathBuf;
+use structopt::StructOpt;
 
 #[derive(StructOpt, Debug, Default)]
 #[structopt(name = "gelixrs", about = "A compiler for the gelix language.")]
@@ -105,14 +105,16 @@ fn run(args: Opt) -> Result<(), &'static str> {
 
     if args.run {
         let mut engine = gelixrs::JIT::new(module);
-        unsafe { engine.call("main"); }
+        unsafe {
+            engine.call("main");
+        }
         return Ok(());
     }
 
     let result = gelixrs::produce_binary(
         module,
         args.output.ok_or("Missing output location.")?.as_os_str(),
-        args.optimize_level
+        args.optimize_level,
     );
 
     if let Err(err) = result {

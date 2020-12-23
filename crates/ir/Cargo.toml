@@ -7,7 +7,11 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-
+common  = { path = "../common" }
+gir_generator = { path = "../gir-generator" }
+gir_ir_adapter = { path = "../gir-ir-adapter" }
+gir_nodes = { path = "../gir-nodes" }
+syntax = { path = "../syntax" }
 
 # Inkwell recently added reqwest as a build dependency.
 # This caused the amount of crates to build to triple

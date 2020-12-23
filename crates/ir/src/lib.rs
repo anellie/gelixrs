@@ -1,14 +1,20 @@
 #![feature(box_syntax)]
 
+mod generator;
 pub mod jit;
 
 use inkwell::module::Module;
-use std::{error::Error, env, fs, process};
-use std::ffi::OsStr;
+use std::{env, error::Error, ffi::OsStr, fs, process};
+
+pub use generator::IRGenerator;
 
 pub type CompiledIR = Module;
 
-pub fn produce_binary(module: Module, location: &OsStr, optimize_level: usize) -> Result<(), Box<dyn Error>> {
+pub fn produce_binary(
+    module: Module,
+    location: &OsStr,
+    optimize_level: usize,
+) -> Result<(), Box<dyn Error>> {
     let mut tmp_dir = env::temp_dir();
     tmp_dir.push("gelixrs");
     if !tmp_dir.exists() {
@@ -33,6 +39,10 @@ pub fn produce_binary(module: Module, location: &OsStr, optimize_level: usize) -
     if status.success() {
         Ok(())
     } else {
-        Err("Compiling to native binary failed. Please file a bug report.".to_string().into())
+        Err(
+            "Compiling to native binary failed. Please file a bug report."
+                .to_string()
+                .into(),
+        )
     }
 }

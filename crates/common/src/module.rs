@@ -16,6 +16,10 @@ impl ModPath {
         ModPath(Vec::with_capacity(10))
     }
 
+    pub fn is(&self, other: &[&str]) -> bool {
+        self.0.iter().zip(other.iter()).all(|(a, b)| a == b)
+    }
+
     pub fn index(&self, i: usize) -> Option<&SmolStr> {
         self.0.get(i)
     }

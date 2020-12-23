@@ -515,7 +515,12 @@ dependencies = [
 name = "ir"
 version = "0.1.0"
 dependencies = [
+ "common",
+ "gir_generator",
+ "gir_ir_adapter",
+ "gir_nodes",
  "inkwell",
+ "syntax",
 ]
 
 [[package]]

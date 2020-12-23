@@ -5,7 +5,6 @@ use crate::{
 use ast::CSTNode;
 use common::MutRc;
 use enum_methods::{EnumAsGetters, EnumIntoGetters, EnumIsA};
-use gir_ir_adapter::{IRAdt, IRFunction};
 use indexmap::map::IndexMap;
 use smol_str::SmolStr;
 use std::{
@@ -84,7 +83,7 @@ pub struct ADT {
     /// The module this ADT was declared in
     pub module: MutRc<Module>,
     /// IR-level information of this ADT
-    pub ir: IRAdt<TypeArguments>,
+    pub ir: IRAdt,
 }
 
 impl ADT {
@@ -320,6 +319,8 @@ pub struct Function {
     pub name: SmolStr,
     /// All parameters needed to call this function.
     pub parameters: Vec<Rc<LocalVariable>>,
+    /// If this function is variadic and accepts additional parameters.
+    pub variadic: bool,
     /// Type parameters on this function, if any.
     pub type_parameters: Rc<TypeParameters>,
     /// A list of expressions that make up the func, executed in order.
@@ -333,7 +334,7 @@ pub struct Function {
     /// The module this was declared in.
     pub module: MutRc<Module>,
     /// IR data for this function, used by IR generator
-    pub ir: RefCell<IRFunction<TypeArguments>>,
+    pub ir: RefCell<IRFunction>,
 }
 
 impl Function {
@@ -426,3 +427,6 @@ pub struct LocalVariable {
     /// The AST node of this variable.
     pub ast: ast::Variable,
 }
+
+pub type IRFunction = gir_ir_adapter::IRFunction<TypeArguments>;
+pub type IRAdt = gir_ir_adapter::IRAdt<TypeArguments>;
