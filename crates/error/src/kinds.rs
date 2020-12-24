@@ -16,7 +16,7 @@ pub enum GErr {
     E003,
     // Expected ADT decl
     E004,
-    // Expected class member info
+    // Expected ADT member info
     E005,
     // Invalid modifier
     E006 {
@@ -39,7 +39,7 @@ pub enum GErr {
     E201,
     // No implementation of operators
     E202,
-    // Cannot call methods in constructors until all class members are initialized
+    // Cannot call methods in constructors until all ADT members are initialized
     E203,
     // Fields cannot be called
     E204,
@@ -87,9 +87,9 @@ pub enum GErr {
     E219,
     // (If, For) condition must be a boolean
     E220,
-    // Cannot get class method
+    // Cannot get ADT method
     E221,
-    // Cannot get uninitialized class member
+    // Cannot get uninitialized ADT member
     E222,
     // Unknown enum case
     E223,
@@ -113,6 +113,12 @@ pub enum GErr {
     E232,
     // Numeric literal does not fit into target type.
     E233,
+    // ADT member may not be a weak reference
+    E234,
+    // ADT member cannot be defined twice
+    E235,
+    // Cannot have member and method with same name
+    E236(SmolStr),
 
     // Unknown type
     E300(String),
@@ -132,7 +138,7 @@ pub enum GErr {
     E307,
     // Cannot return a weak reference
     E308,
-    // Cannot have uninitialized fields after constructor
+    // Cannot have uninitialized members after constructor
     E309(Vec<SmolStr>),
     // Body type does not match function return type
     E310 {
@@ -170,6 +176,7 @@ impl GErr {
                 expected, was
             ),
             E230(ty) => format!("Cannot assign type '{}' to a variable.", ty),
+            E236(name) => format!("Cannot have member and method '{}' with same name.", name),
 
             E300(name) => format!("Unknown type '{}'.", name),
 
@@ -198,7 +205,7 @@ impl GErr {
             E002 => "Expected top-level declaration.",
             E003 => "Expected type.",
             E004 => "Encountered invalid declaration inside declaration.",
-            E005 => "Expected ':' or '=' after class member name.",
+            E005 => "Expected ':' or '=' after ADT member name.",
             E007 => "'when' expression can only have 1 'else' branch.",
             E008 => "Expected expression.",
 
@@ -206,7 +213,7 @@ impl GErr {
 
             E201 => "Value is a different type than assignment target.",
             E202 => "No implementation of operator found for types.",
-            E203 => "Cannot call methods in constructors until all class members are initialized.",
+            E203 => "Cannot call methods in constructors until all ADT members are initialized.",
             E204 => "Fields cannot be called.",
             E205 => "This variable may not be captured (weak reference)",
             E207 => "Break is only allowed in loops.",
@@ -217,8 +224,8 @@ impl GErr {
             E217 => "This method requires a strong reference.",
             E219 => "No matching constructor found for arguments.",
             E220 => "Condition must be a boolean.",
-            E221 => "Cannot get class method (must be called).",
-            E222 => "Cannot get uninitialized class member.",
+            E221 => "Cannot get ADT method (must be called).",
+            E222 => "Cannot get uninitialized ADT member.",
             E223 => "Unknown enum case.",
             E224 => "Static access is only supported on enum types.",
             E225 => "Static access is not supported on values.",
@@ -229,6 +236,8 @@ impl GErr {
             E231 => "String escape sequence is unfinished.",
             E232 => "Unknown string escape sequence.",
             E233 => "Numeric literal does not fit into target type.",
+            E234 => "ADT member may not be a weak reference.",
+            E235 => "ADT member cannot be defined twice.",
 
             E301 => "Functions cannot be used as types.",
             E302 => "Weak is only applicable to ADTs.",

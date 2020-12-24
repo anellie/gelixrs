@@ -1,4 +1,4 @@
-use crate::{Type};
+use crate::Type;
 use smol_str::SmolStr;
 
 #[derive(Clone, Debug)]
@@ -20,10 +20,7 @@ pub enum Literal {
     F32(f32),
     F64(f64),
 
-    String {
-        text: SmolStr,
-        ty: Type
-    },
+    String { text: SmolStr, ty: Type },
 }
 
 impl Literal {

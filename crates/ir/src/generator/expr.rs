@@ -362,7 +362,10 @@ impl IRGenerator {
             Literal::F32(num) => self.context.f32_type().const_float((*num).into()).into(),
             Literal::F64(num) => self.context.f64_type().const_float(*num).into(),
 
-            Literal::String { text: string, ty: string_ty } => {
+            Literal::String {
+                text: string,
+                ty: string_ty,
+            } => {
                 let const_str = self.builder.build_global_string_ptr(&string, "str");
                 let constructor = Rc::clone(&string_ty.as_strong_ref().ty.borrow().constructors[1]);
 

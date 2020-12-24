@@ -711,12 +711,10 @@ impl GIRGenerator {
             LiteralType::False => Expr::Literal(Literal::Bool(false)),
             LiteralType::Int => Expr::Literal(self.numeric_literal(text, &literal.cst, false)?),
             LiteralType::Float => Expr::Literal(self.numeric_literal(text, &literal.cst, true)?),
-            LiteralType::String => {
-                Expr::Literal(Literal::String {
-                    text: self.string_literal(text, literal)?,
-                    ty: self.intrinsics.string_type.clone().unwrap()
-                })
-            }
+            LiteralType::String => Expr::Literal(Literal::String {
+                text: self.string_literal(text, literal)?,
+                ty: self.intrinsics.string_type.clone().unwrap(),
+            }),
         })
     }
 

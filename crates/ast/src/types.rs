@@ -5,7 +5,6 @@ use syntax::kind::SyntaxKind;
 
 impl Type {
     pub fn get(&self) -> TypeE {
-
         let token = self.cst.first_token().unwrap();
         match token.kind() {
             SyntaxKind::Identifier if self.cst.first_child().is_none() => {
@@ -20,7 +19,7 @@ impl Type {
                     ident: token.text().clone(),
                     types: types.collect(),
                 }
-            },
+            }
 
             SyntaxKind::Tilde => {
                 TypeE::Value(self.cst.first_child().map(Self::cast).unwrap().unwrap())
@@ -38,9 +37,9 @@ impl Type {
                     ret_type: types.pop(),
                     params: types,
                 }
-            },
+            }
 
-            _ => panic!("Cannot parse type")
+            _ => panic!("Cannot parse type"),
         }
     }
 }
