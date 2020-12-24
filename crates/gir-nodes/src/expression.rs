@@ -15,7 +15,7 @@ use std::rc::Rc;
 use syntax::kind::SyntaxKind;
 
 /// All binary operand types that return a bool instead of the types of their values.
-pub static LOGICAL_BINARY: [SyntaxKind; 10] = [
+static LOGICAL_BINARY: [SyntaxKind; 10] = [
     SyntaxKind::Greater,
     SyntaxKind::Less,
     SyntaxKind::GreaterEqual,

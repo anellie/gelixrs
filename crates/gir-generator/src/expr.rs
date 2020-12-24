@@ -709,16 +709,22 @@ impl GIRGenerator {
         Ok(match ty {
             LiteralType::True => Expr::Literal(Literal::Bool(true)),
             LiteralType::False => Expr::Literal(Literal::Bool(false)),
-            LiteralType::Int => Expr::Literal(self.int_literal(text, &literal.cst)?),
-            LiteralType::Float => Expr::Literal(self.float_literal(text, &literal.cst)?),
+            LiteralType::Int => Expr::Literal(self.numeric_literal(text, &literal.cst, false)?),
+            LiteralType::Float => Expr::Literal(self.numeric_literal(text, &literal.cst, true)?),
             LiteralType::String => {
-                Expr::Literal(Literal::String(self.string_literal(text, literal)?))
+                Expr::Literal(Literal::String {
+                    text: self.string_literal(text, literal)?,
+                    ty: self.intrinsics.string_type.clone().unwrap()
+                })
             }
         })
     }
 
-    fn int_literal(&mut self, text: SmolStr, cst: &CSTNode) -> Res<Literal> {
-        let (value, types) = self.numeric_literal_parts(&text, cst);
+    fn numeric_literal(&mut self, text: SmolStr, cst: &CSTNode, float: bool) -> Res<Literal> {
+        let mut split = text.split(|c| c == 'u' || c == 'i' || c == 'f');
+        let value = split.next().unwrap().trim();
+        let types = split.next().map(|s| (s.chars().next().unwrap(), &s[1..]));
+
         Ok(match types {
             Some(('i', "8")) => Literal::I8(self.parse_numeric_literal(value, cst)?),
             Some(('i', "16")) => Literal::I16(self.parse_numeric_literal(value, cst)?),
@@ -737,23 +743,11 @@ impl GIRGenerator {
             #[cfg(not(target_pointer_width = "64"))]
             Some(('u', "size")) => Literal::U32(self.parse_numeric_literal(value, cst)?),
 
-            _ => Literal::I64(self.parse_numeric_literal(value, cst)?),
-        })
-    }
-
-    fn float_literal(&mut self, text: SmolStr, cst: &CSTNode) -> Res<Literal> {
-        let (value, types) = self.numeric_literal_parts(&text, cst);
-        Ok(match types {
             Some(('f', "32")) => Literal::F32(self.parse_numeric_literal(value, cst)?),
+
+            _ if float => Literal::F64(self.parse_numeric_literal(value, cst)?),
             _ => Literal::F64(self.parse_numeric_literal(value, cst)?),
         })
-    }
-
-    fn numeric_literal_parts(&self, text: &SmolStr, cst: &CSTNode) -> (&str, Option<(char, &str)>) {
-        let mut split = text.split(|c| c == 'u');
-        let num = split.next().unwrap().trim();
-        let kind = split.next().map(|s| (s.chars().next().unwrap(), &s[1..]));
-        (num, kind)
     }
 
     fn parse_numeric_literal<T: Num>(&self, text: &str, cst: &CSTNode) -> Res<T> {
@@ -789,7 +783,6 @@ impl GIRGenerator {
                         let mut hex_chars = Vec::with_capacity(6);
                         while chars[i + 1].is_ascii_hexdigit() {
                             hex_chars.push(chars.remove(i + 1));
-                            i -= 1;
                         }
                         u32::from_str_radix(&String::from_iter(hex_chars), 16)
                             .unwrap()

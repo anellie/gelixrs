@@ -1,4 +1,4 @@
-use crate::Type;
+use crate::{Type};
 use smol_str::SmolStr;
 
 #[derive(Clone, Debug)]
@@ -7,10 +7,10 @@ pub enum Literal {
     None,
     Bool(bool),
 
-    I8(i8),
-    I16(i16),
-    I32(i32),
-    I64(i64),
+    I8(u8),
+    I16(u16),
+    I32(u32),
+    I64(u64),
 
     U8(u8),
     U16(u16),
@@ -20,7 +20,10 @@ pub enum Literal {
     F32(f32),
     F64(f64),
 
-    String(SmolStr),
+    String {
+        text: SmolStr,
+        ty: Type
+    },
 }
 
 impl Literal {
@@ -39,7 +42,7 @@ impl Literal {
             Literal::U64(_) => Type::U64,
             Literal::F32(_) => Type::F32,
             Literal::F64(_) => Type::F64,
-            Literal::String(_) => todo!(),
+            Literal::String { ty, .. } => ty.clone(),
         }
     }
 }
