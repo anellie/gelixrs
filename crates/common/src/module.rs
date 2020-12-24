@@ -13,7 +13,7 @@ pub struct ModPath(Vec<SmolStr>);
 
 impl ModPath {
     pub fn new() -> Self {
-        ModPath(Vec::with_capacity(10))
+        ModPath(Vec::with_capacity(8))
     }
 
     pub fn is(&self, other: &[&str]) -> bool {

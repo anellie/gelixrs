@@ -18,11 +18,11 @@ use syntax::kind::SyntaxKind;
 use super::{IRGenerator, LoopData};
 
 impl IRGenerator {
-    pub fn expression(&mut self, expr: &Expr) -> BasicValueEnum {
+    pub(crate) fn expression(&mut self, expr: &Expr) -> BasicValueEnum {
         self.expression_(expr, false)
     }
 
-    pub fn expression_(&mut self, expr: &Expr, no_load: bool) -> BasicValueEnum {
+    pub(crate) fn expression_(&mut self, expr: &Expr, no_load: bool) -> BasicValueEnum {
         if self.builder.get_insert_block().is_none() {
             return self.none_const;
         }
@@ -621,7 +621,7 @@ impl IRGenerator {
         }
     }
 
-    pub fn cast_sr_to_wr(&mut self, sr: PointerValue, wr_ty: &Type) -> BasicValueEnum {
+    pub(crate) fn cast_sr_to_wr(&mut self, sr: PointerValue, wr_ty: &Type) -> BasicValueEnum {
         if wr_ty.try_adt().unwrap().ty.borrow().ty.is_extern_class() {
             return sr.into();
         }
@@ -702,7 +702,7 @@ impl IRGenerator {
         }
     }
 
-    pub fn intrinsic(&mut self, int: &Intrinsic) -> BasicValueEnum {
+    pub(crate) fn intrinsic(&mut self, int: &Intrinsic) -> BasicValueEnum {
         match int {
             Intrinsic::IncRc(val) => {
                 let val = self.expression(val);

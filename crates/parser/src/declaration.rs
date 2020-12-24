@@ -6,7 +6,7 @@ use syntax::kind::SyntaxKind;
 static START_OF_FN_BODY: [SyntaxKind; 2] = [SyntaxKind::LeftBrace, SyntaxKind::Equal];
 
 // All tokens that can be modifiers at all.
-pub static MODIFIERS: [SyntaxKind; 5] = [
+static MODIFIERS: [SyntaxKind; 5] = [
     SyntaxKind::Public,
     SyntaxKind::Private,
     SyntaxKind::Extern,
@@ -30,7 +30,7 @@ static FUNC_MODIFIERS: [SyntaxKind; 2] = [SyntaxKind::Extern, SyntaxKind::Variad
 static IMPORT_MODIFIERS: [SyntaxKind; 0] = [];
 
 impl<'p> Parser<'p> {
-    pub(crate) fn declaration(&mut self) {
+    pub fn declaration(&mut self) {
         let checkpoint = self.checkpoint();
         self.consume_modifiers();
 
@@ -93,7 +93,7 @@ impl<'p> Parser<'p> {
         self.end_node();
     }
 
-    pub(crate) fn func_parameters(&mut self) {
+    pub fn func_parameters(&mut self) {
         if !self.check(SyntaxKind::RightParen) {
             loop {
                 self.start_node(SyntaxKind::Parameter);
@@ -310,7 +310,7 @@ impl<'p> Parser<'p> {
     }
 
     /// Reads a type name.
-    pub(crate) fn type_(&mut self) {
+    pub fn type_(&mut self) {
         self.start_node(SyntaxKind::Type);
         let token = self.advance();
         match token.kind {

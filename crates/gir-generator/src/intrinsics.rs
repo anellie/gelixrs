@@ -24,19 +24,19 @@ pub struct Intrinsics {
     /// For IndexGet, its LeftBracket.
     /// For IndexSet, its RightBracket.
     ops: HashMap<SyntaxKind, MutRc<ADT>>,
-    /// String:Static type, used for string literals.
+    /// String type, used for string literals.
     pub string_type: Option<Type>,
     /// `std/iter/Iter` prototype
-    pub iter_proto: Option<MutRc<ADT>>,
+    pub(crate) iter_proto: Option<MutRc<ADT>>,
     /// `std/iter/ToIter` prototype
-    pub to_iter_proto: Option<MutRc<ADT>>,
+    pub(crate) to_iter_proto: Option<MutRc<ADT>>,
     /// The Free interface, used while compiling a class destructor.
-    pub free_iface: Option<MutRc<ADT>>,
+    pub(crate) free_iface: Option<MutRc<ADT>>,
     /// libc free.
-    pub libc_free: Option<MutRc<Function>>,
+    pub(crate) libc_free: Option<MutRc<Function>>,
     /// The entry point of the program - more than one function
     /// named main is a compile error
-    pub main_fn: Option<MutRc<Function>>,
+    pub(crate) main_fn: Option<MutRc<Function>>,
     /// A list of functions required for compilation.
     /// Currently main_fn and a few intrinsics.
     pub required_compile_fns: Vec<MutRc<Function>>,
@@ -44,13 +44,13 @@ pub struct Intrinsics {
 
 impl Intrinsics {
     /// Returns the interface corresponding with this binary operator
-    pub fn get_op_iface(&self, ty: SyntaxKind) -> Option<MutRc<ADT>> {
+    pub(crate) fn get_op_iface(&self, ty: SyntaxKind) -> Option<MutRc<ADT>> {
         self.ops.get(&ty).cloned()
     }
 
     /// Only call this with the std/ops module, containing all operator interfaces;
     /// fills self.ops
-    pub fn fill_ops_table(&mut self, module: Ref<Module>) {
+    pub(crate) fn fill_ops_table(&mut self, module: Ref<Module>) {
         for (name, iface) in &module.declarations {
             let iface = Rc::clone(iface.as_adt());
             match &name[..] {
@@ -71,7 +71,7 @@ impl Intrinsics {
 
     /// Sets the main fn. Returns success, None indicates that
     /// a main function already existed
-    pub fn set_main_fn(&mut self, func: &MutRc<Function>) -> Option<()> {
+    pub(crate) fn set_main_fn(&mut self, func: &MutRc<Function>) -> Option<()> {
         if self.main_fn.is_some() {
             None
         } else {
@@ -82,7 +82,7 @@ impl Intrinsics {
     }
 
     /// Report any errors or issues with intrinsics.
-    pub fn validate(&mut self) -> Res<()> {
+    pub(crate) fn validate(&mut self) -> Res<()> {
         if self.main_fn.is_none() {
             return Err(Error {
                 index: ErrorSpan::None,

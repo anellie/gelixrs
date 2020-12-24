@@ -19,11 +19,11 @@ use std::{collections::HashMap, mem};
 /// and managing type parameters/arguments.
 impl GIRGenerator {
     /// Resolves the given AST type to its GIR equivalent.
-    pub fn find_type(&self, ast: &ast::Type) -> Res<Type> {
+    pub(crate) fn find_type(&self, ast: &ast::Type) -> Res<Type> {
         self.find_type_(ast, false)
     }
 
-    pub fn find_type_(&self, ast: &ast::Type, allow_fn: bool) -> Res<Type> {
+    pub(crate) fn find_type_(&self, ast: &ast::Type, allow_fn: bool) -> Res<Type> {
         match ast.get() {
             ast::TypeE::Ident(tok) => {
                 let ty = self.search_type_param(&tok);
@@ -91,7 +91,7 @@ impl GIRGenerator {
         }
     }
 
-    pub fn symbol(&self, name: &SmolStr) -> Option<Type> {
+    pub(crate) fn symbol(&self, name: &SmolStr) -> Option<Type> {
         Some(match &name[..] {
             "None" => Type::None,
             "bool" => Type::Bool,
@@ -121,7 +121,7 @@ impl GIRGenerator {
         })
     }
 
-    pub fn symbol_with_type_args<T: Iterator<Item = ast::Type>>(
+    pub(crate) fn symbol_with_type_args<T: Iterator<Item = ast::Type>>(
         &self,
         ident: &SmolStr,
         args: T,
@@ -159,7 +159,7 @@ impl GIRGenerator {
 
     /// Will cast value to ty, if needed.
     /// If the cast is not possible, returns None.
-    pub fn cast_or_none(&mut self, value: Expr, ty: &Type) -> Option<Expr> {
+    pub(crate) fn cast_or_none(&mut self, value: Expr, ty: &Type) -> Option<Expr> {
         let (value, success) = self.try_cast(value, ty);
         if success {
             Some(value)
@@ -172,7 +172,7 @@ impl GIRGenerator {
     /// Will do casts if needed to make the types match;
     /// returns the new expression that should be used in case a cast happened.
     /// Boolean indicates if the cast was successful.
-    pub fn try_cast(&mut self, value: Expr, ty: &Type) -> (Expr, bool) {
+    pub(crate) fn try_cast(&mut self, value: Expr, ty: &Type) -> (Expr, bool) {
         let val_ty = value.get_type();
         if val_ty == *ty {
             return (value, true);
@@ -203,7 +203,7 @@ impl GIRGenerator {
     /// Same as above but utilizing `std::mem::replace` to only
     /// require a mutable reference at the cost of a slight performance penalty.
     /// Returns success.
-    pub fn try_cast_in_place(&mut self, value_ref: &mut Expr, ty: &Type) -> bool {
+    pub(crate) fn try_cast_in_place(&mut self, value_ref: &mut Expr, ty: &Type) -> bool {
         let value = mem::replace(value_ref, Expr::none_const());
         let (expr, success) = self.try_cast(value, ty);
         *value_ref = expr;
@@ -214,7 +214,7 @@ impl GIRGenerator {
     /// Return value is `(NewType, left, right)`.
     /// If both are already the same type, this will just return the original type.
     /// If they cannot be made to match, it returns None as type.
-    pub fn try_unify_type(&mut self, left: Expr, right: Expr) -> (Option<Type>, Expr, Expr) {
+    pub(crate) fn try_unify_type(&mut self, left: Expr, right: Expr) -> (Option<Type>, Expr, Expr) {
         let left_ty = left.get_type();
         let right_ty = right.get_type();
 
@@ -262,7 +262,7 @@ impl GIRGenerator {
     }
 
     /// Gets the interfaces implemented by a type.
-    pub fn get_iface_impls(&mut self, ty: &Type) -> MutRc<IFaceImpls> {
+    pub(crate) fn get_iface_impls(&mut self, ty: &Type) -> MutRc<IFaceImpls> {
         let impls = self.iface_impls.get(ty).cloned();
         match impls {
             Some(impls) => impls,
@@ -279,7 +279,7 @@ impl GIRGenerator {
     }
 
     /// Sets the current type parameters.
-    pub fn set_context(&mut self, ctx: &Rc<TypeParameters>) {
+    pub(crate) fn set_context(&mut self, ctx: &Rc<TypeParameters>) {
         self.type_params = Some(Rc::clone(ctx))
     }
 }

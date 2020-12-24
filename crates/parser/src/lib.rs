@@ -43,7 +43,7 @@ struct Parser<'p> {
 }
 
 impl<'p> Parser<'p> {
-    pub fn parse(mut self) -> Result<ParseResult, Vec<Error>> {
+    fn parse(mut self) -> Result<ParseResult, Vec<Error>> {
         self.start_node(SyntaxKind::Root);
         while self.peek() != SyntaxKind::EndOfFile {
             self.declaration();
@@ -214,7 +214,7 @@ impl<'p> Parser<'p> {
         self.events.len()
     }
 
-    pub fn new(lexemes: &'p [Lexeme<'p>]) -> Self {
+    fn new(lexemes: &'p [Lexeme<'p>]) -> Self {
         Self {
             source: Source::new(lexemes),
             events: Vec::with_capacity(100),
@@ -233,10 +233,5 @@ pub struct ParseResult {
 impl ParseResult {
     pub fn root(self) -> SyntaxNode<GelixLang> {
         SyntaxNode::new_root(self.green_node)
-    }
-
-    pub fn debug_print(&self) {
-        let syntax_node = SyntaxNode::<GelixLang>::new_root(self.green_node.clone());
-        print!("{:#?}", syntax_node);
     }
 }

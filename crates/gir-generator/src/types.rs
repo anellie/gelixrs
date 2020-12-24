@@ -15,7 +15,7 @@ impl GIRGenerator {
     /// None = Not possible
     /// Some(Cast, None) = Single cast
     /// Some(Cast, ...) = Double cast with middle step
-    pub fn can_cast_type(
+    pub(crate) fn can_cast_type(
         &mut self,
         ty: &Type,
         goal: &Type,
@@ -120,7 +120,7 @@ impl GIRGenerator {
 
     /// Returns proper type parameter bound from AST.
     /// Can error if bound cannot be resolved.
-    pub fn bound_from_ast(&mut self, ast: Option<&ast::Type>) -> Res<TypeParameterBound> {
+    pub(crate) fn bound_from_ast(&mut self, ast: Option<&ast::Type>) -> Res<TypeParameterBound> {
         Ok(if let Some(ast) = ast {
             match ast.get() {
                 ast::TypeE::Ident(tok) => match &tok[..] {

@@ -102,6 +102,7 @@ pub enum SyntaxKind {
     // A type literal like "String", "&String", "(u32, u32): u64"
     Type,
 
+    // This special variant is used for SyntaxKind::is_token.
     __TokenStart,
 
     LeftParen,
@@ -136,7 +137,6 @@ pub enum SyntaxKind {
     String,
     Int,
     Float,
-    Char,
 
     And,
     Break,
@@ -162,14 +162,11 @@ pub enum SyntaxKind {
     Var,
     Val,
     When,
-    While,
 
     Public,
     Private,
     Extern,
     Variadic,
-
-    __TokenEnd,
 
     Error,
     Comment,
@@ -205,76 +202,23 @@ impl SyntaxKind {
 
     pub fn is_token(&self) -> bool {
         (*self as u16) < (SyntaxKind::__TokenStart as u16)
-            && (*self as u16) > (SyntaxKind::__TokenEnd as u16)
+            && (*self as u16) > (SyntaxKind::Error as u16)
+    }
+
+    fn from_token(token: Token) -> Self {
+        let kind = (SyntaxKind::__TokenStart as u16) + (token as u16) + 1;
+        Self::from_u16(kind).unwrap()
     }
 }
 
 impl From<Token> for SyntaxKind {
     fn from(token: Token) -> Self {
-        match token {
-            Token::LeftParen => Self::LeftParen,
-            Token::RightParen => Self::RightParen,
-            Token::LeftBracket => Self::LeftBracket,
-            Token::RightBracket => Self::RightBracket,
-            Token::LeftBrace => Self::LeftBrace,
-            Token::RightBrace => Self::RightBrace,
-            Token::AndSym => Self::AndSym,
-            Token::Tilde => Self::Tilde,
-            Token::Comma => Self::Comma,
-            Token::Dot => Self::Dot,
-            Token::Minus => Self::Minus,
-            Token::Plus => Self::Plus,
-            Token::Semicolon => Self::Semicolon,
-            Token::Colon => Self::Colon,
-            Token::ColonColon => Self::ColonColon,
-            Token::Slash => Self::Slash,
-            Token::Star => Self::Star,
-            Token::Arrow => Self::Arrow,
-            Token::Bang => Self::Bang,
-            Token::BangEqual => Self::BangEqual,
-            Token::Equal => Self::Equal,
-            Token::EqualEqual => Self::EqualEqual,
-            Token::Greater => Self::Greater,
-            Token::GreaterEqual => Self::GreaterEqual,
-            Token::Less => Self::Less,
-            Token::LessEqual => Self::LessEqual,
-            Token::Identifier => Self::Identifier,
-            Token::String => Self::String,
-            Token::Int => Self::Int,
-            Token::Float => Self::Float,
-            Token::And => Self::And,
-            Token::Break => Self::Break,
-            Token::Class => Self::Class,
-            Token::Construct => Self::Construct,
-            Token::Else => Self::Else,
-            Token::Enum => Self::Enum,
-            Token::Export => Self::Export,
-            Token::False => Self::False,
-            Token::For => Self::For,
-            Token::Func => Self::Func,
-            Token::If => Self::If,
-            Token::Impl => Self::Impl,
-            Token::Import => Self::Import,
-            Token::In => Self::In,
-            Token::Interface => Self::Interface,
-            Token::Is => Self::Is,
-            Token::New => Self::New,
-            Token::Or => Self::Or,
-            Token::Return => Self::Return,
-            Token::Strong => Self::Strong,
-            Token::True => Self::True,
-            Token::Var => Self::Var,
-            Token::Val => Self::Val,
-            Token::When => Self::When,
-            Token::Public => Self::Public,
-            Token::Private => Self::Private,
-            Token::Extern => Self::Extern,
-            Token::Variadic => Self::Variadic,
-            Token::Error => Self::Error,
-            Token::Comment => Self::Comment,
-            Token::Whitespace => Self::Whitespace,
-            Token::EndOfFile => Self::EndOfFile,
-        }
+        // Do a few checks to ensure the types are in sync for easily catching
+        // mistakes in possible future code changes
+        assert_eq!(SyntaxKind::Error, SyntaxKind::from_token(Token::Error));
+        assert_eq!(SyntaxKind::String, SyntaxKind::from_token(Token::String));
+        assert_eq!(SyntaxKind::LeftParen, SyntaxKind::from_token(Token::LeftParen));
+        Self::from_token(token)
     }
 }
 

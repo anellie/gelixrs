@@ -26,17 +26,17 @@ impl IRGenerator {
     /// - Function parameters & return type
     /// - ADT fields/members
     /// - Cast target types
-    pub fn ir_ty_generic(&mut self, gir: &Type) -> BasicTypeEnum {
+    pub(crate) fn ir_ty_generic(&mut self, gir: &Type) -> BasicTypeEnum {
         self.ir_ty_generic_full(gir).0
     }
 
     /// Converts a `MIRType` to the corresponding LLVM type.
     /// This variant is used for allocations.
-    pub fn ir_ty_allocs(&mut self, gir: &Type) -> BasicTypeEnum {
+    pub(crate) fn ir_ty_allocs(&mut self, gir: &Type) -> BasicTypeEnum {
         self.ir_ty_generic_full(gir).0
     }
 
-    pub fn ir_ty_generic_full(&mut self, gir: &Type) -> (BasicTypeEnum, Option<PointerValue>) {
+    pub(crate) fn ir_ty_generic_full(&mut self, gir: &Type) -> (BasicTypeEnum, Option<PointerValue>) {
         let raw = self.ir_ty_raw(gir);
         (
             match self.maybe_unwrap_var(gir) {
@@ -51,11 +51,11 @@ impl IRGenerator {
     }
 
     /// Converts a `MIRType` to the corresponding LLVM type info global struct.
-    pub fn ir_ty_info(&mut self, gir: &Type) -> Option<PointerValue> {
+    pub(crate) fn ir_ty_info(&mut self, gir: &Type) -> Option<PointerValue> {
         self.ir_ty_raw(gir).1
     }
 
-    pub fn ir_ty_raw(&mut self, gir: &Type) -> (BasicTypeEnum, Option<PointerValue>) {
+    pub(crate) fn ir_ty_raw(&mut self, gir: &Type) -> (BasicTypeEnum, Option<PointerValue>) {
         let (ty, ptr) = match gir {
             Type::Any | Type::None => (self.none_const.get_type(), None),
             Type::Bool => (self.context.bool_type().into(), None),
@@ -105,7 +105,7 @@ impl IRGenerator {
         (ty, ptr)
     }
 
-    pub fn process_args(&self, args: &Rc<TypeArguments>) -> Rc<TypeArguments> {
+    pub(crate) fn process_args(&self, args: &Rc<TypeArguments>) -> Rc<TypeArguments> {
         Rc::new(
             args.iter()
                 .map(|a| self.maybe_unwrap_var(a))
@@ -113,14 +113,14 @@ impl IRGenerator {
         )
     }
 
-    pub fn maybe_unwrap_var(&self, ty: &Type) -> Type {
+    pub(crate) fn maybe_unwrap_var(&self, ty: &Type) -> Type {
         match ty {
             Type::Variable(var) => self.unwrap_var(var),
             _ => ty.clone(),
         }
     }
 
-    pub fn unwrap_var(&self, var: &TypeVariable) -> Type {
+    pub(crate) fn unwrap_var(&self, var: &TypeVariable) -> Type {
         let index = self.type_args.len() - 1;
         let ty = self.type_args[index].as_ref().unwrap()[var.index].clone();
         match var.modifier {
@@ -252,7 +252,7 @@ impl IRGenerator {
     }
 
     /// Generates a function type from raw parts - parameters, return type.
-    pub fn fn_type_from_raw<'a, T: Iterator<Item = &'a Type>>(
+    pub(crate) fn fn_type_from_raw<'a, T: Iterator<Item = &'a Type>>(
         &mut self,
         params: T,
         ret_type: &Type,
@@ -342,7 +342,7 @@ impl IRGenerator {
         global.as_pointer_value()
     }
 
-    pub fn void_ptr(&self) -> PointerType {
+    pub(crate) fn void_ptr(&self) -> PointerType {
         self.context.i64_type().ptr_type(Generic)
     }
 }

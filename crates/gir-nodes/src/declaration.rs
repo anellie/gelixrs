@@ -86,94 +86,6 @@ pub struct ADT {
 }
 
 impl ADT {
-    /*
-    /// TODO: Enum edge case is rather ugly
-    pub fn from_ast(generator: &GIRGenerator, mut ast: ast::ADT) -> MutRc<ADT> {
-        let mut enum_cases: Option<Vec<ast::ADT>> = None;
-        let (mem_size, method_size, const_size, ty) = match &mut ast.ty {
-            ast::ADTType::Class {
-                variables,
-                constructors,
-                external,
-            } => (
-                variables.len(),
-                ast.methods.len(),
-                constructors.len(),
-                ADTType::Class {
-                    external: *external,
-                },
-            ),
-
-            ast::ADTType::Interface => (0, ast.methods.len(), 0, ADTType::Interface),
-
-            ast::ADTType::Enum {
-                variables,
-                ref mut cases,
-            } => {
-                enum_cases = Some(std::mem::replace(cases, vec![]));
-                (
-                    variables.len(),
-                    ast.methods.len(),
-                    0,
-                    ADTType::Enum {
-                        cases: HashMap::new(),
-                    },
-                )
-            }
-
-            _ => panic!("unknown ADT"),
-        };
-
-        let adt = mutrc_new(ADT {
-            name: ast.name.clone(),
-            fields: IndexMap::with_capacity(mem_size),
-            methods: IndexMap::with_capacity(method_size),
-            constructors: Vec::with_capacity(const_size),
-            type_parameters: ast_generics_to_gir(&generator, &ast.generics, None),
-            ty,
-            ir: IRAdt::new(ast.generics.is_some()),
-            ast: mutrc_new(ast),
-            module: Rc::clone(&generator.module),
-        });
-
-        if let Some(mut cases) = enum_cases {
-            let cases = cases
-                .drain(..)
-                .map(|c| Self::enum_case(generator, &adt, c))
-                .collect();
-            adt.borrow_mut().ty = ADTType::Enum { cases };
-        }
-
-        adt
-    }
-
-    fn enum_case(
-        generator: &GIRGenerator,
-        parent_rc: &MutRc<ADT>,
-        ast: ast::ADT,
-    ) -> (SmolStr, MutRc<ADT>) {
-        let parent = parent_rc.borrow();
-        let ty = ADTType::EnumCase {
-            parent: Rc::clone(&parent_rc),
-            simple: ast.is_simple_enum(),
-        };
-        (
-            ast.case_name(),
-            mutrc_new(ADT {
-                name: ast.name.clone(),
-                fields: IndexMap::with_capacity(ast.members().unwrap().len() + parent.fields.len()),
-                methods: IndexMap::with_capacity(ast.methods.len() + parent.methods.len()),
-                constructors: Vec::with_capacity(ast.constructors().unwrap().len()),
-                type_parameters: Rc::clone(&parent.type_parameters),
-                ty,
-                ast: mutrc_new(ast),
-                module: Rc::clone(&generator.module),
-                ir: IRAdt::new(!parent.type_parameters.is_empty()),
-            }),
-        )
-    }
-    */
-
     pub fn get_singleton_inst(inst: &MutRc<ADT>, args: &Rc<TypeArguments>) -> Option<Expr> {
         if let ADTType::EnumCase {
             simple: no_body, ..
@@ -193,39 +105,6 @@ impl ADT {
         }
     }
 }
-
-/*
-/// Takes a list of generics parameters of an AST node and
-/// returns it's GIR representation. Can log an error
-/// if type bound cannot be resolved.
-pub fn ast_generics_to_gir(
-    generator: &GIRGenerator,
-    generics: &Option<Vec<GenericParam>>,
-    parent_generics: Option<&TypeParameters>,
-) -> Rc<TypeParameters> {
-    let parent_size = parent_generics.map(|g| g.len()).unwrap_or(0);
-    let gen_iter = generics.as_ref().map(|g| {
-        g.iter().enumerate().map(|elem| {
-            TypeParameter {
-                name: elem.1.name.clone(),
-                index: elem.0 + parent_size,
-                bound: TypeParameterBound::from_ast(&generator.resolver, elem.1.bound.as_ref())
-                    .unwrap_or_else(|e| {
-                        generator.error(e);
-                        TypeParameterBound::default() // doesn't matter anymore, compilation failed anyway
-                    }),
-            }
-        })
-    });
-
-    Rc::new(match (gen_iter, parent_generics) {
-        (Some(gen), Some(parent)) => parent.iter().cloned().chain(gen).collect(),
-        (Some(gen), None) => gen.collect(),
-        (None, Some(parent)) => parent.clone(),
-        (None, None) => vec![],
-    })
-}
-*/
 
 /// The exact type of ADT.
 /// Can also contain type-specific data.

@@ -138,7 +138,7 @@ impl IRGenerator {
         self.module
     }
 
-    pub fn get_or_create(&mut self, func: &Instance<Function>) -> FunctionValue {
+    fn get_or_create(&mut self, func: &Instance<Function>) -> FunctionValue {
         let args = func.args();
         let args = self.process_args(args);
 
@@ -280,7 +280,7 @@ impl IRGenerator {
         self.builder.position_at_end(&block)
     }
 
-    pub fn append_block(&mut self, name: &'static str) -> BasicBlock {
+    fn append_block(&mut self, name: &'static str) -> BasicBlock {
         let bb = self
             .context
             .append_basic_block(&self.function.unwrap(), name);
@@ -288,15 +288,15 @@ impl IRGenerator {
         bb
     }
 
-    pub fn last_block(&self) -> BasicBlock {
+    fn last_block(&self) -> BasicBlock {
         self.last_block.unwrap()
     }
 
-    pub fn push_ty_args(&mut self, args: Option<&Rc<TypeArguments>>) {
+    fn push_ty_args(&mut self, args: Option<&Rc<TypeArguments>>) {
         self.type_args.push(args.map(|a| Rc::clone(a)));
     }
 
-    pub fn pop_ty_args(&mut self) {
+    fn pop_ty_args(&mut self) {
         self.type_args.pop();
     }
 

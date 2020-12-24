@@ -17,7 +17,7 @@ use super::IRGenerator;
 
 impl IRGenerator {
     /// Force any type to be turned into a void pointer.
-    pub fn coerce_to_void_ptr(&self, ty: BasicValueEnum) -> BasicValueEnum {
+    pub(crate) fn coerce_to_void_ptr(&self, ty: BasicValueEnum) -> BasicValueEnum {
         let target = self.void_ptr();
         match ty {
             BasicValueEnum::PointerValue(ptr) => self.builder.build_bitcast(ptr, target, "bc"),
@@ -45,12 +45,12 @@ impl IRGenerator {
     }
 
     /// Returns the IR pointer of the variable.
-    pub fn get_variable(&self, var: &Variable) -> PointerValue {
+    pub(crate) fn get_variable(&self, var: &Variable) -> PointerValue {
         *self.variables.get(var).unwrap()
     }
 
     /// Write a set of values to a given struct.
-    pub fn write_struct<'a, T: Iterator<Item = &'a BasicValueEnum>>(
+    pub(crate) fn write_struct<'a, T: Iterator<Item = &'a BasicValueEnum>>(
         &mut self,
         location: PointerValue,
         values: T,
@@ -63,7 +63,7 @@ impl IRGenerator {
 
     /// Loads a pointer, turning it into a value.
     /// Does not load structs or functions, since they are only ever used as pointers.
-    pub fn load_ptr(&self, ptr: PointerValue) -> BasicValueEnum {
+    pub(crate) fn load_ptr(&self, ptr: PointerValue) -> BasicValueEnum {
         match ptr.get_type().get_element_type() {
             AnyTypeEnum::FunctionType(_) => BasicValueEnum::PointerValue(ptr),
             AnyTypeEnum::StructType(str)
@@ -80,7 +80,7 @@ impl IRGenerator {
     /// Similar to the function above, but with GIR type info.
     /// This is sometimes required to prevent unintentionally loading
     /// a value, for example when dealing with primitive pointers.
-    pub fn load_ptr_gir(&self, ptr: PointerValue, mir_ty: &Type, call: bool) -> BasicValueEnum {
+    pub(crate) fn load_ptr_gir(&self, ptr: PointerValue, mir_ty: &Type, call: bool) -> BasicValueEnum {
         match (ptr.get_type().get_element_type(), mir_ty) {
             (AnyTypeEnum::IntType(_), Type::RawPtr(_)) => ptr.into(),
             (AnyTypeEnum::PointerType(inner), Type::RawPtr(_))
@@ -96,7 +96,7 @@ impl IRGenerator {
     /// Perform a struct GEP with some additional safety checks.
     /// The index will be offset by one should the struct contain a refcount field,
     /// so callers do not need to account for this.
-    pub fn struct_gep(&self, ptr: PointerValue, _index: usize) -> PointerValue {
+    pub(crate) fn struct_gep(&self, ptr: PointerValue, _index: usize) -> PointerValue {
         assert!(ptr.get_type().get_element_type().is_struct_type());
 
         // Account for the reference count field, should it be present
@@ -113,7 +113,7 @@ impl IRGenerator {
         unsafe { self.builder.build_struct_gep(ptr, index as u32, "gep") }
     }
 
-    pub fn get_type_info_field(&self, ptr: PointerValue) -> PointerValue {
+    pub(crate) fn get_type_info_field(&self, ptr: PointerValue) -> PointerValue {
         unsafe {
             self.builder.build_struct_gep(
                 ptr,
@@ -123,7 +123,7 @@ impl IRGenerator {
         }
     }
 
-    pub fn get_struct_offset(&self, ptr: PointerValue) -> u32 {
+    pub(crate) fn get_struct_offset(&self, ptr: PointerValue) -> u32 {
         let elem_ty = ptr.get_type().get_element_type();
         let struct_type = elem_ty.as_struct_type();
         let mut i = 0;
@@ -139,7 +139,7 @@ impl IRGenerator {
 
     /// Creates a new stack allocation instruction in the entry block of the function.
     /// The alloca is kept empty.
-    pub fn create_alloc(&mut self, ty: BasicTypeEnum, heap: bool) -> PointerValue {
+    pub(crate) fn create_alloc(&mut self, ty: BasicTypeEnum, heap: bool) -> PointerValue {
         let builder = self.context.create_builder();
 
         let (builder, ptr) = if heap {
@@ -207,23 +207,23 @@ impl IRGenerator {
         ptr
     }
 
-    pub fn locals(&mut self) -> &mut Vec<(BasicValueEnum, bool)> {
+    pub(crate) fn locals(&mut self) -> &mut Vec<(BasicValueEnum, bool)> {
         self.locals.last_mut().unwrap()
     }
 
-    pub fn push_local_scope(&mut self) {
+    pub(crate) fn push_local_scope(&mut self) {
         self.locals.push(Vec::with_capacity(5));
         self.local_allocs.push(Vec::with_capacity(2))
     }
 
-    pub fn pop_dec_locals(&mut self) {
+    pub(crate) fn pop_dec_locals(&mut self) {
         let locals = self.locals.pop().unwrap();
         self.decrement_locals(&locals);
         let local_allocs = self.local_allocs.pop().unwrap();
         self.kill_local_allocs(&local_allocs);
     }
 
-    pub fn pop_locals_lift(&mut self, lift: BasicValueEnum) {
+    pub(crate) fn pop_locals_lift(&mut self, lift: BasicValueEnum) {
         let locals = self.locals.pop().unwrap();
 
         if !locals.is_empty() {
@@ -237,7 +237,7 @@ impl IRGenerator {
         self.kill_local_allocs(&local_allocs);
     }
 
-    pub fn pop_locals_remove(&mut self, lift: BasicValueEnum) {
+    pub(crate) fn pop_locals_remove(&mut self, lift: BasicValueEnum) {
         let locals = self.locals.pop().unwrap();
         self.increment_refcount(lift, false);
         self.decrement_locals(&locals);
@@ -246,7 +246,7 @@ impl IRGenerator {
         self.kill_local_allocs(&local_allocs);
     }
 
-    pub fn decrement_all_locals(&mut self) {
+    pub(crate) fn decrement_all_locals(&mut self) {
         // Work around borrowck being a pain
         let locals = mem::replace(&mut self.locals, vec![]);
         let local_allocs = mem::replace(&mut self.local_allocs, vec![]);
@@ -327,11 +327,11 @@ impl IRGenerator {
         None
     }
 
-    pub fn nullptr(&self) -> PointerValue {
+    pub(crate) fn nullptr(&self) -> PointerValue {
         self.context.i64_type().ptr_type(Generic).const_null()
     }
 
-    pub fn build_phi(&mut self, nodes: &[(BasicValueEnum, BasicBlock)]) -> BasicValueEnum {
+    pub(crate) fn build_phi(&mut self, nodes: &[(BasicValueEnum, BasicBlock)]) -> BasicValueEnum {
         let nodes = nodes
             .iter()
             .filter(|(v, _)| v.get_type() != self.none_const.get_type())

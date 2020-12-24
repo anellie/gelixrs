@@ -62,8 +62,7 @@ extern "C" {
 
 extern "C" fn test_malloc(size: i64) -> i64 {
     let ptr = unsafe { malloc(size) };
-    // TODO: Re-add once GC is fixed
-    // MALLOC_LIST.lock().unwrap().insert(ptr);
+    MALLOC_LIST.lock().unwrap().insert(ptr);
     ptr
 }
 
@@ -199,7 +198,6 @@ fn exec_jit(path: PathBuf) -> Result<String, Failure> {
 
 fn clear_state() {
     MALLOC_LIST.lock().unwrap().clear();
-    gelixrs::clear_compiler_state();
 }
 
 fn get_expected_result(mut path: PathBuf) -> Result<String, Failure> {

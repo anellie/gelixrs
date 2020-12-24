@@ -17,7 +17,7 @@ use super::IRGenerator;
 
 impl IRGenerator {
     /// Build a store; will do required refcount modification.
-    pub fn build_store(&mut self, ptr: PointerValue, value: BasicValueEnum, is_null: bool) {
+    pub(crate) fn build_store(&mut self, ptr: PointerValue, value: BasicValueEnum, is_null: bool) {
         if !is_null {
             self.decrement_refcount(ptr.into(), true);
         }
@@ -28,7 +28,7 @@ impl IRGenerator {
     /// Increment the refcount of a value.
     /// is_ptr specifies if the value is a pointer or a value in
     /// the context of the MIR type system.
-    pub fn increment_refcount(&mut self, value: BasicValueEnum, is_ptr: bool) {
+    pub(crate) fn increment_refcount(&mut self, value: BasicValueEnum, is_ptr: bool) {
         if let Some(val) = self.get_rc_value(value, is_ptr) {
             self.mod_refcount(val, false)
         }
@@ -37,7 +37,7 @@ impl IRGenerator {
     /// Decrement the refcount of a value, and check if it needs to be freed
     /// is_ptr specifies if the value is a pointer or a value in
     /// the context of the MIR type system.
-    pub fn decrement_refcount(&mut self, value: BasicValueEnum, is_ptr: bool) {
+    pub(crate) fn decrement_refcount(&mut self, value: BasicValueEnum, is_ptr: bool) {
         if let Some(val) = self.get_rc_value(value, is_ptr) {
             self.mod_refcount(val, true)
         }
@@ -68,7 +68,7 @@ impl IRGenerator {
     }
 
     /// Checks if a given struct needs to be GC'd.
-    pub fn needs_gc(struc: StructType) -> bool {
+    pub(crate) fn needs_gc(struc: StructType) -> bool {
         struc
             .get_name()
             .map_or(false, |name| name.to_str().unwrap().starts_with("SR-"))
@@ -128,7 +128,7 @@ impl IRGenerator {
         }
     }
 
-    pub fn mod_refcount_iface(&self, struc: StructValue, decrement: bool) {
+    pub(crate) fn mod_refcount_iface(&self, struc: StructValue, decrement: bool) {
         let func = if decrement {
             self.module.get_function("gelixrs_dec_ref_iface")
         } else {
