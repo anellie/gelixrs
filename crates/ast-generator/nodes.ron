@@ -27,6 +27,32 @@
     // Types (Implementation of getting literal data in literal.rs, not generated)
     Node(context: Ctx(name: "Literal")),
 
+    // Module Root
+    Node(
+        template: "root.rs",
+        context: Ctx(
+            name: "Module",
+            kind: "Root",
+            items: [
+                Item(
+                    name: "adts",
+                    type: "Adt",
+                    strategy: "list"
+                ),
+                Item(
+                    name: "functions",
+                    type: "Function",
+                    strategy: "list"
+                ),
+                Item(
+                    name: "imports",
+                    type: "Import",
+                    strategy: "list"
+                ),
+            ]
+        )
+    ),
+
     // ADTs
     Node(
         context: Ctx(

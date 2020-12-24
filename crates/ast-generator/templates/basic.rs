@@ -16,7 +16,6 @@ impl {{ name }} {
     pub fn cst(&self) -> CSTNode {
         self.cst.clone()
     }
-
     {% for item in items %}
     pub fn {{ item.name }}(&self) -> {{ item.type }} {
         self.cst.{{ item.strategy }}
