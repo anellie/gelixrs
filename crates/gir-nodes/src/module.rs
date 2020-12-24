@@ -1,7 +1,7 @@
 use crate::{gir_err, Declaration, Function};
 use ast::CSTNode;
 use common::{mutrc_new, ModulePath, MutRc};
-use error::Res;
+use error::{GErr, Res};
 use smol_str::SmolStr;
 use std::{
     collections::{HashMap, HashSet},
@@ -47,7 +47,7 @@ impl Module {
             .or_else(|| self.exports.get(name))
     }
 
-    /// "Borrow" ownership of the AST for temporary use/modification. Return with [return_ast]
+    /// "Borrow" ownership of the AST for temporary use. Return with [return_ast]
     pub fn borrow_ast(&mut self) -> ast::Module {
         self.ast.take().unwrap()
     }
@@ -60,10 +60,7 @@ impl Module {
     /// Tries to reserve the given name.
     pub fn try_reserve_name(&mut self, node: CSTNode, name: &SmolStr) -> Res<()> {
         if !self.used_names.insert(name.clone()) {
-            Err(gir_err(
-                node,
-                format!("Name {} already defined in this module", name),
-            ))
+            Err(gir_err(node, GErr::E100(name.clone())))
         } else {
             Ok(())
         }

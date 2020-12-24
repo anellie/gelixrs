@@ -12,19 +12,18 @@ mod visitor;
 
 use ast::CSTNode;
 pub use declaration::{Declaration, Function, ADT};
-use error::{Error, ErrorSpan};
+use error::{Error, ErrorSpan, GErr};
 pub use expression::Expr;
-pub use iface_impls::get_iface_impls;
+pub use iface_impls::{IFaceImpl, IFaceImpls};
 pub use literal::Literal;
 pub use module::Module;
 pub use types::{Instance, Type};
 pub use visitor::Visitor;
 
 /// Produces a new error for the GIR.
-pub fn gir_err(cst: CSTNode, message: String) -> Error {
+pub fn gir_err(cst: CSTNode, err: GErr) -> Error {
     Error {
         index: ErrorSpan::Span(cst.text_range().into()),
-        code: "G001", // TODO error codes
-        message,
+        kind: err,
     }
 }

@@ -173,6 +173,7 @@ impl ADT {
             }),
         )
     }
+    */
 
     pub fn get_singleton_inst(inst: &MutRc<ADT>, args: &Rc<TypeArguments>) -> Option<Expr> {
         if let ADTType::EnumCase {
@@ -184,7 +185,6 @@ impl ADT {
                     ty: Type::StrongRef(Instance::new(Rc::clone(inst), Rc::clone(args))),
                     constructor: Rc::clone(&inst.borrow().constructors[0]),
                     args: vec![],
-                    tok: Token::eof_token(1),
                 })
             } else {
                 None
@@ -193,7 +193,6 @@ impl ADT {
             None
         }
     }
-    */
 }
 
 /*
@@ -379,8 +378,8 @@ impl Variable {
     /// Returns an AST node for error reporting.
     pub fn get_ast(&self) -> CSTNode {
         match self {
-            Self::Function(func) => func.ty.borrow().ast.cst.clone(),
-            Self::Local(local) => local.ast.cst.clone(),
+            Self::Function(func) => func.ty.borrow().ast.cst(),
+            Self::Local(local) => local.ast.cst(),
         }
     }
 
@@ -389,6 +388,14 @@ impl Variable {
         match self {
             Self::Function(func) => Type::Function(func.clone()),
             Self::Local(local) => local.ty.clone(),
+        }
+    }
+
+    /// Can this variable be assigned to?
+    pub fn assignable(&self) -> bool {
+        match self {
+            Variable::Function(_) => false,
+            Variable::Local(var) => var.mutable,
         }
     }
 }

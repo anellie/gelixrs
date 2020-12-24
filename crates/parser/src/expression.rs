@@ -1,4 +1,5 @@
 use crate::Parser;
+use error::GErr;
 use syntax::kind::SyntaxKind;
 
 impl<'p> Parser<'p> {
@@ -15,8 +16,8 @@ impl<'p> Parser<'p> {
     fn variable(&mut self) {
         self.start_node(SyntaxKind::Variable);
         self.advance(); // Consume 'var' or 'val'
-        self.consume(SyntaxKind::Identifier, "Expected variable name.");
-        self.consume(SyntaxKind::Equal, "Expected '=' after variable name.");
+        self.consume(SyntaxKind::Identifier, "variable name", "var/val");
+        self.consume(SyntaxKind::Equal, "'='", "variable name");
         self.node_with(SyntaxKind::Initializer, Self::expression);
         self.end_node();
     }
@@ -39,18 +40,18 @@ impl<'p> Parser<'p> {
         while !self.check(SyntaxKind::RightBrace) && !self.is_at_end() {
             self.higher_expression();
         }
-        self.consume(SyntaxKind::RightBrace, "Expected '}' after block.");
+        self.consume(SyntaxKind::RightBrace, "'}'", "block");
         self.end_node();
     }
 
     fn if_expression(&mut self) {
         self.start_node(SyntaxKind::IfExpr);
         self.advance(); // Consume 'if'
-        self.consume(SyntaxKind::LeftParen, "Expected '(' after 'if'.");
+        self.consume(SyntaxKind::LeftParen, "'('", "'if'");
 
         self.node_with(SyntaxKind::ExprCondition, Self::expression);
 
-        self.consume(SyntaxKind::RightParen, "Expected ')' after if condition.");
+        self.consume(SyntaxKind::RightParen, "')'", "if condition");
         self.node_with(SyntaxKind::ExprBody, Self::expression);
 
         if self.matches(SyntaxKind::Else) {
@@ -63,12 +64,12 @@ impl<'p> Parser<'p> {
     fn for_expression(&mut self) {
         self.start_node(SyntaxKind::ForExpr);
         self.advance(); // Consume 'for'
-        self.consume(SyntaxKind::LeftParen, "Expected '(' after 'for'.");
+        self.consume(SyntaxKind::LeftParen, "'('", "'for'");
 
         if self.check_next(SyntaxKind::In) {
             // for (item in iterator)
             self.start_node(SyntaxKind::ForIterCond);
-            self.consume(SyntaxKind::Identifier, "Expected item name after '('");
+            self.consume(SyntaxKind::Identifier, "item name", "'('");
             self.advance(); // Consume the `in`
             self.expression();
             self.end_node();
@@ -77,7 +78,7 @@ impl<'p> Parser<'p> {
             self.node_with(SyntaxKind::ExprCondition, Self::expression);
         }
 
-        self.consume(SyntaxKind::RightParen, "Expected ')' after for.");
+        self.consume(SyntaxKind::RightParen, "')'", "for");
         self.node_with(SyntaxKind::ExprBody, Self::expression);
         if self.matches(SyntaxKind::Else) {
             self.node_with(SyntaxKind::ExprElse, Self::expression);
@@ -98,24 +99,25 @@ impl<'p> Parser<'p> {
     fn when_expression(&mut self) {
         self.start_node(SyntaxKind::WhenExpr);
         self.advance(); // Consume 'when'
-        self.consume(SyntaxKind::LeftParen, "Expected '(' after 'when'.");
+        self.consume(SyntaxKind::LeftParen, "'('", "'when'");
         self.node_with(SyntaxKind::ExprCondition, Self::expression);
-        self.consume(SyntaxKind::RightParen, "Expected ')' after when value.");
-        self.consume(SyntaxKind::LeftBrace, "Expected '{' after when value.");
+        self.consume(SyntaxKind::RightParen, "')'", "when value");
+        self.consume(SyntaxKind::LeftBrace, "'{'", "when value");
 
         let mut else_branch_found = false;
         while !self.matches(SyntaxKind::RightBrace) {
-            self.start_node(SyntaxKind::WhenBranch);
             if self.matches(SyntaxKind::Else) {
                 if else_branch_found {
-                    self.error_at_current("'when' expression can only have 1 'else' branch.");
+                    self.error_at_current(GErr::E007);
                 }
-                self.consume(SyntaxKind::Arrow, "Expected '->' after when condition.");
-                self.node_with(SyntaxKind::ExprBody, Self::expression);
+                self.consume(SyntaxKind::Arrow, "'->'", "when condition");
+                self.start_node(SyntaxKind::ExprElse);
+                self.expression();
                 else_branch_found = true;
             } else {
+                self.start_node(SyntaxKind::WhenBranch);
                 self.node_with(SyntaxKind::ExprCondition, Self::expression);
-                self.consume(SyntaxKind::Arrow, "Expected '->' after when condition.");
+                self.consume(SyntaxKind::Arrow, "'->'", "when condition");
                 self.node_with(SyntaxKind::ExprBody, Self::expression);
             }
             self.end_node()
@@ -177,7 +179,7 @@ impl<'p> Parser<'p> {
                         }
                     }
 
-                    self.consume(SyntaxKind::RightParen, "Expected ')' after call arguments.");
+                    self.consume(SyntaxKind::RightParen, "')'", "call arguments");
                     self.end_node();
                 }
 
@@ -197,7 +199,7 @@ impl<'p> Parser<'p> {
                     self.end_node();
 
                     self.advance(); // Consume ':'
-                    self.consume(SyntaxKind::Identifier, "Expected property name after ':'.");
+                    self.consume(SyntaxKind::Identifier, "property name", "':'");
                     self.end_node();
                 }
 
@@ -219,7 +221,7 @@ impl<'p> Parser<'p> {
             }
             SyntaxKind::LeftParen => self.grouping_or_closure(),
             SyntaxKind::Identifier => self.identifier(),
-            _ => self.error_at_current("Expected expression."),
+            _ => self.error_at_current(GErr::E008),
         }
     }
 
@@ -229,15 +231,12 @@ impl<'p> Parser<'p> {
 
         if self.matches(SyntaxKind::LeftBracket) {
             loop {
-                self.type_("Expected generic type.");
+                self.type_();
                 if !self.matches(SyntaxKind::Comma) {
                     break;
                 }
             }
-            self.consume(
-                SyntaxKind::RightBracket,
-                "Expected ']' after type parameters.",
-            );
+            self.consume(SyntaxKind::RightBracket, "']'", "type parameters");
         }
         self.end_node()
     }
@@ -260,7 +259,7 @@ impl<'p> Parser<'p> {
 
     fn grouping(&mut self) {
         self.expression();
-        self.consume(SyntaxKind::RightParen, "Expected ')' after expression.");
+        self.consume(SyntaxKind::RightParen, "')'", "expression");
         self.end_node();
     }
 
@@ -268,11 +267,11 @@ impl<'p> Parser<'p> {
         self.start_node(SyntaxKind::FunctionSignature);
         self.func_parameters();
         if self.matches(SyntaxKind::Colon) {
-            self.type_("Expected return type after ':'.")
+            self.type_()
         }
         self.end_node();
 
-        self.consume(SyntaxKind::Arrow, "Expected '->' after closure signature.");
+        self.consume(SyntaxKind::Arrow, "'->'", "closure signature");
         self.node_with(SyntaxKind::FunctionBody, Self::expression);
 
         self.end_node();

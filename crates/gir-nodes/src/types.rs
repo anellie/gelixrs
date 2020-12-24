@@ -1,16 +1,11 @@
 use std::{
-    collections::HashMap,
     fmt,
     fmt::{Display, Formatter},
     hash::{Hash, Hasher},
     rc::Rc,
 };
 
-use crate::{
-    declaration::{ADTType, LocalVariable},
-    expression::CastType,
-    get_iface_impls, Function, Module, ADT,
-};
+use crate::{declaration::LocalVariable, Function, ADT};
 use common::MutRc;
 use enum_methods::{EnumAsGetters, EnumIntoGetters, EnumIsA};
 use gir_ir_adapter::IRClosure;
@@ -281,85 +276,6 @@ impl Type {
         }
     }
 
-    /// Returns casts to get this type to [goal].
-    /// None = Not possible
-    /// Some(Cast, None) = Single cast
-    /// Some(Cast, ...) = Double cast with middle step
-    pub fn can_cast_to(&self, goal: &Type) -> Option<(CastType, Option<(CastType, Type)>)> {
-        if let Some(cast) = self.find_cast_ty(goal) {
-            Some((cast, None))
-        } else {
-            match self {
-                Type::WeakRef(inst) => Type::Value(inst.clone())
-                    .find_cast_ty(&goal)
-                    .map(|c| (c, Some((CastType::ToValue, Type::Value(inst.clone()))))),
-
-                // TODO: Value to WR
-                Type::StrongRef(inst) => Type::Value(inst.clone())
-                    .find_cast_ty(&goal)
-                    .map(|c| (c, Some((CastType::ToValue, Type::Value(inst.clone())))))
-                    .or_else(|| {
-                        Type::WeakRef(inst.clone())
-                            .find_cast_ty(&goal)
-                            .map(|c| (c, Some((CastType::StrongToWeak, Type::Value(inst.clone())))))
-                    }),
-
-                _ => None,
-            }
-        }
-    }
-
-    /// Tries finding a possible cast to [goal].
-    /// Does not account for the types being identical.
-    fn find_cast_ty(&self, goal: &Type) -> Option<CastType> {
-        match (self, goal) {
-            // Any, just return a no-op cast
-            (Type::Any, _) | (_, Type::Any) => Some(CastType::Bitcast),
-
-            // Interface cast
-            _ if get_iface_impls(&self)
-                .borrow()
-                .interfaces
-                .get(goal)
-                .is_some() =>
-            {
-                Some(CastType::ToInterface(self.clone()))
-            }
-
-            // Strong reference to weak reference cast
-            (Type::StrongRef(adt), Type::WeakRef(weak)) if adt == weak => {
-                Some(CastType::StrongToWeak)
-            }
-
-            // Reference to value cast
-            (Type::StrongRef(adt), Type::Value(value))
-            | (Type::WeakRef(adt), Type::Value(value))
-                if adt == value =>
-            {
-                Some(CastType::ToValue)
-            }
-
-            // Enum case to enum cast
-            (Type::StrongRef(adt), Type::StrongRef(other))
-            | (Type::WeakRef(adt), Type::WeakRef(other))
-            | (Type::Value(adt), Type::Value(other)) => match &adt.ty.borrow().ty {
-                ADTType::EnumCase { parent, .. }
-                    if Rc::ptr_eq(parent, &other.ty) && other.args == adt.args =>
-                {
-                    Some(CastType::Bitcast)
-                }
-
-                _ => None,
-            },
-
-            // Number cast
-            _ if self.is_int() && goal.is_int() => Some(CastType::Number),
-            _ if self.is_float() && goal.is_float() => Some(CastType::Number),
-
-            _ => None,
-        }
-    }
-
     pub fn resolve(&self, args: &Rc<TypeArguments>) -> Type {
         // Start by replacing any type variables with their concrete type
         let mut ty = match self {
@@ -617,58 +533,6 @@ pub enum TypeParameterBound {
     Bound(Bound),
 }
 
-impl TypeParameterBound {
-    /// Returns if the type matches this bound and can be used.
-    pub fn matches(&self, ty: &Type) -> bool {
-        match self {
-            Self::Interface(i) => {
-                let impls = get_iface_impls(ty);
-                let impls = impls.borrow();
-                impls.interfaces.contains_key(i)
-            }
-
-            Self::Bound(bound) => match bound {
-                Bound::Unbounded => true,
-                Bound::Primitive => ty.is_primitive(),
-                Bound::Number => ty.is_number(),
-                Bound::Integer => ty.is_int(),
-                Bound::SignedInt => ty.is_signed_int(),
-                Bound::UnsignedInt => ty.is_unsigned_int(),
-                Bound::Float => ty.is_float(),
-                Bound::Value => ty.is_value(),
-                Bound::StrongRef => ty.is_strong_ref(),
-                Bound::WeakRef => ty.is_weak_ref(),
-            },
-        }
-    }
-
-    // Returns proper type parameter bound from AST.
-    // Can error if bound cannot be resolved.
-    /* todo move to resolver
-    pub fn from_ast(resolver: &Resolver, ast: Option<&ast::Type>) -> Res<TypeParameterBound> {
-        Ok(if let Some(ast) = ast {
-            match ast {
-                ast::Type::Ident(tok) => match &tok.lexeme[..] {
-                    "Primitive" => Self::Bound(Bound::Primitive),
-                    "Number" => Self::Bound(Bound::Number),
-                    "Integer" => Self::Bound(Bound::Integer),
-                    "SignedInt" => Self::Bound(Bound::SignedInt),
-                    "UnsignedInt" => Self::Bound(Bound::UnsignedInt),
-                    "Float" => Self::Bound(Bound::Float),
-                    "Value" => Self::Bound(Bound::Value),
-                    "StrongRef" => Self::Bound(Bound::StrongRef),
-                    "WeakRef" => Self::Bound(Bound::WeakRef),
-                    _ => Self::Interface(Box::new(resolver.find_type(ast)?)),
-                },
-
-                _ => Self::Interface(Box::new(resolver.find_type(ast)?)),
-            }
-        } else {
-            Self::default()
-        })
-    }*/
-}
-
 impl Default for TypeParameterBound {
     fn default() -> Self {
         TypeParameterBound::Bound(Bound::Unbounded)
@@ -698,29 +562,4 @@ pub enum Bound {
     Value,
     StrongRef,
     WeakRef,
-}
-
-/// An implementation of an interface.
-#[derive(Debug)]
-pub struct IFaceImpl {
-    pub implementor: Type,
-    pub iface: Instance<ADT>,
-    pub methods: HashMap<SmolStr, MutRc<Function>>,
-    /// Module that the impl block is in.
-    pub module: MutRc<Module>,
-    pub ast: MutRc<ast::IfaceImpl>,
-}
-
-/// A struct representing all interfaces implemented by a type.
-/// A simple map of interfaces is not enough, as it does not
-/// prevent naming collisions.
-#[derive(Debug)]
-pub struct IFaceImpls {
-    pub implementor: Type,
-    /// Key is the implemented interface, value the impl.
-    /// Key isn't an interface directly due to needed
-    /// Hash and Eq traits that only [Type] implements.
-    /// Interface is always a strong reference.
-    pub interfaces: HashMap<Type, IFaceImpl>,
-    pub methods: HashMap<SmolStr, MutRc<Function>>,
 }

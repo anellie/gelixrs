@@ -72,7 +72,7 @@ pub enum SyntaxKind {
     ExprCondition,
     // The body of if, for and when expressions.
     ExprBody,
-    // The body of the else branch of if and for expressions.
+    // The body of the else branch of if, for and when expressions.
     ExprElse,
     // A binary expression like '5 + 5'
     BinaryExpr,

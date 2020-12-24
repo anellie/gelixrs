@@ -13,9 +13,9 @@ impl Expression {
         None
     }
 
-    pub fn cst(&self) -> &CSTNode {
+    pub fn cst(&self) -> CSTNode {
         match self {
-            {% for item in items %}Self::{{ item.name }}(inner) => &inner.cst,{% endfor %}
+            {% for item in items %}Self::{{ item.name }}(inner) => inner.cst(),{% endfor %}
         }
     }
 }

@@ -3,7 +3,7 @@ mod expression;
 mod util;
 
 use crate::util::{event::Event, sink::Sink, source::Source};
-use error::{Error, ErrorSpan};
+use error::{Error, ErrorSpan, GErr};
 use lexer::Lexer;
 use rowan::GreenNode;
 pub use rowan::{SyntaxNode, SyntaxToken};
@@ -72,37 +72,35 @@ impl<'p> Parser<'p> {
         matches
     }
 
-    fn consume(&mut self, kind: SyntaxKind, msg: &str) {
+    fn consume(&mut self, kind: SyntaxKind, want: &'static str, after: &'static str) {
         if self.advance_checked() != kind {
-            self.error_at_current(msg);
+            self.error_at_current(GErr::E001 { want, after });
         }
     }
 
-    fn consume_either(&mut self, kind1: SyntaxKind, kind2: SyntaxKind, msg: &str) {
+    fn consume_either(
+        &mut self,
+        kind1: SyntaxKind,
+        kind2: SyntaxKind,
+        want: &'static str,
+        after: &'static str,
+    ) {
         if self.peek() != kind1 && self.peek() != kind2 {
-            self.error_at_current(msg);
+            self.error_at_current(GErr::E001 { want, after });
         } else {
             self.advance();
         }
     }
 
-    fn error_at_current(&mut self, msg: &str) {
+    fn error_at_current(&mut self, err: GErr) {
         if self.poisoned {
             self.advance_checked();
             return;
         }
 
-        let current = self.peek_full().unwrap_or(Lexeme {
-            kind: SyntaxKind::EndOfFile,
-            lexeme: "<EOF>",
-        });
         let err = Error {
             index: ErrorSpan::Token(self.source.position()),
-            code: "E001", // TODO: Error codes.
-            message: format!(
-                "{} (Was: '{}' of type {:?})",
-                msg, current.lexeme, current.kind
-            ),
+            kind: err,
         };
         self.errors.push(err);
         self.poisoned = true;
@@ -168,11 +166,6 @@ impl<'p> Parser<'p> {
     fn peek(&mut self) -> SyntaxKind {
         self.skip_whitespace();
         self.peek_raw().unwrap_or(SyntaxKind::EndOfFile)
-    }
-
-    fn peek_full(&mut self) -> Option<Lexeme<'p>> {
-        self.skip_whitespace();
-        self.source.get_current()
     }
 
     fn peek_next(&mut self) -> SyntaxKind {

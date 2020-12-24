@@ -305,6 +305,8 @@ dependencies = [
  "ansi_term 0.12.1",
  "common",
  "lexer",
+ "smol_str",
+ "strum_macros",
 ]
 
 [[package]]
@@ -376,9 +378,13 @@ dependencies = [
 name = "gir_generator"
 version = "0.1.0"
 dependencies = [
+ "ast",
  "common",
+ "either",
  "error",
  "gir_nodes",
+ "indexmap",
+ "smol_str",
  "syntax",
 ]
 
@@ -988,6 +994,18 @@ dependencies = [
  "proc-macro2 0.4.30",
  "quote 0.6.13",
  "syn 0.15.44",
+]
+
+[[package]]
+name = "strum_macros"
+version = "0.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee8bc6b87a5112aeeab1f4a9f7ab634fe6cbefc4850006df31267f4cfb9e3149"
+dependencies = [
+ "heck",
+ "proc-macro2 1.0.24",
+ "quote 1.0.8",
+ "syn 1.0.55",
 ]
 
 [[package]]

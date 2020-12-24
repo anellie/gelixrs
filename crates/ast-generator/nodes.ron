@@ -250,7 +250,7 @@
                     name: "LiteralClosure",
                     kind: "ClosureLiteral",
                     type: "Function"
-                )
+                ),
                 Item(
                     name: "Prefix",
                     kind: "PrefixExpr",
@@ -568,6 +568,12 @@
                     name: "branches",
                     type: "WhenBranch",
                     strategy: "list"
+                ),
+                Item(
+                    name: "else_branch",
+                    kind: "ExprElse",
+                    type: "Expression",
+                    strategy: "nested_opt_single"
                 )
             ]
         )
@@ -581,7 +587,7 @@
                     name: "condition",
                     kind: "ExprCondition",
                     type: "Expression",
-                    strategy: "nested_opt_single"
+                    strategy: "nested_single"
                 ),
                 Item(
                     name: "branch",

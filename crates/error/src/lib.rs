@@ -4,6 +4,8 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
+mod kinds;
+
 use std::{
     fmt::{Display, Error as FmtErr, Formatter},
     ops::Range,
@@ -15,6 +17,7 @@ use ansi_term::{
     Color::{Blue, Red},
     Style,
 };
+pub use kinds::GErr;
 use lexer::{Lexer, Span};
 use std::fmt::Debug;
 
@@ -50,8 +53,7 @@ impl Debug for Errors {
 #[derive(Debug)]
 pub struct Error {
     pub index: ErrorSpan,
-    pub code: &'static str,
-    pub message: String,
+    pub kind: GErr,
 }
 
 impl Error {
@@ -69,8 +71,8 @@ impl Error {
 
             let result = format!(
                 "\n{}: {}\n{} {} L{}:{}",
-                Red.bold().paint(format!("Error[{}]", self.code)),
-                bold.paint(&self.message),
+                Red.bold().paint(format!("Error[{}]", self.kind.as_ref())),
+                bold.paint(&self.kind.fmt()),
                 Blue.dimmed().paint("-->"),
                 italic.paint(origin),
                 line,
@@ -109,8 +111,8 @@ impl Error {
         } else {
             format!(
                 "\n{}: {}\n{} {}",
-                Red.bold().paint("Error"),
-                bold.paint(&self.message),
+                Red.bold().paint(format!("Error[{}]", self.kind.as_ref())),
+                bold.paint(&self.kind.fmt()),
                 Blue.dimmed().paint("-->"),
                 italic.paint(origin),
             )
@@ -143,7 +145,7 @@ impl ErrorSpan {
         match self {
             Self::Token(index) => {
                 let mut lex = Lexer::new(src);
-                for _ in 0..*index {
+                for _ in 0..(*index + 1) {
                     lex.next();
                 }
                 lex.span()

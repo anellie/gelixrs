@@ -8,5 +8,8 @@ edition = "2018"
 
 [dependencies]
 ansi_term = "0.12.1"
+smol_str = "0.1.17"
+strum_macros = "0.20.1"
+
 common = { path = "../common" }
 lexer = { path = "../lexer" }

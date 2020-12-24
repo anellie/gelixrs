@@ -7,6 +7,11 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+either = "1.5.2"
+indexmap = "1.2.0"
+smol_str = "0.1.17"
+
+ast = { path = "../ast" }
 common = { path = "../common" }
 error = { path = "../error" }
 gir_nodes = { path = "../gir-nodes" }

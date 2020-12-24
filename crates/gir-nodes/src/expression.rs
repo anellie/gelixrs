@@ -331,6 +331,72 @@ impl Expr {
         matches!(self, Expr::Load { .. })
     }
 
+    /// If this expression can be assigned to, aka used as a location for
+    /// a store expression.
+    pub fn assignable(&self) -> bool {
+        match self {
+            Expr::Block(exprs) => exprs.last().map(Expr::assignable).unwrap_or(false),
+
+            Expr::Variable(var) => var.assignable(),
+
+            Expr::Load { field, .. } => field.mutable,
+
+            Expr::If {
+                then_branch,
+                else_branch,
+                phi_type,
+                ..
+            } => phi_type.is_some() && then_branch.assignable() && else_branch.assignable(),
+
+            Expr::Switch {
+                branches,
+                else_branch,
+                phi_type,
+            } => {
+                phi_type.is_some()
+                    && else_branch.assignable()
+                    && branches.iter().all(|(_, br)| br.assignable())
+            }
+
+            _ => false,
+        }
+    }
+
+    /// A 'human readable' name used for error reporting.
+    /// For example, when the user tries assigning to a non-assignable value,
+    /// the error message would be "Cannot assign to {{ expr.human_name() }}."
+    pub fn human_name(&self) -> &'static str {
+        match self {
+            Expr::Block(_) => "block",
+            Expr::Literal(_) => "literal",
+            Expr::Variable(var) => match var {
+                Variable::Function(_) => "function",
+                Variable::Local(var) => {
+                    if var.mutable {
+                        "mutable local variable"
+                    } else {
+                        "immutable local variable"
+                    }
+                }
+            },
+            Expr::Allocate { .. } => "allocation",
+            Expr::Load { .. } => "getter",
+            Expr::Store { .. } => "assignment",
+            Expr::Binary { .. } => "infix operation",
+            Expr::Unary { .. } => "prefix operation",
+            Expr::Call { .. } => "call",
+            Expr::If { .. } => "if expression",
+            Expr::Switch { .. } => "when expression",
+            Expr::Loop { .. } => "loop",
+            Expr::Break(_) => "break",
+            Expr::Return(_) => "return",
+            Expr::Cast { .. } => "cast",
+            Expr::Closure { .. } => "closure literal",
+            Expr::TypeGet(_) => "type access",
+            Expr::Intrinsic(_) => "<intrinsic>",
+        }
+    }
+
     pub fn visit<T: Visitor>(&mut self, v: &mut T) -> Res<()> {
         match self {
             Expr::Block(block) => {

@@ -1,4 +1,5 @@
 use crate::Parser;
+use error::GErr;
 use syntax::kind::SyntaxKind;
 
 // All tokens that indicate that a function has a body (bodies are optional in enum and interface definitions).
@@ -44,12 +45,12 @@ impl<'p> Parser<'p> {
         match self.advance_checked() {
             SyntaxKind::Func => self.function(&FUNC_MODIFIERS),
             SyntaxKind::Class => self.generic_adt(CLASS_CONF),
-            SyntaxKind::Export => self.import_declaration("export"),
-            SyntaxKind::Import => self.import_declaration("import"),
+            SyntaxKind::Export => self.import_declaration(),
+            SyntaxKind::Import => self.import_declaration(),
             SyntaxKind::Interface => self.generic_adt(IFACE_CONF),
             SyntaxKind::Impl => self.iface_impl(),
             SyntaxKind::Enum => self.generic_adt(ENUM_CONF),
-            _ => self.error_at_current("Encountered invalid top-level declaration."),
+            _ => self.error_at_current(GErr::E002),
         }
         self.end_node();
     }
@@ -69,7 +70,11 @@ impl<'p> Parser<'p> {
         if !is_extern {
             self.start_node(SyntaxKind::FunctionBody);
             if !self.check(SyntaxKind::LeftBrace) {
-                self.consume(SyntaxKind::Equal, "Expected start of block or '='.");
+                self.consume(
+                    SyntaxKind::Equal,
+                    "start of block or '='",
+                    "function signature",
+                );
             }
             self.expression();
             self.end_node();
@@ -79,11 +84,11 @@ impl<'p> Parser<'p> {
     fn func_signature(&mut self, mods: &'static [SyntaxKind]) {
         self.start_node(SyntaxKind::FunctionSignature);
         self.check_mods(&mods, "function");
-        self.generic_ident();
-        self.consume(SyntaxKind::LeftParen, "Expected '(' after function name.");
+        self.generic_ident("'func'");
+        self.consume(SyntaxKind::LeftParen, "'('", "function name");
         self.func_parameters();
         if self.matches(SyntaxKind::Arrow) {
-            self.type_("Expected return type after '->'.")
+            self.type_()
         }
         self.end_node();
     }
@@ -92,23 +97,23 @@ impl<'p> Parser<'p> {
         if !self.check(SyntaxKind::RightParen) {
             loop {
                 self.start_node(SyntaxKind::Parameter);
-                self.consume(SyntaxKind::Identifier, "Expected parameter name.");
-                self.consume(SyntaxKind::Colon, "Expected ':' after parameter name.");
-                self.type_("Expected parameter type.");
+                self.consume(SyntaxKind::Identifier, "parameter name", "left parenthesis");
+                self.consume(SyntaxKind::Colon, "':'", "parameter name");
+                self.type_();
                 self.end_node();
                 if !self.matches(SyntaxKind::Comma) {
                     break;
                 }
             }
         }
-        self.consume(SyntaxKind::RightParen, "Expected ')' after parameters.");
+        self.consume(SyntaxKind::RightParen, "')'", "parameters");
     }
 
     fn generic_adt(&mut self, conf: ADTConfig) {
         self.check_mods(conf.modifiers, conf.name);
-        self.generic_ident();
+        self.generic_ident("ADT identifier");
 
-        self.consume(SyntaxKind::LeftBrace, "Expected '{' before body.");
+        self.consume(SyntaxKind::LeftBrace, "'{'", "before body");
 
         while !self.check(SyntaxKind::RightBrace) && !self.is_at_end() {
             self.consume_modifiers();
@@ -117,11 +122,11 @@ impl<'p> Parser<'p> {
                 SyntaxKind::Construct if conf.has_constructors => self.constructor(),
                 SyntaxKind::Func => self.method(conf.force_extern),
                 SyntaxKind::Identifier if conf.has_cases => self.enum_case(),
-                _ => self.error_at_current("Encountered invalid declaration inside declaration."),
+                _ => self.error_at_current(GErr::E004),
             }
         }
 
-        self.consume(SyntaxKind::RightBrace, "Expected '}' after body.");
+        self.consume(SyntaxKind::RightBrace, "'}'", "body");
     }
 
     fn method(&mut self, force_extern: bool) {
@@ -136,19 +141,19 @@ impl<'p> Parser<'p> {
 
         self.start_node(SyntaxKind::AdtMember);
         self.advance(); // Consume 'var' or 'val'
-        self.consume(SyntaxKind::Identifier, "Expected variable name.");
+        self.consume(SyntaxKind::Identifier, "variable name", "var/val");
 
         match self.advance_checked() {
             SyntaxKind::Equal => self.node_with(SyntaxKind::Initializer, Self::expression),
 
             SyntaxKind::Colon => {
-                self.type_("Expected member type.");
+                self.type_();
                 if self.matches(SyntaxKind::Equal) {
                     self.node_with(SyntaxKind::Initializer, Self::expression);
                 }
             }
 
-            _ => self.error_at_current("Expected ':' or '=' after class member name."),
+            _ => self.error_at_current(GErr::E005),
         }
 
         self.end_node();
@@ -160,14 +165,14 @@ impl<'p> Parser<'p> {
         self.start_node(SyntaxKind::Constructor);
         self.start_node(SyntaxKind::FunctionSignature);
         self.advance(); // Consume 'construct'
-        self.consume(SyntaxKind::LeftParen, "Expected '(' after 'construct'.");
+        self.consume(SyntaxKind::LeftParen, "'('", "'construct'");
 
         if !self.check(SyntaxKind::RightParen) {
             loop {
                 self.start_node(SyntaxKind::Parameter);
-                self.consume(SyntaxKind::Identifier, "Expected parameter name.");
+                self.consume(SyntaxKind::Identifier, "parameter name", "'construct'");
                 if self.matches(SyntaxKind::Colon) {
-                    self.type_("Expected parameter type.")
+                    self.type_()
                 }
                 self.end_node();
                 if !self.matches(SyntaxKind::Comma) {
@@ -175,7 +180,7 @@ impl<'p> Parser<'p> {
                 }
             }
         }
-        self.consume(SyntaxKind::RightParen, "Expected ')' after parameters.");
+        self.consume(SyntaxKind::RightParen, "')'", "parameters");
         self.end_node();
 
         self.maybe_fn_body();
@@ -185,7 +190,11 @@ impl<'p> Parser<'p> {
     fn maybe_fn_body(&mut self) {
         if START_OF_FN_BODY.contains(&self.peek()) {
             if !self.check(SyntaxKind::LeftBrace) {
-                self.consume(SyntaxKind::Equal, "Expected start of block or '='.");
+                self.consume(
+                    SyntaxKind::Equal,
+                    "start of block or '='",
+                    "function signature",
+                );
             }
             self.node_with(SyntaxKind::FunctionBody, Self::expression);
         }
@@ -197,7 +206,7 @@ impl<'p> Parser<'p> {
         if self.peek_next() == SyntaxKind::LeftBrace {
             self.generic_adt(CASE_CONF);
         } else {
-            self.generic_ident();
+            self.generic_ident("<internal error>");
 
             if self.matches(SyntaxKind::LeftParen) {
                 while !self.check(SyntaxKind::RightParen) && !self.is_at_end() {
@@ -207,73 +216,67 @@ impl<'p> Parser<'p> {
                     self.consume_either(
                         SyntaxKind::Val,
                         SyntaxKind::Var,
-                        "Expected 'var' or 'val'.",
+                        "'var' or 'val'",
+                        "left parenthesis",
                     );
-                    self.consume(SyntaxKind::Identifier, "Expected member name.");
-                    self.consume(SyntaxKind::Colon, "Expected ':' after member name.");
-                    self.type_("Expected member type.");
+                    self.consume(SyntaxKind::Identifier, "member name", "var/val");
+                    self.consume(SyntaxKind::Colon, "':'", "member name");
+                    self.type_();
                     self.end_node();
 
                     if !self.matches(SyntaxKind::Comma) {
                         break;
                     }
                 }
-                self.consume(SyntaxKind::RightParen, "Expected ')' after members.");
+                self.consume(SyntaxKind::RightParen, "')'", "members");
             }
         }
 
         self.end_node();
     }
 
-    fn import_declaration(&mut self, name: &'static str) {
-        self.check_mods(&IMPORT_MODIFIERS, name);
-        if !self.matches(SyntaxKind::Identifier) {
-            self.error_at_current(&format!("Expected path after '{}'.", name))
-        }
-
-        // Prevent the string getting recomputed every loop
-        let err_msg = format!("Trailing '/' in {}.", name);
+    fn import_declaration(&mut self) {
+        self.check_mods(&IMPORT_MODIFIERS, "import/export");
+        self.consume(SyntaxKind::Identifier, "path", "import/export");
         while self.matches(SyntaxKind::Slash) {
-            self.consume_either(SyntaxKind::Identifier, SyntaxKind::Plus, &err_msg);
+            self.consume_either(
+                SyntaxKind::Identifier,
+                SyntaxKind::Plus,
+                "'+' or path",
+                "'/'",
+            );
         }
     }
 
     fn iface_impl(&mut self) {
-        self.node_with(SyntaxKind::Implementing, |this| {
-            this.type_("Expected interface.")
-        });
-        self.consume(SyntaxKind::For, "Expected 'for' after interface name.");
-        self.node_with(SyntaxKind::Implementor, |this| {
-            this.type_("Expected interface implementor type.")
-        });
-        self.consume(SyntaxKind::LeftBrace, "Expected '{' before impl body.");
+        self.node_with(SyntaxKind::Implementing, |this| this.type_());
+        self.consume(SyntaxKind::For, "'for'", "interface name");
+        self.node_with(SyntaxKind::Implementor, |this| this.type_());
+        self.consume(SyntaxKind::LeftBrace, "'{'", "impl body");
 
         while !self.check(SyntaxKind::RightBrace) && !self.is_at_end() {
             match self.peek() {
                 SyntaxKind::Func => self.method(false),
-                _ => self.error_at_current("Encountered invalid declaration inside impl."),
+                _ => self.error_at_current(GErr::E004),
             }
         }
-        self.consume(SyntaxKind::RightBrace, "Expected '}' after impl body.");
+        self.consume(SyntaxKind::RightBrace, "'}'", "impl body");
     }
 
     // Reads an identifier followed by optional generic type parameters.
-    fn generic_ident(&mut self) {
+    fn generic_ident(&mut self, after: &'static str) {
         self.start_node(SyntaxKind::Ident);
-        self.consume(SyntaxKind::Identifier, "Expected a name.");
+        self.consume(SyntaxKind::Identifier, "a name", after);
         if self.matches(SyntaxKind::LeftBracket) {
             while self.matches(SyntaxKind::Identifier) {
                 if self.matches(SyntaxKind::Colon) {
-                    self.type_("Expected bound after ':'.");
+                    self.type_();
                 }
                 if !self.matches(SyntaxKind::Comma) {
                     break;
                 }
             }
-            self.consume(
-                SyntaxKind::RightBracket,
-                "Expected ']' after type parameters.",
-            );
+            self.consume(SyntaxKind::RightBracket, "']'", "type parameters");
         }
         self.end_node();
     }
@@ -296,55 +299,52 @@ impl<'p> Parser<'p> {
             .iter()
             .filter(|m| !allowed.contains(&m) && !GLOBAL_MODIFIERS.contains(&m))
         {
-            self.error_at_current(&format!("Cannot have '{:?}' modifier on {}.", mod_, name))
+            self.error_at_current(GErr::E006 {
+                modifier: format!("{:?}", mod_),
+                on: name,
+            })
         }
     }
 
     /// Reads a type name.
-    pub(crate) fn type_(&mut self, msg: &str) {
+    pub(crate) fn type_(&mut self) {
         self.start_node(SyntaxKind::Type);
         let token = self.advance();
         match token.kind {
             SyntaxKind::Identifier => {
                 if self.matches(SyntaxKind::LeftBracket) {
                     loop {
-                        self.type_("Expected generic type.");
+                        self.type_();
                         if !self.matches(SyntaxKind::Comma) {
                             break;
                         }
                     }
-                    self.consume(
-                        SyntaxKind::RightBracket,
-                        "Expected ']' after type parameters.",
-                    );
+                    self.consume(SyntaxKind::RightBracket, "']'", "type parameters");
                 } else if self.matches(SyntaxKind::Colon) {
-                    self.consume(SyntaxKind::Identifier, "Expected case name after ':'.");
+                    self.consume(SyntaxKind::Identifier, "case name", "':'");
                 }
             }
 
             // Read inner
-            SyntaxKind::Tilde | SyntaxKind::AndSym | SyntaxKind::Star => self.type_(msg),
+            SyntaxKind::Tilde | SyntaxKind::AndSym | SyntaxKind::Star => self.type_(),
 
             SyntaxKind::LeftParen => {
                 if !self.check(SyntaxKind::RightParen) {
                     loop {
-                        self.type_("Expected closure parameter type.");
+                        self.type_();
                         if !self.matches(SyntaxKind::Comma) {
                             break;
                         }
                     }
                 }
 
-                self.consume(
-                    SyntaxKind::RightParen,
-                    "Expected ')' after closure parameters.",
-                );
+                self.consume(SyntaxKind::RightParen, "')'", "closure parameters");
                 if self.matches(SyntaxKind::Colon) {
-                    self.type_("Expected return type after ':'.")
+                    self.type_()
                 }
             }
 
-            _ => self.error_at_current(msg),
+            _ => self.error_at_current(GErr::E003),
         }
         self.end_node();
     }

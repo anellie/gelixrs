@@ -20,6 +20,10 @@ impl GenericIdent {
         }
     }
 
+    pub fn cst(&self) -> CSTNode {
+        self.cst.clone()
+    }
+
     pub fn name(&self) -> SmolStr {
         self.cst
             .children_with_tokens()
@@ -51,6 +55,10 @@ impl Type {
             None
         }
     }
+
+    pub fn cst(&self) -> CSTNode {
+        self.cst.clone()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -67,6 +75,10 @@ impl Literal {
             None
         }
     }
+
+    pub fn cst(&self) -> CSTNode {
+        self.cst.clone()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -82,6 +94,10 @@ impl Adt {
         } else {
             None
         }
+    }
+
+    pub fn cst(&self) -> CSTNode {
+        self.cst.clone()
     }
 
     pub fn kind(&self) -> SyntaxKind {
@@ -131,6 +147,10 @@ impl Constructor {
         }
     }
 
+    pub fn cst(&self) -> CSTNode {
+        self.cst.clone()
+    }
+
     pub fn sig(&self) -> FunctionSignature {
         self.cst
             .children()
@@ -154,11 +174,17 @@ pub struct Function {
 impl Function {
     #[allow(unused)]
     pub fn cast(node: CSTNode) -> Option<Self> {
-        if let SyntaxKind::FunctionDecl | SyntaxKind::Method = node.kind() {
+        if let SyntaxKind::FunctionDecl | SyntaxKind::Method | SyntaxKind::ClosureLiteral =
+            node.kind()
+        {
             Some(Self { cst: node })
         } else {
             None
         }
+    }
+
+    pub fn cst(&self) -> CSTNode {
+        self.cst.clone()
     }
 
     pub fn sig(&self) -> FunctionSignature {
@@ -207,6 +233,10 @@ impl FunctionSignature {
         }
     }
 
+    pub fn cst(&self) -> CSTNode {
+        self.cst.clone()
+    }
+
     pub fn ident(&self) -> GenericIdent {
         self.cst.children().find_map(GenericIdent::cast).unwrap()
     }
@@ -231,6 +261,10 @@ impl Parameter {
         } else {
             None
         }
+    }
+
+    pub fn cst(&self) -> CSTNode {
+        self.cst.clone()
     }
 
     pub fn name(&self) -> SmolStr {
@@ -268,6 +302,10 @@ impl Import {
         }
     }
 
+    pub fn cst(&self) -> CSTNode {
+        self.cst.clone()
+    }
+
     pub fn parts(&self) -> impl Iterator<Item = SmolStr> + '_ {
         self.cst
             .children_with_tokens()
@@ -291,6 +329,10 @@ impl IfaceImpl {
         } else {
             None
         }
+    }
+
+    pub fn cst(&self) -> CSTNode {
+        self.cst.clone()
     }
 
     pub fn implementor(&self) -> Type {
@@ -319,20 +361,21 @@ impl IfaceImpl {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expression {
     Binary(Binary),
-    Prefix(Prefix),
+    Block(Block),
+    Break(Break),
     Call(Call),
+    For(ForExpr),
     Get(Get),
     GetStatic(GetStatic),
-    Block(Block),
+    Grouping(Grouping),
     If(IfExpr),
-    For(ForExpr),
+    Literal(Literal),
+    LiteralClosure(Function),
+    Prefix(Prefix),
     Return(Return),
-    Break(Break),
-    When(When),
     Variable(GenericIdent),
     VarDef(Variable),
-    Grouping(Grouping),
-    Literal(Literal),
+    When(When),
 }
 
 impl Expression {
@@ -341,11 +384,17 @@ impl Expression {
         if node.kind() == SyntaxKind::BinaryExpr {
             return Some(Self::Binary(Binary::cast(node).unwrap()));
         }
-        if node.kind() == SyntaxKind::PrefixExpr {
-            return Some(Self::Prefix(Prefix::cast(node).unwrap()));
+        if node.kind() == SyntaxKind::Block {
+            return Some(Self::Block(Block::cast(node).unwrap()));
+        }
+        if node.kind() == SyntaxKind::Break {
+            return Some(Self::Break(Break::cast(node).unwrap()));
         }
         if node.kind() == SyntaxKind::CallExpr {
             return Some(Self::Call(Call::cast(node).unwrap()));
+        }
+        if node.kind() == SyntaxKind::ForExpr {
+            return Some(Self::For(ForExpr::cast(node).unwrap()));
         }
         if node.kind() == SyntaxKind::GetExpr {
             return Some(Self::Get(Get::cast(node).unwrap()));
@@ -353,23 +402,23 @@ impl Expression {
         if node.kind() == SyntaxKind::GetStaticExpr {
             return Some(Self::GetStatic(GetStatic::cast(node).unwrap()));
         }
-        if node.kind() == SyntaxKind::Block {
-            return Some(Self::Block(Block::cast(node).unwrap()));
+        if node.kind() == SyntaxKind::Grouping {
+            return Some(Self::Grouping(Grouping::cast(node).unwrap()));
         }
         if node.kind() == SyntaxKind::IfExpr {
             return Some(Self::If(IfExpr::cast(node).unwrap()));
         }
-        if node.kind() == SyntaxKind::ForExpr {
-            return Some(Self::For(ForExpr::cast(node).unwrap()));
+        if node.kind() == SyntaxKind::Literal {
+            return Some(Self::Literal(Literal::cast(node).unwrap()));
+        }
+        if node.kind() == SyntaxKind::ClosureLiteral {
+            return Some(Self::LiteralClosure(Function::cast(node).unwrap()));
+        }
+        if node.kind() == SyntaxKind::PrefixExpr {
+            return Some(Self::Prefix(Prefix::cast(node).unwrap()));
         }
         if node.kind() == SyntaxKind::Return {
             return Some(Self::Return(Return::cast(node).unwrap()));
-        }
-        if node.kind() == SyntaxKind::Break {
-            return Some(Self::Break(Break::cast(node).unwrap()));
-        }
-        if node.kind() == SyntaxKind::When {
-            return Some(Self::When(When::cast(node).unwrap()));
         }
         if node.kind() == SyntaxKind::Ident {
             return Some(Self::Variable(GenericIdent::cast(node).unwrap()));
@@ -377,32 +426,30 @@ impl Expression {
         if node.kind() == SyntaxKind::Variable {
             return Some(Self::VarDef(Variable::cast(node).unwrap()));
         }
-        if node.kind() == SyntaxKind::Grouping {
-            return Some(Self::Grouping(Grouping::cast(node).unwrap()));
-        }
-        if node.kind() == SyntaxKind::Literal {
-            return Some(Self::Literal(Literal::cast(node).unwrap()));
+        if node.kind() == SyntaxKind::When {
+            return Some(Self::When(When::cast(node).unwrap()));
         }
         None
     }
 
-    pub fn cst(&self) -> &CSTNode {
+    pub fn cst(&self) -> CSTNode {
         match self {
-            Self::Binary(inner) => &inner.cst,
-            Self::Prefix(inner) => &inner.cst,
-            Self::Call(inner) => &inner.cst,
-            Self::Get(inner) => &inner.cst,
-            Self::GetStatic(inner) => &inner.cst,
-            Self::Block(inner) => &inner.cst,
-            Self::If(inner) => &inner.cst,
-            Self::For(inner) => &inner.cst,
-            Self::Return(inner) => &inner.cst,
-            Self::Break(inner) => &inner.cst,
-            Self::When(inner) => &inner.cst,
-            Self::Variable(inner) => &inner.cst,
-            Self::VarDef(inner) => &inner.cst,
-            Self::Grouping(inner) => &inner.cst,
-            Self::Literal(inner) => &inner.cst,
+            Self::Binary(inner) => inner.cst(),
+            Self::Block(inner) => inner.cst(),
+            Self::Break(inner) => inner.cst(),
+            Self::Call(inner) => inner.cst(),
+            Self::For(inner) => inner.cst(),
+            Self::Get(inner) => inner.cst(),
+            Self::GetStatic(inner) => inner.cst(),
+            Self::Grouping(inner) => inner.cst(),
+            Self::If(inner) => inner.cst(),
+            Self::Literal(inner) => inner.cst(),
+            Self::LiteralClosure(inner) => inner.cst(),
+            Self::Prefix(inner) => inner.cst(),
+            Self::Return(inner) => inner.cst(),
+            Self::Variable(inner) => inner.cst(),
+            Self::VarDef(inner) => inner.cst(),
+            Self::When(inner) => inner.cst(),
         }
     }
 }
@@ -420,6 +467,10 @@ impl Variable {
         } else {
             None
         }
+    }
+
+    pub fn cst(&self) -> CSTNode {
+        self.cst.clone()
     }
 
     pub fn kind(&self) -> SyntaxKind {
@@ -485,6 +536,10 @@ impl Grouping {
         }
     }
 
+    pub fn cst(&self) -> CSTNode {
+        self.cst.clone()
+    }
+
     pub fn inner(&self) -> Expression {
         self.cst.children().find_map(Expression::cast).unwrap()
     }
@@ -503,6 +558,10 @@ impl Binary {
         } else {
             None
         }
+    }
+
+    pub fn cst(&self) -> CSTNode {
+        self.cst.clone()
     }
 
     pub fn operator(&self) -> SyntaxKind {
@@ -556,6 +615,10 @@ impl Prefix {
         }
     }
 
+    pub fn cst(&self) -> CSTNode {
+        self.cst.clone()
+    }
+
     pub fn operator(&self) -> SyntaxKind {
         self.cst
             .children()
@@ -599,6 +662,10 @@ impl Call {
         }
     }
 
+    pub fn cst(&self) -> CSTNode {
+        self.cst.clone()
+    }
+
     pub fn callee(&self) -> Expression {
         self.cst
             .children()
@@ -631,6 +698,10 @@ impl Get {
         }
     }
 
+    pub fn cst(&self) -> CSTNode {
+        self.cst.clone()
+    }
+
     pub fn callee(&self) -> Expression {
         self.cst
             .children()
@@ -658,6 +729,10 @@ impl GetStatic {
         } else {
             None
         }
+    }
+
+    pub fn cst(&self) -> CSTNode {
+        self.cst.clone()
     }
 
     pub fn callee(&self) -> Expression {
@@ -698,6 +773,10 @@ impl Block {
         }
     }
 
+    pub fn cst(&self) -> CSTNode {
+        self.cst.clone()
+    }
+
     pub fn expressions(&self) -> impl Iterator<Item = Expression> + '_ {
         self.cst.children().filter_map(Expression::cast)
     }
@@ -716,6 +795,10 @@ impl IfExpr {
         } else {
             None
         }
+    }
+
+    pub fn cst(&self) -> CSTNode {
+        self.cst.clone()
     }
 
     pub fn condition(&self) -> Expression {
@@ -758,6 +841,10 @@ impl ForExpr {
         } else {
             None
         }
+    }
+
+    pub fn cst(&self) -> CSTNode {
+        self.cst.clone()
     }
 
     pub fn condition(&self) -> Option<Expression> {
@@ -807,6 +894,10 @@ impl ForIterCond {
         }
     }
 
+    pub fn cst(&self) -> CSTNode {
+        self.cst.clone()
+    }
+
     pub fn name(&self) -> SmolStr {
         self.cst
             .children_with_tokens()
@@ -839,6 +930,10 @@ impl Return {
         }
     }
 
+    pub fn cst(&self) -> CSTNode {
+        self.cst.clone()
+    }
+
     pub fn value(&self) -> Option<Expression> {
         self.cst.children().find_map(Expression::cast)
     }
@@ -857,6 +952,10 @@ impl Break {
         } else {
             None
         }
+    }
+
+    pub fn cst(&self) -> CSTNode {
+        self.cst.clone()
     }
 
     pub fn value(&self) -> Option<Expression> {
@@ -879,6 +978,10 @@ impl When {
         }
     }
 
+    pub fn cst(&self) -> CSTNode {
+        self.cst.clone()
+    }
+
     pub fn condition(&self) -> Expression {
         self.cst
             .children()
@@ -890,6 +993,13 @@ impl When {
     }
     pub fn branches(&self) -> impl Iterator<Item = WhenBranch> + '_ {
         self.cst.children().filter_map(WhenBranch::cast)
+    }
+    pub fn else_branch(&self) -> Option<Expression> {
+        self.cst
+            .children()
+            .find(|i| i.kind() == SyntaxKind::ExprElse)
+            .map(|i| i.children().find_map(Expression::cast))
+            .flatten()
     }
 }
 
@@ -908,12 +1018,18 @@ impl WhenBranch {
         }
     }
 
-    pub fn condition(&self) -> Option<Expression> {
+    pub fn cst(&self) -> CSTNode {
+        self.cst.clone()
+    }
+
+    pub fn condition(&self) -> Expression {
         self.cst
             .children()
             .find(|i| i.kind() == SyntaxKind::ExprCondition)
-            .map(|i| i.children().find_map(Expression::cast))
-            .flatten()
+            .unwrap()
+            .children()
+            .find_map(Expression::cast)
+            .unwrap()
     }
     pub fn branch(&self) -> Expression {
         self.cst

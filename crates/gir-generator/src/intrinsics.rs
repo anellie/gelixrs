@@ -11,18 +11,10 @@
 //! of the expression.
 
 use common::MutRc;
-use error::{Error, ErrorSpan, Res};
+use error::{Error, ErrorSpan, GErr, Res};
 use gir_nodes::{Function, Module, Type, ADT};
-use std::{
-    cell::{Ref, RefCell},
-    collections::HashMap,
-    rc::Rc,
-};
+use std::{cell::Ref, collections::HashMap, rc::Rc};
 use syntax::kind::SyntaxKind;
-
-thread_local! {
-    pub static INTRINSICS: RefCell<Intrinsics> = RefCell::new(Intrinsics::default());
-}
 
 /// Contains all data structures that require some sort of special treatment.
 #[derive(Default)]
@@ -94,8 +86,7 @@ impl Intrinsics {
         if self.main_fn.is_none() {
             return Err(Error {
                 index: ErrorSpan::None,
-                message: "Could not find main function.".to_string(),
-                code: "G002",
+                kind: GErr::E101,
             });
         }
         Ok(())
