@@ -1,68 +1,91 @@
-use std::{cell::RefMut, rc::Rc};
-use crate::module::GIRModuleGenerator;
+use std::{mem, rc::Rc};
 
-impl GIRModuleGenerator {
-    pub fn imports(&mut self, second_stage: bool) {
-        self.run_mod(|gen, module| {
-            gen.drain_mod_imports(module, |this, module, import, is_export| {
-                let src_module_rc = gen.find_module(&module.path, &import)?;
-                let src_module = src_module_rc.borrow();
+use common::{ModPath, MutRc};
+use error::{GErr, Res};
+use gir_nodes::{
+    module::{Imports, UnresolvedImport},
+    Module,
+};
 
-                if import.symbol.t_type == TType::Plus {
-                    if second_stage {
-                        for name in src_module.declarations.keys() {
-                            module.try_reserve_name_rc(&this.generator, name, &import.symbol);
-                        }
-                    } else {
-                        Self::get_imports(module, is_export)
-                            .modules
-                            .push(src_module_rc.clone());
-                    }
-                    Ok(!second_stage)
-                } else {
-                    let decl = src_module.find_import(&import.symbol.lexeme);
+use crate::{eat, result::EmitGIRError, GIRGenerator};
 
-                    if let Some(decl) = decl {
-                        module.try_reserve_name(&this.generator, &import.symbol);
-                        Self::get_imports(module, is_export)
-                            .decls
-                            .insert(import.symbol.lexeme.clone(), decl);
-                    } else if second_stage {
-                        gen.err(&import.symbol, "Unknown declaration.".to_string())
-                    } else {
-                        return Ok(true);
-                    }
+impl GIRGenerator {
+    pub(super) fn import_stage_1(&mut self, module: MutRc<Module>) {
+        let ast = {
+            let mut module = module.borrow_mut();
+            module.borrow_ast()
+        };
 
-                    Ok(false)
+        for import in ast.imports() {
+            let mut path = import.parts().collect::<Vec<_>>();
+            let symbol = path.pop().unwrap();
+            let path = ModPath::from(path);
+
+            let src_module_rc = eat!(self, self.find_module(&path, &import));
+            let src_module = src_module_rc.borrow();
+
+            if symbol == "+" {
+                Self::get_imports(&mut module.borrow_mut(), import.is_export())
+                    .modules
+                    .push(src_module_rc.clone());
+            } else {
+                let decl = src_module.find_import(&symbol);
+                if let Some(decl) = decl {
+                    self.try_reserve_name(&import.cst, &symbol);
+                    Self::get_imports(&mut module.borrow_mut(), import.is_export())
+                        .decls
+                        .insert(symbol, decl);
+                    continue;
                 }
-            })
-        })
+            }
+
+            module
+                .borrow_mut()
+                .imports
+                .unresolved
+                .push(UnresolvedImport {
+                    ast: import,
+                    module: Rc::clone(&src_module_rc),
+                    symbol,
+                })
+        }
+
+        module.borrow_mut().return_ast(ast);
     }
 
-    /// This function runs `retain` on all imports in the given module, using the given function as a filter.
-    fn drain_mod_imports<T: FnMut(&Self, &mut RefMut<Module>, &Import, bool) -> Res<bool>>(
-        &self,
-        target: MutRc<Module>,
-        mut cond: T,
-    ) {
-        let mut module = target.borrow_mut();
-        let mut ast = module.borrow_ast();
-        ast.imports.retain(|im| {
-            cond(self, &mut module, im, false).unwrap_or_else(|e| self.import_err(e, &module))
-        });
-        ast.exports.retain(|im| {
-            cond(self, &mut module, im, true).unwrap_or_else(|e| self.import_err(e, &module))
-        });
-        module.return_ast(ast);
+    pub(super) fn import_stage_2(&mut self, module: MutRc<Module>) {
+        let remaining_imports = mem::replace(&mut module.borrow_mut().imports.unresolved, vec![]);
+        for import in remaining_imports {
+            let src_module = import.module.borrow();
+
+            if import.symbol == "+" {
+                for name in src_module.declarations.keys() {
+                    self.try_reserve_name(&import.ast.cst, name);
+                }
+            } else {
+                let decl = src_module.find_import(&import.symbol);
+                if let Some(decl) = decl {
+                    self.try_reserve_name(&import.ast.cst, &import.symbol);
+                    Self::get_imports(&mut module.borrow_mut(), import.ast.is_export())
+                        .decls
+                        .insert(import.symbol, decl);
+                } else {
+                    self.err(import.ast.cst(), GErr::E103);
+                }
+            }
+        }
     }
 
-    fn find_module(&self, path: &Rc<ModulePath>, import: &Import) -> Res<&MutRc<Module>> {
+    fn find_module(&self, path: &ModPath, import: &ast::Import) -> Res<&MutRc<Module>> {
         self.modules
             .iter()
             .find(|m| {
-                m.try_borrow().ok().map(|m| Rc::clone(&m.path)) == Some(Rc::clone(&import.path))
+                m.try_borrow()
+                    .ok()
+                    .map(|m| *m.path == *path)
+                    .unwrap_or(false)
             })
-            .or_err(path, &import.symbol, "Unknown module.")
+            .or_err(&import.cst, GErr::E102)
     }
 
     fn get_imports(module: &mut Module, is_export: bool) -> &mut Imports {
@@ -71,10 +94,5 @@ impl GIRModuleGenerator {
         } else {
             &mut module.imports
         }
-    }
-
-    fn import_err(&self, err: Error, module: &Module) -> bool {
-        self.generator.error_(err, module);
-        true
     }
 }

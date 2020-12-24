@@ -424,15 +424,6 @@ impl Import {
     pub fn cst(&self) -> CSTNode {
         self.cst.clone()
     }
-
-    pub fn parts(&self) -> impl Iterator<Item = SmolStr> + '_ {
-        self.cst
-            .children_with_tokens()
-            .filter(|c| {
-                c.as_token().map(SyntaxToken::<GelixLang>::kind) == Some(SyntaxKind::Identifier)
-            })
-            .map(|c| c.as_token().unwrap().text().clone())
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

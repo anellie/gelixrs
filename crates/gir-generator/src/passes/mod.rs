@@ -6,7 +6,7 @@ use std::rc::Rc;
 mod declare;
 mod fields;
 mod generate;
-// mod import;
+mod import;
 // mod intrinsic_methods;
 // mod intrinsics;
 // mod methods;
@@ -15,12 +15,12 @@ impl GIRGenerator {
     pub(crate) fn run_passes(&mut self) {
         self.run_ast(Self::declare_adts);
         // self.run_mod(Self::populate_intrinsics);
-        // self.imports(false);
+        self.run_mod(Self::import_stage_1);
         self.run_ast(Self::declare_iface_impls);
         self.run_ast(Self::declare_functions);
         // self.run_mod(Self::populate_intrinsics_fn);
         // self.validate_intrinsics();
-        // self.imports(true);
+        self.run_mod(Self::import_stage_2);
 
         // self.run_adt(GIRGenerator::declare_methods);
         // self.generator.fill_impls();
@@ -42,11 +42,11 @@ impl GIRGenerator {
 
     /// Execute a given module-scope pass with AST data. Sets self.module to the
     /// module to be processed.
-    fn run_ast<T: FnMut(&mut Self, &mut ast::Module)>(&mut self, mut runner: T) {
+    fn run_ast<T: FnMut(&mut Self, &ast::Module)>(&mut self, mut runner: T) {
         for module in self.modules.clone() {
             self.switch_module(Rc::clone(&module));
-            let mut ast = module.borrow_mut().borrow_ast();
-            runner(self, &mut ast);
+            let ast = module.borrow_mut().borrow_ast();
+            runner(self, &ast);
             module.borrow_mut().return_ast(ast);
         }
     }

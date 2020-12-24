@@ -16,6 +16,10 @@ impl ModPath {
         ModPath(Vec::with_capacity(8))
     }
 
+    pub fn from(path: Vec<SmolStr>) -> Self {
+        ModPath(path)
+    }
+
     pub fn is(&self, other: &[&str]) -> bool {
         self.0.iter().zip(other.iter()).all(|(a, b)| a == b)
     }

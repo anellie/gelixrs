@@ -32,6 +32,10 @@ pub enum GErr {
     E100(SmolStr),
     // Could not find main function
     E101,
+    // Unknown module
+    E102,
+    // Unknown declaration
+    E103,
 
     // Cannot assign to
     E200(&'static str),
@@ -210,6 +214,8 @@ impl GErr {
             E008 => "Expected expression.",
 
             E101 => "Could not find main function.",
+            E102 => "Unknown module.",
+            E103 => "Unresolved import.",
 
             E201 => "Value is a different type than assignment target.",
             E202 => "No implementation of operator found for types.",

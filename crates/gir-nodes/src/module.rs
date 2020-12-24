@@ -10,7 +10,7 @@ use std::{
 
 /// A module as represented in GIR.
 /// Simplified to a list of declarations.
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct Module {
     /// All declarations (classes/functions/ifaces) in this module.
     pub declarations: HashMap<SmolStr, Declaration>,
@@ -69,10 +69,14 @@ impl Module {
     /// Create new module from AST, consuming it.
     pub fn new(ast: ast::Module) -> MutRc<Self> {
         mutrc_new(Self {
+            declarations: HashMap::with_capacity(10),
+            functions: Vec::with_capacity(10),
+            imports: Imports::default(),
+            exports: Imports::default(),
+            used_names: HashSet::with_capacity(10),
             path: Rc::clone(&ast.path),
             src: Rc::clone(&ast.src),
             ast: Some(ast),
-            ..Self::default()
         })
     }
 }
@@ -82,6 +86,7 @@ impl Module {
 pub struct Imports {
     pub decls: HashMap<SmolStr, Declaration>,
     pub modules: Vec<MutRc<Module>>,
+    pub unresolved: Vec<UnresolvedImport>,
 }
 
 impl Imports {
@@ -92,4 +97,13 @@ impl Imports {
                 .find_map(|m| m.borrow().find_import(name))
         })
     }
+}
+
+/// An import that has not been resolved yet. Used
+/// by GIR generator to keep track.
+#[derive(Debug)]
+pub struct UnresolvedImport {
+    pub ast: ast::Import,
+    pub module: MutRc<Module>,
+    pub symbol: SmolStr,
 }

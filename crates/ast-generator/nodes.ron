@@ -224,18 +224,7 @@
     ),
 
     // Imports
-    Node(
-        context: Ctx(
-            name: "Import",
-            items: [
-                Item(
-                    name: "parts",
-                    type: "Identifier",
-                    strategy: "ident_list"
-                )
-            ]
-        )
-    ),
+    Node(context: Ctx(name: "Import")),
 
     // Interface implementations
     Node(

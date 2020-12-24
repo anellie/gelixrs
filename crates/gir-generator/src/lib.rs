@@ -1,7 +1,7 @@
 #![feature(try_find)]
 
 use crate::intrinsics::Intrinsics;
-use common::{ModulePath, MutRc};
+use common::{mutrc_new, ModulePath, MutRc};
 use either::Either;
 use gir_nodes::{
     gir_err, types::ToInstance, Declaration, Expr, Function, IFaceImpls, Instance, Module, Type,
@@ -40,7 +40,6 @@ pub struct CompiledGIR {
 type Environment = HashMap<SmolStr, Rc<LocalVariable>>;
 
 /// A GIR generator, responsible for compiling GIR.
-#[derive(Default)]
 pub struct GIRGenerator {
     /// Current function inserting into
     position: Option<MutRc<Function>>,
@@ -439,11 +438,18 @@ impl GIRGenerator {
     fn from_modules(modules: Vec<MutRc<Module>>) -> Self {
         let path = modules[0].borrow().path.clone();
         Self {
+            position: None,
             path,
             module: Rc::clone(&modules[0]),
             modules,
+            intrinsics: Intrinsics::default(),
+            iface_impls: HashMap::with_capacity(100),
             environments: vec![HashMap::with_capacity(3)],
-            ..Default::default()
+            type_params: None,
+            current_loop_ty: None,
+            uninitialized_this_fields: HashSet::with_capacity(5),
+            closure_data: None,
+            errors: mutrc_new(HashMap::new()),
         }
     }
 }

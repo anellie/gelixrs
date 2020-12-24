@@ -14,7 +14,7 @@ use smol_str::SmolStr;
 use syntax::kind::SyntaxKind;
 
 impl GIRGenerator {
-    pub(super) fn declare_adts(&mut self, ast: &mut ast::Module) {
+    pub(super) fn declare_adts(&mut self, ast: &ast::Module) {
         for ast in ast.adts() {
             let name = ast.name();
             self.try_reserve_name(&name.cst, &name.name());
@@ -117,7 +117,7 @@ impl GIRGenerator {
         params
     }
 
-    pub(super) fn declare_iface_impls(&mut self, ast: &mut ast::Module) {
+    pub(super) fn declare_iface_impls(&mut self, ast: &ast::Module) {
         for im in ast.impls() {
             self.declare_impl(im)
         }
@@ -151,7 +151,7 @@ impl GIRGenerator {
         }
     }
 
-    pub(super) fn declare_functions(&mut self, ast: &mut ast::Module) {
+    pub(super) fn declare_functions(&mut self, ast: &ast::Module) {
         for ast in ast.functions() {
             eatc!(self, self.declare_function(ast));
         }
