@@ -186,7 +186,7 @@ impl IRGenerator {
         let fn_ty = self.fn_type_from_raw(params, &func.ret_type, func.variadic);
 
         // If extern fn OR main: don't prepend module name
-        let name = if func.ast.body().is_none() || func.name == "main" {
+        let name = if func.ast.as_ref().map(|a| a.body()).flatten().is_none() || func.name == "main" {
             format!("{}", func.name)
         } else {
             format!("{}::{}{}", func.module.borrow().path, func.name, suffix)

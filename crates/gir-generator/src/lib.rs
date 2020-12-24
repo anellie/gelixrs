@@ -24,9 +24,9 @@ use gir_nodes::{
 use smol_str::SmolStr;
 
 mod expr;
-pub mod intrinsics;
+mod intrinsics;
 mod passes;
-pub mod resolver;
+mod resolver;
 mod result;
 mod types;
 
@@ -37,7 +37,7 @@ pub struct CompiledGIR {
     pub iface_impls: HashMap<Type, MutRc<IFaceImpls>>,
 }
 
-pub type Environment = HashMap<SmolStr, Rc<LocalVariable>>;
+type Environment = HashMap<SmolStr, Rc<LocalVariable>>;
 
 /// A GIR generator, responsible for compiling GIR.
 #[derive(Default)]
@@ -93,7 +93,7 @@ pub struct GIRGenerator {
 impl GIRGenerator {
     /// Consumes AST modules given, processing them to GIR.
     /// Returns errors if any occurred.
-    pub fn consume(self) -> Result<CompiledGIR, Vec<Errors>> {
+    pub fn consume(mut self) -> Result<CompiledGIR, Vec<Errors>> {
         self.run_passes();
 
         let errs = self
@@ -116,7 +116,7 @@ impl GIRGenerator {
     /// Tries to reserve the given name in the current module.
     /// Be warned that this will borrow mutably!
     /// Will eat error if any occurs.
-    pub fn try_reserve_name(&self, node: CSTNode, name: &SmolStr) {
+    fn try_reserve_name(&self, node: &CSTNode, name: &SmolStr) {
         let res = self.module.borrow_mut().try_reserve_name(node, name);
         self.eat(res);
     }
@@ -124,41 +124,41 @@ impl GIRGenerator {
     /// Defines a new variable. It is put into the variable list in the current function
     /// and placed in the topmost scope.
     fn define_variable(&mut self, ast: ast::Variable, ty: Type) -> Rc<LocalVariable> {
-        self.define_variable_(ast, ty, None)
+        let def = LocalVariable {
+            name: ast.name(),
+            mutable: ast.mutable(),
+            ty,
+        };
+        self.define_variable_(def, Some(&ast.cst))
     }
 
     /// Defines a new variable. It is put into the variable list in the current function
     /// and placed in the topmost scope.
     /// This function additionally allows overriding mutability.
-    fn define_variable_(
-        &mut self,
-        ast: ast::Variable,
-        ty: Type,
-        mutable: Option<bool>,
-    ) -> Rc<LocalVariable> {
-        let def = Rc::new(LocalVariable {
-            name: ast.name(),
-            mutable: mutable.unwrap_or_else(|| ast.mutable()),
-            ty,
-            ast,
-        });
+    fn define_variable_(&mut self, var: LocalVariable, cst: Option<&CSTNode>) -> Rc<LocalVariable> {
+        let def = Rc::new(var);
         self.add_function_variable(Rc::clone(&def));
-        self.insert_variable(&def, true);
+        self.insert_variable(&def, true, cst);
         def
     }
 
     /// Inserts a variable into the topmost scope.
     /// Note that the variable does NOT get added to the function!
-    fn insert_variable(&mut self, var: &Rc<LocalVariable>, allow_redefine: bool) {
+    fn insert_variable(
+        &mut self,
+        var: &Rc<LocalVariable>,
+        allow_redefine: bool,
+        err: Option<&CSTNode>,
+    ) {
         let cur_env = self.environments.last_mut().unwrap();
         let was_defined = cur_env.insert(var.name.clone(), Rc::clone(&var)).is_some();
         if was_defined && !allow_redefine {
-            self.err(var.ast.cst(), GErr::E208(var.name.clone()));
+            self.err(err.unwrap().clone(), GErr::E208(var.name.clone()));
         }
     }
 
     /// Will insert the variable into the current function.
-    pub fn add_function_variable(&mut self, variable: Rc<LocalVariable>) {
+    fn add_function_variable(&mut self, variable: Rc<LocalVariable>) {
         self.cur_fn()
             .borrow_mut()
             .insert_var(variable.name.clone(), variable);
@@ -339,7 +339,7 @@ impl GIRGenerator {
     }
 
     /// Inserts the given expression at the current insertion pointer.
-    pub fn insert_at_ptr(&mut self, expr: Expr) {
+    fn insert_at_ptr(&mut self, expr: Expr) {
         let func = self.cur_fn();
         let mut func = func.borrow_mut();
         func.exprs.push(expr)
@@ -348,27 +348,27 @@ impl GIRGenerator {
     /// Sets the insertion pointer.
     /// Insertion is always at the end of a function.
     /// Also sets resolver type parameters.
-    pub fn set_pointer(&mut self, func: &MutRc<Function>) {
+    fn set_pointer(&mut self, func: &MutRc<Function>) {
         self.set_context(&func.borrow().type_parameters);
         self.position = Some(Rc::clone(func))
     }
 
     /// Returns the function of the insertion pointer.
-    pub fn cur_fn(&self) -> MutRc<Function> {
+    fn cur_fn(&self) -> MutRc<Function> {
         self.position.as_ref().unwrap().clone()
     }
 
     /// Create new error and add it to the list of errors.
-    pub fn err(&self, cst: CSTNode, err: GErr) {
+    fn err(&self, cst: CSTNode, err: GErr) {
         self.error(gir_err(cst, err))
     }
 
     /// Add error to the list of errors.
-    pub fn error(&self, error: Error) {
+    fn error(&self, error: Error) {
         self.error_(error, &self.module.borrow())
     }
 
-    pub fn error_(&self, error: Error, module: &Module) {
+    fn error_(&self, error: Error, module: &Module) {
         let mut errs = self.errors.borrow_mut();
         if let Some(errs) = errs.get_mut(&self.path) {
             errs.errors.push(error);
@@ -385,7 +385,7 @@ impl GIRGenerator {
     }
 
     /// Switch to compiling a different module, resetting module state.
-    pub fn switch_module(&mut self, new: MutRc<Module>) {
+    fn switch_module(&mut self, new: MutRc<Module>) {
         self.module = new;
         self.path = Rc::clone(&self.module.borrow().path);
         self.type_params = None;
@@ -395,7 +395,7 @@ impl GIRGenerator {
         self.uninitialized_this_fields.clear();
     }
 
-    pub fn eat<T>(&self, res: Res<T>) -> Option<T> {
+    fn eat<T>(&self, res: Res<T>) -> Option<T> {
         match res {
             Ok(i) => Some(i),
             Err(e) => {
@@ -429,14 +429,14 @@ impl GIRGenerator {
 
     /// Ends closure compilation and restores the outer generator,
     /// returning recorded info about the compiled closure.
-    pub fn end_closure(self, outer: &mut GIRGenerator) -> ClosureData {
+    fn end_closure(self, outer: &mut GIRGenerator) -> ClosureData {
         let mut closure_data = self.closure_data.unwrap();
         outer.environments = mem::replace(&mut closure_data.outer_env, vec![]);
         closure_data
     }
 
     /// Create a new generator from GIR modules.
-    pub fn from_modules(modules: Vec<MutRc<Module>>) -> Self {
+    fn from_modules(modules: Vec<MutRc<Module>>) -> Self {
         let path = modules[0].borrow().path.clone();
         Self {
             path,
@@ -449,7 +449,7 @@ impl GIRGenerator {
 }
 
 /// Data required for closure compilation.
-pub struct ClosureData {
+struct ClosureData {
     /// All environments in the function that the closure literal
     /// is being compiled in.
     pub outer_env: Vec<Environment>,

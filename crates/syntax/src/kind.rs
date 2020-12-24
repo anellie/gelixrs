@@ -18,8 +18,10 @@ pub enum SyntaxKind {
     // A top-level interface implementation declaration
     ImplDecl,
 
-    // An identifier of a declaration, containing generic parameters.
+    // An identifier of a declaration, containing type parameters.
     Ident,
+    // A type parameter inside Ident, containing a Type and Identifier/name.
+    TypeParameter,
     // A modifier on a declaration.
     Modifier,
 

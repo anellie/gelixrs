@@ -118,6 +118,14 @@ pub enum GErr {
     E303,
     // Type does not take type arguments
     E304,
+    // Can't define main multiple times
+    E305,
+    // Interface already defined for type
+    E306,
+    // Only interfaces can be implemented
+    E307,
+    // Cannot return a weak reference
+    E308,
 }
 
 impl GErr {
@@ -194,6 +202,10 @@ impl GErr {
             E302 => "Weak is only applicable to ADTs.",
             E303 => "Value is only applicable to ADTs.",
             E304 => "Type does not take type arguments.",
+            E305 => "Can't define main multiple times.",
+            E306 => "Interface already defined for type.",
+            E307 => "Only interfaces can be implemented.",
+            E308 => "Cannot return a weak reference.",
 
             _ => unreachable!(),
         }

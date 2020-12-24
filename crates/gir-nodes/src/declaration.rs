@@ -2,7 +2,6 @@ use crate::{
     types::{ClosureType, TypeArguments, TypeParameters},
     Expr, Instance, Module, Type,
 };
-use ast::CSTNode;
 use common::MutRc;
 use enum_methods::{EnumAsGetters, EnumIntoGetters, EnumIsA};
 use indexmap::map::IndexMap;
@@ -79,7 +78,7 @@ pub struct ADT {
     /// The exact type of this ADT; used for holding specific info.
     pub ty: ADTType,
     /// The AST of this ADT
-    pub ast: MutRc<ast::Adt>,
+    pub ast: ast::Adt,
     /// The module this ADT was declared in
     pub module: MutRc<Module>,
     /// IR-level information of this ADT
@@ -328,8 +327,9 @@ pub struct Function {
     pub variables: HashMap<SmolStr, Rc<LocalVariable>>,
     /// The return type of the function; Type::None if omitted.
     pub ret_type: Type,
-    /// The AST for this function.
-    pub ast: Rc<ast::Function>,
+    /// The AST for this function, if it is a user function
+    /// and not compiler-generated.
+    pub ast: Option<ast::Function>,
     /// The module this was declared in.
     pub module: MutRc<Module>,
     /// IR data for this function, used by IR generator
@@ -375,11 +375,10 @@ pub enum Variable {
 }
 
 impl Variable {
-    /// Returns an AST node for error reporting.
-    pub fn get_ast(&self) -> CSTNode {
+    pub fn get_name(&self) -> SmolStr {
         match self {
-            Self::Function(func) => func.ty.borrow().ast.cst(),
-            Self::Local(local) => local.ast.cst(),
+            Self::Function(func) => func.ty.borrow().name.clone(),
+            Self::Local(local) => local.name.clone(),
         }
     }
 
@@ -431,8 +430,6 @@ pub struct LocalVariable {
     pub ty: Type,
     /// If it is mutable; user-decided on variables, false on fn arguments
     pub mutable: bool,
-    /// The AST node of this variable.
-    pub ast: ast::Variable,
 }
 
 pub type IRFunction = gir_ir_adapter::IRFunction<TypeArguments>;

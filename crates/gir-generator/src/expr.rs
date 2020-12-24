@@ -20,7 +20,7 @@ use syntax::kind::SyntaxKind;
 /// This is split into its own file for readability reasons;
 /// a 1500-line file containing everything is difficult to navigate.
 impl GIRGenerator {
-    pub fn expression(&mut self, expression: &AExpr) -> Expr {
+    pub(crate) fn expression(&mut self, expression: &AExpr) -> Expr {
         let expr = match expression {
             AExpr::Binary(binary) => self.binary(binary),
 
@@ -409,7 +409,7 @@ impl GIRGenerator {
 
     /// Same as above, but takes a function instead.
     /// `func` should be `Type::Function` or `Type::Closure`, otherwise returns an error.
-    pub fn check_func_args_(
+    fn check_func_args_(
         &mut self,
         func: &Type,
         args: &mut Vec<Expr>,
@@ -447,7 +447,7 @@ impl GIRGenerator {
     }
 
     /// Try inferring a set of type arguments from a call.
-    pub fn maybe_infer_ty_args(
+    fn maybe_infer_ty_args(
         &mut self,
         parameters: &[Rc<LocalVariable>],
         type_params: &[TypeParameter],
@@ -686,7 +686,9 @@ impl GIRGenerator {
                         ty.to_strong()
                     };
 
-                    let new_var = self.define_variable_(var.ast.clone(), ty.clone(), Some(false));
+                    let mut clone = (**var).clone();
+                    clone.ty = ty.clone();
+                    let new_var = self.define_variable_(clone, None);
 
                     list.push(Expr::store(
                         Expr::lvar(&new_var),
@@ -701,7 +703,7 @@ impl GIRGenerator {
     }
 
     fn literal(&mut self, literal: &ast::Literal) -> Res<Expr> {
-        let (text, literal) = literal.get();
+        let (_, literal) = literal.get();
         Ok(match literal {
             LiteralType::True => Expr::Literal(Literal::Bool(true)),
             LiteralType::False => Expr::Literal(Literal::Bool(false)),
@@ -711,8 +713,8 @@ impl GIRGenerator {
         })
     }
 
-    fn closure(&mut self, closure: &Function) -> Res<Expr> {
-        /*
+    fn closure(&mut self, _closure: &Function) -> Res<Expr> {
+        /* TODO
         let mut name = token.clone();
         name.lexeme = SmolStr::new(format!("closure-{}:{}", token.line, token.index));
         let ast_func = ast::Function {
@@ -772,7 +774,7 @@ impl GIRGenerator {
                 self.err(cst.clone(), GErr::E228)
             }
 
-            SyntaxKind::New => return self.alloc_heap(operator, right, cst),
+            SyntaxKind::New => return self.alloc_heap(right, cst),
 
             _ => (),
         };
@@ -780,7 +782,7 @@ impl GIRGenerator {
         Ok(Expr::unary(operator, right))
     }
 
-    fn alloc_heap(&mut self, op: SyntaxKind, inner: Expr, err_cst: &CSTNode) -> Res<Expr> {
+    fn alloc_heap(&mut self, inner: Expr, err_cst: &CSTNode) -> Res<Expr> {
         if let Expr::Allocate {
             ty,
             constructor,

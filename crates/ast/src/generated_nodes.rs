@@ -45,6 +45,78 @@ impl GenericIdent {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[repr(transparent)]
+pub struct DeclName {
+    pub cst: CSTNode,
+}
+impl DeclName {
+    #[allow(unused)]
+    pub fn cast(node: CSTNode) -> Option<Self> {
+        if let SyntaxKind::Ident = node.kind() {
+            Some(Self { cst: node })
+        } else {
+            None
+        }
+    }
+
+    pub fn cst(&self) -> CSTNode {
+        self.cst.clone()
+    }
+
+    pub fn name(&self) -> SmolStr {
+        self.cst
+            .children_with_tokens()
+            .find(|c| {
+                c.as_token().map(SyntaxToken::<GelixLang>::kind) == Some(SyntaxKind::Identifier)
+            })
+            .unwrap()
+            .as_token()
+            .unwrap()
+            .text()
+            .clone()
+    }
+    pub fn type_parameters(&self) -> impl Iterator<Item = TypeParameter> + '_ {
+        self.cst.children().filter_map(TypeParameter::cast)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[repr(transparent)]
+pub struct TypeParameter {
+    pub cst: CSTNode,
+}
+impl TypeParameter {
+    #[allow(unused)]
+    pub fn cast(node: CSTNode) -> Option<Self> {
+        if let SyntaxKind::TypeParameter = node.kind() {
+            Some(Self { cst: node })
+        } else {
+            None
+        }
+    }
+
+    pub fn cst(&self) -> CSTNode {
+        self.cst.clone()
+    }
+
+    pub fn name(&self) -> SmolStr {
+        self.cst
+            .children_with_tokens()
+            .find(|c| {
+                c.as_token().map(SyntaxToken::<GelixLang>::kind) == Some(SyntaxKind::Identifier)
+            })
+            .unwrap()
+            .as_token()
+            .unwrap()
+            .text()
+            .clone()
+    }
+    pub fn bound(&self) -> Option<Type> {
+        self.cst.children().find_map(Type::cast)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[repr(transparent)]
 pub struct Type {
     pub cst: CSTNode,
 }
@@ -104,6 +176,9 @@ impl Module {
     pub fn functions(&self) -> impl Iterator<Item = Function> + '_ {
         self.cst.children().filter_map(Function::cast)
     }
+    pub fn impls(&self) -> impl Iterator<Item = IfaceImpl> + '_ {
+        self.cst.children().filter_map(IfaceImpl::cast)
+    }
     pub fn imports(&self) -> impl Iterator<Item = Import> + '_ {
         self.cst.children().filter_map(Import::cast)
     }
@@ -143,8 +218,24 @@ impl Adt {
             .unwrap()
             .kind()
     }
-    pub fn ident(&self) -> GenericIdent {
-        self.cst.children().find_map(GenericIdent::cast).unwrap()
+    pub fn name(&self) -> DeclName {
+        self.cst.children().find_map(DeclName::cast).unwrap()
+    }
+    pub fn modifiers(&self) -> impl Iterator<Item = SyntaxKind> + '_ {
+        self.cst
+            .children()
+            .filter(|i| i.kind() == SyntaxKind::Modifier)
+            .map(|c| {
+                c.children_with_tokens().find(|c| {
+                    c.as_token()
+                        .map(SyntaxToken::kind)
+                        .as_ref()
+                        .map(SyntaxKind::is_token)
+                        == Some(true)
+                })
+            })
+            .flatten()
+            .map(|c| c.as_token().unwrap().kind())
     }
     pub fn members(&self) -> impl Iterator<Item = Variable> + '_ {
         self.cst.children().filter_map(Variable::cast)
@@ -265,11 +356,11 @@ impl FunctionSignature {
         self.cst.clone()
     }
 
-    pub fn ident(&self) -> GenericIdent {
-        self.cst.children().find_map(GenericIdent::cast).unwrap()
+    pub fn name(&self) -> DeclName {
+        self.cst.children().find_map(DeclName::cast).unwrap()
     }
-    pub fn ret_type(&self) -> Type {
-        self.cst.children().find_map(Type::cast).unwrap()
+    pub fn ret_type(&self) -> Option<Type> {
+        self.cst.children().find_map(Type::cast)
     }
     pub fn parameters(&self) -> impl Iterator<Item = Parameter> + '_ {
         self.cst.children().filter_map(Parameter::cast)

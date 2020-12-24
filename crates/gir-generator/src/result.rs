@@ -33,9 +33,9 @@ impl<T> EmitGIRError<T> for Option<T> {
     }
 }
 
-/*
 #[macro_use]
 mod eat {
+    #[macro_export]
     macro_rules! eat {
         ($gen:expr, $res:expr) => {{
             match $res {
@@ -47,7 +47,7 @@ mod eat {
             }
         }};
     }
-
+    #[macro_export]
     macro_rules! eatc {
         ($gen:expr, $res:expr) => {{
             match $res {
@@ -60,4 +60,3 @@ mod eat {
         }};
     }
 }
-*/

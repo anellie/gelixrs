@@ -16,8 +16,8 @@ pub enum IRAdapter<T: Copy, A: Hash + Eq> {
 }
 
 impl<T: Copy, A: Hash + Eq> IRAdapter<T, A> {
-    pub fn new(type_args: bool) -> Self {
-        if type_args {
+    pub fn new(type_params: bool) -> Self {
+        if type_params {
             IRAdapter::TypeArgs(IndexMap::with_capacity(3))
         } else {
             IRAdapter::NoTypeArgs(None)

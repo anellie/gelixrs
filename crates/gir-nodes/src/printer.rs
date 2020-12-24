@@ -142,7 +142,7 @@ impl Expr {
             Expr::Literal(literal) => write!(f, "{}", literal),
 
             Expr::Variable(var) => {
-                write!(f, "{}", var.get_ast().first_token().unwrap().text())?;
+                write!(f, "{}", var.get_name())?;
                 if let Variable::Function(func) = var {
                     print_type_args(f, func.args())?;
                 }

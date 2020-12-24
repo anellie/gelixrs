@@ -1,113 +1,253 @@
-use std::{collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use std::cell::RefCell;
-use crate::module::GIRModuleGenerator;
-use crate::GIRGenerator;
-
-impl GIRModuleGenerator {
-    pub fn declare_adts(&mut self, module: MutRc<Module>, ast: &mut ast::Module) {
-        for ast in ast.adts.drain(..) {
-            let name = ast.name.lexeme.clone();
-            self.generator.try_reserve_name(&ast.name);
-            let adt = ADT::from_ast(&self.generator, ast);
-
-            let mut module = module.borrow_mut();
-            module
-                .declarations
-                .insert(name, Declaration::Adt(Rc::clone(&adt)));
-
-            if let ADTType::Enum { cases } = &adt.borrow().ty {
-                for case in cases.values() {
-                    module.declarations.insert(
-                        case.borrow().name.lexeme.clone(),
-                        Declaration::Adt(Rc::clone(case)),
-                    );
-                }
-            };
-        }
-    }
-
-    pub fn declare_iface_impls(&mut self, _module: MutRc<Module>, ast: &mut ast::Module) {
-        for im in ast.iface_impls.drain(..) {
-            self.generator.declare_impl(im)
-        }
-    }
-
-    pub fn declare_functions(&mut self, _module: MutRc<Module>, ast: &mut ast::Module) {
-        for ast in ast.functions.drain(..) {
-            eatc!(
-                self.generator,
-                self.generator.create_function(ast, None, None)
-            );
-        }
-    }
-}
+use crate::{eat, eatc, result::EmitGIRError, GIRGenerator};
+use ast::CSTNode;
+use common::{mutrc_new, MutRc};
+use error::{GErr, Res};
+use gir_nodes::{
+    declaration::{ADTType, IRAdt, IRFunction, LocalVariable},
+    types::{TypeParameter, TypeParameterBound, TypeParameters},
+    Declaration, Function, IFaceImpl, Type, ADT,
+};
+use indexmap::IndexMap;
+use smol_str::SmolStr;
+use syntax::kind::SyntaxKind;
 
 impl GIRGenerator {
-    /// Creates a function.
+    pub(super) fn declare_adts(&mut self, ast: &mut ast::Module) {
+        for ast in ast.adts() {
+            let name = ast.name();
+            self.try_reserve_name(&name.cst, &name.name());
+            self.adt_from_ast(ast, None);
+        }
+    }
+
+    fn adt_from_ast(&mut self, ast: ast::Adt, parent: Option<MutRc<ADT>>) -> MutRc<ADT> {
+        let ty = match ast.kind() {
+            SyntaxKind::Class => ADTType::Class {
+                external: ast.modifiers().any(|m| m == SyntaxKind::Extern),
+            },
+
+            SyntaxKind::Interface => ADTType::Interface,
+
+            SyntaxKind::Enum => ADTType::Enum {
+                cases: HashMap::new(),
+            },
+
+            SyntaxKind::EnumCase => ADTType::EnumCase {
+                parent: parent.clone().unwrap(),
+                simple: false,
+            },
+            _ => panic!("unknown ADT"),
+        };
+
+        let name = ast.name();
+        let type_parameters = self.ast_generics_to_gir(
+            name.type_parameters(),
+            parent.map(|p| Rc::clone(&p.borrow().type_parameters)),
+        );
+        let adt = mutrc_new(ADT {
+            name: name.name(), // TODO: FIXME: Enum case names need changing
+            fields: IndexMap::with_capacity(10),
+            methods: IndexMap::with_capacity(10),
+            constructors: Vec::with_capacity(5),
+            ir: IRAdt::new(!type_parameters.is_empty()),
+            type_parameters,
+            ty,
+            ast,
+            module: Rc::clone(&self.module),
+        });
+
+        self.module
+            .borrow_mut()
+            .declarations
+            .insert(name.name(), Declaration::Adt(Rc::clone(&adt)));
+
+        self.maybe_enum_cases(&adt);
+        adt
+    }
+
+    fn maybe_enum_cases(&mut self, adt_rc: &MutRc<ADT>) {
+        if matches!(adt_rc.borrow().ty, ADTType::Enum { .. }) {
+            let enum_cases = {
+                let adt = adt_rc.borrow();
+                adt.ast
+                    .cases()
+                    .map(|case| {
+                        (
+                            case.name().name(),
+                            self.adt_from_ast(case, Some(Rc::clone(&adt_rc))),
+                        )
+                    })
+                    .collect()
+            };
+            if let ADTType::Enum { ref mut cases } = &mut adt_rc.borrow_mut().ty {
+                *cases = enum_cases;
+            }
+        }
+    }
+
+    /// Takes a list of type parameters of an AST node and
+    /// returns it's GIR representation. Can log an error
+    /// if type bound cannot be resolved.
+    fn ast_generics_to_gir<T: Iterator<Item = ast::TypeParameter>>(
+        &mut self,
+        params: T,
+        parent_params: Option<Rc<TypeParameters>>,
+    ) -> Rc<TypeParameters> {
+        let parent_size = parent_params.as_ref().map(|g| g.len()).unwrap_or(0);
+        let param_iter = params.enumerate().map(|param| {
+            TypeParameter {
+                name: param.1.name(),
+                index: param.0 + parent_size,
+                bound: self
+                    .bound_from_ast(param.1.bound().as_ref())
+                    .unwrap_or_else(|e| {
+                        self.error(e);
+                        TypeParameterBound::default() // doesn't matter anymore, compilation failed anyway
+                    }),
+            }
+        });
+
+        let params = Rc::new(match parent_params {
+            Some(parent) => parent.iter().cloned().chain(param_iter).collect(),
+            None => param_iter.collect(),
+        });
+        self.set_context(&params);
+        params
+    }
+
+    pub(super) fn declare_iface_impls(&mut self, ast: &mut ast::Module) {
+        for im in ast.impls() {
+            self.declare_impl(im)
+        }
+    }
+
+    fn declare_impl(&mut self, iface_impl: ast::IfaceImpl) {
+        let implementor = eat!(self, self.find_type(&iface_impl.implementor()));
+
+        let iface = eat!(self, self.find_type(&iface_impl.iface()));
+        if !iface.is_strong_ref() || !iface.as_strong_ref().ty.borrow().ty.is_interface() {
+            self.err(iface_impl.iface().cst(), GErr::E307);
+            return;
+        }
+        let iface_adt = iface.as_strong_ref();
+
+        let impls = self.get_iface_impls(&implementor);
+        let gir_impl = IFaceImpl {
+            implementor,
+            iface: iface.as_strong_ref().clone(),
+            methods: HashMap::with_capacity(iface_adt.ty.borrow().methods.len()),
+            module: Rc::clone(&self.module),
+            ast: iface_impl.clone(),
+        };
+        let already_defined = impls
+            .borrow_mut()
+            .interfaces
+            .insert(iface, gir_impl)
+            .is_some();
+        if already_defined {
+            self.err(iface_impl.iface().cst, GErr::E306);
+        }
+    }
+
+    pub(super) fn declare_functions(&mut self, ast: &mut ast::Module) {
+        for ast in ast.functions() {
+            eatc!(self, self.declare_function(ast));
+        }
+    }
+
+    pub(crate) fn declare_function(&mut self, func: ast::Function) -> Res<MutRc<Function>> {
+        let name = func.sig().name();
+        self.try_reserve_name(&name.cst, &name.name());
+
+        let function = self.function_from_ast(func, None, None)?;
+        self.module
+            .borrow_mut()
+            .declarations
+            .insert(name.name(), Declaration::Function(Rc::clone(&function)));
+        self.maybe_set_main_fn(&function, &name.cst);
+        Ok(function)
+    }
+
+    /// Creates a function from AST. See create_function for post-AST verification.
+    pub(crate) fn function_from_ast(
+        &mut self,
+        func: ast::Function,
+        this_param: Option<(SmolStr, Type)>,
+        parent_type_params: Option<Rc<TypeParameters>>,
+    ) -> Res<MutRc<Function>> {
+        let signature = func.sig();
+        let name = signature.name();
+        let type_parameters = self.ast_generics_to_gir(name.type_parameters(), parent_type_params);
+        let ret_type = signature
+            .ret_type()
+            .map(|ty| self.find_type(&ty))
+            .transpose()?;
+
+        self.create_function(
+            name.name(),
+            this_param.into_iter().map(Ok).chain(
+                signature
+                    .parameters()
+                    .map(|ast| Ok((ast.name(), self.find_type(&ast._type())?))),
+            ),
+            type_parameters,
+            ret_type,
+            Some(func),
+        )
+    }
+
+    /// Creates a function. It is not put into the module and its name is
+    /// not reserved, making this function suitable for methods or
+    /// functions not written by the user.
+    /// The main use of this method is validation of the function.
+    ///
     /// `this_arg` indicates that the function is a method
     /// with some kind of receiver, with the 'this' parameter
     /// added to the 0th position of the parameters and the
     /// function renamed to '$receiver-$name'.
-    pub fn create_function(
-        &mut self,
-        func: ast::Function,
-        this_param: Option<FunctionParam>,
-        parent_type_params: Option<&TypeParameters>,
+    pub(crate) fn create_function<T: Iterator<Item = Res<(SmolStr, Type)>>>(
+        &self,
+        name: SmolStr,
+        params: T,
+        type_parameters: Rc<TypeParameters>,
+        ret_type: Option<Type>,
+        ast: Option<ast::Function>,
     ) -> Res<MutRc<Function>> {
-        let name = func.sig.name.clone();
-        self.try_reserve_name(&name);
-
-        let function = self.generate_gir_fn(func, this_param, parent_type_params)?;
-        self.module.borrow_mut().declarations.insert(
-            name.lexeme.clone(),
-            Declaration::Function(Rc::clone(&function)),
-        );
-        self.maybe_set_main_fn(&function, &name);
-        Ok(function)
-    }
-
-    pub fn generate_gir_fn(
-        &mut self,
-        func: ast::Function,
-        this_param: Option<FunctionParam>,
-        parent_type_params: Option<&TypeParameters>,
-    ) -> Res<MutRc<Function>> {
-        let signature = &func.sig;
-        let type_parameters = ast_generics_to_gir(&self, &signature.generics, parent_type_params);
-        self.resolver.set_context(&type_parameters);
-        let ret_type = signature
-            .return_type
-            .as_ref()
-            .map_or(Ok(Type::None), |ty| self.resolver.find_type(ty))?;
-
+        let ret_type = ret_type.unwrap_or_default();
         if !ret_type.can_escape() {
             self.err(
-                signature.return_type.as_ref().unwrap().token(),
-                "Cannot return a weak reference".to_string(),
+                ast.as_ref().unwrap().sig().ret_type().unwrap().cst,
+                GErr::E308,
             );
         }
 
-        let mut parameters = Vec::with_capacity(signature.parameters.len());
-        for param in this_param.iter().chain(signature.parameters.iter()) {
-            parameters.push(Rc::new(LocalVariable {
-                name: param.name.clone(),
-                ty: self.resolver.find_type(&param.type_)?,
-                mutable: false,
-            }));
-        }
+        let parameters = params
+            .map(|param| {
+                let (name, ty) = param?;
+                Ok(Rc::new(LocalVariable {
+                    name,
+                    ty,
+                    mutable: false,
+                }))
+            })
+            .collect::<Res<_>>()?;
 
-        let has_ty_args = !type_parameters.is_empty();
         let function = mutrc_new(Function {
-            name: signature.name.clone(),
+            name,
             parameters,
-            type_parameters,
+            variadic: ast
+                .as_ref()
+                .map(|a| a.modifiers().any(|m| m == SyntaxKind::Variadic))
+                .unwrap_or(false),
             exprs: Vec::with_capacity(4),
             variables: Default::default(),
             ret_type,
-            ast: mutrc_new(func),
+            ast,
             module: Rc::clone(&self.module),
-            ir: RefCell::new(IRFunction::new(has_ty_args)),
+            ir: RefCell::new(IRFunction::new(!type_parameters.is_empty())),
+            type_parameters,
         });
         self.module
             .borrow_mut()
@@ -116,41 +256,13 @@ impl GIRGenerator {
         Ok(function)
     }
 
-    fn maybe_set_main_fn(&self, func: &MutRc<Function>, err_tok: &Token) {
-        if &func.borrow().name.lexeme[..] == "main" {
-            eat!(
-                self,
-                INTRINSICS
-                    .with(|i| i.borrow_mut().set_main_fn(func))
-                    .on_err(&self.path, err_tok, "Can't define main multiple times.")
-            );
-        }
-    }
-
-    fn declare_impl(&self, iface_impl: ast::IFaceImpl) {
-        let implementor = eat!(self, self.resolver.find_type(&iface_impl.implementor));
-
-        let iface = eat!(self, self.resolver.find_type(&iface_impl.iface));
-        if !iface.is_strong_ref() || !iface.as_strong_ref().ty.borrow().ty.is_interface() {
-            self.err(&iface_impl.iface.token(), "Not an interface".to_string());
-        }
-
-        let err_tok = iface_impl.iface.token().clone();
-        let impls = get_or_create_iface_impls(&implementor);
-        let gir_impl = IFaceImpl {
-            implementor,
-            iface: iface.as_strong_ref().clone(),
-            methods: HashMap::with_capacity(iface_impl.methods.len()),
-            module: Rc::clone(&self.module),
-            ast: mutrc_new(iface_impl),
-        };
-        let already_defined = impls
-            .borrow_mut()
-            .interfaces
-            .insert(iface, gir_impl)
-            .is_some();
-        if already_defined {
-            self.err(&err_tok, "Interface already defined for type".to_string());
+    fn maybe_set_main_fn(&mut self, func: &MutRc<Function>, err_cst: &CSTNode) {
+        if func.borrow().name == "main" {
+            let res = self
+                .intrinsics
+                .set_main_fn(func)
+                .or_err(err_cst, GErr::E305);
+            self.eat(res);
         }
     }
 }

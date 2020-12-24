@@ -58,9 +58,9 @@ impl Module {
     }
 
     /// Tries to reserve the given name.
-    pub fn try_reserve_name(&mut self, node: CSTNode, name: &SmolStr) -> Res<()> {
+    pub fn try_reserve_name(&mut self, node: &CSTNode, name: &SmolStr) -> Res<()> {
         if !self.used_names.insert(name.clone()) {
-            Err(gir_err(node, GErr::E100(name.clone())))
+            Err(gir_err(node.clone(), GErr::E100(name.clone())))
         } else {
             Ok(())
         }

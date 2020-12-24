@@ -18,7 +18,7 @@ pub struct IFaceImpl {
     pub methods: HashMap<SmolStr, MutRc<Function>>,
     /// Module that the impl block is in.
     pub module: MutRc<Module>,
-    pub ast: MutRc<ast::IfaceImpl>,
+    pub ast: ast::IfaceImpl,
 }
 
 /// A struct representing all interfaces implemented by a type.

@@ -268,10 +268,13 @@ impl<'p> Parser<'p> {
         self.start_node(SyntaxKind::Ident);
         self.consume(SyntaxKind::Identifier, "a name", after);
         if self.matches(SyntaxKind::LeftBracket) {
-            while self.matches(SyntaxKind::Identifier) {
+            while self.check(SyntaxKind::Identifier) {
+                self.start_node(SyntaxKind::TypeParameter);
+                self.advance();
                 if self.matches(SyntaxKind::Colon) {
                     self.type_();
                 }
+                self.end_node();
                 if !self.matches(SyntaxKind::Comma) {
                     break;
                 }

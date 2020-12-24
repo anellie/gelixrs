@@ -21,6 +21,42 @@
         )
     ),
 
+    // Declaration name
+    Node(
+        context: Ctx(
+            name: "DeclName",
+            kind: "Ident",
+            items: [
+                Item(
+                    name: "name",
+                    strategy: "ident"
+                ),
+                Item(
+                    name: "type_parameters",
+                    type: "TypeParameter",
+                    strategy: "list"
+                ),
+            ]
+        )
+    ),
+    // Type parameter
+    Node(
+        context: Ctx(
+            name: "TypeParameter",
+            items: [
+                Item(
+                    name: "name",
+                    strategy: "ident"
+                ),
+                Item(
+                    name: "bound",
+                    type: "Type",
+                    strategy: "opt_single"
+                ),
+            ]
+        )
+    ),
+
     // Types (Implementation of getting type data in types.rs, not generated)
     Node(context: Ctx(name: "Type")),
 
@@ -45,6 +81,11 @@
                     strategy: "list"
                 ),
                 Item(
+                    name: "impls",
+                    type: "IfaceImpl",
+                    strategy: "list"
+                ),
+                Item(
                     name: "imports",
                     type: "Import",
                     strategy: "list"
@@ -64,8 +105,13 @@
                     strategy: "token"
                 ),
                 Item(
-                    name: "ident",
-                    type: "GenericIdent"
+                    name: "name",
+                    type: "DeclName"
+                ),
+                Item(
+                    name: "modifiers",
+                    type: "Modifier",
+                    strategy: "nested_token_list"
                 ),
                 Item(
                     name: "members",
@@ -139,12 +185,13 @@
             name: "FunctionSignature",
             items: [
                 Item(
-                    name: "ident",
-                    type: "GenericIdent"
+                    name: "name",
+                    type: "DeclName"
                 ),
                 Item(
                     name: "ret_type",
                     type: "Type",
+                    strategy: "opt_single"
                 ),
                 Item(
                     name: "parameters",

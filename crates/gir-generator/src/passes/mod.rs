@@ -3,7 +3,7 @@ use common::MutRc;
 use gir_nodes::{Declaration, Module, ADT};
 use std::rc::Rc;
 
-// mod declare;
+mod declare;
 // mod fields;
 // mod generate;
 // mod import;
@@ -12,12 +12,12 @@ use std::rc::Rc;
 // mod methods;
 
 impl GIRGenerator {
-    pub fn run_passes(&self) {
-        // self.run_ast(Self::declare_adts);
+    pub(crate) fn run_passes(&mut self) {
+        self.run_ast(Self::declare_adts);
         // self.run_mod(Self::populate_intrinsics);
         // self.imports(false);
-        // self.run_ast(Self::declare_iface_impls);
-        // self.run_ast(Self::declare_functions);
+        self.run_ast(Self::declare_iface_impls);
+        self.run_ast(Self::declare_functions);
         // self.run_mod(Self::populate_intrinsics_fn);
         // self.validate_intrinsics();
         // self.imports(true);
@@ -33,19 +33,20 @@ impl GIRGenerator {
     }
 
     /// Execute a given module-scope pass.
-    pub fn run_mod<T: FnMut(&mut Self, MutRc<Module>)>(&mut self, mut runner: T) {
+    fn run_mod<T: FnMut(&mut Self, MutRc<Module>)>(&mut self, mut runner: T) {
         for module in self.modules.clone() {
             self.switch_module(Rc::clone(&module));
             runner(self, module)
         }
     }
 
-    /// Execute a given module-scope pass with AST data.
-    fn run_ast<T: FnMut(&mut Self, MutRc<Module>, &mut ast::Module)>(&mut self, mut runner: T) {
+    /// Execute a given module-scope pass with AST data. Sets self.module to the
+    /// module to be processed.
+    fn run_ast<T: FnMut(&mut Self, &mut ast::Module)>(&mut self, mut runner: T) {
         for module in self.modules.clone() {
             self.switch_module(Rc::clone(&module));
             let mut ast = module.borrow_mut().borrow_ast();
-            runner(self, Rc::clone(&module), &mut ast);
+            runner(self, &mut ast);
             module.borrow_mut().return_ast(ast);
         }
     }
