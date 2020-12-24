@@ -80,7 +80,12 @@ impl IRGenerator {
     /// Similar to the function above, but with GIR type info.
     /// This is sometimes required to prevent unintentionally loading
     /// a value, for example when dealing with primitive pointers.
-    pub(crate) fn load_ptr_gir(&self, ptr: PointerValue, mir_ty: &Type, call: bool) -> BasicValueEnum {
+    pub(crate) fn load_ptr_gir(
+        &self,
+        ptr: PointerValue,
+        mir_ty: &Type,
+        call: bool,
+    ) -> BasicValueEnum {
         match (ptr.get_type().get_element_type(), mir_ty) {
             (AnyTypeEnum::IntType(_), Type::RawPtr(_)) => ptr.into(),
             (AnyTypeEnum::PointerType(inner), Type::RawPtr(_))

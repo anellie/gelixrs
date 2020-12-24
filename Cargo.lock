@@ -384,6 +384,7 @@ dependencies = [
  "error",
  "gir_nodes",
  "indexmap",
+ "num-traits",
  "smol_str",
  "syntax",
 ]

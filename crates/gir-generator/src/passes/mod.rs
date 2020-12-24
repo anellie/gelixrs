@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 mod declare;
 // mod fields;
-// mod generate;
+mod generate;
 // mod import;
 // mod intrinsic_methods;
 // mod intrinsics;
@@ -28,8 +28,8 @@ impl GIRGenerator {
         // self.run_adt(GIRGenerator::constructor_setters);
         // self.run_adt(GIRGenerator::declare_lifecycle_methods);
         // self.run_adt(GIRGenerator::generate_lifecycle_methods);
-        // self.run_dec(GIRGenerator::generate);
-        // self.generator.generate_impls();
+        self.run_dec(Self::generate);
+        self.generate_impls();
     }
 
     /// Execute a given module-scope pass.

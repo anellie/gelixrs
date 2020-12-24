@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 either = "1.5.2"
 indexmap = "1.2.0"
+num-traits = "0.2.14"
 smol_str = "0.1.17"
 
 ast = { path = "../ast" }

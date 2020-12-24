@@ -36,7 +36,10 @@ impl IRGenerator {
         self.ir_ty_generic_full(gir).0
     }
 
-    pub(crate) fn ir_ty_generic_full(&mut self, gir: &Type) -> (BasicTypeEnum, Option<PointerValue>) {
+    pub(crate) fn ir_ty_generic_full(
+        &mut self,
+        gir: &Type,
+    ) -> (BasicTypeEnum, Option<PointerValue>) {
         let raw = self.ir_ty_raw(gir);
         (
             match self.maybe_unwrap_var(gir) {

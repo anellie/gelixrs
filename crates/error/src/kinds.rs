@@ -107,6 +107,12 @@ pub enum GErr {
     E229,
     // Cannot assign type to a variable
     E230(String),
+    // Unfinished string escape sequence
+    E231,
+    // Unknown string escape sequence
+    E232,
+    // Numeric literal does not fit into target type.
+    E233,
 
     // Unknown type
     E300(String),
@@ -126,6 +132,13 @@ pub enum GErr {
     E307,
     // Cannot return a weak reference
     E308,
+    // Cannot have uninitialized fields after constructor
+    E309(Vec<SmolStr>),
+    // Body type does not match function return type
+    E310 {
+        expected: String,
+        was: String,
+    },
 }
 
 impl GErr {
@@ -159,6 +172,22 @@ impl GErr {
             E230(ty) => format!("Cannot assign type '{}' to a variable.", ty),
 
             E300(name) => format!("Unknown type '{}'.", name),
+
+            E309(names) => {
+                let mut str = format!(
+                    "Cannot have uninitialized fields after constructor (Missing: {}",
+                    names[0]
+                );
+                for name in names.iter().skip(1) {
+                    str.push_str(&format!(", {}", name));
+                }
+                str.push_str(").");
+                str
+            }
+            E310 { expected, was } => format!(
+                "Body type does not match function return type (Expected {}, was {}).",
+                expected, was
+            ),
 
             _ => self.msg().to_string(),
         }
@@ -197,6 +226,9 @@ impl GErr {
             E227 => "'!' can only be used on boolean values.",
             E228 => "'-' can only be used on signed integers and floats.",
             E229 => "Branches of when must be of same type as the value compared.",
+            E231 => "String escape sequence is unfinished.",
+            E232 => "Unknown string escape sequence.",
+            E233 => "Numeric literal does not fit into target type.",
 
             E301 => "Functions cannot be used as types.",
             E302 => "Weak is only applicable to ADTs.",

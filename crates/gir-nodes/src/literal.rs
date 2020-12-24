@@ -7,13 +7,10 @@ pub enum Literal {
     None,
     Bool(bool),
 
-    // The Rust representation of these integers can be unsigned
-    // since literals themselves are always unsigned.
-    // (A negative literal is just a unary negated literal)
-    I8(u8),
-    I16(u16),
-    I32(u32),
-    I64(u64),
+    I8(i8),
+    I16(i16),
+    I32(i32),
+    I64(i64),
 
     U8(u8),
     U16(u16),

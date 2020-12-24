@@ -12,7 +12,9 @@ use gir_nodes::{
     types::{TypeArguments, TypeParameter, VariableModifier},
     Expr, Instance, Literal, Type, ADT,
 };
-use std::rc::Rc;
+use num_traits::Num;
+use smol_str::SmolStr;
+use std::{convert::TryInto, iter::FromIterator, rc::Rc};
 use syntax::kind::SyntaxKind;
 
 /// This impl contains all code of the generator that directly
@@ -190,7 +192,6 @@ impl GIRGenerator {
     }
 
     fn call(&mut self, call: &Call) -> Res<Expr> {
-        let arguments: Vec<_> = call.args().collect();
         let mut args = call.args().map(|a| self.expression(&a)).collect::<Vec<_>>();
 
         match call.callee() {
@@ -236,7 +237,7 @@ impl GIRGenerator {
                 self.check_func_args_(
                     &Type::Function(func.clone()),
                     &mut args,
-                    &arguments,
+                    call.args(),
                     &get.cst,
                     true,
                 )?;
@@ -332,7 +333,7 @@ impl GIRGenerator {
                     self.check_func_args_(
                         &callee.get_type(), // Get it again to ensure inferred type args are present
                         &mut args,
-                        &arguments,
+                        call.args(),
                         &call.cst,
                         false,
                     )?;
@@ -344,12 +345,13 @@ impl GIRGenerator {
 
     /// Check a function call's arguments for correctness,
     /// possibly adding a cast if required.
-    fn check_func_args<T: Iterator<Item = Type>>(
+    #[allow(clippy::too_many_arguments)] // Not ideal, but no real way of fixing this
+    fn check_func_args(
         &mut self,
-        mut parameters: T,
+        mut parameters: impl Iterator<Item = Type>,
         type_args: Option<&Rc<TypeArguments>>,
         args: &mut Vec<Expr>,
-        ast_args: &[AExpr],
+        ast_args: impl Iterator<Item = AExpr>,
         allow_variadic: bool,
         err_cst: &CSTNode,
         is_method: bool,
@@ -389,7 +391,7 @@ impl GIRGenerator {
             .iter_mut()
             .skip(is_method as usize)
             .zip(parameters)
-            .zip(ast_args.iter())
+            .zip(ast_args)
         {
             let arg_type = argument.get_type();
             let success = self.try_cast_in_place(argument, &parameter);
@@ -413,7 +415,7 @@ impl GIRGenerator {
         &mut self,
         func: &Type,
         args: &mut Vec<Expr>,
-        ast_args: &[AExpr],
+        ast_args: impl Iterator<Item = AExpr>,
         err_cst: &CSTNode,
         is_method: bool,
     ) -> Res<()> {
@@ -703,14 +705,104 @@ impl GIRGenerator {
     }
 
     fn literal(&mut self, literal: &ast::Literal) -> Res<Expr> {
-        let (_, literal) = literal.get();
-        Ok(match literal {
+        let (text, ty) = literal.get();
+        Ok(match ty {
             LiteralType::True => Expr::Literal(Literal::Bool(true)),
             LiteralType::False => Expr::Literal(Literal::Bool(false)),
-            LiteralType::Int => todo!(),
-            LiteralType::Float => todo!(),
-            LiteralType::String => todo!(),
+            LiteralType::Int => Expr::Literal(self.int_literal(text, &literal.cst)?),
+            LiteralType::Float => Expr::Literal(self.float_literal(text, &literal.cst)?),
+            LiteralType::String => {
+                Expr::Literal(Literal::String(self.string_literal(text, literal)?))
+            }
         })
+    }
+
+    fn int_literal(&mut self, text: SmolStr, cst: &CSTNode) -> Res<Literal> {
+        let (value, types) = self.numeric_literal_parts(&text, cst);
+        Ok(match types {
+            Some(('i', "8")) => Literal::I8(self.parse_numeric_literal(value, cst)?),
+            Some(('i', "16")) => Literal::I16(self.parse_numeric_literal(value, cst)?),
+            Some(('i', "32")) => Literal::I32(self.parse_numeric_literal(value, cst)?),
+            #[cfg(target_pointer_width = "64")]
+            Some(('i', "size")) => Literal::I64(self.parse_numeric_literal(value, cst)?),
+            #[cfg(not(target_pointer_width = "64"))]
+            Some(('i', "size")) => Literal::I32(self.parse_numeric_literal(value, cst)?),
+
+            Some(('u', "8")) => Literal::U8(self.parse_numeric_literal(value, cst)?),
+            Some(('u', "16")) => Literal::U16(self.parse_numeric_literal(value, cst)?),
+            Some(('u', "32")) => Literal::U32(self.parse_numeric_literal(value, cst)?),
+            Some(('u', "64")) => Literal::U64(self.parse_numeric_literal(value, cst)?),
+            #[cfg(target_pointer_width = "64")]
+            Some(('u', "size")) => Literal::U64(self.parse_numeric_literal(value, cst)?),
+            #[cfg(not(target_pointer_width = "64"))]
+            Some(('u', "size")) => Literal::U32(self.parse_numeric_literal(value, cst)?),
+
+            _ => Literal::I64(self.parse_numeric_literal(value, cst)?),
+        })
+    }
+
+    fn float_literal(&mut self, text: SmolStr, cst: &CSTNode) -> Res<Literal> {
+        let (value, types) = self.numeric_literal_parts(&text, cst);
+        Ok(match types {
+            Some(('f', "32")) => Literal::F32(self.parse_numeric_literal(value, cst)?),
+            _ => Literal::F64(self.parse_numeric_literal(value, cst)?),
+        })
+    }
+
+    fn numeric_literal_parts(&self, text: &SmolStr, cst: &CSTNode) -> (&str, Option<(char, &str)>) {
+        let mut split = text.split(|c| c == 'u');
+        let num = split.next().unwrap().trim();
+        let kind = split.next().map(|s| (s.chars().next().unwrap(), &s[1..]));
+        (num, kind)
+    }
+
+    fn parse_numeric_literal<T: Num>(&self, text: &str, cst: &CSTNode) -> Res<T> {
+        T::from_str_radix(text.trim(), 10)
+            .ok()
+            .or_err(cst, GErr::E233)
+    }
+
+    /// Replace all escape sequences inside a string literal with their proper char
+    /// and return either an error or the finished string literal
+    fn string_literal(&mut self, text: SmolStr, cst: &ast::Literal) -> Res<SmolStr> {
+        let mut chars = text.chars().skip(1).collect::<Vec<_>>();
+        chars.pop(); // Final '"'
+
+        let mut i = 0;
+        while i < chars.len() {
+            if chars[i] == '\\' {
+                chars.remove(i);
+                i -= 1;
+                if chars.len() == i {
+                    return Err(gir_err(cst.cst(), GErr::E231));
+                }
+
+                chars[i] = match chars[i] {
+                    'n' => '\n',
+                    'r' => '\r',
+                    't' => '\t',
+                    '\\' => '\\',
+                    '0' => '\0',
+                    '"' => '"',
+
+                    'u' => {
+                        let mut hex_chars = Vec::with_capacity(6);
+                        while chars[i + 1].is_ascii_hexdigit() {
+                            hex_chars.push(chars.remove(i + 1));
+                            i -= 1;
+                        }
+                        u32::from_str_radix(&String::from_iter(hex_chars), 16)
+                            .unwrap()
+                            .try_into()
+                            .unwrap()
+                    }
+
+                    _ => return Err(gir_err(cst.cst(), GErr::E232)),
+                }
+            }
+            i += 1;
+        }
+        Ok(chars.iter().collect::<String>().into())
     }
 
     fn closure(&mut self, _closure: &Function) -> Res<Expr> {

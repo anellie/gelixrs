@@ -217,7 +217,10 @@ impl From<Token> for SyntaxKind {
         // mistakes in possible future code changes
         assert_eq!(SyntaxKind::Error, SyntaxKind::from_token(Token::Error));
         assert_eq!(SyntaxKind::String, SyntaxKind::from_token(Token::String));
-        assert_eq!(SyntaxKind::LeftParen, SyntaxKind::from_token(Token::LeftParen));
+        assert_eq!(
+            SyntaxKind::LeftParen,
+            SyntaxKind::from_token(Token::LeftParen)
+        );
         Self::from_token(token)
     }
 }
