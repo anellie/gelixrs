@@ -5,9 +5,23 @@ use syntax::kind::SyntaxKind;
 
 impl Type {
     pub fn get(&self) -> TypeE {
+
         let token = self.cst.first_token().unwrap();
         match token.kind() {
-            SyntaxKind::Identifier => TypeE::Ident(token.text().clone()),
+            SyntaxKind::Identifier if self.cst.first_child().is_none() => {
+                // No children => only identifier
+                TypeE::Ident(token.text().clone())
+            }
+
+            SyntaxKind::Identifier => {
+                // Has children => generic type
+                let types = self.cst.children().filter_map(Type::cast);
+                TypeE::Generic {
+                    ident: token.text().clone(),
+                    types: types.collect(),
+                }
+            },
+
             SyntaxKind::Tilde => {
                 TypeE::Value(self.cst.first_child().map(Self::cast).unwrap().unwrap())
             }
@@ -17,7 +31,16 @@ impl Type {
             SyntaxKind::Star => {
                 TypeE::RawPtr(self.cst.first_child().map(Self::cast).unwrap().unwrap())
             }
-            _ => todo!(),
+
+            SyntaxKind::LeftParen => {
+                let mut types: Vec<_> = self.cst.children().filter_map(Type::cast).collect();
+                TypeE::Closure {
+                    ret_type: types.pop(),
+                    params: types,
+                }
+            },
+
+            _ => panic!("Cannot parse type")
         }
     }
 }
