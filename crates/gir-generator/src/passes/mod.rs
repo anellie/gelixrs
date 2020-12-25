@@ -8,18 +8,18 @@ mod fields;
 mod generate;
 mod import;
 // mod intrinsic_methods;
-// mod intrinsics;
+mod intrinsics;
 // mod methods;
 
 impl GIRGenerator {
     pub(crate) fn run_passes(&mut self) {
         self.run_ast(Self::declare_adts);
-        // self.run_mod(Self::populate_intrinsics);
+        self.run_mod(Self::populate_intrinsics);
         self.run_mod(Self::import_stage_1);
         self.run_ast(Self::declare_iface_impls);
         self.run_ast(Self::declare_functions);
-        // self.run_mod(Self::populate_intrinsics_fn);
-        // self.validate_intrinsics();
+        self.run_mod(Self::populate_intrinsics_fn);
+        self.validate_intrinsics();
         self.run_mod(Self::import_stage_2);
 
         // self.run_adt(GIRGenerator::declare_methods);

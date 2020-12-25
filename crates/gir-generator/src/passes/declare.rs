@@ -185,17 +185,17 @@ impl GIRGenerator {
             .map(|ty| self.find_type(&ty))
             .transpose()?;
 
-        self.create_function(
-            name.name(),
-            this_param.into_iter().map(Ok).chain(
+        self.create_function(FnSig {
+            name: name.name(),
+            params: this_param.into_iter().map(Ok).chain(
                 signature
                     .parameters()
                     .map(|ast| Ok((ast.name(), self.find_type(&ast._type())?))),
             ),
             type_parameters,
             ret_type,
-            Some(func),
-        )
+            ast: Some(func),
+        })
     }
 
     /// Creates a function. It is not put into the module and its name is
@@ -208,22 +208,17 @@ impl GIRGenerator {
     /// added to the 0th position of the parameters and the
     /// function renamed to '$receiver-$name'.
     pub(crate) fn create_function<T: Iterator<Item = Res<(SmolStr, Type)>>>(
-        &self,
-        name: SmolStr,
-        params: T,
-        type_parameters: Rc<TypeParameters>,
-        ret_type: Option<Type>,
-        ast: Option<ast::Function>,
+        &self, sig: FnSig<T>,
     ) -> Res<MutRc<Function>> {
-        let ret_type = ret_type.unwrap_or_default();
+        let ret_type = sig.ret_type.unwrap_or_default();
         if !ret_type.can_escape() {
             self.err(
-                ast.as_ref().unwrap().sig().ret_type().unwrap().cst,
+                sig.ast.as_ref().unwrap().sig().ret_type().unwrap().cst,
                 GErr::E308,
             );
         }
 
-        let parameters = params
+        let parameters = sig.params
             .map(|param| {
                 let (name, ty) = param?;
                 Ok(Rc::new(LocalVariable {
@@ -235,19 +230,19 @@ impl GIRGenerator {
             .collect::<Res<_>>()?;
 
         let function = mutrc_new(Function {
-            name,
+            name: sig.name,
             parameters,
-            variadic: ast
+            variadic: sig.ast
                 .as_ref()
                 .map(|a| a.modifiers().any(|m| m == SyntaxKind::Variadic))
                 .unwrap_or(false),
             exprs: Vec::with_capacity(4),
             variables: Default::default(),
             ret_type,
-            ast,
+            ast: sig.ast,
             module: Rc::clone(&self.module),
-            ir: RefCell::new(IRFunction::new(!type_parameters.is_empty())),
-            type_parameters,
+            ir: RefCell::new(IRFunction::new(!sig.type_parameters.is_empty())),
+            type_parameters: sig.type_parameters,
         });
         self.module
             .borrow_mut()
@@ -265,4 +260,12 @@ impl GIRGenerator {
             self.eat(res);
         }
     }
+}
+
+pub(crate) struct FnSig<T: Iterator<Item = Res<(SmolStr, Type)>>> {
+    name: SmolStr,
+    params: T,
+    type_parameters: Rc<TypeParameters>,
+    ret_type: Option<Type>,
+    ast: Option<ast::Function>,
 }

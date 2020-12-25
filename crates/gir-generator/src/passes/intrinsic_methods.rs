@@ -2,12 +2,14 @@ use std::rc::Rc;
 
 use smol_str::SmolStr;
 
-use std::collections::HashMap;
 use crate::GIRGenerator;
+use common::MutRc;
+use gir_nodes::ADT;
+use std::collections::HashMap;
 
 impl GIRGenerator {
     pub fn declare_lifecycle_methods(&mut self, adt: &MutRc<ADT>) {
-        let ast = Rc::clone(&adt.borrow().ast);
+        let ast = adt.borrow().ast.clone();
         let this_param = FunctionParam::this_param_g(&ast.borrow());
 
         // TODO: Replace this vec with an array once array.into_iter() is stabilized
