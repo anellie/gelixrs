@@ -213,10 +213,8 @@ impl Adt {
                     .map(SyntaxKind::is_token)
                     == Some(true)
             })
-            .unwrap()
-            .as_token()
-            .unwrap()
-            .kind()
+            .map(|t| t.as_token().unwrap().kind())
+            .unwrap_or(SyntaxKind::EnumCase)
     }
     pub fn name(&self) -> DeclName {
         self.cst.children().find_map(DeclName::cast).unwrap()
@@ -240,8 +238,8 @@ impl Adt {
     pub fn members(&self) -> impl Iterator<Item = Variable> + '_ {
         self.cst.children().filter_map(Variable::cast)
     }
-    pub fn constructors(&self) -> impl Iterator<Item = Constructor> + '_ {
-        self.cst.children().filter_map(Constructor::cast)
+    pub fn constructors(&self) -> impl Iterator<Item = Function> + '_ {
+        self.cst.children().filter_map(Function::cast)
     }
     pub fn methods(&self) -> impl Iterator<Item = Function> + '_ {
         self.cst.children().filter_map(Function::cast)
@@ -253,48 +251,16 @@ impl Adt {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[repr(transparent)]
-pub struct Constructor {
-    pub cst: CSTNode,
-}
-impl Constructor {
-    #[allow(unused)]
-    pub fn cast(node: CSTNode) -> Option<Self> {
-        if let SyntaxKind::Constructor = node.kind() {
-            Some(Self { cst: node })
-        } else {
-            None
-        }
-    }
-
-    pub fn cst(&self) -> CSTNode {
-        self.cst.clone()
-    }
-
-    pub fn sig(&self) -> FunctionSignature {
-        self.cst
-            .children()
-            .find_map(FunctionSignature::cast)
-            .unwrap()
-    }
-    pub fn body(&self) -> Option<Expression> {
-        self.cst
-            .children()
-            .find(|i| i.kind() == SyntaxKind::FunctionBody)
-            .map(|i| i.children().find_map(Expression::cast))
-            .flatten()
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[repr(transparent)]
 pub struct Function {
     pub cst: CSTNode,
 }
 impl Function {
     #[allow(unused)]
     pub fn cast(node: CSTNode) -> Option<Self> {
-        if let SyntaxKind::FunctionDecl | SyntaxKind::Method | SyntaxKind::ClosureLiteral =
-            node.kind()
+        if let SyntaxKind::FunctionDecl
+        | SyntaxKind::Method
+        | SyntaxKind::ClosureLiteral
+        | SyntaxKind::Constructor = node.kind()
         {
             Some(Self { cst: node })
         } else {

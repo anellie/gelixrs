@@ -102,7 +102,11 @@
             items: [
                 Item(
                     name: "kind",
-                    strategy: "token"
+                    type: "SyntaxKind",
+                    // Account for enum cases not having a token
+                    strategy: "children_with_tokens()
+                            .find(|c| c.as_token().map(SyntaxToken::<GelixLang>::kind).as_ref().map(SyntaxKind::is_token) == Some(true))
+                            .map(|t| t.as_token().unwrap().kind()).unwrap_or(SyntaxKind::EnumCase)"
                 ),
                 Item(
                     name: "name",
@@ -120,7 +124,7 @@
                 ),
                 Item(
                     name: "constructors",
-                    type: "Constructor",
+                    type: "Function",
                     strategy: "list"
                 ),
                 Item(
@@ -136,30 +140,12 @@
             ]
         )
     ),
-    // Constructors
-    Node(
-        context: Ctx(
-            name: "Constructor",
-            items: [
-                Item(
-                    name: "sig",
-                    type: "FunctionSignature"
-                ),
-                Item(
-                    name: "body",
-                    kind: "FunctionBody",
-                    type: "Expression",
-                    strategy: "nested_opt_single"
-                )
-            ]
-        )
-    ),
 
     // Functions
     Node(
         context: Ctx(
             name: "Function",
-            kind: "FunctionDecl | SyntaxKind::Method | SyntaxKind::ClosureLiteral",
+            kind: "FunctionDecl | SyntaxKind::Method | SyntaxKind::ClosureLiteral | SyntaxKind::Constructor",
             items: [
                 Item(
                     name: "sig",

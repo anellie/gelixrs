@@ -149,6 +149,10 @@ pub enum GErr {
         expected: String,
         was: String,
     },
+    // Cannot infer type of member with default value (specify type explicitly)
+    E311,
+    // ADT contains constructors with duplicate signatures
+    E312,
 }
 
 impl GErr {
@@ -253,6 +257,8 @@ impl GErr {
             E306 => "Interface already defined for type.",
             E307 => "Only interfaces can be implemented.",
             E308 => "Cannot return a weak reference.",
+            E311 => "Cannot infer type of member with default value (specify type explicitly).",
+            E312 => "ADT contains constructors with duplicate signatures.",
 
             _ => unreachable!(),
         }

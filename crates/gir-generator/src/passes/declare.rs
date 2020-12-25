@@ -187,7 +187,7 @@ impl GIRGenerator {
 
         self.create_function(FnSig {
             name: name.name(),
-            params: this_param.into_iter().map(Ok).chain(
+            params: box this_param.into_iter().map(Ok).chain(
                 signature
                     .parameters()
                     .map(|ast| Ok((ast.name(), self.find_type(&ast._type())?))),
@@ -207,10 +207,7 @@ impl GIRGenerator {
     /// with some kind of receiver, with the 'this' parameter
     /// added to the 0th position of the parameters and the
     /// function renamed to '$receiver-$name'.
-    pub(crate) fn create_function<T: Iterator<Item = Res<(SmolStr, Type)>>>(
-        &self,
-        sig: FnSig<T>,
-    ) -> Res<MutRc<Function>> {
+    pub(crate) fn create_function(&self, sig: FnSig) -> Res<MutRc<Function>> {
         let ret_type = sig.ret_type.unwrap_or_default();
         if !ret_type.can_escape() {
             self.err(
@@ -265,9 +262,9 @@ impl GIRGenerator {
     }
 }
 
-pub(crate) struct FnSig<T: Iterator<Item = Res<(SmolStr, Type)>>> {
+pub(crate) struct FnSig<'a> {
     pub name: SmolStr,
-    pub params: T,
+    pub params: Box<dyn Iterator<Item = Res<(SmolStr, Type)>> + 'a>,
     pub type_parameters: Rc<TypeParameters>,
     pub ret_type: Option<Type>,
     pub ast: Option<ast::Function>,

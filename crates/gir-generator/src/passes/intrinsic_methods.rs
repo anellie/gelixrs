@@ -22,21 +22,21 @@ impl GIRGenerator {
         let fns: Vec<_> = vec![
             FnSig {
                 name: "new-instance".into(),
-                params: vec![this_param.clone()].into_iter().map(Ok),
+                params: box vec![this_param.clone()].into_iter().map(Ok),
                 type_parameters: type_params.clone(),
                 ret_type: None,
                 ast: None,
             },
             FnSig {
                 name: "free-wr".into(),
-                params: vec![this_param.clone()].into_iter().map(Ok),
+                params: box vec![this_param.clone()].into_iter().map(Ok),
                 type_parameters: type_params.clone(),
                 ret_type: None,
                 ast: None,
             },
             FnSig {
                 name: "free-sr".into(),
-                params: vec![this_param, ("refcount_zero".into(), Type::Bool)]
+                params: box vec![this_param, ("refcount_zero".into(), Type::Bool)]
                     .into_iter()
                     .map(Ok),
                 type_parameters: type_params,

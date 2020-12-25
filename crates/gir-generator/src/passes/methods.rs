@@ -1,13 +1,17 @@
-use std::{
-    collections::{HashMap, HashSet},
-    rc::Rc,
-};
+use std::{collections::HashSet, rc::Rc};
 
+use crate::{eat, eatc, result::EmitGIRError, GIRGenerator};
+use ast::CSTNode;
+use common::MutRc;
+use error::{GErr, Res};
+use gir_nodes::{declaration::ADTType, gir_err, types::ToInstance, Function, Type, ADT};
 use smol_str::SmolStr;
-use crate::GIRGenerator;
+use syntax::kind::SyntaxKind;
+
+use super::declare::FnSig;
 
 impl GIRGenerator {
-    pub fn declare_methods(&mut self, adt: &MutRc<ADT>) {
+    pub(super) fn declare_methods(&mut self, adt: &MutRc<ADT>) {
         self.declare_user_methods(&adt);
 
         // TODO: This is a little ugly... it works i guess?
@@ -23,68 +27,37 @@ impl GIRGenerator {
     }
 
     fn declare_user_methods(&mut self, adt: &MutRc<ADT>) {
-        let ast = Rc::clone(&adt.borrow().ast);
-        let mut ast = ast.borrow_mut();
-        let is_iface = matches!(ast.ty, ast::ADTType::Interface);
-        let this_param = FunctionParam::this_param_g(&ast);
+        let ast = adt.borrow().ast.clone();
+        let is_iface = matches!(adt.borrow().ty, ADTType::Interface);
 
-        for method in ast.methods.drain(..) {
-            let mut this_param = this_param.clone();
-            this_param.type_ = if !is_iface
-                && !method
-                    .sig
-                    .modifiers
-                    .iter()
-                    .any(|t| t.t_type == TType::Strong)
-            {
-                ast::Type::Weak(Box::new(this_param.type_))
+        for method in ast.methods() {
+            let name = method.sig().name().name();
+            let strong_mod = method.modifiers().any(|m| m == SyntaxKind::Strong);
+            let this_type = if is_iface || strong_mod {
+                Type::StrongRef(adt.to_inst())
             } else {
-                this_param.type_
+                Type::WeakRef(adt.to_inst())
             };
 
-            let name = method.sig.name.lexeme.clone();
             let gir_method = eat!(
                 self,
-                self.generate_gir_fn(
+                self.function_from_ast(
                     method,
-                    Some(this_param.clone()),
-                    Some(&adt.borrow().type_parameters),
+                    Some(("this".into(), this_type)),
+                    Some(Rc::clone(&adt.borrow().type_parameters))
                 )
             );
             adt.borrow_mut().methods.insert(name, gir_method);
         }
 
-        if let Some(constructors) = ast.constructors() {
-            self.declare_constructors(&adt, &ast, &this_param, constructors);
-        }
+        self.declare_constructors(adt, &ast);
     }
 
-    fn declare_constructors(
-        &mut self,
-        adt: &MutRc<ADT>,
-        ast: &ast::ADT,
-        this_param: &FunctionParam,
-        constructors: &[Constructor],
-    ) {
-        let mut constructor_parameter_list = HashSet::with_capacity(constructors.len());
+    fn declare_constructors(&mut self, adt: &MutRc<ADT>, ast: &ast::Adt) {
+        let mut constructor_parameter_list = HashSet::new();
 
-        let default = self.maybe_default_constructor(&ast);
-        let iter = constructors.iter().chain(default.iter());
-        for constructor in iter {
-            let sig = eatc!(
-                self,
-                self.get_constructor(&ast, constructor, this_param.clone())
-            );
-            let func = eatc!(
-                self,
-                self.generate_gir_fn(
-                    ast::Function { sig, body: None },
-                    None,
-                    Some(&adt.borrow().type_parameters),
-                )
-            );
+        let mut add_constructor = |func: &MutRc<Function>, cst: Option<CSTNode>| -> Res<()> {
             adt.borrow_mut().constructors.push(Rc::clone(&func));
-
             let params = func
                 .borrow()
                 .parameters
@@ -94,82 +67,75 @@ impl GIRGenerator {
                 .cloned()
                 .collect::<Vec<_>>();
             if !constructor_parameter_list.insert(params) {
-                self.err(
-                    &ast.name,
-                    "Class contains constructors with duplicate signatures.".to_string(),
-                );
+                Err(gir_err(cst.unwrap(), GErr::E312))
+            } else {
+                Ok(())
             }
+        };
+
+        let res = self
+            .maybe_default_constructor(adt, &ast)
+            .map(|sig| -> Res<_> {
+                let func = self.create_function(sig)?;
+                add_constructor(&func, None)
+            });
+        self.eat(res.transpose());
+
+        for constructor in ast.constructors() {
+            let this_param = Some(Ok((
+                SmolStr::new_inline("this"),
+                Type::WeakRef(adt.to_inst()),
+            )));
+            let ast_sig = constructor.sig();
+            let parameters = ast_sig.parameters().map(|param| {
+                let name = param.name();
+                let type_ = param
+                    .maybe_type()
+                    .or_else(|| Self::get_field_ty_by_name(ast, &name))
+                    .or_err(&param.cst, GErr::E311)?;
+                let type_ = self.find_type(&type_)?;
+                Ok((name, type_))
+            });
+
+            let sig = FnSig {
+                name: "constructor".into(),
+                params: box this_param.into_iter().chain(parameters),
+                type_parameters: Rc::clone(&adt.borrow().type_parameters),
+                ret_type: None,
+                ast: Some(constructor),
+            };
+
+            let func = eatc!(self, self.create_function(sig));
+            self.eat(add_constructor(&func, Some(ast_sig.cst)));
         }
     }
 
-    /// Returns the function signature of a constructor.
-    fn get_constructor(
-        &mut self,
-        adt: &ast::ADT,
-        constructor: &Constructor,
-        mut this_param: FunctionParam,
-    ) -> Res<FuncSignature> {
-        this_param.type_ = ast::Type::Weak(Box::new(this_param.type_));
-        let mut parameters = constructor
-            .parameters
-            .iter()
-            .map(|(name, ty)| {
-                let type_ = ty
-                    .clone()
-                    .or_else(|| Self::get_field_ty_by_name(adt, name))
-                    .or_err(
-                        &self.path,
-                        name,
-                        "Cannot infer type of field with default value (specify type explicitly.)",
-                    )?;
-                Ok(FunctionParam {
-                    type_,
-                    name: name.clone(),
-                })
-            })
-            .collect::<Res<Vec<FunctionParam>>>()?;
-        parameters.insert(0, this_param);
-        Ok(FuncSignature {
-            name: Token::generic_identifier("constructor"),
-            visibility: constructor.visibility,
-            generics: None,
-            return_type: None,
-            parameters,
-            variadic: false,
-            modifiers: vec![],
-        })
-    }
-
-    fn get_field_ty_by_name(adt: &ast::ADT, name: &Token) -> Option<ast::Type> {
+    fn get_field_ty_by_name(adt: &ast::Adt, name: &SmolStr) -> Option<ast::Type> {
         adt.members()
-            .unwrap()
-            .iter()
-            .find(|mem| mem.name.lexeme == name.lexeme)
-            .map(|m| m.ty.clone())
+            .find(|mem| &mem.name() == name)
+            .map(|m| m._type())
             .flatten()
     }
 
     /// Will return a default constructor with no parameters
     /// should the ADT not contain a constructor and
     /// all members have default values.
-    fn maybe_default_constructor(&self, adt: &ast::ADT) -> Option<Constructor> {
-        let no_uninitialized_members = || {
-            !adt.members()
-                .unwrap()
-                .iter()
-                .any(|v| v.initializer.is_none())
-        };
-        if adt.constructors().unwrap().is_empty() && no_uninitialized_members() {
-            Some(Constructor {
-                parameters: vec![],
-                visibility: Visibility::Public,
-                body: None,
+    fn maybe_default_constructor(&self, adt: &MutRc<ADT>, ast: &ast::Adt) -> Option<FnSig> {
+        let no_uninitialized_members = || !ast.members().any(|v| v.maybe_initializer().is_none());
+        if ast.constructors().next().is_none() && no_uninitialized_members() {
+            Some(FnSig {
+                name: "DEFAULT-constructor".into(),
+                params: box Some(Ok(("this".into(), Type::WeakRef(adt.to_inst())))).into_iter(),
+                type_parameters: Rc::clone(&adt.borrow().type_parameters),
+                ret_type: None,
+                ast: None,
             })
         } else {
             None
         }
     }
 
+    /*
     /// Insert all constructor 'setter' parameters into the entry
     /// block of their GIR function.
     /// This has to be a separate pass since constructors are declared
@@ -321,5 +287,5 @@ impl GIRGenerator {
                 );
             }
         }
-    }
+    }*/
 }

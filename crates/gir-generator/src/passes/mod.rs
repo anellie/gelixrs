@@ -9,7 +9,7 @@ mod generate;
 mod import;
 mod intrinsic_methods;
 mod intrinsics;
-// mod methods;
+mod methods;
 
 impl GIRGenerator {
     pub(crate) fn run_passes(&mut self) {
@@ -22,7 +22,7 @@ impl GIRGenerator {
         self.validate_intrinsics();
         self.run_mod(Self::import_stage_2);
 
-        // self.run_adt(GIRGenerator::declare_methods);
+        self.run_adt(GIRGenerator::declare_methods);
         // self.generator.fill_impls();
         self.run_dec(GIRGenerator::insert_adt_fields);
         // self.run_adt(GIRGenerator::constructor_setters);

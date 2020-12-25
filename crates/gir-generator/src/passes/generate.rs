@@ -129,7 +129,7 @@ impl GIRGenerator {
     /// and must be set by it.
     fn set_uninitialized_members(
         &mut self,
-        constructor: &ast::Constructor,
+        constructor: &ast::Function,
         class_mems: &IndexMap<SmolStr, Rc<Field>>,
     ) {
         self.uninitialized_this_fields.clear();

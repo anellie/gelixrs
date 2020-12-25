@@ -1,4 +1,5 @@
 #![feature(try_find)]
+#![feature(box_syntax)]
 
 use crate::intrinsics::Intrinsics;
 use common::{mutrc_new, ModulePath, MutRc};
