@@ -159,7 +159,8 @@ impl GIRGenerator {
             .borrow()
             .interfaces
             .get(&free_iface.to_type())
-            .map(|iface| Rc::clone(iface.methods.iter().next().unwrap().1));
+            .map(|iface| iface.methods.values().next().map(Rc::clone))
+            .flatten();
         if let Some(method) = free_method {
             Expr::call(Expr::fvar(&method), vec![adt])
         } else {

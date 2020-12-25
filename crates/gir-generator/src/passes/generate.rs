@@ -62,22 +62,22 @@ impl GIRGenerator {
         };
 
         let ret_type = function.borrow().ret_type.clone();
-        let (body, success) = self.try_cast(body, &ret_type);
-        if !success && ret_type != Type::None {
-            self.err(
-                ast.unwrap().sig().name().cst,
-                GErr::E310 {
-                    expected: ret_type.to_string(),
-                    was: body.get_type().to_string(),
-                },
-            );
-        }
-
         if ret_type == Type::None {
             self.insert_at_ptr(body)
         } else {
+            let (body, success) = self.try_cast(body, &ret_type);
+            if !success {
+                self.err(
+                    ast.unwrap().sig().name().cst,
+                    GErr::E310 {
+                        expected: ret_type.to_string(),
+                        was: body.get_type().to_string(),
+                    },
+                );
+            }
             self.insert_at_ptr(Expr::ret(body));
         }
+
         self.end_scope();
     }
 
