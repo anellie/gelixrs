@@ -4,7 +4,7 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use gelixrs::stem_to_smol;
+use gelixrs::{stem_to_smol, GIRFlags};
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -16,7 +16,7 @@ struct Opt {
     run: bool,
 
     /// Parse to AST and exit
-    #[structopt(long = "parse")]
+    #[structopt(long)]
     parse: bool,
 
     /// Compile to GIR, print, and exit
@@ -24,12 +24,16 @@ struct Opt {
     gir: bool,
 
     /// Compile to GIR, print including all libs, and exit
-    #[structopt(long)]
+    #[structopt(long = "gir-all")]
     gir_all: bool,
 
     /// Compile to LLVM IR, print, and exit
     #[structopt(long)]
     ir: bool,
+
+    /// Do not include the standard library (very buggy, use for debugging only!)
+    #[structopt(long = "no-std")]
+    no_std: bool,
 
     /// Path of the resulting executable
     #[structopt(short, long)]
@@ -53,8 +57,12 @@ fn run(args: Opt) -> Result<(), &'static str> {
         return Err("Given path does not exist.");
     }
 
-    let std_mod = gelixrs::find_std_module()?;
-    let modules = vec![args.file.clone(), std_mod];
+    let modules = if !args.no_std {
+        let std_mod = gelixrs::find_std_module()?;
+        vec![args.file.clone(), std_mod]
+    } else {
+        vec![args.file.clone()]
+    };
 
     let code = gelixrs::parse_source(modules).map_err(|errors| {
         for file in errors {
@@ -72,7 +80,11 @@ fn run(args: Opt) -> Result<(), &'static str> {
         return Ok(());
     }
 
-    let gir = gelixrs::compile_gir(code).map_err(|errors| {
+    let gir_flags = GIRFlags {
+        no_std: args.no_std,
+        no_prelude: args.no_std,
+    };
+    let gir = gelixrs::compile_gir(code, gir_flags).map_err(|errors| {
         for error in errors {
             println!("{}\n", error);
         }

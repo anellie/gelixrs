@@ -6,13 +6,14 @@
 
 use std::{
     collections::HashSet, env, ffi::CStr, fs, fs::read_to_string, io, mem, os::raw::c_char, panic,
-    path::PathBuf, sync::Mutex,
+    path::PathBuf, process, sync::Mutex,
 };
 
 use ansi_term::{Color, Style};
-use gelixrs::Errors;
+use gelixrs::{CompiledIR, Errors, GIRFlags};
 use lazy_static::lazy_static;
 use std::io::Write;
+use structopt::StructOpt;
 
 lazy_static! {
     static ref RESULT: Mutex<String> = Mutex::new(String::from(""));
@@ -38,6 +39,8 @@ enum Failure {
     Compile(Vec<Errors>),
     IR,
     Panic,
+    Subprocess,
+    Segfault,
     Leak(usize),
 }
 
@@ -85,8 +88,35 @@ extern "C" fn test_free(ptr: i64) {
     }
 }
 
+#[derive(StructOpt, Debug, Default)]
+#[structopt(name = "gelixrs-e2e", about = "A E2E test suite for gelix.")]
+struct Opt {
+    /// Use snapshot failure display
+    #[structopt(long)]
+    snapshot: bool,
+
+    /// Run tests as subprocess instead of JIT, slower
+    /// but segfault-safe
+    #[structopt(long = "no-jit")]
+    no_jit: bool,
+
+    /// Print each test name before running it
+    #[structopt(long)]
+    verbose: bool
+}
+
+struct TestRun {
+    total: usize,
+    failed: Vec<(String, String)>,
+    options: Opt,
+}
+
 fn main() {
-    let (mut test_total, mut test_failed) = (0, Vec::new());
+    let mut run = TestRun {
+        total: 0,
+        failed: vec![],
+        options: Opt::from_args(),
+    };
 
     let cwd = env::current_dir().expect("Couldn't get current dir.");
     let mut test_path = PathBuf::from(cwd.parent().unwrap().parent().unwrap());
@@ -101,28 +131,28 @@ fn main() {
             Ok(iter) => iter
                 .map(|file| file.unwrap().path())
                 .filter(|file| file.extension() != Some("disabled".as_ref()))
-                .for_each(|file| run_test(file, &mut test_total, &mut test_failed)),
-            Err(_) => run_test(file, &mut test_total, &mut test_failed),
+                .for_each(|file| run_test(file, &mut run)),
+            Err(_) => run_test(file, &mut run),
         }
     }
 
     let mut snapshot = cwd;
     snapshot.push("test-snapshot");
-    print_failed(snapshot, &test_failed);
+    print_failed(snapshot, &run);
 
     println!(
         "\n{} out of {} tests succeeded\n",
-        (test_total - test_failed.len()),
-        test_total
+        (run.total - run.failed.len()),
+        run.total
     );
 }
 
-fn print_failed(path: PathBuf, failed: &[(String, String)]) {
+fn print_failed(path: PathBuf, run: &TestRun) {
     println!();
-    if env::args().any(|arg| arg == "--snapshot") {
+    if run.options.snapshot {
         let snapshot = read_to_string(&path).unwrap_or_else(|_| "".to_string());
         let mut prev_failed = snapshot.lines().collect::<HashSet<&str>>();
-        for (fail, msg) in failed {
+        for (fail, msg) in &run.failed {
             if !prev_failed.remove(fail.as_str()) {
                 println!("{} {}", RED_BOLD.paint("New failure:"), msg);
             }
@@ -131,34 +161,39 @@ fn print_failed(path: PathBuf, failed: &[(String, String)]) {
             println!("{} {}", GREEN_BOLD.paint("Test fixed:"), fixed);
         }
     } else {
-        for (_, msg) in failed.iter().rev() {
+        for (_, msg) in run.failed.iter().rev() {
             println!("{}", msg);
         }
     }
 
     let mut snapshots_file =
         fs::File::create(path.as_path()).expect("Failed to write snapshots file");
-    for (fail, _) in failed {
+    for (fail, _) in &run.failed {
         snapshots_file
             .write_all(format!("{}\n", fail).as_bytes())
             .expect("Write failed");
     }
 }
 
-fn run_test(path: PathBuf, total: &mut usize, failed: &mut Vec<(String, String)>) {
-    *total += 1;
+fn run_test(path: PathBuf, run: &mut TestRun) {
+    run.total += 1;
+    if run.options.verbose {
+        println!("Running test: {}", relative_path(&path))
+    }
+
     let expected = get_expected_result(path.clone());
-    let result = catch_unwind_silent(|| exec_jit(path.clone())).unwrap_or(Err(Failure::Panic));
+    let result = catch_unwind_silent(|| exec(path.clone(), !run.options.no_jit))
+        .unwrap_or(Err(Failure::Panic));
 
     let style = if result == expected {
         GREEN_BOLD
     } else {
         let rel_path = relative_path(&path);
-        failed.push((
+        run.failed.push((
             rel_path,
             format!(
                 "{}\n{}\n{}   {:?}\n{} {:?}\n",
-                RED_BOLD.paint(format!("Test #{} failed!", total)),
+                RED_BOLD.paint(format!("Test #{} failed!", run.total)),
                 BOLD.paint(format!("Test: {}", relative_path(&path))),
                 BOLD.paint("Result:"),
                 result,
@@ -172,14 +207,22 @@ fn run_test(path: PathBuf, total: &mut usize, failed: &mut Vec<(String, String)>
     io::stdout().flush().unwrap();
 }
 
-fn exec_jit(path: PathBuf) -> Result<String, Failure> {
+fn exec(path: PathBuf, jit: bool) -> Result<String, Failure> {
     clear_state();
 
     let code = gelixrs::parse_source(vec![path, STD_LIB.lock().unwrap().clone()])
         .map_err(|_| Failure::Parse)?;
-    let gir = gelixrs::compile_gir(code).map_err(Failure::Compile)?;
+    let gir = gelixrs::compile_gir(code, GIRFlags::default()).map_err(Failure::Compile)?;
     let module = gelixrs::compile_ir(gir);
 
+    if jit {
+        exec_jit(module)
+    } else {
+        exec_bin(module)
+    }
+}
+
+fn exec_jit(module: CompiledIR) -> Result<String, Failure> {
     let mut jit = gelixrs::JIT::new(module);
     jit.link_fn("puts", test_puts as usize);
     jit.link_fn("malloc", test_malloc as usize);
@@ -193,6 +236,20 @@ fn exec_jit(path: PathBuf) -> Result<String, Failure> {
         Ok(result)
     } else {
         Err(Failure::Leak(leaked))
+    }
+}
+
+fn exec_bin(module: CompiledIR) -> Result<String, Failure> {
+    let mut tmp_file = env::temp_dir();
+    tmp_file.push("gelixrs");
+    tmp_file.push("test");
+    gelixrs::produce_binary(module, tmp_file.as_os_str(), 1).map_err(|_| Failure::IR)?;
+
+    let output = process::Command::new(tmp_file.as_os_str()).output().map_err(|_| Failure::Subprocess)?;
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).into())
+    } else {
+        Err(Failure::Segfault)
     }
 }
 

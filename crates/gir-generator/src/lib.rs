@@ -38,6 +38,19 @@ pub struct CompiledGIR {
     pub iface_impls: HashMap<Type, MutRc<IFaceImpls>>,
 }
 
+/// A struct containing various compiler flags
+/// that disable or enable certain features.
+#[derive(Default, Copy, Clone)]
+pub struct GIRFlags {
+    /// This compilation run does not use the standard library.
+    /// This will disable quite a few features and is quite buggy.
+    /// Mainly intended for debugging, WIP.
+    pub no_std: bool,
+
+    /// Do not import the prelude into every module. no_std requires this.
+    pub no_prelude: bool,
+}
+
 type Environment = HashMap<SmolStr, Rc<LocalVariable>>;
 
 /// A GIR generator, responsible for compiling GIR.
@@ -88,6 +101,8 @@ pub struct GIRGenerator {
 
     /// Errors produced
     errors: MutRc<HashMap<ModulePath, Errors>>,
+
+    flags: GIRFlags,
 }
 
 impl GIRGenerator {
@@ -406,9 +421,9 @@ impl GIRGenerator {
     }
 
     /// Create a new generator from AST modules.
-    pub fn new(modules: Vec<ast::Module>) -> Self {
+    pub fn new(modules: Vec<ast::Module>, flags: GIRFlags) -> Self {
         let modules: Vec<_> = modules.into_iter().map(Module::new).collect();
-        Self::from_modules(modules)
+        Self::from_modules(modules, flags)
     }
 
     /// Produces a [GIRGenerator] usable for generating a closure literal,
@@ -423,7 +438,7 @@ impl GIRGenerator {
                 outer_env: mem::replace(&mut outer.environments, vec![]),
                 captured: Vec::with_capacity(3),
             }),
-            ..Self::from_modules(modules)
+            ..Self::from_modules(modules, outer.flags)
         }
     }
 
@@ -436,7 +451,7 @@ impl GIRGenerator {
     }
 
     /// Create a new generator from GIR modules.
-    fn from_modules(modules: Vec<MutRc<Module>>) -> Self {
+    fn from_modules(modules: Vec<MutRc<Module>>, flags: GIRFlags) -> Self {
         let path = modules[0].borrow().path.clone();
         Self {
             position: None,
@@ -451,6 +466,7 @@ impl GIRGenerator {
             uninitialized_this_fields: HashSet::with_capacity(5),
             closure_data: None,
             errors: mutrc_new(HashMap::new()),
+            flags,
         }
     }
 }
