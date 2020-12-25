@@ -116,8 +116,7 @@ impl<'p> Parser<'p> {
         self.consume(SyntaxKind::LeftBrace, "'{'", "before body");
 
         while !self.check(SyntaxKind::RightBrace) && !self.is_at_end() {
-            self.consume_modifiers();
-            match self.peek() {
+            match self.peek_past_modifiers() {
                 SyntaxKind::Var | SyntaxKind::Val if conf.has_members => self.adt_member(),
                 SyntaxKind::Construct if conf.has_constructors => self.constructor(),
                 SyntaxKind::Func => self.method(conf.force_extern),
@@ -131,15 +130,18 @@ impl<'p> Parser<'p> {
 
     fn method(&mut self, force_extern: bool) {
         self.start_node(SyntaxKind::Method);
+        self.consume_modifiers();
+
         self.advance(); // Consume 'func'
         self.function_(&METHOD_MODIFIERS, force_extern);
         self.end_node();
     }
 
     fn adt_member(&mut self) {
+        self.start_node(SyntaxKind::AdtMember);
+        self.consume_modifiers();
         self.check_mods(&MEMBER_MODIFIERS, "class member");
 
-        self.start_node(SyntaxKind::AdtMember);
         self.advance(); // Consume 'var' or 'val'
         self.consume(SyntaxKind::Identifier, "variable name", "var/val");
 
@@ -160,9 +162,10 @@ impl<'p> Parser<'p> {
     }
 
     fn constructor(&mut self) {
+        self.start_node(SyntaxKind::Constructor);
+        self.consume_modifiers();
         self.check_mods(&CONSTRUCTOR_MODIFIERS, "constructor");
 
-        self.start_node(SyntaxKind::Constructor);
         self.start_node(SyntaxKind::FunctionSignature);
         self.advance(); // Consume 'construct'
         self.consume(SyntaxKind::LeftParen, "'('", "'construct'");
@@ -293,6 +296,19 @@ impl<'p> Parser<'p> {
                 this.advance();
             });
         }
+    }
+
+    // Peeks past modifiers by advancing until not looking at a
+    // modifier, then restoring state and returning the first non-modifier.
+    fn peek_past_modifiers(&mut self) -> SyntaxKind {
+        self.modifiers.clear();
+        self.source.save();
+        while MODIFIERS.contains(&self.peek()) {
+            self.source.next();
+        }
+        let res = self.peek();
+        self.source.restore();
+        res
     }
 
     fn check_mods(&mut self, allowed: &'static [SyntaxKind], name: &'static str) {
