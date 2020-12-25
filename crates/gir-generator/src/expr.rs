@@ -43,7 +43,7 @@ impl GIRGenerator {
                 if get.property().type_args().next().is_some() {
                     Err(gir_err(get.property().cst, GErr::E211))
                 } else {
-                    self.get(get)
+                    self.get(get, false).map(|e| e.0)
                 }
             }
 
@@ -70,6 +70,7 @@ impl GIRGenerator {
             AExpr::When(when) => self.when(when),
         };
 
+        // TODO: a proper 'poisoned' expression
         self.eat(expr).unwrap_or(Expr::Literal(Literal::Any))
     }
 
@@ -93,7 +94,14 @@ impl GIRGenerator {
     }
 
     fn assignment(&mut self, to: AExpr, value: AExpr) -> Res<Expr> {
-        let lvalue = self.expression(&to);
+        // Account for edge case where it is illegal to get an
+        // uninitialized ADT member; it's fine here since it's being written
+        // and not read
+        let (lvalue, was_uninit) = if let AExpr::Get(get) = &to {
+            self.get(get, true)?
+        } else {
+            (self.expression(&to), false)
+        };
         let rvalue = self.expression(&value);
         let (rvalue, matching_types) = self.try_cast(rvalue, &lvalue.get_type());
 
@@ -102,7 +110,7 @@ impl GIRGenerator {
         } else if !matching_types {
             Err(gir_err(value.cst(), GErr::E201))
         } else {
-            Ok(Expr::store(lvalue, rvalue, false))
+            Ok(Expr::store(lvalue, rvalue, was_uninit))
         }
     }
 
@@ -598,12 +606,19 @@ impl GIRGenerator {
         */
     }
 
-    fn get(&mut self, get: &Get) -> Res<Expr> {
+    // Handle a get expression. allow_uninit controls if uninitialized ADT
+    // members can be accessed; they will be removed if they are.
+    // Return value also specifies if the value was uninitialized if allow_uninit is true.
+    // This is special behavior is used for assignment.
+    fn get(&mut self, get: &Get, allow_uninit: bool) -> Res<(Expr, bool)> {
         let (object, field) = self.get_field(get)?;
         let field = field.left().or_err(&get.property().cst, GErr::E221)?;
 
-        if !self.uninitialized_this_fields.contains(&field) {
-            Ok(Expr::load(object, &field))
+        if allow_uninit || !self.uninitialized_this_fields.contains(&field) {
+            Ok((
+                Expr::load(object, &field),
+                !allow_uninit || self.uninitialized_this_fields.remove(&field),
+            ))
         } else {
             Err(gir_err(get.property().cst, GErr::E222))
         }
@@ -744,7 +759,7 @@ impl GIRGenerator {
             Some(('f', "32")) => Literal::F32(self.parse_numeric_literal(value, cst)?),
 
             _ if float => Literal::F64(self.parse_numeric_literal(value, cst)?),
-            _ => Literal::F64(self.parse_numeric_literal(value, cst)?),
+            _ => Literal::I64(self.parse_numeric_literal(value, cst)?),
         })
     }
 
@@ -920,7 +935,7 @@ impl GIRGenerator {
 
             (_, Err(_)) => self
                 .symbol_with_type_args(&var.name(), var.type_args(), &var.cst)
-                .map(Expr::TypeGet),
+                .map(Expr::type_get),
         }
     }
 

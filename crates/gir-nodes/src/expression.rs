@@ -151,6 +151,13 @@ impl Expr {
         Expr::Literal(Literal::None)
     }
 
+    pub fn type_get(inner: Type) -> Expr {
+        match inner {
+            Type::None => Expr::none_const(),
+            _ => Expr::TypeGet(inner),
+        }
+    }
+
     pub fn literal(literal: Literal) -> Expr {
         Expr::Literal(literal)
     }

@@ -278,12 +278,14 @@ impl Type {
 
     pub fn resolve(&self, args: &Rc<TypeArguments>) -> Type {
         // Start by replacing any type variables with their concrete type
+        let replace = |var: &TypeVariable| match var.modifier {
+            VariableModifier::Value => args[var.index].clone(),
+            VariableModifier::Weak => args[var.index].to_weak(),
+            VariableModifier::Strong => args[var.index].to_strong(),
+        };
         let mut ty = match self {
-            Type::Variable(var) | Type::RawPtr(box Type::Variable(var)) => match var.modifier {
-                VariableModifier::Value => args[var.index].clone(),
-                VariableModifier::Weak => args[var.index].to_weak(),
-                VariableModifier::Strong => args[var.index].to_strong(),
-            },
+            Type::Variable(var) => replace(var),
+            Type::RawPtr(box Type::Variable(var)) => Type::RawPtr(box replace(var)),
             _ => self.clone(),
         };
 
