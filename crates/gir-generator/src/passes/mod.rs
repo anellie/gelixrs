@@ -23,9 +23,9 @@ impl GIRGenerator {
         self.run_mod(Self::import_stage_2);
 
         self.run_adt(GIRGenerator::declare_methods);
-        // self.generator.fill_impls();
+        self.fill_impls();
         self.run_dec(GIRGenerator::insert_adt_fields);
-        // self.run_adt(GIRGenerator::constructor_setters);
+        self.run_adt(GIRGenerator::constructor_setters);
         self.run_adt(GIRGenerator::declare_lifecycle_methods);
         self.run_adt(GIRGenerator::generate_lifecycle_methods);
         self.run_dec(Self::generate);

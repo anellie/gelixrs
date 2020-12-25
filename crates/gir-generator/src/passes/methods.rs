@@ -4,11 +4,17 @@ use crate::{eat, eatc, result::EmitGIRError, GIRGenerator};
 use ast::CSTNode;
 use common::MutRc;
 use error::{GErr, Res};
-use gir_nodes::{declaration::ADTType, gir_err, types::ToInstance, Function, Type, ADT};
+use gir_nodes::{
+    declaration::{ADTType, LocalVariable},
+    gir_err,
+    types::{ToInstance, TypeArguments},
+    Expr, Function, IFaceImpls, Type, ADT,
+};
 use smol_str::SmolStr;
 use syntax::kind::SyntaxKind;
 
 use super::declare::FnSig;
+use std::collections::HashMap;
 
 impl GIRGenerator {
     pub(super) fn declare_methods(&mut self, adt: &MutRc<ADT>) {
@@ -135,100 +141,49 @@ impl GIRGenerator {
         }
     }
 
-    /*
-    /// Insert all constructor 'setter' parameters into the entry
-    /// block of their GIR function.
-    /// This has to be a separate pass since constructors are declared
-    /// before fields are.
-    pub fn constructor_setters(&mut self, adt: &MutRc<ADT>) {
-        if let Some(constructors) = adt.borrow().ast.borrow().constructors() {
-            for (constructor, func) in constructors.iter().zip(adt.borrow().constructors.iter()) {
-                let exprs = eatc!(
-                    self,
-                    self.insert_constructor_setters(
-                        &adt.borrow(),
-                        constructor,
-                        &func.borrow().parameters
-                    )
-                );
-                // (local variable to prevent 'already borrowed' panic)
-                func.borrow_mut().exprs = exprs;
-            }
-        }
-    }
-
-    fn insert_constructor_setters(
-        &mut self,
-        adt: &ADT,
-        constructor: &Constructor,
-        gir_fn_params: &[Rc<LocalVariable>],
-    ) -> Res<Vec<Expr>> {
-        let mut block = Vec::new();
-        for (index, (param, _)) in constructor
-            .parameters
-            .iter()
-            .enumerate()
-            .filter(|(_, (_, ty))| ty.is_none())
-        {
-            let field =
-                adt.fields
-                    .get(&param.lexeme)
-                    .or_err(&self.path, param, "Unknown class field.")?;
-            block.push(Expr::store(
-                Expr::load(Expr::lvar(&gir_fn_params[0]), field),
-                Expr::lvar(&gir_fn_params[index + 1]),
-                true,
-            ))
-        }
-        block.push(Expr::none_const_());
-        Ok(block)
-    }
-
     pub fn fill_impls(&mut self) {
-        IFACE_IMPLS.with(|i| {
-            for impls in i.borrow().values() {
-                self.fill_impls_(impls)
-            }
-        })
+        // TODO maybe optimize
+        let clone = self.iface_impls.values().cloned().collect::<Vec<_>>();
+        for impls in clone {
+            self.fill_impls_(impls)
+        }
     }
 
-    fn fill_impls_(&mut self, impls: &MutRc<IFaceImpls>) {
+    fn fill_impls_(&mut self, impls: MutRc<IFaceImpls>) {
         let mut impls = impls.borrow_mut();
 
         let mut methods: HashMap<SmolStr, _> = HashMap::with_capacity(impls.interfaces.len() * 2);
         for iface_impl in impls.interfaces.values_mut() {
             self.switch_module(Rc::clone(&iface_impl.module));
 
-            let ast = Rc::clone(&iface_impl.ast);
+            let ast = &iface_impl.ast;
             let iface = Rc::clone(&iface_impl.iface.ty);
-            let mut ast = ast.borrow_mut();
-            let this_arg = FunctionParam::this_param_(&ast.implementor);
 
-            for ast_method in ast.methods.drain(..) {
+            for ast_method in ast.methods() {
                 let iface = iface.borrow();
-                let name = ast_method.sig.name.lexeme.clone();
+                let name = ast_method.sig().name();
                 let iface_method = eatc!(
                     self,
-                    iface.methods.get(&name).on_err(
-                        &self.path,
-                        &ast_method.sig.name,
-                        "Method is not defined in interface.",
-                    )
+                    iface
+                        .methods
+                        .get(&name.name())
+                        .or_err(&name.cst, GErr::E313)
                 );
 
+                let this_type = iface_impl.implementor.clone();
                 // TODO: also insert into ADTs?
                 // TODO: Type parameters on impls
                 let impl_method = eatc!(
                     self,
-                    self.generate_gir_fn(ast_method, Some(this_arg.clone()), None)
+                    self.function_from_ast(ast_method, Some(("this".into(), this_type)), None)
                 );
                 iface_impl
                     .methods
-                    .insert(name.clone(), Rc::clone(&impl_method));
-                if methods.contains_key(&name) {
-                    methods.remove(&name);
+                    .insert(name.name(), Rc::clone(&impl_method));
+                if methods.contains_key(&name.name()) {
+                    methods.remove(&name.name());
                 } else {
-                    methods.insert(name.clone(), Rc::clone(&impl_method));
+                    methods.insert(name.name(), Rc::clone(&impl_method));
                 }
 
                 self.check_equal_signature(&impl_method, iface_method, iface_impl.iface.args());
@@ -236,8 +191,16 @@ impl GIRGenerator {
 
             if iface.borrow().methods.len() > iface_impl.methods.len() {
                 self.err(
-                    &ast.iface.token(),
-                    "Missing methods in interface impl.".to_string(),
+                    ast.iface().cst,
+                    GErr::E314(
+                        iface
+                            .borrow()
+                            .methods
+                            .keys()
+                            .filter(|m| !iface_impl.methods.contains_key(*m))
+                            .cloned()
+                            .collect(),
+                    ),
                 );
             }
         }
@@ -254,18 +217,12 @@ impl GIRGenerator {
     ) {
         let impl_method = impl_method.borrow();
         let iface_method = iface_method.borrow();
-        let ast = impl_method.ast.borrow();
+        let ast = impl_method.ast.clone().unwrap();
 
         if impl_method.ret_type != iface_method.ret_type.resolve(iface_args) {
-            let tok = ast
-                .sig
-                .return_type
-                .as_ref()
-                .map_or(&ast.sig.name, ast::Type::token);
-            self.err(
-                tok,
-                "Incorrect return type on interface method.".to_string(),
-            );
+            let sig = ast.sig();
+            let tok = sig.ret_type().map_or_else(|| sig.name().cst, |r| r.cst);
+            self.err(tok, GErr::E315);
         }
 
         for (i, (method_param, iface_param)) in impl_method
@@ -277,15 +234,58 @@ impl GIRGenerator {
         {
             let iface_ty = iface_param.ty.resolve(iface_args);
             if method_param.ty != iface_ty {
-                let tok = &ast.sig.parameters[i].name;
+                let cst = ast.sig().parameters().nth(i).unwrap().cst;
                 self.err(
-                    tok,
-                    format!(
-                        "Incorrect parameter type on interface method (Expected {}, was {}).",
-                        iface_ty, method_param.ty
-                    ),
+                    cst,
+                    GErr::E316 {
+                        expected: iface_ty.to_string(),
+                        was: method_param.ty.to_string(),
+                    },
                 );
             }
         }
-    }*/
+    }
+
+    /// Insert all constructor 'setter' parameters into the entry
+    /// block of their GIR function.
+    /// This has to be a separate pass since constructors are declared
+    /// before fields are.
+    pub fn constructor_setters(&mut self, adt: &MutRc<ADT>) {
+        let adt = adt.borrow();
+        for (constructor, func) in adt.ast.constructors().zip(adt.constructors.iter()) {
+            let exprs = eatc!(
+                self,
+                self.insert_constructor_setters(&adt, &constructor, &func.borrow().parameters)
+            );
+            // (local variable to prevent 'already borrowed' panic)
+            func.borrow_mut().exprs = exprs;
+        }
+    }
+
+    fn insert_constructor_setters(
+        &mut self,
+        adt: &ADT,
+        constructor: &ast::Function,
+        gir_fn_params: &[Rc<LocalVariable>],
+    ) -> Res<Vec<Expr>> {
+        let mut block = Vec::new();
+        for (index, param) in constructor
+            .sig()
+            .parameters()
+            .enumerate()
+            .filter(|(_, param)| param.maybe_type().is_none())
+        {
+            let field = adt
+                .fields
+                .get(&param.name())
+                .or_err(&param.cst, GErr::E317)?;
+            block.push(Expr::store(
+                Expr::load(Expr::lvar(&gir_fn_params[0]), field),
+                Expr::lvar(&gir_fn_params[index + 1]),
+                true,
+            ))
+        }
+        block.push(Expr::none_const());
+        Ok(block)
+    }
 }

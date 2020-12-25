@@ -153,6 +153,19 @@ pub enum GErr {
     E311,
     // ADT contains constructors with duplicate signatures
     E312,
+    // Method is not defined in interface
+    E313,
+    // Missing methods in interface impl
+    E314(Vec<SmolStr>),
+    // Mismatched return type on interface method
+    E315,
+    // Incorrect parameter type on interface method
+    E316 {
+        expected: String,
+        was: String,
+    },
+    // Unknown ADT field for constructor setter
+    E317,
 }
 
 impl GErr {
@@ -187,15 +200,11 @@ impl GErr {
             E236(name) => format!("Cannot have member and method '{}' with same name.", name),
 
             E300(name) => format!("Unknown type '{}'.", name),
-
             E309(names) => {
-                let mut str = format!(
-                    "Cannot have uninitialized fields after constructor (Missing: {}",
-                    names[0]
+                let mut str = self.fmt_list(
+                    "Cannot have uninitialized fields after constructor (Missing: ",
+                    names,
                 );
-                for name in names.iter().skip(1) {
-                    str.push_str(&format!(", {}", name));
-                }
                 str.push_str(").");
                 str
             }
@@ -203,9 +212,27 @@ impl GErr {
                 "Body type does not match function return type (Expected {}, was {}).",
                 expected, was
             ),
+            E314(names) => {
+                let mut str = self.fmt_list("Missing methods in interface impl: ", names);
+                str.push('.');
+                str
+            }
+            E316 { expected, was } => format!(
+                "Incorrect parameter type on interface method (Expected {}, was {}).",
+                expected, was
+            ),
 
             _ => self.msg().to_string(),
         }
+    }
+
+    fn fmt_list(&self, start: &str, list: &[SmolStr]) -> String {
+        let mut buf = start.to_string();
+        buf.push_str(&list[0]);
+        for name in list.iter().skip(1) {
+            buf.push_str(&format!(", {}", name));
+        }
+        buf
     }
 
     fn msg(&self) -> &str {
@@ -259,6 +286,9 @@ impl GErr {
             E308 => "Cannot return a weak reference.",
             E311 => "Cannot infer type of member with default value (specify type explicitly).",
             E312 => "ADT contains constructors with duplicate signatures.",
+            E313 => "Method is not defined in interface.",
+            E315 => "Mismatched return type on interface method.",
+            E317 => "Unknown ADT field for constructor setter.",
 
             _ => unreachable!(),
         }

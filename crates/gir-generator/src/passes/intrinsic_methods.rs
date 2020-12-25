@@ -17,6 +17,7 @@ impl GIRGenerator {
     pub(super) fn declare_lifecycle_methods(&mut self, adt: &MutRc<ADT>) {
         let type_params = Rc::clone(&adt.borrow().type_parameters);
         let this_param = (SmolStr::new_inline("this"), Type::WeakRef(adt.to_inst()));
+        let this_param_sr = (this_param.0.clone(), this_param.1.to_strong());
 
         // TODO: Replace this vec with an array once array.into_iter() is stabilized
         let fns: Vec<_> = vec![
@@ -29,14 +30,14 @@ impl GIRGenerator {
             },
             FnSig {
                 name: "free-wr".into(),
-                params: box vec![this_param.clone()].into_iter().map(Ok),
+                params: box vec![this_param].into_iter().map(Ok),
                 type_parameters: type_params.clone(),
                 ret_type: None,
                 ast: None,
             },
             FnSig {
                 name: "free-sr".into(),
-                params: box vec![this_param, ("refcount_zero".into(), Type::Bool)]
+                params: box vec![this_param_sr, ("refcount_zero".into(), Type::Bool)]
                     .into_iter()
                     .map(Ok),
                 type_parameters: type_params,

@@ -86,6 +86,7 @@ pub struct IRGenerator {
 
 impl IRGenerator {
     /// Generates IR. Will process all GIR modules given.
+    #[allow(clippy::needless_collect)] // Not needless! Changes execution order.
     pub fn generate(mut self) -> Module {
         // Get required-to-compile fns from INTRINSICS
         let required_fns = mem::replace(&mut self.gir_data.intrinsics.required_compile_fns, vec![]);
@@ -123,7 +124,7 @@ impl IRGenerator {
             .verify()
             .map_err(|e| {
                 self.module.print_to_file(Path::new("invalid_code.ll")).unwrap_or(());
-                if !cfg!(test) {
+                if !cfg!(debug_assertions) {
                     println!("The compiler generated invalid code, which can be found in 'invalid_code.ll'.");
                     println!("This is a severe internal bug, and should be reported (please include the code when doing so).");
                     println!("The error message reported by LLVM:\n");
