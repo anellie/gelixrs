@@ -7,6 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+drop_bomb = "0.1.5"
 enum-methods = "0.0.8"
 indexmap = "1.2.0"
 smol_str = "0.1.17"

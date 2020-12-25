@@ -5,8 +5,8 @@ use gir_nodes::{Instance, Module, Type};
 use std::rc::Rc;
 
 impl GIRGenerator {
-    pub(super) fn populate_intrinsics(&mut self, module: MutRc<Module>) {
-        let module = module.borrow();
+    pub(super) fn populate_intrinsics(&mut self, module_rc: MutRc<Module>) {
+        let module = module_rc.borrow();
         if module.path.is(&["std", "ops"]) {
             self.intrinsics.fill_ops_table(module);
         } else if module.path.is(&["std", "string"]) {
@@ -17,6 +17,8 @@ impl GIRGenerator {
         } else if module.path.is(&["std", "iter"]) {
             self.intrinsics.iter_proto = module.find_decl("Iter").map(|d| d.into_adt());
             self.intrinsics.to_iter_proto = module.find_decl("ToIter").map(|d| d.into_adt());
+        } else if module.path.is(&["std", "prelude"]) {
+            self.intrinsics.std_prelude = Some(Rc::clone(&module_rc))
         }
     }
 

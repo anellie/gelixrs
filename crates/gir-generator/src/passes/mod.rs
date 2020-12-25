@@ -46,7 +46,7 @@ impl GIRGenerator {
         for module in self.modules.clone() {
             self.switch_module(Rc::clone(&module));
             let ast = module.borrow_mut().borrow_ast();
-            runner(self, &ast);
+            runner(self, &ast.0);
             module.borrow_mut().return_ast(ast);
         }
     }

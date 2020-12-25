@@ -37,6 +37,8 @@ pub struct Intrinsics {
     /// The entry point of the program - more than one function
     /// named main is a compile error
     pub(crate) main_fn: Option<MutRc<Function>>,
+    /// std/prelude module for auto-import
+    pub(crate) std_prelude: Option<MutRc<Module>>,
     /// A list of functions required for compilation.
     /// Currently main_fn and a few intrinsics.
     pub required_compile_fns: Vec<MutRc<Function>>,

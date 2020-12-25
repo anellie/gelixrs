@@ -7,21 +7,22 @@ use gir_nodes::{
     Module,
 };
 
-use crate::{eat, result::EmitGIRError, GIRGenerator};
+use crate::{eatc, result::EmitGIRError, GIRGenerator};
 
 impl GIRGenerator {
     pub(super) fn import_stage_1(&mut self, module: MutRc<Module>) {
-        let ast = {
+        let ast_borrow = {
             let mut module = module.borrow_mut();
             module.borrow_ast()
         };
+        let ast = &ast_borrow.0;
 
         for import in ast.imports() {
             let mut path = import.parts().collect::<Vec<_>>();
             let symbol = path.pop().unwrap();
             let path = ModPath::from(path);
 
-            let src_module_rc = eat!(self, self.find_module(&path, &import));
+            let src_module_rc = eatc!(self, self.find_module(&path, &import));
             let src_module = src_module_rc.borrow();
 
             if symbol == "+" {
@@ -50,7 +51,14 @@ impl GIRGenerator {
                 })
         }
 
-        module.borrow_mut().return_ast(ast);
+        let mut module = module.borrow_mut();
+        if !self.flags.no_prelude && !module.path.is(&["std", "prelude"]) {
+            module
+                .imports
+                .modules
+                .push(self.intrinsics.std_prelude.clone().unwrap());
+        }
+        module.return_ast(ast_borrow);
     }
 
     pub(super) fn import_stage_2(&mut self, module: MutRc<Module>) {
@@ -72,6 +80,22 @@ impl GIRGenerator {
                 } else {
                     self.err(import.ast.cst(), GErr::E103);
                 }
+            }
+        }
+
+        if !self.flags.no_prelude && !module.borrow().path.is(&["std", "prelude"]) {
+            for name in self
+                .intrinsics
+                .std_prelude
+                .as_ref()
+                .unwrap()
+                .borrow()
+                .declarations
+                .keys()
+            {
+                // TODO: NO!
+                let node = self.module.borrow().ast.as_ref().unwrap().cst.clone();
+                self.try_reserve_name(&node, name);
             }
         }
     }

@@ -1,6 +1,7 @@
 use crate::{gir_err, Declaration, Function};
 use ast::CSTNode;
 use common::{mutrc_new, ModulePath, MutRc};
+use drop_bomb::DebugDropBomb;
 use error::{GErr, Res};
 use smol_str::SmolStr;
 use std::{
@@ -48,13 +49,17 @@ impl Module {
     }
 
     /// "Borrow" ownership of the AST for temporary use. Return with [return_ast]
-    pub fn borrow_ast(&mut self) -> ast::Module {
-        self.ast.take().unwrap()
+    pub fn borrow_ast(&mut self) -> BorrowedAST {
+        BorrowedAST(
+            self.ast.take().unwrap(),
+            DebugDropBomb::new("Borrewed Module AST must be returned."),
+        )
     }
 
     /// Return the AST after [borrow_ast].
-    pub fn return_ast(&mut self, ast: ast::Module) {
-        self.ast = Some(ast)
+    pub fn return_ast(&mut self, mut ast: BorrowedAST) {
+        ast.1.defuse();
+        self.ast = Some(ast.0)
     }
 
     /// Tries to reserve the given name.
@@ -107,3 +112,5 @@ pub struct UnresolvedImport {
     pub module: MutRc<Module>,
     pub symbol: SmolStr,
 }
+
+pub struct BorrowedAST(pub ast::Module, DebugDropBomb);
