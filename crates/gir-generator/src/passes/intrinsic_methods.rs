@@ -1,45 +1,63 @@
 use std::rc::Rc;
 
 use smol_str::SmolStr;
+use syntax::kind::SyntaxKind;
 
-use crate::GIRGenerator;
+use crate::{eat, GIRGenerator};
 use common::MutRc;
-use gir_nodes::ADT;
+use gir_nodes::{
+    declaration::ADTType, expression::CastType, types::ToInstance, Expr, Function, Type, ADT,
+};
 use std::collections::HashMap;
 
+use super::declare::FnSig;
+
 impl GIRGenerator {
-    pub fn declare_lifecycle_methods(&mut self, adt: &MutRc<ADT>) {
-        let ast = adt.borrow().ast.clone();
-        let this_param = FunctionParam::this_param_g(&ast.borrow());
+    /// Declare lifecycle methods on ADTs.
+    pub(super) fn declare_lifecycle_methods(&mut self, adt: &MutRc<ADT>) {
+        let type_params = Rc::clone(&adt.borrow().type_parameters);
+        let this_param = (SmolStr::new_inline("this"), Type::WeakRef(adt.to_inst()));
 
         // TODO: Replace this vec with an array once array.into_iter() is stabilized
-        let fns: Vec<(_, _)> = vec![
-            (
-                "new-instance",
-                Self::get_instantiator_ast(this_param.clone()),
-            ),
-            (
-                "free-wr",
-                Self::get_destructor_ast(this_param.clone(), false),
-            ),
-            (
-                "free-sr",
-                Self::get_destructor_ast(this_param.clone(), true),
-            ),
+        let fns: Vec<_> = vec![
+            FnSig {
+                name: "new-instance".into(),
+                params: vec![this_param.clone()].into_iter().map(Ok),
+                type_parameters: type_params.clone(),
+                ret_type: None,
+                ast: None,
+            },
+            FnSig {
+                name: "free-wr".into(),
+                params: vec![this_param.clone()].into_iter().map(Ok),
+                type_parameters: type_params.clone(),
+                ret_type: None,
+                ast: None,
+            },
+            FnSig {
+                name: "free-sr".into(),
+                params: vec![this_param, ("refcount_zero".into(), Type::Bool)]
+                    .into_iter()
+                    .map(Ok),
+                type_parameters: type_params,
+                ret_type: None,
+                ast: None,
+            },
         ];
 
-        for (name, func) in fns.into_iter() {
-            let gir_fn = eat!(
-                self,
-                self.generate_gir_fn(func, None, Some(&adt.borrow().type_parameters))
-            );
+        for func in fns.into_iter() {
+            let name = func.name.clone();
+            let gir_fn = eat!(self, self.create_function(func));
             adt.borrow_mut()
                 .methods
-                .insert(SmolStr::new_inline(name), Rc::clone(&gir_fn));
+                .insert(name.clone(), Rc::clone(&gir_fn));
         }
     }
 
-    pub fn generate_lifecycle_methods(&mut self, adt: &MutRc<ADT>) {
+    /// Generate the lifecycle methods on ADTs. This is not immediately done after
+    /// declaring them since some of them depend on them being declared on other
+    /// types, most notably enum parents need children to have them declared during generation.
+    pub(super) fn generate_lifecycle_methods(&mut self, adt: &MutRc<ADT>) {
         // TODO: Replace this vec with an array once array.into_iter() is stabilized
         let fns: Vec<(_, fn(&mut _, &_, _))> = vec![
             ("new-instance", Self::generate_instantiator),
@@ -69,14 +87,16 @@ impl GIRGenerator {
         // Insert at the end of the instantiator to prevent
         // an edge case of an empty instantiator, which IR would interpret
         // incorrectly as an external function
-        self.insert_at_ptr(Expr::none_const_())
+        self.insert_at_ptr(Expr::none_const())
     }
 
     fn generate_wr_destructor(&mut self, adt: &MutRc<ADT>, func: MutRc<Function>) {
         self.set_pointer(&func);
         let adt_var = Rc::clone(&func.borrow().parameters[0]);
 
-        self.insert_at_ptr(Self::maybe_call_free_impl(Expr::lvar(&adt_var)));
+        let maybe_free = self.maybe_call_free_impl(Expr::lvar(&adt_var));
+        self.insert_at_ptr(maybe_free);
+
         match &adt.borrow().ty {
             // Interface, TODO
             ADTType::Interface => (),
@@ -108,7 +128,7 @@ impl GIRGenerator {
         let mut if_free_exprs = Vec::with_capacity(adt.borrow().fields.len() + 5);
         if_free_exprs.push(Expr::dec_rc(Expr::lvar(&adt_var)));
 
-        if_free_exprs.push(Self::maybe_call_free_impl(Expr::lvar(&adt_var)));
+        if_free_exprs.push(self.maybe_call_free_impl(Expr::lvar(&adt_var)));
         if !adt.borrow().ty.is_interface() {
             if_free_exprs.push(Expr::call(
                 Expr::fvar(&adt.borrow().methods["free-wr"]),
@@ -126,27 +146,24 @@ impl GIRGenerator {
         self.insert_at_ptr(Expr::if_(
             Expr::lvar(&dealloc_cond),
             Expr::Block(if_free_exprs),
-            Expr::none_const_(),
+            Expr::none_const(),
             None,
         ));
     }
 
-    fn maybe_call_free_impl(adt: Expr) -> Expr {
+    fn maybe_call_free_impl(&mut self, adt: Expr) -> Expr {
         let ty = adt.get_type();
-        let free_iface = INTRINSICS.with(|i| i.borrow().free_iface.clone()).unwrap();
-        let free_method = get_iface_impls(&ty)
-            .map(|impls| {
-                impls
-                    .borrow()
-                    .interfaces
-                    .get(&free_iface.to_type())
-                    .map(|iface| Rc::clone(iface.methods.iter().next().unwrap().1))
-            })
-            .flatten();
+        let free_iface = self.intrinsics.free_iface.clone().unwrap();
+        let impls = self.get_iface_impls(&ty);
+        let free_method = impls
+            .borrow()
+            .interfaces
+            .get(&free_iface.to_type())
+            .map(|iface| Rc::clone(iface.methods.iter().next().unwrap().1));
         if let Some(method) = free_method {
             Expr::call(Expr::fvar(&method), vec![adt])
         } else {
-            Expr::none_const_()
+            Expr::none_const()
         }
     }
 
@@ -161,57 +178,9 @@ impl GIRGenerator {
                 Expr::fvar(&case.borrow().methods["free-wr"]),
                 vec![Expr::cast(enu.clone(), case_ty.clone(), CastType::Bitcast)],
             );
-            let cond = Expr::binary(
-                Token::generic_token(TType::Is),
-                enu.clone(),
-                Expr::TypeGet(case_ty),
-            );
+            let cond = Expr::binary(SyntaxKind::Is, enu.clone(), Expr::TypeGet(case_ty));
             when_brs.push((cond, then))
         }
-        Expr::switch(when_brs, Expr::none_const_(), None)
-    }
-
-    /// Returns AST of the ADT instantiator.
-    fn get_instantiator_ast(mut this_param: FunctionParam) -> ast::Function {
-        this_param.type_ = ast::Type::Weak(Box::new(this_param.type_));
-        ast::Function {
-            sig: FuncSignature {
-                name: Token::generic_identifier("new-instance"),
-                visibility: Visibility::Public,
-                generics: None,
-                return_type: None,
-                parameters: vec![this_param],
-                variadic: false,
-                modifiers: vec![],
-            },
-            body: None,
-        }
-    }
-
-    /// Returns signature of the ADT destructor.
-    fn get_destructor_ast(mut this_param: FunctionParam, strong_ref: bool) -> ast::Function {
-        if !strong_ref {
-            this_param.type_ = ast::Type::Weak(Box::new(this_param.type_));
-        }
-
-        let mut sig = FuncSignature {
-            name: Token::generic_identifier(if strong_ref { "free-sr" } else { "free-wr" }),
-            visibility: Visibility::Public,
-            generics: None,
-            return_type: None,
-            parameters: vec![
-                this_param,
-                FunctionParam {
-                    type_: ast::Type::Ident(Token::generic_identifier("bool")),
-                    name: Token::generic_identifier("refcount_is_0"),
-                },
-            ],
-            variadic: false,
-            modifiers: vec![],
-        };
-        if !strong_ref {
-            sig.parameters.pop();
-        }
-        ast::Function { sig, body: None }
+        Expr::switch(when_brs, Expr::none_const(), None)
     }
 }

@@ -1,8 +1,8 @@
-use crate::{GIRGenerator};
+use crate::GIRGenerator;
 use common::{ModPath, MutRc};
 use error::Errors;
 use gir_nodes::{Instance, Module, Type};
-use std::{rc::Rc};
+use std::rc::Rc;
 
 impl GIRGenerator {
     pub(super) fn populate_intrinsics(&mut self, module: MutRc<Module>) {

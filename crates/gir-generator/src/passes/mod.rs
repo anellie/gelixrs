@@ -7,7 +7,7 @@ mod declare;
 mod fields;
 mod generate;
 mod import;
-// mod intrinsic_methods;
+mod intrinsic_methods;
 mod intrinsics;
 // mod methods;
 
@@ -26,8 +26,8 @@ impl GIRGenerator {
         // self.generator.fill_impls();
         self.run_dec(GIRGenerator::insert_adt_fields);
         // self.run_adt(GIRGenerator::constructor_setters);
-        // self.run_adt(GIRGenerator::declare_lifecycle_methods);
-        // self.run_adt(GIRGenerator::generate_lifecycle_methods);
+        self.run_adt(GIRGenerator::declare_lifecycle_methods);
+        self.run_adt(GIRGenerator::generate_lifecycle_methods);
         self.run_dec(Self::generate);
         self.generate_impls();
     }

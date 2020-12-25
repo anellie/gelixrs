@@ -208,7 +208,8 @@ impl GIRGenerator {
     /// added to the 0th position of the parameters and the
     /// function renamed to '$receiver-$name'.
     pub(crate) fn create_function<T: Iterator<Item = Res<(SmolStr, Type)>>>(
-        &self, sig: FnSig<T>,
+        &self,
+        sig: FnSig<T>,
     ) -> Res<MutRc<Function>> {
         let ret_type = sig.ret_type.unwrap_or_default();
         if !ret_type.can_escape() {
@@ -218,7 +219,8 @@ impl GIRGenerator {
             );
         }
 
-        let parameters = sig.params
+        let parameters = sig
+            .params
             .map(|param| {
                 let (name, ty) = param?;
                 Ok(Rc::new(LocalVariable {
@@ -232,7 +234,8 @@ impl GIRGenerator {
         let function = mutrc_new(Function {
             name: sig.name,
             parameters,
-            variadic: sig.ast
+            variadic: sig
+                .ast
                 .as_ref()
                 .map(|a| a.modifiers().any(|m| m == SyntaxKind::Variadic))
                 .unwrap_or(false),
@@ -263,9 +266,9 @@ impl GIRGenerator {
 }
 
 pub(crate) struct FnSig<T: Iterator<Item = Res<(SmolStr, Type)>>> {
-    name: SmolStr,
-    params: T,
-    type_parameters: Rc<TypeParameters>,
-    ret_type: Option<Type>,
-    ast: Option<ast::Function>,
+    pub name: SmolStr,
+    pub params: T,
+    pub type_parameters: Rc<TypeParameters>,
+    pub ret_type: Option<Type>,
+    pub ast: Option<ast::Function>,
 }
