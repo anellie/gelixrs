@@ -34,11 +34,11 @@ impl GIRGenerator {
                 cases: HashMap::new(),
             },
 
-            SyntaxKind::EnumCase => ADTType::EnumCase {
-                parent: parent.clone().unwrap(),
+            // Enum cases can have multiple starting tokens, just use the catch-all
+            _ => ADTType::EnumCase {
+                parent: parent.clone().expect("Unknown ADT?"),
                 simple: false,
             },
-            _ => panic!("unknown ADT"),
         };
 
         let name = ast.name();
