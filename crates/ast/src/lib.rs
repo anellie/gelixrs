@@ -31,3 +31,13 @@ impl Import {
             .map(|c| c.as_token().unwrap().text().clone())
     }
 }
+
+impl Function {
+    pub fn cast_constructor(node: CSTNode) -> Option<Self> {
+        if let SyntaxKind::Constructor = node.kind() {
+            Some(Self { cst: node })
+        } else {
+            None
+        }
+    }
+}

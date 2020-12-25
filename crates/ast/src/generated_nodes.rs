@@ -239,7 +239,7 @@ impl Adt {
         self.cst.children().filter_map(Variable::cast)
     }
     pub fn constructors(&self) -> impl Iterator<Item = Function> + '_ {
-        self.cst.children().filter_map(Function::cast)
+        self.cst.children().filter_map(Function::cast_constructor)
     }
     pub fn methods(&self) -> impl Iterator<Item = Function> + '_ {
         self.cst.children().filter_map(Function::cast)
@@ -257,10 +257,8 @@ pub struct Function {
 impl Function {
     #[allow(unused)]
     pub fn cast(node: CSTNode) -> Option<Self> {
-        if let SyntaxKind::FunctionDecl
-        | SyntaxKind::Method
-        | SyntaxKind::ClosureLiteral
-        | SyntaxKind::Constructor = node.kind()
+        if let SyntaxKind::FunctionDecl | SyntaxKind::Method | SyntaxKind::ClosureLiteral =
+            node.kind()
         {
             Some(Self { cst: node })
         } else {
@@ -380,7 +378,7 @@ pub struct Import {
 impl Import {
     #[allow(unused)]
     pub fn cast(node: CSTNode) -> Option<Self> {
-        if let SyntaxKind::Import = node.kind() {
+        if let SyntaxKind::ImportDecl = node.kind() {
             Some(Self { cst: node })
         } else {
             None
@@ -463,7 +461,7 @@ impl Expression {
         if node.kind() == SyntaxKind::Block {
             return Some(Self::Block(Block::cast(node).unwrap()));
         }
-        if node.kind() == SyntaxKind::Break {
+        if node.kind() == SyntaxKind::BreakExpr {
             return Some(Self::Break(Break::cast(node).unwrap()));
         }
         if node.kind() == SyntaxKind::CallExpr {
@@ -493,7 +491,7 @@ impl Expression {
         if node.kind() == SyntaxKind::PrefixExpr {
             return Some(Self::Prefix(Prefix::cast(node).unwrap()));
         }
-        if node.kind() == SyntaxKind::Return {
+        if node.kind() == SyntaxKind::ReturnExpr {
             return Some(Self::Return(Return::cast(node).unwrap()));
         }
         if node.kind() == SyntaxKind::Ident {
@@ -538,7 +536,7 @@ pub struct Variable {
 impl Variable {
     #[allow(unused)]
     pub fn cast(node: CSTNode) -> Option<Self> {
-        if let SyntaxKind::Variable = node.kind() {
+        if let SyntaxKind::Variable | SyntaxKind::AdtMember = node.kind() {
             Some(Self { cst: node })
         } else {
             None
@@ -716,7 +714,7 @@ impl Prefix {
     pub fn right(&self) -> Expression {
         self.cst
             .children()
-            .next()
+            .nth(1)
             .map(Expression::cast)
             .unwrap()
             .unwrap()

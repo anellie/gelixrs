@@ -103,7 +103,6 @@
                 Item(
                     name: "kind",
                     type: "SyntaxKind",
-                    // Account for enum cases not having a token
                     strategy: "children_with_tokens()
                             .find(|c| c.as_token().map(SyntaxToken::<GelixLang>::kind).as_ref().map(SyntaxKind::is_token) == Some(true))
                             .map(|t| t.as_token().unwrap().kind()).unwrap_or(SyntaxKind::EnumCase)"
@@ -124,8 +123,8 @@
                 ),
                 Item(
                     name: "constructors",
-                    type: "Function",
-                    strategy: "list"
+                    type: "impl Iterator<Item = Function> + '_",
+                    strategy: "children().filter_map(Function::cast_constructor)"
                 ),
                 Item(
                     name: "methods",
@@ -145,7 +144,7 @@
     Node(
         context: Ctx(
             name: "Function",
-            kind: "FunctionDecl | SyntaxKind::Method | SyntaxKind::ClosureLiteral | SyntaxKind::Constructor",
+            kind: "FunctionDecl | SyntaxKind::Method | SyntaxKind::ClosureLiteral",
             items: [
                 Item(
                     name: "sig",
@@ -210,7 +209,12 @@
     ),
 
     // Imports
-    Node(context: Ctx(name: "Import")),
+    Node(
+        context: Ctx(
+            name: "Import",
+            kind: "ImportDecl"
+        )
+    ),
 
     // Interface implementations
     Node(
@@ -256,7 +260,7 @@
                 ),
                 Item(
                     name: "Break",
-                    kind: "Break",
+                    kind: "BreakExpr",
                     type: "Break",
                 ),
                 Item(
@@ -306,7 +310,7 @@
                 ),
                 Item(
                     name: "Return",
-                    kind: "Return",
+                    kind: "ReturnExpr",
                     type: "Return",
                 ),
                 Item(
@@ -331,6 +335,7 @@
     Node(
         context: Ctx(
             name: "Variable",
+            kind: "Variable | SyntaxKind::AdtMember"
             items: [
                 Item(
                     name: "kind",
@@ -412,7 +417,7 @@
                 Item(
                     name: "right",
                     type: "Expression",
-                    strategy: "children().next().map(Expression::cast).unwrap().unwrap()"
+                    strategy: "children().nth(1).map(Expression::cast).unwrap().unwrap()"
                 ),
             ]
         )
