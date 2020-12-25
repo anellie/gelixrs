@@ -201,8 +201,8 @@ impl SyntaxKind {
     }
 
     pub fn is_token(&self) -> bool {
-        (*self as u16) < (SyntaxKind::__TokenStart as u16)
-            && (*self as u16) > (SyntaxKind::Error as u16)
+        (*self as u16) > (SyntaxKind::__TokenStart as u16)
+            && (*self as u16) < (SyntaxKind::Error as u16)
     }
 
     fn from_token(token: Token) -> Self {
