@@ -18,13 +18,9 @@ modules/mod
 modules/protos_singular
 modules/protos
 arrays/no_premature_dealloc.gel
-arrays/indexing.gel
 arrays/no_premature_dealloc_2.gel
-arrays/literals.gel
 arrays/no_leak.gel
-arrays/func_type.gel
 arrays/nested.gel
-arrays/literals2.gel
 value/enum.gel
 value/value.gel
 return/any_type.gel

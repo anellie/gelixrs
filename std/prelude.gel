@@ -2,7 +2,7 @@ import std/intrinsics/puts
 import std/intrinsics/quick_exit
 import std/string/ToString
 
-// export std/collections/Array
+export std/collections/Array
 export std/iter/Range
 export std/string/String
 
