@@ -41,7 +41,7 @@ impl GIRGenerator {
         }
     }
 
-    fn generate_function(&mut self, function: &MutRc<Function>) {
+    pub(crate) fn generate_function(&mut self, function: &MutRc<Function>) {
         self.generate_function_(function, None);
     }
 

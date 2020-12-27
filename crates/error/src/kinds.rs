@@ -127,6 +127,8 @@ pub enum GErr {
     E237,
     // Cannot use string literals with no_std enabled
     E238,
+    // Type argument does not fulfill required bound
+    E239(usize),
 
     // Unknown type
     E300(String),
@@ -202,6 +204,10 @@ impl GErr {
             ),
             E230(ty) => format!("Cannot assign type '{}' to a variable.", ty),
             E236(name) => format!("Cannot have member and method '{}' with same name.", name),
+            E239(index) => format!(
+                "Type argument at position {} does not fulfill required bound.",
+                index + 1
+            ),
 
             E300(name) => format!("Unknown type '{}'.", name),
             E309(names) => {

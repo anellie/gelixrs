@@ -332,10 +332,6 @@ impl IRGenerator {
         None
     }
 
-    pub(crate) fn nullptr(&self) -> PointerValue {
-        self.context.i64_type().ptr_type(Generic).const_null()
-    }
-
     pub(crate) fn build_phi(&mut self, nodes: &[(BasicValueEnum, BasicBlock)]) -> BasicValueEnum {
         let nodes = nodes
             .iter()

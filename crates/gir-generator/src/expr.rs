@@ -1,4 +1,4 @@
-use crate::{result::EmitGIRError, GIRGenerator};
+use crate::{passes::FnSig, result::EmitGIRError, GIRGenerator};
 use ast::{
     Binary, Block, Break, CSTNode, Call, Expression as AExpr, ForIterCond, GenericIdent, Get,
     GetStatic, LiteralType, Return, When, WhenBranch,
@@ -9,7 +9,7 @@ use gir_nodes::{
     declaration::{ADTType, LocalVariable, Variable},
     expression::CastType,
     gir_err,
-    types::{TypeArguments, TypeParameter, TypeParameters, VariableModifier},
+    types::{TypeArguments, TypeParameter, VariableModifier},
     Expr, Function, IFaceImpls, Instance, Literal, Type, ADT,
 };
 use num_traits::Num;
@@ -478,7 +478,9 @@ impl GIRGenerator {
             })
             .collect::<Option<Vec<_>>>();
 
-        search_res.or_err(err_cst, GErr::E214)
+        let args = search_res.or_err(err_cst, GErr::E214)?;
+        self.validate_type_args(&args, type_params, err_cst);
+        Ok(args)
     }
 
     fn resolve_type_param<'a, T1: Iterator<Item = &'a Type>, T2: Iterator<Item = &'a Type>>(
@@ -576,7 +578,6 @@ impl GIRGenerator {
             let cases = adt.ty.cases();
             Rc::clone(cases.get("Some").unwrap())
         };
-        let opt_ty = Type::StrongRef(Instance::new(Rc::clone(&opt_adt), Rc::clone(&elem_ty)));
         let some_ty = Type::StrongRef(Instance::new(Rc::clone(&some_adt), Rc::clone(&elem_ty)));
 
         let next_call = Expr::call(Expr::var(Variable::Function(next_fn)), vec![iter_value]);
@@ -620,7 +621,7 @@ impl GIRGenerator {
         cst: &CSTNode,
     ) -> Res<(Expr, Instance<Function>, Rc<TypeArguments>)> {
         let find_iface = |name: &str| {
-            impls.interfaces.iter().find(|(iface, imp)| {
+            impls.interfaces.iter().find(|(iface, _)| {
                 let iface = iface.as_strong_ref().ty.borrow();
                 iface.name == name && iface.module.borrow().path.is(&["std", "iter"])
             })
@@ -845,54 +846,44 @@ impl GIRGenerator {
         Ok(chars.iter().collect::<String>().into())
     }
 
-    fn closure(&mut self, _closure: &ast::Function) -> Res<Expr> {
-        /* TODO
-        let mut name = token.clone();
-        name.lexeme = SmolStr::new(format!("closure-{}:{}", token.line, token.index));
-        let ast_func = ast::Function {
-            sig: FuncSignature {
-                name,
-                visibility: Visibility::Public,
-                generics: None,
-                return_type: closure.ret_ty.clone(),
-                parameters: closure
-                    .parameters
-                    .iter()
-                    .map(|p| FunctionParam {
-                        type_: p.type_.as_ref().unwrap().clone(),
-                        name: p.name.clone(),
-                    })
-                    .collect(),
-                variadic: false,
-                modifiers: vec![],
-            },
-            body: Some(closure.body.clone()),
-        };
+    fn closure(&mut self, func: &ast::Function) -> Res<Expr> {
+        let signature = func.sig();
+        let ret_type = signature
+            .ret_type()
+            .map(|ty| self.find_type(&ty))
+            .transpose()?;
+        let params = signature
+            .parameters()
+            .map(|ast| Ok((ast.name(), self.find_type(&ast._type())?)))
+            .collect::<Vec<_>>();
 
         let mut gen = Self::for_closure(self);
-        let function = gen.create_function(
-            ast_func,
-            Some(FunctionParam::this_param(&Token::generic_identifier("i64"))),
-            None, // TODO: always none? maybe not
-        )?;
+        let function = gen.create_function(FnSig {
+            name: SmolStr::new_inline(&format!(
+                "closure-{}",
+                u32::from(signature.cst.text_range().start())
+            )),
+            params: box params.into_iter(),
+            type_parameters: Rc::new(vec![]),
+            ret_type,
+            ast: Some(func.clone()),
+        })?;
         gen.generate_function(&function);
         let closure_data = gen.end_closure(self);
 
         let captured = Rc::new(closure_data.captured);
-        function.borrow_mut().parameters[0] = Rc::new(LocalVariable {
-            name: Token::generic_identifier("CLOSURE-CAPTURED"),
-            ty: Type::ClosureCaptured(Rc::clone(&captured)),
-            mutable: false,
-        });
+        function.borrow_mut().parameters.insert(
+            0,
+            Rc::new(LocalVariable {
+                name: SmolStr::new_inline("CLOSURE-CAPTURED"),
+                ty: Type::ClosureCaptured(Rc::clone(&captured)),
+                mutable: false,
+            }),
+        );
 
         let expr = Expr::Closure { function, captured };
-        let var = self.define_variable(
-            &Token::generic_identifier("closure-literal"),
-            false,
-            expr.get_type(),
-        );
-        Ok(Expr::store(Expr::lvar(&var), expr, true))*/
-        todo!()
+        let (store, _) = self.temp_variable(expr, "closure-store".into());
+        Ok(store)
     }
 
     fn prefix(&mut self, operator: SyntaxKind, ast_right: AExpr, cst: &CSTNode) -> Res<Expr> {

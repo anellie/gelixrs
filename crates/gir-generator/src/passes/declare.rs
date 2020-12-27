@@ -171,6 +171,10 @@ impl GIRGenerator {
     }
 
     /// Creates a function from AST. See create_function for post-AST verification.
+    /// `this_arg` indicates that the function is a method
+    /// with some kind of receiver, with the 'this' parameter
+    /// added to the 0th position of the parameters and the
+    /// function renamed to '$receiver-$name'.
     pub(crate) fn function_from_ast(
         &mut self,
         func: ast::Function,
@@ -202,11 +206,6 @@ impl GIRGenerator {
     /// not reserved, making this function suitable for methods or
     /// functions not written by the user.
     /// The main use of this method is validation of the function.
-    ///
-    /// `this_arg` indicates that the function is a method
-    /// with some kind of receiver, with the 'this' parameter
-    /// added to the 0th position of the parameters and the
-    /// function renamed to '$receiver-$name'.
     pub(crate) fn create_function(&self, sig: FnSig) -> Res<MutRc<Function>> {
         let ret_type = sig.ret_type.unwrap_or_default();
         if !ret_type.can_escape() {

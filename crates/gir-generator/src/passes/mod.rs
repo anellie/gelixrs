@@ -3,6 +3,8 @@ use common::MutRc;
 use gir_nodes::{Declaration, Module, ADT};
 use std::rc::Rc;
 
+pub(crate) use declare::FnSig;
+
 mod declare;
 mod fields;
 mod generate;

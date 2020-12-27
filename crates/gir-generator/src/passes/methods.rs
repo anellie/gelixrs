@@ -7,7 +7,7 @@ use error::{GErr, Res};
 use gir_nodes::{
     declaration::{ADTType, LocalVariable},
     gir_err,
-    types::{ToInstance, TypeArguments},
+    types::TypeArguments,
     Expr, Function, IFaceImpls, Instance, Type, ADT,
 };
 use smol_str::SmolStr;

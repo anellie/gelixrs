@@ -133,10 +133,12 @@ impl GIRGenerator {
             .or_err(cst, GErr::E300(ident.to_string()))?;
         let args = args.map(|p| self.find_type(&p)).collect::<Res<Vec<_>>>()?;
         if !args.is_empty() {
-            let success = ty.set_type_args(Rc::new(args));
+            let args = Rc::new(args);
+            let success = ty.set_type_args(Rc::clone(&args));
             if !success {
                 return Err(gir_err(cst.clone(), GErr::E304));
             }
+            self.validate_type_args(&args, &ty.type_params().unwrap(), cst);
         }
         Ok(ty)
     }
@@ -258,7 +260,7 @@ impl GIRGenerator {
 
     /// Gets the interfaces implemented by a type.
     pub(crate) fn get_iface_impls(&mut self, ty: &Type) -> MutRc<IFaceImpls> {
-        let impls = self.iface_impls.get(ty).cloned();
+        let impls = self.maybe_get_iface_impls(ty);
         match impls {
             Some(impls) => impls,
             None => {
@@ -271,6 +273,11 @@ impl GIRGenerator {
                 iface_impls
             }
         }
+    }
+
+    /// Gets the interfaces implemented by a type.
+    pub(crate) fn maybe_get_iface_impls(&self, ty: &Type) -> Option<MutRc<IFaceImpls>> {
+        self.iface_impls.get(ty).cloned()
     }
 
     /// Sets the current type parameters.

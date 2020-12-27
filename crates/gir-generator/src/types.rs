@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use error::Res;
+use error::{GErr, Res};
 use gir_nodes::{
     declaration::ADTType,
     expression::CastType,
@@ -9,6 +9,8 @@ use gir_nodes::{
 };
 
 use crate::GIRGenerator;
+use ast::CSTNode;
+use gir_nodes::types::{TypeArguments, TypeParameter};
 
 impl GIRGenerator {
     /// Returns casts to get the first type to [goal].
@@ -94,13 +96,33 @@ impl GIRGenerator {
         }
     }
 
+    pub(crate) fn validate_type_args(
+        &self,
+        args: &TypeArguments,
+        params: &[TypeParameter],
+        cst: &CSTNode,
+    ) {
+        for (i, _) in args
+            .iter()
+            .zip(params.iter())
+            .filter(|(a, p)| !self.matches_bound(a, &p.bound))
+            .enumerate()
+        {
+            self.err(cst.clone(), GErr::E239(i))
+        }
+    }
+
     /// Returns if the type matches this bound and can be used.
-    pub(crate) fn matches_bound(&mut self, ty: &Type, bound: TypeParameterBound) -> bool {
+    pub(crate) fn matches_bound(&self, ty: &Type, bound: &TypeParameterBound) -> bool {
         match bound {
             TypeParameterBound::Interface(i) => {
-                let impls = self.get_iface_impls(ty);
-                let impls = impls.borrow();
-                impls.interfaces.contains_key(&i)
+                let impls = self.maybe_get_iface_impls(ty);
+                if let Some(impls) = impls {
+                    let impls = impls.borrow();
+                    impls.interfaces.contains_key(&i)
+                } else {
+                    false
+                }
             }
 
             TypeParameterBound::Bound(bound) => match bound {

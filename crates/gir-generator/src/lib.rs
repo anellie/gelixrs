@@ -16,7 +16,7 @@ use std::{
 };
 use syntax::kind::SyntaxKind;
 
-use ast::{CSTNode, GenericIdent, Get};
+use ast::{CSTNode, Get};
 use error::{Error, Errors, GErr, Res};
 use gir_nodes::{
     declaration::{Field, LocalVariable, Variable},
