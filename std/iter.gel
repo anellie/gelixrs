@@ -86,7 +86,7 @@ class Range[T: Integer] {
         this.validate()
     }
 
-    func validate() {
+    mod func validate() {
         if (this.step == 0) panic("Step may not be 0.")
         if ((this.end < this.start) == (this.step > 0))
             panic("Range values may not cause integer overflow.")

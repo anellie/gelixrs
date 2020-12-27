@@ -2,7 +2,7 @@ use crate::{
     types::{ClosureType, TypeArguments, TypeParameters},
     Expr, Instance, Module, Type,
 };
-use common::MutRc;
+use common::{ModPath, MutRc};
 use enum_methods::{EnumAsGetters, EnumIntoGetters, EnumIsA};
 use indexmap::map::IndexMap;
 use smol_str::SmolStr;
@@ -18,7 +18,7 @@ use std::{
 /// either a function or an ADT;
 /// interface implementations are an exception and
 /// are instead attached to the implementor.
-#[derive(Debug, EnumAsGetters, EnumIntoGetters)]
+#[derive(Debug, Clone, EnumAsGetters, EnumIntoGetters)]
 pub enum Declaration {
     Function(MutRc<Function>),
     Adt(MutRc<ADT>),
@@ -42,14 +42,29 @@ impl Declaration {
             Self::Adt(a) => Rc::clone(&a.borrow().type_parameters),
         }
     }
+
+    pub fn visible(&self, from: &ModPath) -> bool {
+        match self {
+            Self::Function(f) => f.borrow().visible(from),
+            Self::Adt(a) => a.borrow().visible(from),
+        }
+    }
 }
 
-impl Clone for Declaration {
-    /// Clones the declaration; only an Rc clone and therefore cheap.
-    fn clone(&self) -> Self {
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum Visibility {
+    Private = 0,
+    Module = 1,
+    Public = 2,
+}
+
+impl Visibility {
+    /// Is this visibility visible from the given module?
+    pub fn from(&self, own: &ModPath, from: &ModPath) -> bool {
         match self {
-            Self::Function(f) => Self::Function(Rc::clone(f)),
-            Self::Adt(a) => Self::Adt(Rc::clone(a)),
+            Visibility::Private => from.is(&own.parts()),
+            Visibility::Module => from.parts()[0] == own.parts()[0],
+            Visibility::Public => true,
         }
     }
 }
@@ -61,6 +76,8 @@ pub struct ADT {
     pub name: SmolStr,
     /// All fields on the ADT.
     pub fields: IndexMap<SmolStr, Rc<Field>>,
+    /// The visibility of this ADT, determining its ability to be imported.
+    pub visibility: Visibility,
 
     /// All methods of this ADT.
     /// Some ADTs have a few more special methods:
@@ -86,6 +103,10 @@ pub struct ADT {
 }
 
 impl ADT {
+    pub fn visible(&self, from: &ModPath) -> bool {
+        self.visibility.from(&self.module.borrow().path, from)
+    }
+
     pub fn get_singleton_inst(inst: &MutRc<ADT>, args: &Rc<TypeArguments>) -> Option<Expr> {
         if let ADTType::EnumCase {
             simple: no_body, ..
@@ -165,6 +186,8 @@ impl ADTType {
 pub struct Field {
     /// The name of the field.
     pub name: SmolStr,
+    /// The visibility of the field.
+    pub visibility: Visibility,
     /// If this field is mutable by user code. ("val" vs "var")
     pub mutable: bool,
     /// The type of this field, either specified or inferred by initializer
@@ -194,6 +217,8 @@ pub struct Function {
     /// The name of the function, with its module before it ($mod:$func)
     /// The only functions with no name change are external functions
     pub name: SmolStr,
+    /// The visibility of the function.
+    pub visibility: Visibility,
     /// All parameters needed to call this function.
     pub parameters: Vec<Rc<LocalVariable>>,
     /// If this function is variadic and accepts additional parameters.
@@ -216,6 +241,10 @@ pub struct Function {
 }
 
 impl Function {
+    pub fn visible(&self, from: &ModPath) -> bool {
+        self.visibility.from(&self.module.borrow().path, from)
+    }
+
     /// Inserts a variable into the functions allocation table.
     /// Returns the name of it (should be used since a change can be needed due to colliding names).
     pub fn insert_var(&mut self, mut name: SmolStr, var: Rc<LocalVariable>) -> SmolStr {

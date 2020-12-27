@@ -1,7 +1,7 @@
 import std/intrinsics/+
 
 /// Returns the size of a type, in bytes. Equivalent to C's sizeof()
-public func size_of[T]() -> i64 = gelixrs_get_type_size[T]()
+func size_of[T]() -> i64 = gelixrs_get_type_size[T]()
 
 /// This interface allows implementing custom behavior
 /// right before a value is freed by the GC.
@@ -27,7 +27,7 @@ interface Free {
 /// Allocates on the heap, where the amount
 /// of bytes allocated is the size of the type parameter times `size`.
 /// The returned pointer is not memory-managed, use Gc if you need it to be.
-public func allocate[T](size: i64) -> *T {
+func allocate[T](size: i64) -> *T {
     var ptr = if (size == 0) 0 else malloc(size_of[T]() * size)
     gelixrs_int_to_ptr[T](ptr)
 }
@@ -41,11 +41,11 @@ func drop[T](value: T) = gelixrs_free_type(value)
 
 /// Will increment the reference count on a value by 1.
 /// Will cause memory leaks if not careful!
-public func inc_ref[T](value: T) = gelixrs_inc_ref(value)
+func inc_ref[T](value: T) = gelixrs_inc_ref(value)
 
 /// Will decrement the reference count on a value by 1.
 /// Will cause use-after-free bugs if not careful!
-public func dec_ref[T](value: T) = gelixrs_dec_ref(value)
+func dec_ref[T](value: T) = gelixrs_dec_ref(value)
 
 /// Will simply load the given value.
 func load_value[T](value: *T) -> T = gelixrs_load_value(value)
@@ -63,14 +63,14 @@ func index_ptr[T](value: *T, index: i64) -> *T = gelixrs_gep(value, index)
 /// Copies elements in memory at `src` to `dst`,
 /// copying from index 0 until `len`.
 /// Does not do any memory safety checks.
-public func copy_ptr[T](src: *T, dst: *T, len: i64) {
+func copy_ptr[T](src: *T, dst: *T, len: i64) {
     // for (i from 0 to len) {
     //     write_value_index(dst, i, load_value_index(src, i))
     //}
 }
 
 /// Will clone a pointer for the given amount of elements.
-public func clone_ptr[T](src: *T, len: i64) -> *T {
+func clone_ptr[T](src: *T, len: i64) -> *T {
     val dst = allocate[T](len)
     copy_ptr(src, dst, len)
     dst

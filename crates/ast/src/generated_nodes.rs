@@ -593,6 +593,22 @@ impl Variable {
             .map(|i| i.children().find_map(Expression::cast))
             .flatten()
     }
+    pub fn modifiers(&self) -> impl Iterator<Item = SyntaxKind> + '_ {
+        self.cst
+            .children()
+            .filter(|i| i.kind() == SyntaxKind::Modifier)
+            .map(|c| {
+                c.children_with_tokens().find(|c| {
+                    c.as_token()
+                        .map(SyntaxToken::kind)
+                        .as_ref()
+                        .map(SyntaxKind::is_token)
+                        == Some(true)
+                })
+            })
+            .flatten()
+            .map(|c| c.as_token().unwrap().kind())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

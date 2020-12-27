@@ -20,8 +20,15 @@ impl ModPath {
         ModPath(path)
     }
 
-    pub fn is(&self, other: &[&str]) -> bool {
-        self.0.iter().zip(other.iter()).all(|(a, b)| a == b)
+    pub fn is<'t, T: PartialEq<&'t str>>(&'t self, other: &'t [T]) -> bool {
+        self.0
+            .iter()
+            .zip(other.iter())
+            .all(|(a, b)| b == &a.as_str())
+    }
+
+    pub fn parts(&self) -> &[SmolStr] {
+        &self.0
     }
 
     pub fn index(&self, i: usize) -> Option<&SmolStr> {

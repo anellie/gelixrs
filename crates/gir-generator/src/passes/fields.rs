@@ -38,6 +38,7 @@ impl GIRGenerator {
 
             let member = Rc::new(Field {
                 name: field.name(),
+                visibility: self.visibility_from_modifiers(field.modifiers()),
                 mutable: field.mutable(),
                 ty,
                 initializer: RefCell::new(initializer.map(Box::new)),

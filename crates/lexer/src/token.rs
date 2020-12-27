@@ -116,10 +116,10 @@ pub enum Token {
     #[token("when")]
     When,
 
-    #[token("public")]
-    Public,
-    #[token("private")]
-    Private,
+    #[token("mod")]
+    Mod,
+    #[token("priv")]
+    Priv,
     #[token("extern")]
     Extern,
     #[token("variadic")]

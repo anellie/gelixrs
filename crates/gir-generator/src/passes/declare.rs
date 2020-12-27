@@ -5,7 +5,7 @@ use ast::CSTNode;
 use common::{mutrc_new, MutRc};
 use error::{GErr, Res};
 use gir_nodes::{
-    declaration::{ADTType, IRAdt, IRFunction, LocalVariable},
+    declaration::{ADTType, IRAdt, IRFunction, LocalVariable, Visibility},
     types::{TypeParameter, TypeParameterBound, TypeParameters},
     Declaration, Function, IFaceImpl, Type, ADT,
 };
@@ -48,6 +48,7 @@ impl GIRGenerator {
         );
         let adt = mutrc_new(ADT {
             name: name.name(), // TODO: FIXME: Enum case names need changing
+            visibility: self.visibility_from_modifiers(ast.modifiers()),
             fields: IndexMap::with_capacity(10),
             methods: IndexMap::with_capacity(10),
             constructors: Vec::with_capacity(5),
@@ -191,6 +192,7 @@ impl GIRGenerator {
 
         self.create_function(FnSig {
             name: name.name(),
+            visibility: self.visibility_from_modifiers(func.modifiers()),
             params: box this_param.into_iter().map(Ok).chain(
                 signature
                     .parameters()
@@ -229,6 +231,7 @@ impl GIRGenerator {
 
         let function = mutrc_new(Function {
             name: sig.name,
+            visibility: sig.visibility,
             parameters,
             variadic: sig
                 .ast
@@ -263,6 +266,7 @@ impl GIRGenerator {
 
 pub(crate) struct FnSig<'a> {
     pub name: SmolStr,
+    pub visibility: Visibility,
     pub params: Box<dyn Iterator<Item = Res<(SmolStr, Type)>> + 'a>,
     pub type_parameters: Rc<TypeParameters>,
     pub ret_type: Option<Type>,

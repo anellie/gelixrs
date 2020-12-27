@@ -163,8 +163,8 @@ pub enum SyntaxKind {
     Val,
     When,
 
-    Public,
-    Private,
+    Mod,
+    Priv,
     Extern,
     Variadic,
 

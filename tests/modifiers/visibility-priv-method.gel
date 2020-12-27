@@ -1,0 +1,10 @@
+// C-ERR
+
+func main() {
+    print(A().t())
+}
+
+mod class A {
+    priv func t() {}
+}
+

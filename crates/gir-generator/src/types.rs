@@ -10,7 +10,11 @@ use gir_nodes::{
 
 use crate::GIRGenerator;
 use ast::CSTNode;
-use gir_nodes::types::{TypeArguments, TypeParameter};
+use gir_nodes::{
+    declaration::Visibility,
+    types::{TypeArguments, TypeParameter},
+};
+use syntax::kind::SyntaxKind;
 
 impl GIRGenerator {
     /// Returns casts to get the first type to [goal].
@@ -163,5 +167,20 @@ impl GIRGenerator {
         } else {
             TypeParameterBound::default()
         })
+    }
+
+    pub(crate) fn visibility_from_modifiers(
+        &self,
+        mods: impl Iterator<Item = SyntaxKind>,
+    ) -> Visibility {
+        for m in mods {
+            match m {
+                SyntaxKind::Priv => return Visibility::Private,
+                SyntaxKind::Mod => return Visibility::Module,
+                _ => (),
+            }
+        }
+
+        Visibility::Public
     }
 }

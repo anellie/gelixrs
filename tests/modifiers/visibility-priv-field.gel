@@ -1,0 +1,11 @@
+// C-ERR
+
+func main() {
+    print(A().a)
+}
+
+mod class A {
+    priv val a = "it's a secret"
+    func t() {}
+}
+

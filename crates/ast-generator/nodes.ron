@@ -361,7 +361,12 @@
                     kind: "Initializer",
                     type: "Expression",
                     strategy: "nested_opt_single"
-                )
+                ),
+                Item(
+                    name: "modifiers",
+                    type: "Modifier",
+                    strategy: "nested_token_list"
+                ),
             ]
         )
     ),

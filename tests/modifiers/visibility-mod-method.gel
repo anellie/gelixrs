@@ -1,0 +1,6 @@
+// C-ERR
+
+func main() {
+    // mod in std/iter
+    print(Range(0, 3).validate())
+}

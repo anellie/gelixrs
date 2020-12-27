@@ -7,15 +7,15 @@ static START_OF_FN_BODY: [SyntaxKind; 2] = [SyntaxKind::LeftBrace, SyntaxKind::E
 
 // All tokens that can be modifiers at all.
 static MODIFIERS: [SyntaxKind; 5] = [
-    SyntaxKind::Public,
-    SyntaxKind::Private,
+    SyntaxKind::Mod,
+    SyntaxKind::Priv,
     SyntaxKind::Extern,
     SyntaxKind::Variadic,
     SyntaxKind::Strong,
 ];
 
 // All tokens that can be modifiers on any declaration.
-static GLOBAL_MODIFIERS: [SyntaxKind; 2] = [SyntaxKind::Public, SyntaxKind::Private];
+static GLOBAL_MODIFIERS: [SyntaxKind; 2] = [SyntaxKind::Mod, SyntaxKind::Priv];
 
 // All tokens that can be modifiers on a class member.
 static MEMBER_MODIFIERS: [SyntaxKind; 0] = [];

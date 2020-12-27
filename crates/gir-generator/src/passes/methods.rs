@@ -16,6 +16,7 @@ use syntax::kind::SyntaxKind;
 use super::declare::FnSig;
 use gir_nodes::types::TypeVariable;
 use std::collections::HashMap;
+use gir_nodes::declaration::Visibility;
 
 impl GIRGenerator {
     pub(super) fn declare_methods(&mut self, adt: &MutRc<ADT>) {
@@ -120,6 +121,7 @@ impl GIRGenerator {
 
             let sig = FnSig {
                 name: "constructor".into(),
+                visibility: self.visibility_from_modifiers(constructor.modifiers()),
                 params: box this_param.into_iter().chain(parameters),
                 type_parameters: Rc::clone(&adt.borrow().type_parameters),
                 ret_type: None,
@@ -151,6 +153,7 @@ impl GIRGenerator {
         if ast.constructors().next().is_none() && no_uninitialized_members() {
             Some(FnSig {
                 name: "DEFAULT-constructor".into(),
+                visibility: Visibility::Public,
                 params: box Some(Ok(("this".into(), Type::WeakRef(this_inst.clone())))).into_iter(),
                 type_parameters: Rc::clone(&adt.borrow().type_parameters),
                 ret_type: None,

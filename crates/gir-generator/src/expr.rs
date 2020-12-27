@@ -6,7 +6,7 @@ use ast::{
 use common::MutRc;
 use error::{GErr, Res};
 use gir_nodes::{
-    declaration::{ADTType, LocalVariable, Variable},
+    declaration::{ADTType, LocalVariable, Variable, Visibility},
     expression::CastType,
     gir_err,
     types::{TypeArguments, TypeParameter, VariableModifier},
@@ -771,25 +771,32 @@ impl GIRGenerator {
     fn numeric_literal(&mut self, text: SmolStr, cst: &CSTNode, float: bool) -> Res<Literal> {
         let mut split = text.split(|c| c == 'u' || c == 'i' || c == 'f');
         let value = split.next().unwrap().trim();
-        let types = split.next().map(|s| (s.chars().next().unwrap(), &s[1..]));
+        let types = split.next().map(|t| {
+            (
+                text.chars()
+                    .find(|c| *c == 'u' || *c == 'i' || *c == 'f')
+                    .unwrap(),
+                t,
+            )
+        });
 
         Ok(match types {
             Some(('i', "8")) => Literal::I8(self.parse_numeric_literal(value, cst)?),
             Some(('i', "16")) => Literal::I16(self.parse_numeric_literal(value, cst)?),
             Some(('i', "32")) => Literal::I32(self.parse_numeric_literal(value, cst)?),
             #[cfg(target_pointer_width = "64")]
-            Some(('i', "size")) => Literal::I64(self.parse_numeric_literal(value, cst)?),
+            Some(('i', "s")) => Literal::I64(self.parse_numeric_literal(value, cst)?),
             #[cfg(not(target_pointer_width = "64"))]
-            Some(('i', "size")) => Literal::I32(self.parse_numeric_literal(value, cst)?),
+            Some(('i', "s")) => Literal::I32(self.parse_numeric_literal(value, cst)?),
 
             Some(('u', "8")) => Literal::U8(self.parse_numeric_literal(value, cst)?),
             Some(('u', "16")) => Literal::U16(self.parse_numeric_literal(value, cst)?),
             Some(('u', "32")) => Literal::U32(self.parse_numeric_literal(value, cst)?),
             Some(('u', "64")) => Literal::U64(self.parse_numeric_literal(value, cst)?),
             #[cfg(target_pointer_width = "64")]
-            Some(('u', "size")) => Literal::U64(self.parse_numeric_literal(value, cst)?),
+            Some(('u', "s")) => Literal::U64(self.parse_numeric_literal(value, cst)?),
             #[cfg(not(target_pointer_width = "64"))]
-            Some(('u', "size")) => Literal::U32(self.parse_numeric_literal(value, cst)?),
+            Some(('u', "s")) => Literal::U32(self.parse_numeric_literal(value, cst)?),
 
             Some(('f', "32")) => Literal::F32(self.parse_numeric_literal(value, cst)?),
 
@@ -814,7 +821,6 @@ impl GIRGenerator {
         while i < chars.len() {
             if chars[i] == '\\' {
                 chars.remove(i);
-                i -= 1;
                 if chars.len() == i {
                     return Err(gir_err(cst.cst(), GErr::E231));
                 }
@@ -863,6 +869,7 @@ impl GIRGenerator {
                 "closure-{}",
                 u32::from(signature.cst.text_range().start())
             )),
+            visibility: Visibility::Private,
             params: box params.into_iter(),
             type_parameters: Rc::new(vec![]),
             ret_type,

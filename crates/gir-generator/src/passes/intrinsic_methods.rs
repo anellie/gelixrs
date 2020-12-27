@@ -11,6 +11,7 @@ use gir_nodes::{
 use std::collections::HashMap;
 
 use super::declare::FnSig;
+use gir_nodes::declaration::Visibility;
 
 impl GIRGenerator {
     /// Declare lifecycle methods on ADTs.
@@ -23,6 +24,7 @@ impl GIRGenerator {
         let fns: Vec<_> = vec![
             FnSig {
                 name: "new-instance".into(),
+                visibility: Visibility::Private,
                 params: box vec![this_param.clone()].into_iter().map(Ok),
                 type_parameters: type_params.clone(),
                 ret_type: None,
@@ -30,6 +32,7 @@ impl GIRGenerator {
             },
             FnSig {
                 name: "free-wr".into(),
+                visibility: Visibility::Private,
                 params: box vec![this_param].into_iter().map(Ok),
                 type_parameters: type_params.clone(),
                 ret_type: None,
@@ -37,6 +40,7 @@ impl GIRGenerator {
             },
             FnSig {
                 name: "free-sr".into(),
+                visibility: Visibility::Private,
                 params: box vec![this_param_sr, ("refcount_zero".into(), Type::Bool)]
                     .into_iter()
                     .map(Ok),

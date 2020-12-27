@@ -1,0 +1,12 @@
+func sub(a: i64, b: i64) -> i64 {
+    a - b
+}
+
+priv class Sub {
+    var a = 5
+    var b = "hello!"
+
+    func sup() {
+        print("sup!")
+    }
+}

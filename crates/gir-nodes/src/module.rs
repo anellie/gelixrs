@@ -52,7 +52,7 @@ impl Module {
     pub fn borrow_ast(&mut self) -> BorrowedAST {
         BorrowedAST(
             self.ast.take().unwrap(),
-            DebugDropBomb::new("Borrewed Module AST must be returned."),
+            DebugDropBomb::new("Borrowed Module AST must be returned."),
         )
     }
 
