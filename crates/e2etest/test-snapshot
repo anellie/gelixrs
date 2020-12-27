@@ -23,7 +23,6 @@ arrays/no_leak.gel
 arrays/nested.gel
 value/enum.gel
 value/value.gel
-return/any_type.gel
 return/as_function.gel
 generics/interface_with_class.gel
 generics/enum.gel

@@ -128,12 +128,8 @@ impl IRGenerator {
                     println!("The compiler generated invalid code, which can be found in 'invalid_code.ll'.");
                     println!("This is a severe internal bug, and should be reported (please include the code when doing so).");
                     println!("The error message reported by LLVM:\n");
-                    println!("{}\n", e.to_string().replace("\\n", "\n"));
-                    println!("The compiler is forced to terminate.");
-                    std::process::exit(1);
-                } else {
-                    panic!("Invalid IR")
                 }
+                panic!("Invalid IR:\n{}", e.to_string().replace("\\n", "\n"))
             })
             .unwrap();
         self.module

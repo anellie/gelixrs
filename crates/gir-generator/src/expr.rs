@@ -292,7 +292,8 @@ impl GIRGenerator {
                                         |(param, arg)| {
                                             let ty1 = arg.get_type();
                                             let ty2 = param.ty.resolve(&ty_vars);
-                                            ty1 == ty2 || self.can_cast_type(&ty1, &ty2).is_some()
+                                            ty1.equal(&ty2, false)
+                                                || self.can_cast_type(&ty1, &ty2).is_some()
                                         },
                                     );
 

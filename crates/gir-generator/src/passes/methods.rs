@@ -14,9 +14,8 @@ use smol_str::SmolStr;
 use syntax::kind::SyntaxKind;
 
 use super::declare::FnSig;
-use gir_nodes::types::TypeVariable;
+use gir_nodes::{declaration::Visibility, types::TypeVariable};
 use std::collections::HashMap;
-use gir_nodes::declaration::Visibility;
 
 impl GIRGenerator {
     pub(super) fn declare_methods(&mut self, adt: &MutRc<ADT>) {

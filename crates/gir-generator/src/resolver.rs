@@ -171,7 +171,7 @@ impl GIRGenerator {
     /// Boolean indicates if the cast was successful.
     pub(crate) fn try_cast(&mut self, value: Expr, ty: &Type) -> (Expr, bool) {
         let val_ty = value.get_type();
-        if val_ty == *ty {
+        if val_ty.equal(ty, false) {
             return (value, true);
         }
 
