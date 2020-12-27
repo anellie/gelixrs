@@ -8,12 +8,13 @@ use gir_nodes::{
     declaration::{ADTType, LocalVariable},
     gir_err,
     types::{ToInstance, TypeArguments},
-    Expr, Function, IFaceImpls, Type, ADT,
+    Expr, Function, IFaceImpls, Instance, Type, ADT,
 };
 use smol_str::SmolStr;
 use syntax::kind::SyntaxKind;
 
 use super::declare::FnSig;
+use gir_nodes::types::TypeVariable;
 use std::collections::HashMap;
 
 impl GIRGenerator {
@@ -36,13 +37,27 @@ impl GIRGenerator {
         let ast = adt.borrow().ast.clone();
         let is_iface = matches!(adt.borrow().ty, ADTType::Interface);
 
+        // This instance with type arguments, like SomeADT[T], as just SomeADT with
+        // missing parameters causes issues method generics resolution
+        let this_inst = Instance::new(
+            Rc::clone(&adt),
+            Rc::new(
+                adt.borrow()
+                    .type_parameters
+                    .iter()
+                    .map(TypeVariable::from_param)
+                    .map(Type::Variable)
+                    .collect(),
+            ),
+        );
+
         for method in ast.methods() {
             let name = method.sig().name().name();
             let strong_mod = method.modifiers().any(|m| m == SyntaxKind::Strong);
             let this_type = if is_iface || strong_mod {
-                Type::StrongRef(adt.to_inst())
+                Type::StrongRef(this_inst.clone())
             } else {
-                Type::WeakRef(adt.to_inst())
+                Type::WeakRef(this_inst.clone())
             };
 
             let gir_method = eat!(
@@ -56,10 +71,10 @@ impl GIRGenerator {
             adt.borrow_mut().methods.insert(name, gir_method);
         }
 
-        self.declare_constructors(adt, &ast);
+        self.declare_constructors(adt, &ast, this_inst);
     }
 
-    fn declare_constructors(&mut self, adt: &MutRc<ADT>, ast: &ast::Adt) {
+    fn declare_constructors(&mut self, adt: &MutRc<ADT>, ast: &ast::Adt, this_inst: Instance<ADT>) {
         let mut constructor_parameter_list = HashSet::new();
 
         let mut add_constructor = |func: &MutRc<Function>, cst: Option<CSTNode>| -> Res<()> {
@@ -80,7 +95,7 @@ impl GIRGenerator {
         };
 
         let res = self
-            .maybe_default_constructor(adt, &ast)
+            .maybe_default_constructor(adt, &ast, &this_inst)
             .map(|sig| -> Res<_> {
                 let func = self.create_function(sig)?;
                 add_constructor(&func, None)
@@ -90,7 +105,7 @@ impl GIRGenerator {
         for constructor in ast.constructors() {
             let this_param = Some(Ok((
                 SmolStr::new_inline("this"),
-                Type::WeakRef(adt.to_inst()),
+                Type::WeakRef(this_inst.clone()),
             )));
             let ast_sig = constructor.sig();
             let parameters = ast_sig.parameters().map(|param| {
@@ -126,12 +141,17 @@ impl GIRGenerator {
     /// Will return a default constructor with no parameters
     /// should the ADT not contain a constructor and
     /// all members have default values.
-    fn maybe_default_constructor(&self, adt: &MutRc<ADT>, ast: &ast::Adt) -> Option<FnSig> {
+    fn maybe_default_constructor(
+        &self,
+        adt: &MutRc<ADT>,
+        ast: &ast::Adt,
+        this_inst: &Instance<ADT>,
+    ) -> Option<FnSig> {
         let no_uninitialized_members = || !ast.members().any(|v| v.maybe_initializer().is_none());
         if ast.constructors().next().is_none() && no_uninitialized_members() {
             Some(FnSig {
                 name: "DEFAULT-constructor".into(),
-                params: box Some(Ok(("this".into(), Type::WeakRef(adt.to_inst())))).into_iter(),
+                params: box Some(Ok(("this".into(), Type::WeakRef(this_inst.clone())))).into_iter(),
                 type_parameters: Rc::clone(&adt.borrow().type_parameters),
                 ret_type: None,
                 ast: None,

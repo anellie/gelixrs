@@ -324,7 +324,7 @@
                 ),
                 Item(
                     name: "When",
-                    kind: "When",
+                    kind: "WhenExpr",
                     type: "When",
                 ),
             ]
@@ -335,7 +335,7 @@
     Node(
         context: Ctx(
             name: "Variable",
-            kind: "Variable | SyntaxKind::AdtMember"
+            kind: "Variable | SyntaxKind::AdtMember",
             items: [
                 Item(
                     name: "kind",
@@ -542,7 +542,7 @@
                     name: "iter_cond",
                     kind: "ForIterCond",
                     type: "ForIterCond",
-                    strategy: "nested_opt_single"
+                    strategy: "opt_single"
                 ),
                 Item(
                     name: "body",

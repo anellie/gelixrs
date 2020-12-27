@@ -157,6 +157,20 @@ impl GIRGenerator {
         def
     }
 
+    /// Defines a new temporary variable and returns the variable and an expression
+    /// to set it to the value to be executed immediately.
+    fn temp_variable(&mut self, expr: Expr, name: SmolStr) -> (Expr, Rc<LocalVariable>) {
+        let def = self.define_variable_(
+            LocalVariable {
+                name,
+                mutable: true,
+                ty: expr.get_type(),
+            },
+            None,
+        );
+        (Expr::store(Expr::lvar(&def), expr, true), def)
+    }
+
     /// Inserts a variable into the topmost scope.
     /// Note that the variable does NOT get added to the function!
     fn insert_variable(
@@ -309,28 +323,22 @@ impl GIRGenerator {
             }
         }
 
-        self.find_associated_method(&ty, get.property())
+        self.find_associated_method(&ty, &get.property().name())
             .map(|m| (object, Either::Right(m)))
             .or_err(&get.cst, GErr::E210)
     }
 
     /// Searches for an associated method on a type. Can be either an interface
     /// method or a class method.
-    fn find_associated_method(&mut self, ty: &Type, name: GenericIdent) -> Option<MutRc<Function>> {
+    fn find_associated_method(&mut self, ty: &Type, name: &SmolStr) -> Option<MutRc<Function>> {
         let method = if let Some(adt) = ty.try_adt() {
             let adt = adt.ty.borrow();
-            adt.methods.get(&name.name()).cloned()
+            adt.methods.get(name).cloned()
         } else {
             None
         };
 
-        method.or_else(|| {
-            self.get_iface_impls(ty)
-                .borrow()
-                .methods
-                .get(&name.name())
-                .cloned()
-        })
+        method.or_else(|| self.get_iface_impls(ty).borrow().methods.get(name).cloned())
     }
 
     /// Creates a new scope. A new scope is created for every function and block,

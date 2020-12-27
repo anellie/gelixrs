@@ -284,8 +284,10 @@ impl Type {
             VariableModifier::Strong => args[var.index].to_strong(),
         };
         let mut ty = match self {
-            Type::Variable(var) => replace(var),
-            Type::RawPtr(box Type::Variable(var)) => Type::RawPtr(box replace(var)),
+            Type::Variable(var) if var.index < args.len() => replace(var),
+            Type::RawPtr(box Type::Variable(var)) if var.index < args.len() => {
+                Type::RawPtr(box replace(var))
+            }
             _ => self.clone(),
         };
 
@@ -484,6 +486,17 @@ pub struct TypeVariable {
     pub name: SmolStr,
     pub modifier: VariableModifier,
     pub bound: TypeParameterBound,
+}
+
+impl TypeVariable {
+    pub fn from_param(param: &TypeParameter) -> TypeVariable {
+        TypeVariable {
+            index: param.index,
+            name: param.name.clone(),
+            modifier: VariableModifier::Strong,
+            bound: param.bound.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]

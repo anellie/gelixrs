@@ -116,7 +116,7 @@ impl GIRGenerator {
                     let body = self.expression(&body);
                     self.insert_at_ptr(body);
                 }
-                self.check_no_uninitialized(&adt.ast);
+                self.check_no_uninitialized(&ast);
             }
 
             self.end_scope();
@@ -146,10 +146,10 @@ impl GIRGenerator {
     }
 
     /// Creates an error if any field is still uninitialized after a constructor.
-    fn check_no_uninitialized(&mut self, err_ast: &ast::Adt) {
+    fn check_no_uninitialized(&mut self, err_ast: &ast::Function) {
         if !self.uninitialized_this_fields.is_empty() {
             self.err(
-                err_ast.name().cst(),
+                err_ast.sig().cst,
                 GErr::E309(
                     self.uninitialized_this_fields
                         .iter()

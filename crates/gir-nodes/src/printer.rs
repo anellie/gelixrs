@@ -70,11 +70,24 @@ impl Function {
         if !self.variables.is_empty() {
             writeln!(f)?;
         }
-        for expr in &self.exprs {
-            write!(f, "{}    ", indent)?;
-            expr.display(f, indent_size + INDENT)?;
-            writeln!(f)?;
-        }
+
+        let mut display_exprs = |exprs: &[Expr]| {
+            for expr in exprs {
+                write!(f, "{}    ", indent)?;
+                expr.display(f, indent_size + INDENT)?;
+                writeln!(f)?;
+            }
+            Ok(())
+        };
+
+        if self.exprs.len() == 1 {
+            match &self.exprs[0] {
+                Expr::Block(exprs) | Expr::Return(box Expr::Block(exprs)) => display_exprs(&exprs),
+                _ => display_exprs(&self.exprs),
+            }
+        } else {
+            display_exprs(&self.exprs)
+        }?;
         writeln!(f, "{}}}", indent)
     }
 }
@@ -133,10 +146,10 @@ impl Expr {
                 writeln!(f, "{{")?;
                 for expr in exprs.iter() {
                     write!(f, "{}    ", indent)?;
-                    expr.display(f, indent_size)?;
+                    expr.display(f, indent_size + INDENT)?;
                     writeln!(f)?;
                 }
-                write!(f, "{}}}\n{}", indent, indent)
+                write!(f, "{}}}", indent)
             }
 
             Expr::Literal(literal) => write!(f, "{}", literal),
@@ -199,11 +212,11 @@ impl Expr {
                 ..
             } => {
                 write!(f, "if (")?;
-                condition.display(f, indent_size + INDENT)?;
+                condition.display(f, indent_size)?;
                 write!(f, ") ")?;
-                then_branch.display(f, indent_size + INDENT)?;
+                then_branch.display(f, indent_size)?;
                 write!(f, " else ")?;
-                else_branch.display(f, indent_size + INDENT)
+                else_branch.display(f, indent_size)
             }
 
             Expr::Switch {
@@ -217,15 +230,15 @@ impl Expr {
                 writeln!(f, "switch {{")?;
                 for branch in branches {
                     write!(f, "{}", indent_inner)?;
-                    branch.0.display(f, indent_size + INDENT * 2)?;
+                    branch.0.display(f, indent_size + INDENT)?;
                     write!(f, " => ")?;
-                    branch.1.display(f, indent_size + INDENT * 2)?;
+                    branch.1.display(f, indent_size + INDENT)?;
                     writeln!(f)?;
                 }
                 write!(f, "{}else => ", indent_inner)?;
-                else_branch.display(f, indent_size + INDENT * 2)?;
+                else_branch.display(f, indent_size + INDENT)?;
 
-                writeln!(f, "{}}}", indent)
+                writeln!(f, "\n{}}}", indent)
             }
 
             Expr::Loop {
@@ -235,11 +248,11 @@ impl Expr {
                 ..
             } => {
                 write!(f, "for (")?;
-                condition.display(f, indent_size + INDENT)?;
+                condition.display(f, indent_size)?;
                 write!(f, ") ")?;
-                body.display(f, indent_size + INDENT)?;
+                body.display(f, indent_size)?;
                 write!(f, " else ")?;
-                else_branch.display(f, indent_size + INDENT)
+                else_branch.display(f, indent_size)
             }
 
             Expr::Break(expr) => {
@@ -254,7 +267,7 @@ impl Expr {
 
             Expr::Cast { inner, to, method } => {
                 write!(f, "cast[{}](", to)?;
-                inner.display(f, indent_size + INDENT)?;
+                inner.display(f, indent_size)?;
                 write!(f, ", {})", method)
             }
 

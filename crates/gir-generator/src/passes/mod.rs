@@ -22,12 +22,12 @@ impl GIRGenerator {
         self.validate_intrinsics();
         self.run_mod(Self::import_stage_2);
 
-        self.run_adt(GIRGenerator::declare_methods);
+        self.run_adt(Self::declare_methods);
         self.fill_impls();
-        self.run_dec(GIRGenerator::insert_adt_fields);
-        self.run_adt(GIRGenerator::constructor_setters);
-        self.run_adt(GIRGenerator::declare_lifecycle_methods);
-        self.run_adt(GIRGenerator::generate_lifecycle_methods);
+        self.run_dec(Self::insert_adt_fields);
+        self.run_adt(Self::constructor_setters);
+        self.run_adt(Self::declare_lifecycle_methods);
+        self.run_adt(Self::generate_lifecycle_methods);
         self.run_dec(Self::generate);
         self.generate_impls();
     }

@@ -37,7 +37,7 @@ impl GIRGenerator {
             // Enum cases can have multiple starting tokens, just use the catch-all
             _ => ADTType::EnumCase {
                 parent: parent.clone().expect("Unknown ADT?"),
-                simple: false,
+                simple: ast.cst.children().count() == 1, // Only identifier as child = simple
             },
         };
 

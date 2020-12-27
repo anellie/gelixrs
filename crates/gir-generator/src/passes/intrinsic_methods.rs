@@ -153,6 +153,10 @@ impl GIRGenerator {
     }
 
     fn maybe_call_free_impl(&mut self, adt: Expr) -> Expr {
+        if self.flags.no_std {
+            return Expr::none_const();
+        }
+
         let ty = adt.get_type();
         let free_iface = self.intrinsics.free_iface.clone().unwrap();
         let impls = self.get_iface_impls(&ty);

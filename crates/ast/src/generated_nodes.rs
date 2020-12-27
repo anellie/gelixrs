@@ -500,7 +500,7 @@ impl Expression {
         if node.kind() == SyntaxKind::Variable {
             return Some(Self::VarDef(Variable::cast(node).unwrap()));
         }
-        if node.kind() == SyntaxKind::When {
+        if node.kind() == SyntaxKind::WhenExpr {
             return Some(Self::When(When::cast(node).unwrap()));
         }
         None
@@ -929,11 +929,7 @@ impl ForExpr {
             .flatten()
     }
     pub fn iter_cond(&self) -> Option<ForIterCond> {
-        self.cst
-            .children()
-            .find(|i| i.kind() == SyntaxKind::ForIterCond)
-            .map(|i| i.children().find_map(ForIterCond::cast))
-            .flatten()
+        self.cst.children().find_map(ForIterCond::cast)
     }
     pub fn body(&self) -> Expression {
         self.cst

@@ -123,6 +123,10 @@ pub enum GErr {
     E235,
     // Cannot have member and method with same name
     E236(SmolStr),
+    // Not an iterator (must implement Iter or ToIter)
+    E237,
+    // Cannot use string literals with no_std enabled
+    E238,
 
     // Unknown type
     E300(String),
@@ -275,6 +279,8 @@ impl GErr {
             E233 => "Numeric literal does not fit into target type.",
             E234 => "ADT member may not be a weak reference.",
             E235 => "ADT member cannot be defined twice.",
+            E237 => "Not an iterator (must implement Iter or ToIter).",
+            E238 => "Cannot use string literals with no_std enabled.",
 
             E301 => "Functions cannot be used as types.",
             E302 => "Weak is only applicable to ADTs.",

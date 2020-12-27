@@ -29,10 +29,11 @@ static LOGICAL_BINARY: [SyntaxKind; 10] = [
 ];
 
 /// An expression in gelix.
-/// GIR expressions are an intermediate between AST and GIR;
-/// they contain semantic info but are high-level with little lowering.
-/// The expression set is slightly smaller than AST as some
-/// things are unified.
+/// GIR expressions are an intermediate between AST and LLVM IR;
+/// they contain semantic info but are mostly high-level with some lowering.
+/// The expression set is slightly bigger than AST to allow for
+/// some operations.
+/// Compared to AST, GIR can contain undefined behavior if malformed.
 #[derive(Clone, Debug)]
 pub enum Expr {
     /// A block of expressions. Mainly kept around for lifetimes.
@@ -122,6 +123,7 @@ pub enum Expr {
     /// 'return' keyword. Always produces None as a value.
     Return(Box<Expr>),
 
+    /// A cast of a value to another type. See [CastType] for various methods of casting.
     Cast {
         inner: Box<Expr>,
         to: Type,
@@ -387,7 +389,8 @@ impl Expr {
                 }
             },
             Expr::Allocate { .. } => "allocation",
-            Expr::Load { .. } => "getter",
+            Expr::Load { field, .. } if field.mutable => "mutable field",
+            Expr::Load { .. } => "immutable field",
             Expr::Store { .. } => "assignment",
             Expr::Binary { .. } => "infix operation",
             Expr::Unary { .. } => "prefix operation",
@@ -549,9 +552,13 @@ pub enum Intrinsic {
 
 #[derive(Clone, Debug)]
 pub enum CastType {
+    /// A numeric cast between any number type
     Number,
+    /// A cast of strong ref to weak
     StrongToWeak,
+    /// A cast of strong or weak ref to value
     ToValue,
+    /// A bitcast ( = reinterpretation of bits)
     Bitcast,
     // Type is the implementor type
     ToInterface(Type),

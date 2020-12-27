@@ -145,12 +145,7 @@ impl GIRGenerator {
         if let Some(params) = &self.type_params {
             for param in params.iter() {
                 if *param.name == *name {
-                    return Some(Type::Variable(TypeVariable {
-                        index: param.index,
-                        name: param.name.clone(),
-                        modifier: VariableModifier::Strong,
-                        bound: param.bound.clone(),
-                    }));
+                    return Some(Type::Variable(TypeVariable::from_param(param)));
                 }
             }
         }

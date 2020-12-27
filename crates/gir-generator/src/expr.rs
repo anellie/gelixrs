@@ -1,7 +1,7 @@
 use crate::{result::EmitGIRError, GIRGenerator};
 use ast::{
-    Binary, Block, Break, CSTNode, Call, Expression as AExpr, ForIterCond, Function, GenericIdent,
-    Get, GetStatic, LiteralType, Return, When, WhenBranch,
+    Binary, Block, Break, CSTNode, Call, Expression as AExpr, ForIterCond, GenericIdent, Get,
+    GetStatic, LiteralType, Return, When, WhenBranch,
 };
 use common::MutRc;
 use error::{GErr, Res};
@@ -9,8 +9,8 @@ use gir_nodes::{
     declaration::{ADTType, LocalVariable, Variable},
     expression::CastType,
     gir_err,
-    types::{TypeArguments, TypeParameter, VariableModifier},
-    Expr, Instance, Literal, Type, ADT,
+    types::{TypeArguments, TypeParameter, TypeParameters, VariableModifier},
+    Expr, Function, IFaceImpls, Instance, Literal, Type, ADT,
 };
 use num_traits::Num;
 use smol_str::SmolStr;
@@ -105,7 +105,7 @@ impl GIRGenerator {
         let rvalue = self.expression(&value);
         let (rvalue, matching_types) = self.try_cast(rvalue, &lvalue.get_type());
 
-        if !lvalue.assignable() {
+        if !was_uninit && !lvalue.assignable() {
             Err(gir_err(to.cst(), GErr::E200(lvalue.human_name())))
         } else if !matching_types {
             Err(gir_err(value.cst(), GErr::E201))
@@ -542,68 +542,99 @@ impl GIRGenerator {
         (body, else_, phi_ty)
     }
 
-    fn for_iter(&mut self, _cond: ForIterCond, _body: AExpr, _else_b: Option<AExpr>) -> Res<Expr> {
-        todo!();
-        /*
+    /* Have a visualization of the desugaring this performs:
+    val iter = Range(0, 5)
+    for (i in iter) {
+        i = 3
+    }
+
+    Into:
+
+    {
+        var i = iter.next()
+        for (i is Opt[i64]:Some) {
+            val i = cast[i64](i)
+            val loop_res = { // USER CODE
+                i = 3
+            }
+            loop_val = iter.next()
+            loop_res
+        }
+    }
+    */
+    fn for_iter(&mut self, cond: ForIterCond, body: AExpr, else_b: Option<AExpr>) -> Res<Expr> {
         self.begin_scope();
 
-        let iter_gir = self.expression(iterator)?;
-        let (iter_ty, elem_ty, to_iter_ty) = INTRINSICS
-            .with(|i| i.borrow().get_for_iter_type(&iter_gir.get_type()))
-            .or_err(
-                &self.builder.path,
-                iterator.get_token(),
-                "Not an iterator (must implement Iter or ToIter).",
-            )?;
+        let iter_gir = self.expression(&cond.iterator());
+        let impls = self.get_iface_impls(&iter_gir.get_type());
+        let (iter_value, next_fn, elem_ty) =
+            self.get_iterator_value(iter_gir, &*impls.borrow(), &cond.cst)?;
 
-        let iter = if let Some(to_iter_ty) = to_iter_ty {
-            let method = Self::find_associated_method(
-                &to_iter_ty,
-                &Token::generic_identifier("iter".to_string()),
-            )
-            .unwrap()
-            .into_fn();
-            Expr::call(Expr::load(&method), vec![iter_gir])
-        } else {
-            iter_gir
-        };
-
-        let opt_proto = self
-            .module
-            .borrow()
-            .find_prototype(&"Opt".to_string())
-            .unwrap();
-        let opt_ty = opt_proto.build(
-            vec![elem_ty.clone()],
-            &self.module,
-            elem_name,
-            Rc::clone(&opt_proto),
-        )?;
-        let some_ty = {
-            let adt = opt_ty.as_adt();
-            let adt = adt.borrow();
+        let opt_adt = self.module.borrow().find_decl("Opt").unwrap().into_adt();
+        let some_adt = {
+            let adt = opt_adt.borrow();
             let cases = adt.ty.cases();
-            Rc::clone(cases.get(&"Some".to_string()).unwrap())
+            Rc::clone(cases.get("Some").unwrap())
         };
+        let opt_ty = Type::StrongRef(Instance::new(Rc::clone(&opt_adt), Rc::clone(&elem_ty)));
+        let some_ty = Type::StrongRef(Instance::new(Rc::clone(&some_adt), Rc::clone(&elem_ty)));
 
-        let elem_var = self.define_variable(&elem_name, false, elem_ty.clone());
-        let next_fn =
-            Self::find_associated_method(&iter_ty, &Token::generic_identifier("next".to_string()))
-                .unwrap()
-                .into_fn();
+        let next_call = Expr::call(Expr::var(Variable::Function(next_fn)), vec![iter_value]);
+        let (inital_store_expr, loop_var) = self.temp_variable(next_call.clone(), cond.name());
+        let next_call_store = Expr::store(Expr::lvar(&loop_var), next_call, false);
 
-        let (body, else_, result_store) = self.for_body(body, else_b)?;
+        let cond = Expr::binary(
+            SyntaxKind::Is,
+            Expr::lvar(&loop_var),
+            Expr::type_get(some_ty.clone()),
+        );
+
+        self.begin_scope();
+        let mut clone = (*loop_var).clone();
+        clone.ty = elem_ty[0].clone();
+        let loop_inner_var = self.define_variable_(clone, None);
+        let loop_cast_store = Expr::store(
+            Expr::lvar(&loop_inner_var),
+            Expr::cast(Expr::lvar(&loop_var), elem_ty[0].clone(), CastType::Bitcast),
+            true,
+        );
+
+        let (body, else_, phi_ty) = self.for_body(body, else_b);
+        let body_block = vec![loop_cast_store, body];
         self.end_scope();
-        Ok(Expr::IterLoop {
-            iter: Box::new(iter),
-            next_fn,
-            next_cast_ty: Type::Adt(some_ty),
-            store: elem_var,
-            body: Box::new(body),
-            else_: Box::new(else_.unwrap_or_else(Expr::none_const)),
-            result_store,
-        })
-        */
+
+        let (body_store, body_var) =
+            self.temp_variable(Expr::Block(body_block), "body-value".into());
+        let loop_block = vec![body_store, next_call_store, Expr::lvar(&body_var)];
+
+        self.end_scope();
+        let loop_expr = Expr::loop_(cond, Expr::Block(loop_block), else_, phi_ty);
+        let block = vec![inital_store_expr, loop_expr];
+        Ok(Expr::Block(block))
+    }
+
+    fn get_iterator_value(
+        &mut self,
+        value: Expr,
+        impls: &IFaceImpls,
+        cst: &CSTNode,
+    ) -> Res<(Expr, Instance<Function>, Rc<TypeArguments>)> {
+        let find_iface = |name: &str| {
+            impls.interfaces.iter().find(|(iface, imp)| {
+                let iface = iface.as_strong_ref().ty.borrow();
+                iface.name == name && iface.module.borrow().path.is(&["std", "iter"])
+            })
+        };
+        let iter_impl = find_iface("Iter").or_else(|| find_iface("ToIter"));
+
+        if let Some((iface, impl_)) = iter_impl {
+            let elem_ty = Rc::clone(iface.type_args().unwrap());
+            let func = impl_.methods.values().next().unwrap();
+            let next_fn = Instance::new(Rc::clone(func), Rc::clone(&elem_ty));
+            Ok((value, next_fn, elem_ty))
+        } else {
+            Err(gir_err(cst.clone(), GErr::E237))
+        }
     }
 
     // Handle a get expression. allow_uninit controls if uninitialized ADT
@@ -726,6 +757,9 @@ impl GIRGenerator {
             LiteralType::False => Expr::Literal(Literal::Bool(false)),
             LiteralType::Int => Expr::Literal(self.numeric_literal(text, &literal.cst, false)?),
             LiteralType::Float => Expr::Literal(self.numeric_literal(text, &literal.cst, true)?),
+            LiteralType::String if self.flags.no_std => {
+                return Err(gir_err(literal.cst(), GErr::E238))
+            }
             LiteralType::String => Expr::Literal(Literal::String {
                 text: self.string_literal(text, literal)?,
                 ty: self.intrinsics.string_type.clone().unwrap(),
@@ -811,7 +845,7 @@ impl GIRGenerator {
         Ok(chars.iter().collect::<String>().into())
     }
 
-    fn closure(&mut self, _closure: &Function) -> Res<Expr> {
+    fn closure(&mut self, _closure: &ast::Function) -> Res<Expr> {
         /* TODO
         let mut name = token.clone();
         name.lexeme = SmolStr::new(format!("closure-{}:{}", token.line, token.index));
@@ -933,9 +967,10 @@ impl GIRGenerator {
 
             (false, Ok(var)) => Ok(Expr::var(var)),
 
-            (_, Err(_)) => self
+            (_, Err(e)) => self
                 .symbol_with_type_args(&var.name(), var.type_args(), &var.cst)
-                .map(Expr::type_get),
+                .map(Expr::type_get)
+                .map_err(|_| e),
         }
     }
 
