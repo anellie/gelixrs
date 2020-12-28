@@ -1,5 +1,5 @@
 use crate::GIRGenerator;
-use common::MutRc;
+use common::{bench, MutRc};
 use gir_nodes::{Declaration, Module, ADT};
 use std::rc::Rc;
 
@@ -15,23 +15,30 @@ mod methods;
 
 impl GIRGenerator {
     pub(crate) fn run_passes(&mut self) {
-        self.run_ast(Self::declare_adts);
-        self.run_mod(Self::populate_intrinsics);
-        self.run_mod(Self::import_stage_1);
-        self.run_ast(Self::declare_iface_impls);
-        self.run_ast(Self::declare_functions);
-        self.run_mod(Self::populate_intrinsics_fn);
-        self.validate_intrinsics();
-        self.run_mod(Self::import_stage_2);
+        bench!("gir stage 1", {
+            self.run_ast(Self::declare_adts);
+            self.run_mod(Self::populate_intrinsics);
+            self.run_mod(Self::import_stage_1);
+            self.run_ast(Self::declare_iface_impls);
+            self.run_ast(Self::declare_functions);
+            self.run_mod(Self::populate_intrinsics_fn);
+            self.validate_intrinsics();
+            self.run_mod(Self::import_stage_2);
+        });
 
-        self.run_adt(Self::declare_methods);
-        self.fill_impls();
-        self.run_dec(Self::insert_adt_fields);
-        self.run_adt(Self::constructor_setters);
-        self.run_adt(Self::declare_lifecycle_methods);
-        self.run_adt(Self::generate_lifecycle_methods);
-        self.run_dec(Self::generate);
-        self.generate_impls();
+        bench!("gir stage 2", {
+            self.run_adt(Self::declare_methods);
+            self.fill_impls();
+            self.run_dec(Self::insert_adt_fields);
+            self.run_adt(Self::constructor_setters);
+            self.run_adt(Self::declare_lifecycle_methods);
+            self.run_adt(Self::generate_lifecycle_methods);
+        });
+
+        bench!("gir generation", {
+            self.run_dec(Self::generate);
+            self.generate_impls();
+        });
     }
 
     /// Execute a given module-scope pass.

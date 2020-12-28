@@ -2,6 +2,7 @@ mod parse_stage;
 
 use ir::IRGenerator;
 
+pub use common::{Benches, BENCH};
 pub use error::Errors;
 pub use gir_generator::{CompiledGIR, GIRFlags};
 pub use ir::{jit::JIT, produce_binary, CompiledIR};

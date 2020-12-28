@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 rowan = "0.10.0"
+common = { path = "../common" }
 error = { path = "../error" }
 lexer = { path = "../lexer" }
 syntax = { path = "../syntax" }

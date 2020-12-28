@@ -217,6 +217,9 @@ dependencies = [
 name = "common"
 version = "0.1.0"
 dependencies = [
+ "indexmap",
+ "lazy_static",
+ "pad",
  "smol_str",
 ]
 
@@ -284,6 +287,7 @@ name = "e2e"
 version = "0.1.0"
 dependencies = [
  "ansi_term 0.12.1",
+ "common",
  "gelixrs",
  "lazy_static",
  "structopt",
@@ -658,6 +662,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2839e79665f131bdb5782e51f2c6c9599c133c6098982a54c794358bf432529c"
 
 [[package]]
+name = "pad"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2ad9b889f1b12e0b9ee24db044b5129150d5eada288edc800f789928dc8c0e3"
+dependencies = [
+ "unicode-width",
+]
+
+[[package]]
 name = "parse-zoneinfo"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -670,6 +683,7 @@ dependencies = [
 name = "parser"
 version = "0.1.0"
 dependencies = [
+ "common",
  "error",
  "lexer",
  "rowan",

@@ -3,6 +3,7 @@ mod expression;
 mod util;
 
 use crate::util::{event::Event, sink::Sink, source::Source};
+use common::bench;
 use error::{Error, ErrorSpan, GErr};
 use lexer::Lexer;
 use rowan::GreenNode;
@@ -44,19 +45,21 @@ struct Parser<'p> {
 
 impl<'p> Parser<'p> {
     fn parse(mut self) -> Result<ParseResult, Vec<Error>> {
-        self.start_node(SyntaxKind::Root);
-        while self.peek() != SyntaxKind::EndOfFile {
-            self.declaration();
-            if self.poisoned {
-                self.try_depoison();
+        bench!("parser parsing", {
+            self.start_node(SyntaxKind::Root);
+            while self.peek() != SyntaxKind::EndOfFile {
+                self.declaration();
+                if self.poisoned {
+                    self.try_depoison();
+                }
             }
-        }
-        self.end_node();
+            self.end_node();
+        });
 
         if self.errors.is_empty() {
             let sink = Sink::new(self.source.clone(), self.events);
             Ok(ParseResult {
-                green_node: sink.finish(),
+                green_node: bench!("parser sink", sink.finish()),
             })
         } else {
             Err(self.errors)

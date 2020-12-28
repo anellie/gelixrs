@@ -6,7 +6,7 @@
 
 use std::{collections::HashMap, mem, path::Path, rc::Rc};
 
-use common::MutRc;
+use common::{bench, MutRc};
 use gir_nodes::{
     declaration::{IRFunction, Variable},
     types::TypeArguments,
@@ -87,7 +87,11 @@ pub struct IRGenerator {
 impl IRGenerator {
     /// Generates IR. Will process all GIR modules given.
     #[allow(clippy::needless_collect)] // Not needless! Changes execution order.
-    pub fn generate(mut self) -> Module {
+    pub fn generate(self) -> Module {
+        bench!("ir", self.generate_())
+    }
+
+    fn generate_(mut self) -> Module {
         // Get required-to-compile fns from INTRINSICS
         let required_fns = mem::replace(&mut self.gir_data.intrinsics.required_compile_fns, vec![]);
         // Declare them and collect into new vec

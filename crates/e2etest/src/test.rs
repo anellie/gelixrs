@@ -10,9 +10,10 @@ use std::{
 };
 
 use ansi_term::{Color, Style};
-use gelixrs::{CompiledIR, Errors, GIRFlags};
+use common::bench;
+use gelixrs::{CompiledIR, Errors, GIRFlags, BENCH};
 use lazy_static::lazy_static;
-use std::io::Write;
+use std::{io::Write, panic::AssertUnwindSafe};
 use structopt::StructOpt;
 
 lazy_static! {
@@ -167,6 +168,10 @@ fn print_failed(path: PathBuf, run: &TestRun) {
         }
     }
 
+    if cfg!(debug_assertions) {
+        println!("\n{}", BENCH.lock().unwrap());
+    }
+
     let mut snapshots_file =
         fs::File::create(path.as_path()).expect("Failed to write snapshots file");
     for (fail, _) in &run.failed {
@@ -210,16 +215,16 @@ fn run_test(path: PathBuf, run: &mut TestRun) {
 
 fn exec(path: PathBuf, jit: bool) -> Result<String, Failure> {
     clear_state();
+    let stdlib = STD_LIB.lock().unwrap().clone();
 
-    let code = gelixrs::parse_source(vec![path, STD_LIB.lock().unwrap().clone()])
-        .map_err(|_| Failure::Parse)?;
+    let code = gelixrs::parse_source(vec![path, stdlib]).map_err(|_| Failure::Parse)?;
     let gir = gelixrs::compile_gir(code, GIRFlags::default()).map_err(Failure::Compile)?;
     let module = gelixrs::compile_ir(gir);
 
     if jit {
-        exec_jit(module)
+        bench!("jit", exec_jit(module))
     } else {
-        exec_bin(module)
+        bench!("bin", exec_bin(module))
     }
 }
 
@@ -294,10 +299,10 @@ fn relative_path(path: &PathBuf) -> String {
 }
 
 // https://stackoverflow.com/a/59211505
-fn catch_unwind_silent<F: FnOnce() -> R + panic::UnwindSafe, R>(f: F) -> std::thread::Result<R> {
+fn catch_unwind_silent<F: FnOnce() -> R, R>(f: F) -> std::thread::Result<R> {
     let prev_hook = panic::take_hook();
     panic::set_hook(Box::new(|_| {}));
-    let result = panic::catch_unwind(f);
+    let result = panic::catch_unwind(AssertUnwindSafe(f));
     panic::set_hook(prev_hook);
     result
 }
