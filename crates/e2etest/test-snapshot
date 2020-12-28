@@ -44,9 +44,7 @@ closures/closure.gel
 closures/no_return_leak.gel
 closures/capture.gel
 closures/as_func_type.gel
-interfaces/implementing_non_class.gel
 interfaces/generic_parameters.gel
-interfaces/implementing_on_iface.gel
 interfaces/not_on_dv.gel
 ffi/manual_memory.gel
 ffi/no_gc.gel

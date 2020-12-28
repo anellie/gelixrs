@@ -2,7 +2,7 @@
 #![feature(box_syntax)]
 
 use crate::intrinsics::Intrinsics;
-use common::{mutrc_new, ModulePath, MutRc};
+use common::{bench, mutrc_new, ModulePath, MutRc};
 use either::Either;
 use gir_nodes::{
     gir_err, types::ToInstance, Declaration, Expr, Function, IFaceImpls, Instance, Module, Type,
@@ -42,6 +42,15 @@ pub struct CompiledGIR {
 /// that disable or enable certain features.
 #[derive(Default, Copy, Clone)]
 pub struct GIRFlags {
+    /// The standard library was already compiled ahead of time.
+    /// This skips intrinsic passes, which aren't required
+    /// when std is already compiled.
+    pub cached_std: bool,
+
+    /// If this compilation run does not contain a binary.
+    /// If true, a main function will not be required.
+    pub library: bool,
+
     /// This compilation run does not use the standard library.
     /// This will disable quite a few features and is quite buggy.
     /// Mainly intended for debugging, WIP.
@@ -93,6 +102,8 @@ pub struct GIRGenerator {
     path: ModulePath,
     /// All modules.
     modules: Vec<MutRc<Module>>,
+    /// All modules that weren't compiled yet that are to be compiled.
+    modules_uncompiled: Vec<MutRc<Module>>,
 
     /// Intrinsics info.
     intrinsics: Intrinsics,
@@ -110,6 +121,10 @@ impl GIRGenerator {
     /// Returns errors if any occurred.
     pub fn consume(mut self) -> Result<CompiledGIR, Vec<Errors>> {
         self.run_passes();
+
+        for module in &self.modules_uncompiled {
+            module.borrow_mut().compiled = true;
+        }
 
         let errs = self
             .errors
@@ -430,8 +445,25 @@ impl GIRGenerator {
 
     /// Create a new generator from AST modules.
     pub fn new(modules: Vec<ast::Module>, flags: GIRFlags) -> Self {
-        let modules: Vec<_> = modules.into_iter().map(Module::new).collect();
-        Self::from_modules(modules, flags)
+        bench!("gir precompile", {
+            let modules: Vec<_> = modules.into_iter().map(Module::new).collect();
+            Self::from_modules(None, modules, flags)
+        })
+    }
+
+    pub fn with_cached_std(
+        modules: Vec<ast::Module>,
+        std: &CompiledGIR,
+        mut flags: GIRFlags,
+    ) -> Self {
+        bench!("gir precompile", {
+            flags.cached_std = true;
+            let mods_uncompiled = modules.into_iter().map(Module::new).collect();
+            let mut gen = Self::from_modules(Some(std.modules.clone()), mods_uncompiled, flags);
+            gen.intrinsics = std.intrinsics.clone();
+            gen.iface_impls = std.iface_impls.clone();
+            gen
+        })
     }
 
     /// Produces a [GIRGenerator] usable for generating a closure literal,
@@ -441,12 +473,13 @@ impl GIRGenerator {
     /// This data is then retried with `self.end_closure`.
     fn for_closure(outer: &mut GIRGenerator) -> Self {
         let modules = mem::replace(&mut outer.modules, vec![]);
+        let modules_uncompiled = mem::replace(&mut outer.modules_uncompiled, vec![]);
         GIRGenerator {
             closure_data: Some(ClosureData {
                 outer_env: mem::replace(&mut outer.environments, vec![]),
                 captured: Vec::with_capacity(3),
             }),
-            ..Self::from_modules(modules, outer.flags)
+            ..Self::from_modules_(modules, modules_uncompiled, outer.flags)
         }
     }
 
@@ -455,17 +488,34 @@ impl GIRGenerator {
     fn end_closure(self, outer: &mut GIRGenerator) -> ClosureData {
         let mut closure_data = self.closure_data.unwrap();
         outer.environments = mem::replace(&mut closure_data.outer_env, vec![]);
+        outer.modules = self.modules;
+        outer.modules_uncompiled = self.modules_uncompiled;
         closure_data
     }
 
     /// Create a new generator from GIR modules.
-    fn from_modules(modules: Vec<MutRc<Module>>, flags: GIRFlags) -> Self {
-        let path = modules[0].borrow().path.clone();
+    fn from_modules(
+        precompiled: Option<Vec<MutRc<Module>>>,
+        uncompiled: Vec<MutRc<Module>>,
+        flags: GIRFlags,
+    ) -> Self {
+        let path = uncompiled[0].borrow().path.clone();
+
+        if let Some(modules) = &precompiled {
+            Self::reset_modules(modules);
+        }
+        let modules = precompiled
+            .into_iter()
+            .flatten()
+            .chain(uncompiled.iter().cloned())
+            .collect();
+
         Self {
             position: None,
             path,
-            module: Rc::clone(&modules[0]),
+            module: Rc::clone(&uncompiled[0]),
             modules,
+            modules_uncompiled: uncompiled,
             intrinsics: Intrinsics::default(),
             iface_impls: HashMap::with_capacity(100),
             environments: vec![HashMap::with_capacity(3)],
@@ -475,6 +525,47 @@ impl GIRGenerator {
             closure_data: None,
             errors: mutrc_new(HashMap::new()),
             flags,
+        }
+    }
+
+    /// Create a new generator from GIR modules.
+    fn from_modules_(
+        modules: Vec<MutRc<Module>>,
+        modules_uncompiled: Vec<MutRc<Module>>,
+        flags: GIRFlags,
+    ) -> Self {
+        let path = modules[0].borrow().path.clone();
+        Self {
+            position: None,
+            path,
+            module: Rc::clone(&modules[0]),
+            modules,
+            modules_uncompiled,
+            intrinsics: Intrinsics::default(),
+            iface_impls: HashMap::with_capacity(100),
+            environments: vec![HashMap::with_capacity(3)],
+            type_params: None,
+            current_loop_ty: None,
+            uninitialized_this_fields: HashSet::with_capacity(5),
+            closure_data: None,
+            errors: mutrc_new(HashMap::new()),
+            flags,
+        }
+    }
+
+    fn reset_modules(modules: &[MutRc<Module>]) {
+        for module in modules.iter() {
+            // TODO: This first loop can be removed once IR GC is fixed.
+            for decl in module.borrow().declarations.values() {
+                match decl {
+                    Declaration::Function(func) => func.borrow().ir.borrow_mut().clear(),
+                    Declaration::Adt(adt) => adt.borrow_mut().ir.clear(),
+                }
+            }
+
+            for func in &module.borrow().functions {
+                func.borrow().ir.borrow_mut().clear();
+            }
         }
     }
 }

@@ -6,6 +6,10 @@ use std::rc::Rc;
 
 impl GIRGenerator {
     pub(super) fn populate_intrinsics(&mut self, module_rc: MutRc<Module>) {
+        if self.flags.cached_std {
+            return;
+        }
+
         let module = module_rc.borrow();
         if module.path.is(&["std", "ops"]) {
             self.intrinsics.fill_ops_table(module);
@@ -43,7 +47,7 @@ impl GIRGenerator {
 
     pub(super) fn validate_intrinsics(&mut self) {
         self.intrinsics
-            .validate()
+            .validate(self.flags.library)
             .map_err(|e| {
                 self.errors.borrow_mut().insert(
                     Rc::new(ModPath::new()),

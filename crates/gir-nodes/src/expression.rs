@@ -280,7 +280,7 @@ impl Expr {
             Expr::Variable(var) => var.get_type(),
 
             Expr::Load { object, field } => {
-                field.ty.resolve(object.get_type().type_args().unwrap())
+                field.ty.resolve(&object.get_type().type_args().unwrap())
             }
 
             Expr::Store { value, .. } => value.get_type(),

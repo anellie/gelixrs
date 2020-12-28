@@ -7,8 +7,16 @@ use inkwell::module::Module;
 use std::{env, error::Error, ffi::OsStr, fs, process};
 
 pub use generator::IRGenerator;
+use inkwell::context;
 
 pub type CompiledIR = Module;
+
+#[derive(Clone)]
+pub struct Context(context::Context);
+
+pub fn ir_context() -> Context {
+    Context(context::Context::create())
+}
 
 pub fn produce_binary(
     module: Module,

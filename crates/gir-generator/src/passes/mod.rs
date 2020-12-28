@@ -43,7 +43,7 @@ impl GIRGenerator {
 
     /// Execute a given module-scope pass.
     fn run_mod<T: FnMut(&mut Self, MutRc<Module>)>(&mut self, mut runner: T) {
-        for module in self.modules.clone() {
+        for module in self.modules_uncompiled.clone().into_iter() {
             self.switch_module(Rc::clone(&module));
             runner(self, module)
         }
@@ -52,7 +52,7 @@ impl GIRGenerator {
     /// Execute a given module-scope pass with AST data. Sets self.module to the
     /// module to be processed.
     fn run_ast<T: FnMut(&mut Self, &ast::Module)>(&mut self, mut runner: T) {
-        for module in self.modules.clone() {
+        for module in self.modules_uncompiled.clone().into_iter() {
             self.switch_module(Rc::clone(&module));
             let ast = module.borrow_mut().borrow_ast();
             runner(self, &ast.0);
@@ -63,7 +63,7 @@ impl GIRGenerator {
     /// Execute a given declaration-scope pass.
     fn run_dec<T: FnMut(&mut GIRGenerator, Declaration)>(&mut self, mut runner: T) {
         let declarations = self
-            .modules
+            .modules_uncompiled
             .iter()
             .map(|module| {
                 (

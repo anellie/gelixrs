@@ -11,7 +11,7 @@ use std::{
 
 use ansi_term::{Color, Style};
 use common::bench;
-use gelixrs::{CompiledIR, Errors, GIRFlags, BENCH};
+use gelixrs::{ir_context, CompiledGIR, CompiledIR, Context, Errors, GIRFlags, BENCH};
 use lazy_static::lazy_static;
 use std::{io::Write, panic::AssertUnwindSafe};
 use structopt::StructOpt;
@@ -107,16 +107,29 @@ struct Opt {
     verbose: bool,
 }
 
+type TestRes = Result<String, Failure>;
+
 struct TestRun {
     total: usize,
-    failed: Vec<(String, String)>,
+    failed: Vec<FailedTest>,
+    gir_stdlib: Option<CompiledGIR>,
+    ir_context: Context,
     options: Opt,
+}
+
+struct FailedTest {
+    rel_path: String,
+    count: usize,
+    result: TestRes,
+    expected: TestRes,
 }
 
 fn main() {
     let mut run = TestRun {
         total: 0,
         failed: vec![],
+        gir_stdlib: None,
+        ir_context: ir_context(),
         options: Opt::from_args(),
     };
 
@@ -151,20 +164,32 @@ fn main() {
 
 fn print_failed(path: PathBuf, run: &TestRun) {
     println!();
+    let print_test = |test: &FailedTest| {
+        format!(
+            "{}\n{}\n{}   {:?}\n{} {:?}\n",
+            RED_BOLD.paint(format!("Test #{} failed!", test.count)),
+            BOLD.paint(format!("Test: {}", test.rel_path)),
+            BOLD.paint("Result:"),
+            test.result,
+            BOLD.paint("Expected:"),
+            test.expected
+        )
+    };
+
     if run.options.snapshot {
         let snapshot = read_to_string(&path).unwrap_or_else(|_| "".to_string());
         let mut prev_failed = snapshot.lines().collect::<HashSet<&str>>();
-        for (fail, msg) in &run.failed {
-            if !prev_failed.remove(fail.as_str()) {
-                println!("{} {}", RED_BOLD.paint("New failure:"), msg);
+        for fail in &run.failed {
+            if !prev_failed.remove(fail.rel_path.as_str()) {
+                println!("{} {}", RED_BOLD.paint("New failure:"), print_test(fail));
             }
         }
         for fixed in prev_failed {
             println!("{} {}", GREEN_BOLD.paint("Test fixed:"), fixed);
         }
     } else {
-        for (_, msg) in run.failed.iter().rev() {
-            println!("{}", msg);
+        for fail in run.failed.iter().rev() {
+            println!("{}", print_test(fail));
         }
     }
 
@@ -172,9 +197,9 @@ fn print_failed(path: PathBuf, run: &TestRun) {
 
     let mut snapshots_file =
         fs::File::create(path.as_path()).expect("Failed to write snapshots file");
-    for (fail, _) in &run.failed {
+    for fail in &run.failed {
         snapshots_file
-            .write_all(format!("{}\n", fail).as_bytes())
+            .write_all(format!("{}\n", fail.rel_path).as_bytes())
             .expect("Write failed");
     }
 }
@@ -186,47 +211,42 @@ fn run_test(path: PathBuf, run: &mut TestRun) {
     }
 
     let expected = get_expected_result(path.clone());
-    let result = catch_unwind_silent(|| exec(path.clone(), !run.options.no_jit))
-        .unwrap_or(Err(Failure::Panic));
+    let result = catch_unwind_silent(|| exec(path.clone(), run)).unwrap_or(Err(Failure::Panic));
 
     let style = if result == expected {
         GREEN_BOLD
     } else {
         let rel_path = relative_path(&path);
-        run.failed.push((
+        run.failed.push(FailedTest {
             rel_path,
-            format!(
-                "{}\n{}\n{}   {:?}\n{} {:?}\n",
-                RED_BOLD.paint(format!("Test #{} failed!", run.total)),
-                BOLD.paint(format!("Test: {}", relative_path(&path))),
-                BOLD.paint("Result:"),
-                result,
-                BOLD.paint("Expected:"),
-                expected
-            ),
-        ));
+            count: run.total,
+            result,
+            expected,
+        });
         RED_BOLD
     };
     print!("{}", style.paint("."));
     io::stdout().flush().unwrap();
 }
 
-fn exec(path: PathBuf, jit: bool) -> Result<String, Failure> {
+fn exec(path: PathBuf, run: &mut TestRun) -> TestRes {
     clear_state();
-    let stdlib = STD_LIB.lock().unwrap().clone();
+    maybe_compile_stdlib(run)?;
+    let std = run.gir_stdlib.as_ref().unwrap();
 
-    let code = gelixrs::parse_source(vec![path, stdlib]).map_err(|_| Failure::Parse)?;
-    let gir = gelixrs::compile_gir(code, GIRFlags::default()).map_err(Failure::Compile)?;
-    let module = gelixrs::compile_ir(gir);
+    let code = gelixrs::parse_source(vec![path]).map_err(|_| Failure::Parse)?;
+    let gir = gelixrs::compile_gir_cached_std(code, std, GIRFlags::default())
+        .map_err(Failure::Compile)?;
+    let module = gelixrs::compile_ir(run.ir_context.clone(), gir);
 
-    if jit {
+    if !run.options.no_jit {
         bench!("jit", exec_jit(module))
     } else {
         bench!("bin", exec_bin(module))
     }
 }
 
-fn exec_jit(module: CompiledIR) -> Result<String, Failure> {
+fn exec_jit(module: CompiledIR) -> TestRes {
     let mut jit = gelixrs::JIT::new(module);
     jit.link_fn("puts", test_puts as usize);
     jit.link_fn("malloc", test_malloc as usize);
@@ -243,7 +263,7 @@ fn exec_jit(module: CompiledIR) -> Result<String, Failure> {
     }
 }
 
-fn exec_bin(module: CompiledIR) -> Result<String, Failure> {
+fn exec_bin(module: CompiledIR) -> TestRes {
     let mut tmp_file = env::temp_dir();
     tmp_file.push("gelixrs");
     tmp_file.push("test");
@@ -263,7 +283,7 @@ fn clear_state() {
     MALLOC_LIST.lock().unwrap().clear();
 }
 
-fn get_expected_result(mut path: PathBuf) -> Result<String, Failure> {
+fn get_expected_result(mut path: PathBuf) -> TestRes {
     // If the test is a directory, the wanted result is in a file 'expected' in the dir
     if path.is_dir() {
         path.push("expected");
@@ -280,6 +300,28 @@ fn get_expected_result(mut path: PathBuf) -> Result<String, Failure> {
         let split = code.split("*/").next().unwrap();
         Ok(split[3..].to_string())
     }
+}
+
+fn maybe_compile_stdlib(run: &mut TestRun) -> Result<(), Failure> {
+    if run.gir_stdlib.is_none() {
+        let mut std_mod = PathBuf::from(
+            env::current_dir()
+                .unwrap()
+                .parent()
+                .unwrap()
+                .parent()
+                .unwrap(),
+        );
+        std_mod.push("std");
+        let code = gelixrs::parse_source(vec![std_mod]).map_err(|_| Failure::Parse)?;
+        let flags = GIRFlags {
+            library: true,
+            ..GIRFlags::default()
+        };
+        let gir = gelixrs::compile_gir(code, flags).map_err(Failure::Compile)?;
+        run.gir_stdlib = Some(gir);
+    }
+    Ok(())
 }
 
 fn relative_path(path: &PathBuf) -> String {

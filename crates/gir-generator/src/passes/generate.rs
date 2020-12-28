@@ -33,7 +33,11 @@ impl GIRGenerator {
 
     fn generate_impl(&mut self, impls: &MutRc<IFaceImpls>) {
         let impls = impls.borrow();
-        for im in impls.interfaces.values() {
+        for im in impls
+            .interfaces
+            .values()
+            .filter(|im| !im.module.borrow().compiled)
+        {
             self.switch_module(Rc::clone(&im.module));
             for method in im.methods.values() {
                 self.generate_function(method);

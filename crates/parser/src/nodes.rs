@@ -1,7 +1,7 @@
+use smallvec::SmallVec;
 use smol_str::SmolStr;
 use std::{fmt, fmt::Formatter, iter, ops::Range, rc::Rc};
 use syntax::kind::SyntaxKind;
-use smallvec::SmallVec;
 
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub enum NodeOrToken {

@@ -17,7 +17,7 @@ use std::{cell::Ref, collections::HashMap, rc::Rc};
 use syntax::kind::SyntaxKind;
 
 /// Contains all data structures that require some sort of special treatment.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Intrinsics {
     /// Contains prototypes of all operators.
     /// For binary operators, the key is the SyntaxKind of the operator.
@@ -84,8 +84,8 @@ impl Intrinsics {
     }
 
     /// Report any errors or issues with intrinsics.
-    pub(crate) fn validate(&mut self) -> Res<()> {
-        if self.main_fn.is_none() {
+    pub(crate) fn validate(&mut self, library: bool) -> Res<()> {
+        if !library && self.main_fn.is_none() {
             return Err(Error {
                 index: ErrorSpan::None,
                 kind: GErr::E101,

@@ -175,7 +175,11 @@ impl GIRGenerator {
         let mut impls = impls.borrow_mut();
 
         let mut methods: HashMap<SmolStr, _> = HashMap::with_capacity(impls.interfaces.len() * 2);
-        for iface_impl in impls.interfaces.values_mut() {
+        for iface_impl in impls
+            .interfaces
+            .values_mut()
+            .filter(|im| !im.module.borrow().compiled)
+        {
             self.switch_module(Rc::clone(&iface_impl.module));
 
             let ast = &iface_impl.ast;
@@ -211,7 +215,10 @@ impl GIRGenerator {
                 self.check_equal_signature(&impl_method, iface_method, iface_impl.iface.args());
             }
 
-            if iface.borrow().methods.len() > iface_impl.methods.len() {
+            // Account for the 3 intrinsic methods already present on precompiled interfaces
+            let iface_was_compiled = iface.borrow().module.borrow().compiled;
+            let iface_method_len = iface.borrow().methods.len() - (iface_was_compiled as usize * 3);
+            if iface_method_len > iface_impl.methods.len() {
                 self.err(
                     ast.iface().cst,
                     GErr::E314(

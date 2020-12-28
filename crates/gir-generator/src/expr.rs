@@ -214,7 +214,7 @@ impl GIRGenerator {
                 let func = field.right().or_err(&get.cst, GErr::E204)?;
 
                 let obj_ty = object.get_type();
-                let parent_ty_args = obj_ty.type_args().unwrap();
+                let parent_ty_args = obj_ty.type_args().unwrap_or_else(|| Rc::new(vec![]));
                 args.insert(0, object);
 
                 let ty_args = get
@@ -258,7 +258,7 @@ impl GIRGenerator {
                 let mut callee_type = callee.get_type();
 
                 if let Some(constructors) = callee_type.get_constructors() {
-                    let mut ty_vars = Rc::clone(callee_type.type_args().unwrap());
+                    let mut ty_vars = callee_type.type_args().unwrap();
                     let constructor = Rc::clone(
                         constructors
                             .iter()
@@ -630,7 +630,7 @@ impl GIRGenerator {
         let iter_impl = find_iface("Iter").or_else(|| find_iface("ToIter"));
 
         if let Some((iface, impl_)) = iter_impl {
-            let elem_ty = Rc::clone(iface.type_args().unwrap());
+            let elem_ty = iface.type_args().unwrap();
             let func = impl_.methods.values().next().unwrap();
             let next_fn = Instance::new(Rc::clone(func), Rc::clone(&elem_ty));
             Ok((value, next_fn, elem_ty))

@@ -302,8 +302,8 @@ impl IRGenerator {
         self.type_args.pop();
     }
 
-    pub fn new(gir_data: CompiledGIR) -> IRGenerator {
-        let context = Context::create();
+    pub fn new(context: crate::Context, gir_data: CompiledGIR) -> IRGenerator {
+        let context = context.0;
         let module = context.create_module("main");
         let builder = context.create_builder();
 

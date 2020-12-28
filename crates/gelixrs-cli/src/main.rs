@@ -86,6 +86,7 @@ fn run(args: Opt) -> Result<(), &'static str> {
     let gir_flags = GIRFlags {
         no_std: args.no_std,
         no_prelude: args.no_std,
+        ..GIRFlags::default()
     };
     let gir = gelixrs::compile_gir(code, gir_flags).map_err(|errors| {
         for error in errors {
@@ -106,7 +107,7 @@ fn run(args: Opt) -> Result<(), &'static str> {
         return Ok(());
     }
 
-    let module = gelixrs::compile_ir(gir);
+    let module = gelixrs::compile_ir(gelixrs::ir_context(), gir);
 
     if args.ir {
         match args.output {

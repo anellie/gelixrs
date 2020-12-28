@@ -31,6 +31,7 @@ pub struct Module {
     pub path: ModulePath,
     pub src: Rc<String>,
 
+    pub compiled: bool,
     pub ast: Option<ast::Module>,
 }
 
@@ -81,6 +82,7 @@ impl Module {
             used_names: HashSet::with_capacity(10),
             path: Rc::clone(&ast.path),
             src: Rc::clone(&ast.src),
+            compiled: false,
             ast: Some(ast),
         })
     }

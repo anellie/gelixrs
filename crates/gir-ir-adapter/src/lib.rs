@@ -48,6 +48,13 @@ impl<T: Copy, A: Hash + Eq> IRAdapter<T, A> {
             IRAdapter::TypeArgs(map) => map.len(),
         }
     }
+
+    pub fn clear(&mut self) {
+        match self {
+            IRAdapter::NoTypeArgs(opt) => *opt = None,
+            IRAdapter::TypeArgs(map) => map.clear(),
+        }
+    }
 }
 
 impl<T: Copy, A: Hash + Eq> Debug for IRAdapter<T, A> {

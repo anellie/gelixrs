@@ -1,8 +1,8 @@
-use crate::{Node, NodeOrToken, Token, NodeVec};
+use crate::{Node, NodeOrToken, NodeVec, Token};
+use smallvec::SmallVec;
 use smol_str::SmolStr;
 use std::rc::Rc;
 use syntax::kind::SyntaxKind;
-use smallvec::SmallVec;
 
 #[repr(transparent)]
 pub struct NodeBuilder {
@@ -37,7 +37,8 @@ impl NodeBuilder {
 
     pub fn start_node_at(&mut self, kind: SyntaxKind, loc: Checkpoint) {
         let parent = &mut self.nodes[loc.node - 1];
-        let mut children: NodeVec = SmallVec::with_capacity(parent.children.len() - loc.child_count);
+        let mut children: NodeVec =
+            SmallVec::with_capacity(parent.children.len() - loc.child_count);
         for pop in self.nodes[loc.node - 1].children.drain(loc.child_count..) {
             children.push(pop);
         }

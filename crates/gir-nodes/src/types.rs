@@ -93,13 +93,14 @@ impl Type {
     }
 
     /// Returns type arguments of this type, if applicable.
-    pub fn type_args(&self) -> Option<&Rc<TypeArguments>> {
+    pub fn type_args(&self) -> Option<Rc<TypeArguments>> {
         match self {
             Self::Function(inst) => Some(&inst.args),
             Self::Value(inst) | Self::WeakRef(inst) | Self::StrongRef(inst) => Some(&inst.args),
-            Self::Type(ty) => ty.type_args(),
+            Self::Type(ty) => return ty.type_args(),
             _ => None,
         }
+        .cloned()
     }
 
     /// Returns type parameters of this type's prototype, if applicable.
