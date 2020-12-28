@@ -120,20 +120,20 @@ fn process_context(ctx: &mut Ctx) {
             ),
 
             "token" => "children_with_tokens()\
-            .find(|c| c.as_token().map(SyntaxToken::<GelixLang>::kind).as_ref().map(SyntaxKind::is_token) == Some(true))\
+            .find(|c| c.as_token().map(Token::kind).as_ref().map(SyntaxKind::is_token) == Some(true))\
             .unwrap().as_token().unwrap().kind()".to_string(),
             "nested_token" => format!("children().find(|i| i.kind() == SyntaxKind::{}).unwrap().children_with_tokens()\
-            .find(|c| c.as_token().map(SyntaxToken::<GelixLang>::kind).as_ref().map(SyntaxKind::is_token) == Some(true))\
+            .find(|c| c.as_token().map(Token::kind).as_ref().map(SyntaxKind::is_token) == Some(true))\
             .unwrap().as_token().unwrap().kind()", item.kind),
             "nested_token_list" => format!("children().filter(|i| i.kind() == SyntaxKind::{}).map(|c| c.children_with_tokens()\
-            .find(|c| c.as_token().map(SyntaxToken::kind).as_ref().map(SyntaxKind::is_token) == Some(true)))\
+            .find(|c| c.as_token().map(Token::kind).as_ref().map(SyntaxKind::is_token) == Some(true)))\
             .flatten().map(|c| c.as_token().unwrap().kind())", item.kind),
 
             "ident" => "children_with_tokens()\
-            .find(|c| c.as_token().map(SyntaxToken::<GelixLang>::kind) == Some(SyntaxKind::Identifier))\
+            .find(|c| c.as_token().map(Token::kind) == Some(SyntaxKind::Identifier))\
             .unwrap().as_token().unwrap().text().clone()".to_string(),
             "ident_list" => "children_with_tokens()\
-            .filter(|c| c.as_token().map(SyntaxToken::<GelixLang>::kind) == Some(SyntaxKind::Identifier))\
+            .filter(|c| c.as_token().map(Token::kind) == Some(SyntaxKind::Identifier))\
             .map(|c| c.as_token().unwrap().text().clone())".to_string(),
 
             _ => item.strategy.clone()

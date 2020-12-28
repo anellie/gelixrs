@@ -1,14 +1,17 @@
 mod declaration;
 mod expression;
+mod nodes;
 mod util;
 
-use crate::util::{event::Event, sink::Sink, source::Source};
+use crate::util::{
+    builder::{Checkpoint, NodeBuilder},
+    source::Source,
+};
 use common::bench;
 use error::{Error, ErrorSpan, GErr};
 use lexer::Lexer;
-use rowan::GreenNode;
-pub use rowan::{SyntaxNode, SyntaxToken};
-use syntax::{kind::SyntaxKind, language::GelixLang};
+pub use nodes::*;
+use syntax::kind::SyntaxKind;
 
 pub fn parse(input: &str) -> Result<ParseResult, Vec<Error>> {
     let lexer = Lexer::new(input);
@@ -32,8 +35,8 @@ struct Parser<'p> {
     /// The source that is being parsed.
     source: Source<'p>,
 
-    /// A list of events that are later translated into a rowan syntax tree.
-    events: Vec<Event>,
+    /// The CST builder.
+    builder: NodeBuilder,
 
     /// A list of all errors encountered during parsing.
     errors: Vec<Error>,
@@ -45,21 +48,18 @@ struct Parser<'p> {
 
 impl<'p> Parser<'p> {
     fn parse(mut self) -> Result<ParseResult, Vec<Error>> {
-        bench!("parser parsing", {
-            self.start_node(SyntaxKind::Root);
+        bench!("parser", {
             while self.peek() != SyntaxKind::EndOfFile {
                 self.declaration();
                 if self.poisoned {
                     self.try_depoison();
                 }
             }
-            self.end_node();
         });
 
         if self.errors.is_empty() {
-            let sink = Sink::new(self.source.clone(), self.events);
             Ok(ParseResult {
-                green_node: bench!("parser sink", sink.finish()),
+                green_node: self.builder.finish(),
             })
         } else {
             Err(self.errors)
@@ -147,14 +147,14 @@ impl<'p> Parser<'p> {
 
     fn advance(&mut self) -> Lexeme<'p> {
         self.skip_whitespace();
+        self.advance_inner()
+    }
 
+    fn advance_inner(&mut self) -> Lexeme<'p> {
         let Lexeme { kind, lexeme } = self.source.get_current().unwrap();
         self.source.next();
 
-        self.events.push(Event::AddToken {
-            kind,
-            lexeme: lexeme.into(),
-        });
+        self.builder.token(kind, lexeme.into());
         Lexeme { kind, lexeme }
     }
 
@@ -187,7 +187,7 @@ impl<'p> Parser<'p> {
 
     fn skip_whitespace(&mut self) {
         while self.peek_raw().map(|k| k.should_skip()) == Some(true) {
-            self.source.next();
+            self.advance_inner();
         }
     }
 
@@ -202,25 +202,27 @@ impl<'p> Parser<'p> {
     }
 
     fn start_node(&mut self, kind: SyntaxKind) {
-        self.events.push(Event::StartNode(kind))
+        self.skip_whitespace();
+        self.builder.start_node(kind);
     }
 
-    fn start_node_at(&mut self, checkpoint: usize, kind: SyntaxKind) {
-        self.events.push(Event::StartNodeAt { kind, checkpoint });
+    fn start_node_at(&mut self, checkpoint: Checkpoint, kind: SyntaxKind) {
+        self.builder.start_node_at(kind, checkpoint);
+        self.skip_whitespace();
     }
 
     fn end_node(&mut self) {
-        self.events.push(Event::FinishNode)
+        self.builder.end_node();
     }
 
-    fn checkpoint(&self) -> usize {
-        self.events.len()
+    fn checkpoint(&mut self) -> Checkpoint {
+        self.builder.checkpoint()
     }
 
     fn new(lexemes: &'p [Lexeme<'p>]) -> Self {
         Self {
             source: Source::new(lexemes),
-            events: Vec::with_capacity(100),
+            builder: NodeBuilder::new(),
             errors: vec![],
             poisoned: false,
             modifiers: Vec::with_capacity(4),
@@ -230,11 +232,11 @@ impl<'p> Parser<'p> {
 
 #[derive(Debug)]
 pub struct ParseResult {
-    green_node: GreenNode,
+    green_node: Node,
 }
 
 impl ParseResult {
-    pub fn root(self) -> SyntaxNode<GelixLang> {
-        SyntaxNode::new_root(self.green_node)
+    pub fn root(self) -> Node {
+        self.green_node
     }
 }

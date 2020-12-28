@@ -168,9 +168,7 @@ fn print_failed(path: PathBuf, run: &TestRun) {
         }
     }
 
-    if cfg!(debug_assertions) {
-        println!("\n{}", BENCH.lock().unwrap());
-    }
+    println!("\n{}", BENCH.lock().unwrap());
 
     let mut snapshots_file =
         fs::File::create(path.as_path()).expect("Failed to write snapshots file");

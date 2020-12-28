@@ -104,7 +104,7 @@
                     name: "kind",
                     type: "SyntaxKind",
                     strategy: "children_with_tokens()
-                            .find(|c| c.as_token().map(SyntaxToken::<GelixLang>::kind).as_ref().map(SyntaxKind::is_token) == Some(true))
+                            .find(|c| c.as_token().map(Token::kind).as_ref().map(SyntaxKind::is_token) == Some(true))
                             .map(|t| t.as_token().unwrap().kind()).unwrap_or(SyntaxKind::EnumCase)"
                 ),
                 Item(

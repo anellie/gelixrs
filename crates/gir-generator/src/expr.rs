@@ -868,7 +868,7 @@ impl GIRGenerator {
         let function = gen.create_function(FnSig {
             name: SmolStr::new_inline(&format!(
                 "closure-{}",
-                u32::from(signature.cst.text_range().start())
+                u32::from(signature.cst.text_range().start)
             )),
             visibility: Visibility::Private,
             params: box params.into_iter(),

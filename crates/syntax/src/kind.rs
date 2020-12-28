@@ -224,15 +224,3 @@ impl From<Token> for SyntaxKind {
         Self::from_token(token)
     }
 }
-
-impl From<rowan::SyntaxKind> for SyntaxKind {
-    fn from(kind: rowan::SyntaxKind) -> Self {
-        Self::from_u16(kind.0).unwrap()
-    }
-}
-
-impl From<SyntaxKind> for rowan::SyntaxKind {
-    fn from(kind: SyntaxKind) -> Self {
-        Self(kind as u16)
-    }
-}

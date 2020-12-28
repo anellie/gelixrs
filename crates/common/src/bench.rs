@@ -8,7 +8,7 @@ use std::{
 };
 
 lazy_static! {
-    pub static ref BENCH: Mutex<Benches> = Mutex::new(Benches::new(cfg!(debug_assertions)));
+    pub static ref BENCH: Mutex<Benches> = Mutex::new(Benches::new(true));
 }
 
 #[macro_use]

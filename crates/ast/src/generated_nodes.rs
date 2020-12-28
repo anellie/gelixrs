@@ -2,10 +2,10 @@
 
 use crate::CSTNode;
 use common::{ModPath, ModulePath};
-use parser::{ParseResult, SyntaxToken};
+use parser::{ParseResult, Token};
 use smol_str::SmolStr;
 use std::rc::Rc;
-use syntax::{kind::SyntaxKind, language::GelixLang};
+use syntax::kind::SyntaxKind;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[repr(transparent)]
@@ -29,9 +29,7 @@ impl GenericIdent {
     pub fn name(&self) -> SmolStr {
         self.cst
             .children_with_tokens()
-            .find(|c| {
-                c.as_token().map(SyntaxToken::<GelixLang>::kind) == Some(SyntaxKind::Identifier)
-            })
+            .find(|c| c.as_token().map(Token::kind) == Some(SyntaxKind::Identifier))
             .unwrap()
             .as_token()
             .unwrap()
@@ -65,9 +63,7 @@ impl DeclName {
     pub fn name(&self) -> SmolStr {
         self.cst
             .children_with_tokens()
-            .find(|c| {
-                c.as_token().map(SyntaxToken::<GelixLang>::kind) == Some(SyntaxKind::Identifier)
-            })
+            .find(|c| c.as_token().map(Token::kind) == Some(SyntaxKind::Identifier))
             .unwrap()
             .as_token()
             .unwrap()
@@ -101,9 +97,7 @@ impl TypeParameter {
     pub fn name(&self) -> SmolStr {
         self.cst
             .children_with_tokens()
-            .find(|c| {
-                c.as_token().map(SyntaxToken::<GelixLang>::kind) == Some(SyntaxKind::Identifier)
-            })
+            .find(|c| c.as_token().map(Token::kind) == Some(SyntaxKind::Identifier))
             .unwrap()
             .as_token()
             .unwrap()
@@ -208,7 +202,7 @@ impl Adt {
             .children_with_tokens()
             .find(|c| {
                 c.as_token()
-                    .map(SyntaxToken::<GelixLang>::kind)
+                    .map(Token::kind)
                     .as_ref()
                     .map(SyntaxKind::is_token)
                     == Some(true)
@@ -226,7 +220,7 @@ impl Adt {
             .map(|c| {
                 c.children_with_tokens().find(|c| {
                     c.as_token()
-                        .map(SyntaxToken::kind)
+                        .map(Token::kind)
                         .as_ref()
                         .map(SyntaxKind::is_token)
                         == Some(true)
@@ -283,7 +277,7 @@ impl Function {
             .map(|c| {
                 c.children_with_tokens().find(|c| {
                     c.as_token()
-                        .map(SyntaxToken::kind)
+                        .map(Token::kind)
                         .as_ref()
                         .map(SyntaxKind::is_token)
                         == Some(true)
@@ -353,9 +347,7 @@ impl Parameter {
     pub fn name(&self) -> SmolStr {
         self.cst
             .children_with_tokens()
-            .find(|c| {
-                c.as_token().map(SyntaxToken::<GelixLang>::kind) == Some(SyntaxKind::Identifier)
-            })
+            .find(|c| c.as_token().map(Token::kind) == Some(SyntaxKind::Identifier))
             .unwrap()
             .as_token()
             .unwrap()
@@ -552,7 +544,7 @@ impl Variable {
             .children_with_tokens()
             .find(|c| {
                 c.as_token()
-                    .map(SyntaxToken::<GelixLang>::kind)
+                    .map(Token::kind)
                     .as_ref()
                     .map(SyntaxKind::is_token)
                     == Some(true)
@@ -565,9 +557,7 @@ impl Variable {
     pub fn name(&self) -> SmolStr {
         self.cst
             .children_with_tokens()
-            .find(|c| {
-                c.as_token().map(SyntaxToken::<GelixLang>::kind) == Some(SyntaxKind::Identifier)
-            })
+            .find(|c| c.as_token().map(Token::kind) == Some(SyntaxKind::Identifier))
             .unwrap()
             .as_token()
             .unwrap()
@@ -600,7 +590,7 @@ impl Variable {
             .map(|c| {
                 c.children_with_tokens().find(|c| {
                     c.as_token()
-                        .map(SyntaxToken::kind)
+                        .map(Token::kind)
                         .as_ref()
                         .map(SyntaxKind::is_token)
                         == Some(true)
@@ -662,7 +652,7 @@ impl Binary {
             .children_with_tokens()
             .find(|c| {
                 c.as_token()
-                    .map(SyntaxToken::<GelixLang>::kind)
+                    .map(Token::kind)
                     .as_ref()
                     .map(SyntaxKind::is_token)
                     == Some(true)
@@ -717,7 +707,7 @@ impl Prefix {
             .children_with_tokens()
             .find(|c| {
                 c.as_token()
-                    .map(SyntaxToken::<GelixLang>::kind)
+                    .map(Token::kind)
                     .as_ref()
                     .map(SyntaxKind::is_token)
                     == Some(true)
@@ -837,9 +827,7 @@ impl GetStatic {
     pub fn property(&self) -> SmolStr {
         self.cst
             .children_with_tokens()
-            .find(|c| {
-                c.as_token().map(SyntaxToken::<GelixLang>::kind) == Some(SyntaxKind::Identifier)
-            })
+            .find(|c| c.as_token().map(Token::kind) == Some(SyntaxKind::Identifier))
             .unwrap()
             .as_token()
             .unwrap()
@@ -987,9 +975,7 @@ impl ForIterCond {
     pub fn name(&self) -> SmolStr {
         self.cst
             .children_with_tokens()
-            .find(|c| {
-                c.as_token().map(SyntaxToken::<GelixLang>::kind) == Some(SyntaxKind::Identifier)
-            })
+            .find(|c| c.as_token().map(Token::kind) == Some(SyntaxKind::Identifier))
             .unwrap()
             .as_token()
             .unwrap()

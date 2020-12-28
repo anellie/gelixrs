@@ -686,7 +686,7 @@ dependencies = [
  "common",
  "error",
  "lexer",
- "rowan",
+ "smol_str",
  "syntax",
 ]
 
@@ -874,18 +874,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rowan"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e081ed6eacce09e243b619ab90f069c27b0cff8a6d0eb8ad2ec935b65853798"
-dependencies = [
- "rustc-hash",
- "smol_str",
- "text-size",
- "thin-dst",
-]
-
-[[package]]
 name = "rust-argon2"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -896,12 +884,6 @@ dependencies = [
  "constant_time_eq",
  "crossbeam-utils",
 ]
-
-[[package]]
-name = "rustc-hash"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
 
 [[package]]
 name = "ryu"
@@ -1080,7 +1062,6 @@ dependencies = [
  "lexer",
  "num-derive",
  "num-traits",
- "rowan",
  "smol_str",
 ]
 
@@ -1107,12 +1088,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "text-size"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f03e7efdedc3bc78cb2337f1e2785c39e45f5ef762d9e4ebb137fff7380a6d8a"
-
-[[package]]
 name = "textwrap"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1120,12 +1095,6 @@ checksum = "d326610f408c7a4eb6f51c37c330e496b08506c9457c9d34287ecc38809fb060"
 dependencies = [
  "unicode-width",
 ]
-
-[[package]]
-name = "thin-dst"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db3c46be180f1af9673ebb27bc1235396f61ef6965b3fe0dbb2e624deb604f0e"
 
 [[package]]
 name = "thread_local"

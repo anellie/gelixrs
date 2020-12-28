@@ -3,20 +3,20 @@ pub use literal::LiteralType;
 use smol_str::SmolStr;
 pub use types::TypeE;
 
-use parser::{SyntaxNode, SyntaxToken};
-use syntax::{kind::SyntaxKind, language::GelixLang};
+use parser::{Node, Token};
+use syntax::kind::SyntaxKind;
+
+pub type CSTNode = Node;
 
 mod generated_nodes;
 mod literal;
 mod types;
 
-pub type CSTNode = SyntaxNode<GelixLang>;
-
 impl Import {
     pub fn is_export(&self) -> bool {
         self.cst
             .children_with_tokens()
-            .any(|c| c.as_token().map(SyntaxToken::kind) == Some(SyntaxKind::Export))
+            .any(|c| c.as_token().map(Token::kind) == Some(SyntaxKind::Export))
     }
 
     pub fn parts(&self) -> impl Iterator<Item = SmolStr> + '_ {
@@ -24,7 +24,7 @@ impl Import {
             .children_with_tokens()
             .filter(|c| {
                 matches!(
-                    c.as_token().map(SyntaxToken::<GelixLang>::kind),
+                    c.as_token().map(Token::kind),
                     Some(SyntaxKind::Identifier) | Some(SyntaxKind::Plus)
                 )
             })

@@ -1,3 +1,2 @@
-pub mod event;
-pub mod sink;
+pub mod builder;
 pub mod source;

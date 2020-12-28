@@ -1,5 +1,5 @@
 use crate::{Type, Variable};
-use parser::SyntaxToken;
+use parser::Token;
 use smol_str::SmolStr;
 use syntax::kind::SyntaxKind;
 
@@ -65,6 +65,6 @@ impl Variable {
     pub fn mutable(&self) -> bool {
         self.cst
             .children_with_tokens()
-            .any(|c| c.as_token().map(SyntaxToken::kind) == Some(SyntaxKind::Var))
+            .any(|c| c.as_token().map(Token::kind) == Some(SyntaxKind::Var))
     }
 }

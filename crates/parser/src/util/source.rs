@@ -27,14 +27,6 @@ impl<'s> Source<'s> {
         self.current = self.saved;
     }
 
-    pub fn clone(&self) -> Self {
-        Self {
-            lexemes: self.lexemes,
-            current: 0,
-            saved: 0,
-        }
-    }
-
     pub fn new(lexemes: &'s [Lexeme<'s>]) -> Self {
         Self {
             lexemes,

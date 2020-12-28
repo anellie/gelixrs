@@ -8,7 +8,6 @@ edition = "2018"
 
 [dependencies]
 smol_str = "0.1.17"
-rowan = "0.10.0"
 num-traits = "0.2"
 num-derive = "0.3"
 

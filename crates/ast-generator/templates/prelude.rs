@@ -2,7 +2,7 @@
 
 use crate::CSTNode;
 use common::{ModPath, ModulePath};
-use parser::{SyntaxToken, ParseResult};
+use parser::{Token, ParseResult};
 use smol_str::SmolStr;
-use syntax::{kind::SyntaxKind, language::GelixLang};
+use syntax::{kind::SyntaxKind};
 use std::rc::Rc;
