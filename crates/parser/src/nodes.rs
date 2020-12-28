@@ -55,7 +55,7 @@ impl NodeOrToken {
                 }
                 Ok(())
             }
-            NodeOrToken::Token(_) => writeln!(f, ".."),
+            NodeOrToken::Token(t) => writeln!(f, " {:?}", t.text),
         }
     }
 }
@@ -66,7 +66,7 @@ impl fmt::Debug for NodeOrToken {
     }
 }
 
-#[derive(Debug, Clone, Hash, Eq)]
+#[derive(Clone, Hash, Eq)]
 pub struct Node {
     children: Rc<Vec<NodeOrToken>>,
     kind: SyntaxKind,
@@ -114,6 +114,12 @@ impl Node {
             kind,
             span,
         }
+    }
+}
+
+impl fmt::Debug for Node {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        NodeOrToken::Node(self.clone()).debug_fmt(f, 0)
     }
 }
 
