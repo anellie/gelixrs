@@ -1,7 +1,8 @@
-use crate::{Node, NodeOrToken, Token};
+use crate::{Node, NodeOrToken, Token, NodeVec};
 use smol_str::SmolStr;
 use std::rc::Rc;
 use syntax::kind::SyntaxKind;
+use smallvec::SmallVec;
 
 #[repr(transparent)]
 pub struct NodeBuilder {
@@ -12,7 +13,7 @@ impl NodeBuilder {
     pub fn start_node(&mut self, kind: SyntaxKind) {
         let pos = self.nodes.last().map(|n| n.end).unwrap_or(0);
         self.nodes.push(WorkNode {
-            children: Vec::new(),
+            children: SmallVec::new(),
             kind,
             start: pos,
             end: pos,
@@ -36,7 +37,7 @@ impl NodeBuilder {
 
     pub fn start_node_at(&mut self, kind: SyntaxKind, loc: Checkpoint) {
         let parent = &mut self.nodes[loc.node - 1];
-        let mut children = Vec::with_capacity(parent.children.len() - loc.child_count);
+        let mut children: NodeVec = SmallVec::with_capacity(parent.children.len() - loc.child_count);
         for pop in self.nodes[loc.node - 1].children.drain(loc.child_count..) {
             children.push(pop);
         }
@@ -75,7 +76,7 @@ impl NodeBuilder {
     pub fn new() -> Self {
         Self {
             nodes: vec![WorkNode {
-                children: vec![],
+                children: SmallVec::new(),
                 kind: SyntaxKind::Root,
                 start: 0,
                 end: 0,
@@ -85,7 +86,7 @@ impl NodeBuilder {
 }
 
 struct WorkNode {
-    children: Vec<NodeOrToken>,
+    children: NodeVec,
     kind: SyntaxKind,
     start: u32,
     end: u32,

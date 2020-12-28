@@ -1,6 +1,7 @@
 use smol_str::SmolStr;
 use std::{fmt, fmt::Formatter, iter, ops::Range, rc::Rc};
 use syntax::kind::SyntaxKind;
+use smallvec::SmallVec;
 
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub enum NodeOrToken {
@@ -66,9 +67,11 @@ impl fmt::Debug for NodeOrToken {
     }
 }
 
+pub(crate) type NodeVec = SmallVec<[NodeOrToken; 5]>;
+
 #[derive(Clone, Hash, Eq)]
 pub struct Node {
-    children: Rc<Vec<NodeOrToken>>,
+    children: Rc<NodeVec>,
     kind: SyntaxKind,
     span: Range<u32>,
 }
@@ -108,7 +111,7 @@ impl Node {
         self.span.clone()
     }
 
-    pub fn new(children: Rc<Vec<NodeOrToken>>, kind: SyntaxKind, span: Range<u32>) -> Self {
+    pub fn new(children: Rc<NodeVec>, kind: SyntaxKind, span: Range<u32>) -> Self {
         Self {
             children,
             kind,
