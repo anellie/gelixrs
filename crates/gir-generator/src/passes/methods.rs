@@ -171,6 +171,7 @@ impl GIRGenerator {
         }
     }
 
+    #[allow(clippy::map_entry)] // False positive
     fn fill_impls_(&mut self, impls: MutRc<IFaceImpls>) {
         let mut impls = impls.borrow_mut();
 

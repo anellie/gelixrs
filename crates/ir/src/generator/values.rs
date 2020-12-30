@@ -13,22 +13,27 @@ use inkwell::{
 };
 use std::mem;
 
-use super::IRGenerator;
+use super::{type_adapter::IRType, IRGenerator};
+use crate::generator::{LLPtr, LLValue};
 
 impl IRGenerator {
     /// Force any type to be turned into a void pointer.
+    /// Used for interface implementors.
     pub(crate) fn coerce_to_void_ptr(&self, ty: BasicValueEnum) -> BasicValueEnum {
         let target = self.void_ptr();
         match ty {
             BasicValueEnum::PointerValue(ptr) => self.builder.build_bitcast(ptr, target, "bc"),
 
+            BasicValueEnum::IntValue(int) if int.get_type() == self.context.i64_type() => self
+                .builder
+                .build_int_to_ptr(int, target, "inttoptr")
+                .into(),
+
             BasicValueEnum::IntValue(int) => {
                 let num = self
                     .builder
                     .build_int_z_extend(int, self.context.i64_type(), "extend");
-                self.builder
-                    .build_int_to_ptr(num, target, "inttoptr")
-                    .into()
+                self.coerce_to_void_ptr(num.into())
             }
 
             BasicValueEnum::FloatValue(flt) => self.coerce_to_void_ptr(
@@ -45,68 +50,59 @@ impl IRGenerator {
     }
 
     /// Returns the IR pointer of the variable.
-    pub(crate) fn get_variable(&self, var: &Variable) -> PointerValue {
-        *self.variables.get(var).unwrap()
+    pub(crate) fn get_variable(&self, var: &Variable) -> &LLPtr {
+        self.variables.get(var).unwrap()
     }
 
     /// Write a set of values to a given struct.
-    pub(crate) fn write_struct<'a, T: Iterator<Item = &'a BasicValueEnum>>(
-        &mut self,
-        location: PointerValue,
-        values: T,
-    ) {
-        for (i, value) in values.enumerate() {
+    /// Starts at the first index until iterator is exhausted.
+    pub(crate) fn write_struct(&mut self, location: &LLPtr, values: &[BasicValueEnum]) {
+        for (i, value) in values.iter().enumerate() {
             let slot = self.struct_gep(location, i);
-            self.build_store(slot, *value, true);
+            self.builder.build_store(slot, *value);
         }
     }
 
     /// Loads a pointer, turning it into a value.
     /// Does not load structs or functions, since they are only ever used as pointers.
-    pub(crate) fn load_ptr(&self, ptr: PointerValue) -> BasicValueEnum {
-        match ptr.get_type().get_element_type() {
-            AnyTypeEnum::FunctionType(_) => BasicValueEnum::PointerValue(ptr),
-            AnyTypeEnum::StructType(str)
-                if str
-                    .get_name()
-                    .map_or(true, |n| !n.to_str().unwrap().starts_with("iface")) =>
-            {
-                ptr.into()
-            }
-            _ => self.builder.build_load(ptr, "var"),
-        }
+    pub(crate) fn load_ptr(&self, ptr: &LLPtr) -> LLValue {
+        self.load_ptr_(ptr, false)
     }
 
-    /// Similar to the function above, but with GIR type info.
-    /// This is sometimes required to prevent unintentionally loading
-    /// a value, for example when dealing with primitive pointers.
-    pub(crate) fn load_ptr_gir(
-        &self,
-        ptr: PointerValue,
-        mir_ty: &Type,
-        call: bool,
-    ) -> BasicValueEnum {
-        match (ptr.get_type().get_element_type(), mir_ty) {
-            (AnyTypeEnum::IntType(_), Type::RawPtr(_)) => ptr.into(),
-            (AnyTypeEnum::PointerType(inner), Type::RawPtr(_))
-                if inner.get_element_type().is_struct_type() =>
-            {
-                ptr.into()
-            }
-            (_, Type::Value(_)) if call => self.builder.build_load(ptr, "dvload"),
-            _ => self.load_ptr(ptr),
-        }
+    /// Loads a pointer, turning it into a value.
+    /// Does not load structs or functions, since they are only ever used as pointers.
+    /// `call` indicates that the value is going to be a function argument.
+    pub(crate) fn load_ptr_(&self, ptr: &LLPtr, call: bool) -> LLValue {
+        LLValue::cpy(
+            match (ptr.get_type().get_element_type(), &ptr.ty) {
+                (AnyTypeEnum::FunctionType(_), _) | (_, IRType::RawPtr) => (**ptr).into(),
+
+                (AnyTypeEnum::StructType(_), IRType::StrongRef(i))
+                | (AnyTypeEnum::StructType(_), IRType::WeakRef(i))
+                    if !i.ty.borrow().ty.ref_is_ptr() =>
+                {
+                    (**ptr).into()
+                }
+
+                (AnyTypeEnum::StructType(_), IRType::Value(_)) if !call => (**ptr).into(),
+
+                _ => self.builder.build_load(**ptr, "var"),
+            },
+            &ptr.ty,
+        )
     }
 
     /// Perform a struct GEP with some additional safety checks.
     /// The index will be offset by one should the struct contain a refcount field,
     /// so callers do not need to account for this.
-    pub(crate) fn struct_gep(&self, ptr: PointerValue, _index: usize) -> PointerValue {
-        assert!(ptr.get_type().get_element_type().is_struct_type());
-
+    pub(crate) fn struct_gep(&self, ptr: &LLPtr, index: usize) -> PointerValue {
         // Account for the reference count field, should it be present
-        let index = _index as u32 + self.get_struct_offset(ptr);
+        let index = index as u32 + self.get_struct_offset(ptr);
+        self.struct_gep_raw(**ptr, index)
+    }
 
+    pub(crate) fn struct_gep_raw(&self, ptr: PointerValue, index: u32) -> PointerValue {
+        assert!(ptr.get_type().get_element_type().is_struct_type());
         assert!(
             ptr.get_type()
                 .get_element_type()
@@ -114,27 +110,27 @@ impl IRGenerator {
                 .count_fields()
                 > index
         );
-
         unsafe { self.builder.build_struct_gep(ptr, index as u32, "gep") }
     }
 
-    pub(crate) fn get_type_info_field(&self, ptr: PointerValue) -> PointerValue {
+    pub(crate) fn get_type_info_field(&self, ptr: &LLPtr) -> PointerValue {
         unsafe {
             self.builder.build_struct_gep(
-                ptr,
-                Self::needs_gc(*ptr.get_type().get_element_type().as_struct_type()) as u32,
+                **ptr,
+                Self::refcount_before_tyinfo(&ptr.ty) as u32,
                 "gep",
             )
         }
     }
 
-    pub(crate) fn get_struct_offset(&self, ptr: PointerValue) -> u32 {
+    pub(crate) fn get_struct_offset(&self, ptr: &LLPtr) -> u32 {
+        // todo maybe get rid of remaining llvm type inspection in favor of gir
         let elem_ty = ptr.get_type().get_element_type();
         let struct_type = elem_ty.as_struct_type();
         let mut i = 0;
 
         // Account for the reference count field, should the struct be GCd
-        i += Self::needs_gc(*struct_type) as u32;
+        i += Self::refcount_before_tyinfo(&ptr.ty) as u32;
         // Account for the type info field, should it be present
         i += (struct_type.get_field_type_at_index(i)
             == Some(self.type_info_type.ptr_type(Generic).into())) as u32;
@@ -144,7 +140,12 @@ impl IRGenerator {
 
     /// Creates a new stack allocation instruction in the entry block of the function.
     /// The alloca is kept empty.
-    pub(crate) fn create_alloc(&mut self, ty: BasicTypeEnum, heap: bool) -> PointerValue {
+    pub(crate) fn create_alloc(
+        &mut self,
+        gir: Type,
+        ty: BasicTypeEnum,
+        heap: bool,
+    ) -> PointerValue {
         let builder = self.context.create_builder();
 
         let (builder, ptr) = if heap {
@@ -197,7 +198,7 @@ impl IRGenerator {
             }
 
             let ptr = builder.build_alloca(ty, "alloc");
-            self.local_allocs.last_mut().unwrap().push(ptr);
+            self.locals.last_mut().unwrap().push(LLPtr::from(ptr, &gir));
             (&builder, ptr)
         };
 
@@ -212,118 +213,69 @@ impl IRGenerator {
         ptr
     }
 
-    pub(crate) fn locals(&mut self) -> &mut Vec<(BasicValueEnum, bool)> {
+    pub(crate) fn locals(&mut self) -> &mut Vec<LLPtr> {
         self.locals.last_mut().unwrap()
     }
 
     pub(crate) fn push_local_scope(&mut self) {
         self.locals.push(Vec::with_capacity(5));
-        self.local_allocs.push(Vec::with_capacity(2))
     }
 
     pub(crate) fn pop_dec_locals(&mut self) {
         let locals = self.locals.pop().unwrap();
         self.decrement_locals(&locals);
-        let local_allocs = self.local_allocs.pop().unwrap();
-        self.kill_local_allocs(&local_allocs);
     }
 
-    pub(crate) fn pop_locals_lift(&mut self, lift: BasicValueEnum) {
-        let locals = self.locals.pop().unwrap();
+    pub(crate) fn pop_locals_lift(&mut self, lift: &LLValue) {
+        let mut locals = self.locals.pop().unwrap();
 
-        if !locals.is_empty() {
-            self.increment_refcount(lift, false);
-            self.locals().push((lift, false));
+        if !locals.is_empty() && lift.try_ptr().is_some() {
+            let index = locals.iter().position(|l| **l == **lift).unwrap();
+            locals.swap_remove(index);
+            self.increment_refcount(&lift);
+            self.locals().push(lift.try_ptr().unwrap());
         }
 
         self.decrement_locals(&locals);
-
-        let local_allocs = self.local_allocs.pop().unwrap();
-        self.kill_local_allocs(&local_allocs);
     }
 
-    pub(crate) fn pop_locals_remove(&mut self, lift: BasicValueEnum) {
+    pub(crate) fn pop_locals_remove(&mut self, lift: LLPtr) {
         let locals = self.locals.pop().unwrap();
-        self.increment_refcount(lift, false);
+        self.increment_refcount(&lift.val());
         self.decrement_locals(&locals);
-
-        let local_allocs = self.local_allocs.pop().unwrap();
-        self.kill_local_allocs(&local_allocs);
     }
 
     pub(crate) fn decrement_all_locals(&mut self) {
         // Work around borrowck being a pain
         let locals = mem::replace(&mut self.locals, vec![]);
-        let local_allocs = mem::replace(&mut self.local_allocs, vec![]);
 
         for allocs in &locals {
             self.decrement_locals(&allocs);
         }
         self.locals = locals;
-
-        for allocs in &local_allocs {
-            self.kill_local_allocs(&allocs);
-        }
-        self.local_allocs = local_allocs;
     }
 
-    fn decrement_locals(&mut self, locals: &[(BasicValueEnum, bool)]) {
+    fn decrement_locals(&mut self, locals: &[LLPtr]) {
         if self.builder.get_insert_block().is_some() {
-            for (local, is_ptr) in locals {
-                self.decrement_refcount(*local, *is_ptr);
+            for local in locals {
+                self.free_local(local);
             }
         }
     }
 
-    fn kill_local_allocs(&mut self, local_allocs: &[PointerValue]) {
-        if self.builder.get_insert_block().is_some() {
-            for local in local_allocs {
-                self.build_free(*local);
-            }
-        }
-    }
-
-    fn build_free(&mut self, ptr: PointerValue) -> Option<()> {
+    fn free_local(&mut self, ptr: &LLPtr) -> Option<()> {
         let value = self.load_ptr(ptr);
-        let inst = self
-            .types_bw
-            .get(
-                ptr.get_type()
-                    .get_element_type()
-                    .as_struct_type()
-                    .get_name()
-                    .unwrap()
-                    .to_str()
-                    .unwrap(),
-            )?
-            .clone();
 
-        match inst {
-            Type::StrongRef(ref adt) if adt.ty.borrow().ty.is_interface() => {
-                self.mod_refcount_iface(value.into_struct_value(), true);
-            }
+        match ptr.ty {
+            IRType::StrongRef(_) => self.decrement_refcount(&ptr.val()),
 
-            Type::StrongRef(ref adt) => {
-                let method = adt.try_get_method("free-sr")?;
-                let ir = self
-                    .get_or_create(&method)
-                    .as_global_value()
-                    .as_pointer_value();
-
-                self.builder.build_call(
-                    ir,
-                    &[value, self.context.bool_type().const_int(1, false).into()],
-                    "free",
-                );
-            }
-
-            Type::WeakRef(ref adt) => {
+            IRType::WeakRef(ref adt) => {
                 let method = adt.try_get_method("free-wr")?;
                 let ir = self
                     .get_or_create(&method)
                     .as_global_value()
                     .as_pointer_value();
-                self.builder.build_call(ir, &[value], "free");
+                self.builder.build_call(ir, &[*value], "free");
             }
 
             // Primitive, simply calling free is enough since it must be a raw pointer
@@ -332,27 +284,32 @@ impl IRGenerator {
         None
     }
 
-    pub(crate) fn build_phi(&mut self, nodes: &[(BasicValueEnum, BasicBlock)]) -> BasicValueEnum {
+    pub(crate) fn build_phi(&mut self, nodes: &[(LLValue, BasicBlock)]) -> BasicValueEnum {
         let nodes = nodes
             .iter()
-            .filter(|(v, _)| v.get_type() != self.none_const.get_type())
+            .filter(|(v, _)| matches!(v.ty, IRType::None))
             .collect::<Vec<_>>();
 
         match nodes.len() {
-            0 => self.none_const,
+            0 => *self.none_const,
             1 => {
-                self.locals().push((nodes[0].0, false));
-                nodes[0].0
+                if let Some(p) = nodes[0].0.try_ptr() {
+                    self.locals().push(p)
+                }
+                *(nodes[0].0)
             }
             _ => {
-                let ty = nodes[0].0.get_type();
-                let nodes = nodes
+                let ty = (nodes[0].0).get_type();
+                let phi_nodes = nodes
                     .iter()
-                    .map(|(v, b)| (v as &dyn BasicValue, b))
+                    .map(|(v, b)| (&**v as &dyn BasicValue, b))
                     .collect::<Vec<_>>();
                 let phi = self.builder.build_phi(ty, "phi");
-                phi.add_incoming(&nodes);
-                self.locals().push((phi.as_basic_value(), false));
+                phi.add_incoming(&phi_nodes);
+                let phi_ll = LLValue::cpy(phi.as_basic_value(), &(nodes[0].0).ty);
+                if let Some(p) = phi_ll.try_ptr() {
+                    self.locals().push(p)
+                }
                 phi.as_basic_value()
             }
         }

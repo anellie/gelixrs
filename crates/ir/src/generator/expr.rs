@@ -9,22 +9,22 @@ use gir_nodes::{
 use inkwell::{
     basic_block::BasicBlock,
     types::{BasicTypeEnum, StructType},
-    values::{BasicValueEnum, IntValue, PointerValue},
+    values::{BasicValueEnum, PointerValue},
     FloatPredicate, IntPredicate,
 };
 use std::mem;
 use syntax::kind::SyntaxKind;
 
-use super::{IRGenerator, LoopData};
+use super::{type_adapter::IRType, IRGenerator, LLPtr, LLValue, LoopData};
 
 impl IRGenerator {
-    pub(crate) fn expression(&mut self, expr: &Expr) -> BasicValueEnum {
+    pub(crate) fn expression(&mut self, expr: &Expr) -> LLValue {
         self.expression_(expr, false)
     }
 
-    pub(crate) fn expression_(&mut self, expr: &Expr, no_load: bool) -> BasicValueEnum {
+    pub(crate) fn expression_(&mut self, expr: &Expr, no_load: bool) -> LLValue {
         if self.builder.get_insert_block().is_none() {
-            return self.none_const;
+            return self.none_const.clone();
         }
 
         match expr {
@@ -32,8 +32,8 @@ impl IRGenerator {
                 self.push_local_scope();
                 let ret = block
                     .iter()
-                    .fold(self.none_const, |_, ex| self.expression(ex));
-                self.pop_locals_lift(ret);
+                    .fold(self.none_const.clone(), |_, ex| self.expression(ex));
+                self.pop_locals_lift(&ret);
                 ret
             }
 
@@ -47,26 +47,24 @@ impl IRGenerator {
             } => self.allocate(ty, constructor, args),
 
             Expr::Variable(var) => match var {
-                Variable::Local(_) if no_load => self.get_variable(var).into(),
-                Variable::Local(_) => self.load_ptr_gir(
-                    self.get_variable(var),
-                    &self.maybe_unwrap_var(&var.get_type()),
-                    false,
+                Variable::Local(_) if no_load => self.get_variable(var).val(),
+                Variable::Local(_) => self.load_ptr(self.get_variable(var)),
+                Variable::Function(func) => LLValue::cpy(
+                    self.get_or_create(func)
+                        .as_global_value()
+                        .as_pointer_value()
+                        .into(),
+                    &IRType::Other,
                 ),
-                Variable::Function(func) => self
-                    .get_or_create(func)
-                    .as_global_value()
-                    .as_pointer_value()
-                    .into(),
             },
 
             Expr::Load { object, field } => {
                 let obj = self.expression(object);
-                let ptr = self.struct_gep(obj.into_pointer_value(), field.index);
+                let ptr = self.struct_gep(&obj.into_ptr(), field.index);
                 if no_load {
-                    ptr.into()
+                    LLValue::from(ptr.into(), &field.ty)
                 } else {
-                    self.load_ptr_gir(ptr, &field.ty, false)
+                    self.load_ptr(&LLPtr::from(ptr, &field.ty))
                 }
             }
 
@@ -75,11 +73,11 @@ impl IRGenerator {
                 value,
                 first_store,
             } => {
-                let store = self.expression_(location, true);
+                let store = self.expression_(location, true).into_ptr();
                 let value = self.expression(value);
-                self.build_store(store.into_pointer_value(), value, *first_store);
+                self.build_store(&store, &value, *first_store);
                 if *first_store && !location.is_struct_get() {
-                    self.locals().push((store, true))
+                    self.locals().push(store)
                 }
 
                 value
@@ -92,7 +90,7 @@ impl IRGenerator {
             } => {
                 let left = self.expression(left);
                 if *operator == SyntaxKind::Is {
-                    self.binary_is(left, &right.get_type_get_type()).into()
+                    self.binary_is(left, &right.get_type_get_type())
                 } else {
                     let right = self.expression(right);
                     self.binary(left, *operator, right)
@@ -102,8 +100,8 @@ impl IRGenerator {
             Expr::Unary { operator, right } => self.unary(right, *operator),
 
             Expr::Call { callee, arguments } => {
-                let callee = self.expression(callee);
-                self.build_call(callee.into_pointer_value(), arguments.iter())
+                let ir_callee = self.expression(callee);
+                self.build_call(ir_callee.into_pointer_value(), callee.get_type(), arguments)
             }
 
             Expr::If {
@@ -140,22 +138,22 @@ impl IRGenerator {
                 self.builder
                     .build_unconditional_branch(&self.loop_data.as_ref().unwrap().end_block);
                 self.builder.clear_insertion_position();
-                self.none_const
+                self.none_const.clone()
             }
 
             Expr::Return(value) => {
                 let value = self.expression(value);
-                self.increment_refcount(value, false);
+                self.increment_refcount(&value);
                 self.decrement_all_locals();
 
-                if value.get_type() == self.none_const.get_type() {
+                if matches!(value.ty, IRType::None) {
                     self.builder.build_return(None);
                 } else {
-                    self.builder.build_return(Some(&value));
+                    self.builder.build_return(Some(&*value));
                 }
 
                 self.builder.clear_insertion_position();
-                self.none_const
+                self.none_const.clone()
             }
 
             Expr::Cast { inner, to, method } => self.cast(inner, to, method),
@@ -173,7 +171,7 @@ impl IRGenerator {
         ty: &Type,
         constructor: &MutRc<Function>,
         constructor_args: &[Expr],
-    ) -> BasicValueEnum {
+    ) -> LLValue {
         let args = constructor_args
             .iter()
             .map(|a| self.expression(a))
@@ -185,10 +183,10 @@ impl IRGenerator {
         &mut self,
         ty: &Type,
         constructor: &MutRc<Function>,
-        constructor_args: Vec<BasicValueEnum>,
-    ) -> BasicValueEnum {
+        constructor_args: Vec<LLValue>,
+    ) -> LLValue {
         let (ir_ty, tyinfo) = self.ir_ty_raw(ty);
-        let alloc = self.create_alloc(ir_ty, ty.is_strong_ref());
+        let alloc = self.create_alloc(ty.clone(), ir_ty, ty.is_strong_ref());
 
         let adt = ty.try_adt().unwrap();
         let constructor = self.get_or_create(&Instance::new(
@@ -200,9 +198,10 @@ impl IRGenerator {
             .as_global_value()
             .as_pointer_value();
 
-        self.maybe_init_type_info(&adt.ty, alloc, tyinfo);
+        let llptr = LLPtr::from(alloc, &ty);
+        self.maybe_init_type_info(&adt.ty, &llptr, tyinfo);
         self.build_alloc_and_init(
-            alloc,
+            llptr,
             ty,
             instantiator,
             constructor.as_global_value().as_pointer_value(),
@@ -210,12 +209,7 @@ impl IRGenerator {
         )
     }
 
-    fn maybe_init_type_info(
-        &mut self,
-        ty: &MutRc<ADT>,
-        alloc: PointerValue,
-        info: Option<PointerValue>,
-    ) {
+    fn maybe_init_type_info(&mut self, ty: &MutRc<ADT>, alloc: &LLPtr, info: Option<PointerValue>) {
         if ty.borrow().ty.ref_is_ptr() && !ty.borrow().ty.is_extern_class() {
             let gep = self.get_type_info_field(alloc);
             self.builder.build_store(gep, info.unwrap());
@@ -224,43 +218,40 @@ impl IRGenerator {
 
     fn build_alloc_and_init(
         &mut self,
-        alloc: PointerValue,
+        alloc: LLPtr,
         ty: &Type,
         instantiator: PointerValue,
         constructor: PointerValue,
-        mut arguments: Vec<BasicValueEnum>,
-    ) -> BasicValueEnum {
+        mut arguments: Vec<LLValue>,
+    ) -> LLValue {
         let ptr = if let Type::StrongRef(ty) = ty {
-            self.cast_sr_to_wr(alloc, &Type::WeakRef(ty.clone()))
-                .into_pointer_value()
+            self.increment_refcount(&alloc.val());
+            self.cast_sr_to_wr(&alloc, &Type::WeakRef(ty.clone()))
+                .into_ptr()
         } else {
-            alloc
+            alloc.clone()
         };
 
-        self.increment_refcount(alloc.into(), true);
-        self.builder.build_call(instantiator, &[ptr.into()], "inst");
+        self.builder
+            .build_call(instantiator, &[(*ptr).into()], "inst");
 
         for arg in &arguments {
-            self.increment_refcount(*arg, false);
+            self.increment_refcount(&arg);
         }
-        arguments.insert(0, ptr.into());
-        self.builder.build_call(constructor, &arguments, "constr");
+        arguments.insert(0, ptr.val());
+        let ll_args = arguments.iter().map(|a| **a).collect::<Vec<_>>();
+        self.builder.build_call(constructor, &ll_args, "constr");
         for arg in arguments.iter().skip(1) {
-            self.decrement_refcount(*arg, false);
+            self.decrement_refcount(&arg);
         }
 
-        self.locals().push((alloc.into(), true));
-        alloc.into()
+        self.locals().push(ptr);
+        alloc.into_val()
     }
 
-    fn binary(
-        &self,
-        left: BasicValueEnum,
-        operator: SyntaxKind,
-        right: BasicValueEnum,
-    ) -> BasicValueEnum {
-        match (left, right) {
-            (BasicValueEnum::IntValue(left), BasicValueEnum::IntValue(right)) => {
+    fn binary(&self, left_: LLValue, operator: SyntaxKind, right_: LLValue) -> LLValue {
+        match (*left_, *right_) {
+            (BasicValueEnum::IntValue(left), BasicValueEnum::IntValue(right)) => LLValue::cpy(
                 BasicValueEnum::IntValue(match operator {
                     SyntaxKind::Plus => self.builder.build_int_add(left, right, "add"),
                     SyntaxKind::Minus => self.builder.build_int_sub(left, right, "sub"),
@@ -268,124 +259,143 @@ impl IRGenerator {
                     SyntaxKind::Slash => self.builder.build_int_signed_div(left, right, "div"),
                     SyntaxKind::And => self.builder.build_and(left, right, "and"),
                     SyntaxKind::Or => self.builder.build_or(left, right, "or"),
-                    _ => {
-                        self.builder
-                            .build_int_compare(get_predicate(operator), left, right, "cmp")
-                    }
-                })
-            }
+                    _ => self
+                        .builder
+                        .build_int_compare(get_predicate(operator), left, right, "cmp")
+                }),
+                &left_.ty,
+            ),
 
-            (BasicValueEnum::FloatValue(left), BasicValueEnum::FloatValue(right)) => {
-                BasicValueEnum::FloatValue(match operator {
-                    SyntaxKind::Plus => self.builder.build_float_add(left, right, "add"),
-                    SyntaxKind::Minus => self.builder.build_float_sub(left, right, "sub"),
-                    SyntaxKind::Star => self.builder.build_float_mul(left, right, "mul"),
-                    SyntaxKind::Slash => self.builder.build_float_div(left, right, "div"),
-                    _ => {
-                        return BasicValueEnum::IntValue(self.builder.build_float_compare(
-                            get_float_predicate(operator),
-                            left,
-                            right,
-                            "cmp",
-                        ))
-                    }
-                })
-            }
+            (BasicValueEnum::FloatValue(left), BasicValueEnum::FloatValue(right)) => LLValue::cpy(
+                match operator {
+                    SyntaxKind::Plus => self.builder.build_float_add(left, right, "add").into(),
+                    SyntaxKind::Minus => self.builder.build_float_sub(left, right, "sub").into(),
+                    SyntaxKind::Star => self.builder.build_float_mul(left, right, "mul").into(),
+                    SyntaxKind::Slash => self.builder.build_float_div(left, right, "div").into(),
+                    _ => self
+                        .builder
+                        .build_float_compare(get_float_predicate(operator), left, right, "cmp")
+                        .into(),
+                },
+                &left_.ty,
+            ),
 
             // One of the operators is `Any`, so it will branch away; return whatever
-            _ => self.context.bool_type().const_int(0, false).into(),
+            _ => LLValue::cpy(
+                self.context.bool_type().const_int(0, false).into(),
+                &IRType::Other,
+            ),
         }
     }
 
-    fn binary_is(&mut self, left: BasicValueEnum, right: &Type) -> IntValue {
+    fn binary_is(&mut self, left: LLValue, right: &Type) -> LLValue {
         let ty_info_ptr = self.ir_ty_info(right).unwrap();
-        let left_ptr = self.get_type_info_field(left.into_pointer_value());
-        let left_ptr = self.load_ptr(left_ptr).into_pointer_value();
+        let left_ptr = self.get_type_info_field(&left.ptr());
+        let left_ptr = self.load_ptr(&LLPtr::cpy(left_ptr, &left.ty));
 
-        let left_int = self
-            .builder
-            .build_ptr_to_int(left_ptr, self.context.i64_type(), "conv");
+        let left_int = self.builder.build_ptr_to_int(
+            left_ptr.into_pointer_value(),
+            self.context.i64_type(),
+            "conv",
+        );
         let right_int = self
             .builder
             .build_ptr_to_int(ty_info_ptr, self.context.i64_type(), "conv");
-        self.builder
-            .build_int_compare(IntPredicate::EQ, left_int, right_int, "ident")
+        LLValue::cpy(
+            self.builder
+                .build_int_compare(IntPredicate::EQ, left_int, right_int, "ident")
+                .into(),
+            &IRType::Other,
+        )
     }
 
-    fn build_call<'a, T: Iterator<Item = &'a Expr>>(
-        &mut self,
-        ptr: PointerValue,
-        arguments: T,
-    ) -> BasicValueEnum {
-        let arguments: Vec<_> = arguments.map(|a| self.expression(a)).collect();
-
-        for arg in &arguments {
-            self.increment_refcount(*arg, false);
-        }
+    fn build_call(&mut self, callee: PointerValue, ret_type: Type, arguments: &[Expr]) -> LLValue {
+        let (ir_args, arg_tys): (Vec<_>, Vec<_>) = arguments
+            .iter()
+            .map(|a| {
+                let arg = self.expression(a);
+                self.increment_refcount(&arg);
+                (*arg, arg.ty)
+            })
+            .unzip();
 
         let ret = self
             .builder
-            .build_call(ptr, &arguments, "call")
+            .build_call(callee, &ir_args, "call")
             .try_as_basic_value();
-        let ret = ret.left().unwrap_or(self.none_const);
-        self.locals().push((ret, false));
-
-        for arg in &arguments {
-            self.decrement_refcount(*arg, false);
+        let ret = ret.left().unwrap_or(*self.none_const);
+        if ret_type.is_ptr() {
+            self.locals()
+                .push(LLPtr::from(ret.into_pointer_value(), &ret_type));
         }
 
-        ret
-    }
-
-    fn literal(&mut self, literal: &Literal) -> BasicValueEnum {
-        match literal {
-            Literal::Any | Literal::None => self.none_const,
-            Literal::Bool(value) => self
-                .context
-                .bool_type()
-                .const_int(*value as u64, false)
-                .into(),
-
-            Literal::I8(num) | Literal::U8(num) => {
-                self.context.i8_type().const_int(*num as u64, false).into()
-            }
-            Literal::I16(num) | Literal::U16(num) => {
-                self.context.i16_type().const_int(*num as u64, false).into()
-            }
-            Literal::I32(num) | Literal::U32(num) => {
-                self.context.i32_type().const_int(*num as u64, false).into()
-            }
-            Literal::I64(num) | Literal::U64(num) => {
-                self.context.i64_type().const_int(*num as u64, false).into()
-            }
-
-            Literal::F32(num) => self.context.f32_type().const_float((*num).into()).into(),
-            Literal::F64(num) => self.context.f64_type().const_float(*num).into(),
-
-            Literal::String {
-                text: string,
-                ty: string_ty,
-            } => {
-                let const_str = self.builder.build_global_string_ptr(&string, "str");
-                let constructor = Rc::clone(&string_ty.as_strong_ref().ty.borrow().constructors[1]);
-
-                self.allocate_raw_args(
-                    &string_ty,
-                    &constructor,
-                    vec![
-                        self.context
-                            .i64_type()
-                            .const_int((string.len() + 1) as u64, false)
-                            .into(),
-                        self.context.i64_type().const_int(0, false).into(),
-                        const_str.as_pointer_value().into(),
-                    ],
-                )
-            }
+        for (arg, ty) in ir_args.iter().zip(arg_tys.iter()) {
+            self.decrement_refcount(&LLValue::cpy(*arg, ty));
         }
+
+        LLValue::from(ret, &ret_type)
     }
 
-    fn if_(&mut self, cond: &Expr, then: &Expr, else_: &Expr, phi: bool) -> BasicValueEnum {
+    fn literal(&mut self, literal: &Literal) -> LLValue {
+        let ty = literal.get_type();
+        LLValue::from(
+            match literal {
+                Literal::Any | Literal::None => *self.none_const,
+                Literal::Bool(value) => self
+                    .context
+                    .bool_type()
+                    .const_int(*value as u64, false)
+                    .into(),
+
+                Literal::I8(num) | Literal::U8(num) => {
+                    self.context.i8_type().const_int(*num as u64, false).into()
+                }
+                Literal::I16(num) | Literal::U16(num) => {
+                    self.context.i16_type().const_int(*num as u64, false).into()
+                }
+                Literal::I32(num) | Literal::U32(num) => {
+                    self.context.i32_type().const_int(*num as u64, false).into()
+                }
+                Literal::I64(num) | Literal::U64(num) => {
+                    self.context.i64_type().const_int(*num as u64, false).into()
+                }
+
+                Literal::F32(num) => self.context.f32_type().const_float((*num).into()).into(),
+                Literal::F64(num) => self.context.f64_type().const_float(*num).into(),
+
+                Literal::String {
+                    text: string,
+                    ty: string_ty,
+                } => {
+                    let const_str = self.builder.build_global_string_ptr(&string, "str");
+                    let constructor =
+                        Rc::clone(&string_ty.as_strong_ref().ty.borrow().constructors[1]);
+
+                    return self.allocate_raw_args(
+                        &string_ty,
+                        &constructor,
+                        vec![
+                            LLValue::cpy(
+                                self.context
+                                    .i64_type()
+                                    .const_int((string.len() + 1) as u64, false)
+                                    .into(),
+                                &IRType::Other,
+                            ),
+                            LLValue::cpy(
+                                self.context.i64_type().const_int(0, false).into(),
+                                &IRType::Other,
+                            ),
+                            LLValue::cpy(const_str.as_pointer_value().into(), &IRType::Other),
+                        ],
+                    );
+                }
+            },
+            &ty,
+        )
+    }
+
+    fn if_(&mut self, cond: &Expr, then: &Expr, else_: &Expr, phi: bool) -> LLValue {
         let cond = self.expression(cond);
         let then_bb = self.append_block("then");
         let else_bb = self.append_block("else");
@@ -400,7 +410,7 @@ impl IRGenerator {
             let val = self.expression(expr);
             let bb = self.last_block();
             if phi {
-                self.pop_locals_remove(val);
+                self.pop_locals_remove(val.ptr());
             } else {
                 self.pop_dec_locals()
             }
@@ -413,13 +423,16 @@ impl IRGenerator {
 
         self.position_at_block(cont_bb);
         if phi {
-            self.build_phi(&[(then_val, then_bb), (else_val, else_bb)])
+            LLValue::from(
+                self.build_phi(&[(then_val, then_bb), (else_val, else_bb)]),
+                &then.get_type(),
+            )
         } else {
-            self.none_const
+            self.none_const.clone()
         }
     }
 
-    fn switch(&mut self, cases: &[(Expr, Expr)], else_: &Expr, phi: bool) -> BasicValueEnum {
+    fn switch(&mut self, cases: &[(Expr, Expr)], else_: &Expr, phi: bool) -> LLValue {
         let cond = self.context.bool_type().const_int(1, false);
         let end_bb = self.append_block("when-end");
 
@@ -441,7 +454,7 @@ impl IRGenerator {
             self.push_local_scope();
             let value = self.expression(branch);
             if phi {
-                self.pop_locals_remove(value)
+                self.pop_locals_remove(value.ptr())
             } else {
                 self.pop_dec_locals()
             };
@@ -458,7 +471,7 @@ impl IRGenerator {
         self.push_local_scope();
         let else_val = self.expression(else_);
         if phi {
-            self.pop_locals_remove(else_val)
+            self.pop_locals_remove(else_val.ptr())
         } else {
             self.pop_dec_locals()
         };
@@ -468,9 +481,9 @@ impl IRGenerator {
 
         self.position_at_block(end_bb);
         if phi {
-            self.build_phi(&phi_nodes)
+            LLValue::from(self.build_phi(&phi_nodes), &else_.get_type())
         } else {
-            self.none_const
+            self.none_const.clone()
         }
     }
 
@@ -480,7 +493,7 @@ impl IRGenerator {
         body: &Expr,
         else_: &Expr,
         phi_type: &Option<Type>,
-    ) -> BasicValueEnum {
+    ) -> LLValue {
         let loop_bb = self.append_block("for-loop");
         let else_bb = self.append_block("for-else");
         let cont_bb = self.append_block("for-cont");
@@ -499,7 +512,10 @@ impl IRGenerator {
 
         let result_store = phi_type.as_ref().map(|ty| {
             let alloc_ty = self.ir_ty_allocs(ty);
-            self.builder.build_alloca(alloc_ty, "loop-result-store")
+            LLPtr::from(
+                self.builder.build_alloca(alloc_ty, "loop-result-store"),
+                &ty.clone(),
+            )
         });
 
         let cond = self.expression(condition).into_int_value();
@@ -510,12 +526,12 @@ impl IRGenerator {
         self.push_local_scope();
         let body = self.expression(body);
         let loop_end_bb = self.last_block();
-        if let Some(result_store) = result_store {
-            self.build_store(result_store, body, false);
+        if let Some(result_store) = &result_store {
+            self.build_store(result_store, &body, false);
         }
         self.pop_dec_locals();
         let cond = self.expression(condition).into_int_value();
-        let phi_node = if let Some(result_store) = result_store {
+        let phi_node = if let Some(result_store) = &result_store {
             Some(self.load_ptr(result_store))
         } else {
             None
@@ -532,107 +548,109 @@ impl IRGenerator {
 
         self.position_at_block(cont_bb);
         let loop_data = mem::replace(&mut self.loop_data, prev_loop).unwrap();
-        if result_store.is_some() {
+        if let Some(result_store) = result_store {
             let mut phi_nodes = loop_data.phi_nodes.unwrap();
             phi_nodes.push((phi_node.unwrap(), loop_end_bb));
             phi_nodes.push((else_val, else_bb));
-            self.build_phi(&phi_nodes)
+            let phi_nodes: Vec<_> = phi_nodes.iter().map(|n| (n.0.clone(), n.1)).collect();
+            LLValue::cpy(self.build_phi(&phi_nodes), &result_store.ty)
         } else {
-            self.none_const
+            self.none_const.clone()
         }
     }
 
-    fn cast(&mut self, object: &Expr, to: &Type, method: &CastType) -> BasicValueEnum {
+    fn cast(&mut self, object: &Expr, to: &Type, method: &CastType) -> LLValue {
         match method {
             CastType::ToInterface(implementor) => self.cast_to_interface(object, implementor, to),
 
             CastType::Bitcast => {
                 let obj = self.expression(object);
                 let cast_ty = self.ir_ty_generic(to);
-                self.builder.build_bitcast(obj, cast_ty, "cast")
+                LLValue::from(self.builder.build_bitcast(*obj, cast_ty, "cast"), to)
             }
 
             CastType::Number => {
                 let obj = self.expression(object);
                 let cast_ty = self.ir_ty_generic(to);
 
-                match (obj.get_type(), cast_ty, to.is_signed_int()) {
-                    (BasicTypeEnum::IntType(_), BasicTypeEnum::IntType(ty), _) => self
-                        .builder
-                        .build_int_cast(obj.into_int_value(), ty, "cast")
-                        .into(),
-                    (BasicTypeEnum::FloatType(_), BasicTypeEnum::FloatType(ty), _) => self
-                        .builder
-                        .build_float_cast(obj.into_float_value(), ty, "cast")
-                        .into(),
-                    (BasicTypeEnum::FloatType(_), BasicTypeEnum::IntType(ty), true) => self
-                        .builder
-                        .build_float_to_signed_int(obj.into_float_value(), ty, "cast")
-                        .into(),
-                    (BasicTypeEnum::FloatType(_), BasicTypeEnum::IntType(ty), false) => self
-                        .builder
-                        .build_float_to_unsigned_int(obj.into_float_value(), ty, "cast")
-                        .into(),
+                LLValue::from(
+                    match (obj.get_type(), cast_ty, to.is_signed_int()) {
+                        (BasicTypeEnum::IntType(_), BasicTypeEnum::IntType(ty), _) => self
+                            .builder
+                            .build_int_cast(obj.into_int_value(), ty, "cast")
+                            .into(),
+                        (BasicTypeEnum::FloatType(_), BasicTypeEnum::FloatType(ty), _) => self
+                            .builder
+                            .build_float_cast(obj.into_float_value(), ty, "cast")
+                            .into(),
+                        (BasicTypeEnum::FloatType(_), BasicTypeEnum::IntType(ty), true) => self
+                            .builder
+                            .build_float_to_signed_int(obj.into_float_value(), ty, "cast")
+                            .into(),
+                        (BasicTypeEnum::FloatType(_), BasicTypeEnum::IntType(ty), false) => self
+                            .builder
+                            .build_float_to_unsigned_int(obj.into_float_value(), ty, "cast")
+                            .into(),
 
-                    (BasicTypeEnum::IntType(_), BasicTypeEnum::FloatType(ty), true) => self
-                        .builder
-                        .build_signed_int_to_float(obj.into_int_value(), ty, "cast")
-                        .into(),
-                    (BasicTypeEnum::IntType(_), BasicTypeEnum::FloatType(ty), false) => self
-                        .builder
-                        .build_unsigned_int_to_float(obj.into_int_value(), ty, "cast")
-                        .into(),
+                        (BasicTypeEnum::IntType(_), BasicTypeEnum::FloatType(ty), true) => self
+                            .builder
+                            .build_signed_int_to_float(obj.into_int_value(), ty, "cast")
+                            .into(),
+                        (BasicTypeEnum::IntType(_), BasicTypeEnum::FloatType(ty), false) => self
+                            .builder
+                            .build_unsigned_int_to_float(obj.into_int_value(), ty, "cast")
+                            .into(),
 
-                    _ => panic!(),
-                }
+                        _ => panic!(),
+                    },
+                    to,
+                )
             }
 
             CastType::ToValue => {
                 let ptr = self.expression(object).into_pointer_value();
-                self.load_ptr_gir(ptr, to, true)
+                LLValue::from(self.builder.build_load(ptr, "vload"), to)
             }
 
             CastType::StrongToWeak => {
-                let ptr = self.expression(object).into_pointer_value();
-                self.cast_sr_to_wr(ptr, to)
+                let ptr = self.expression(object);
+                self.cast_sr_to_wr(&ptr.into_ptr(), to)
             }
         }
     }
 
-    fn unary(&mut self, right: &Expr, operator: SyntaxKind) -> BasicValueEnum {
+    fn unary(&mut self, right: &Expr, operator: SyntaxKind) -> LLValue {
         let expr = self.expression(right);
-        match expr {
-            BasicValueEnum::IntValue(int) => match operator {
-                SyntaxKind::Bang => self.builder.build_not(int, "unarynot"),
-                SyntaxKind::Minus => self.builder.build_int_neg(int, "unaryneg"),
+        LLValue::cpy(
+            match *expr {
+                BasicValueEnum::IntValue(int) => match operator {
+                    SyntaxKind::Bang => self.builder.build_not(int, "unarynot"),
+                    SyntaxKind::Minus => self.builder.build_int_neg(int, "unaryneg"),
+                    _ => panic!("Invalid unary operator"),
+                }
+                .into(),
+
+                BasicValueEnum::FloatValue(float) => {
+                    self.builder.build_float_neg(float, "unaryneg").into()
+                }
+
                 _ => panic!("Invalid unary operator"),
-            }
-            .into(),
-
-            BasicValueEnum::FloatValue(float) => {
-                self.builder.build_float_neg(float, "unaryneg").into()
-            }
-
-            _ => panic!("Invalid unary operator"),
-        }
+            },
+            &expr.ty,
+        )
     }
 
-    pub(crate) fn cast_sr_to_wr(&mut self, sr: PointerValue, wr_ty: &Type) -> BasicValueEnum {
+    pub(crate) fn cast_sr_to_wr(&mut self, sr: &LLPtr, wr_ty: &Type) -> LLValue {
         if wr_ty.try_adt().unwrap().ty.borrow().ty.is_extern_class() {
-            return sr.into();
+            return sr.val();
         }
 
         let to = self.ir_ty_generic(wr_ty);
-        let gep = unsafe { self.builder.build_struct_gep(sr, 1, "srwrgep") };
-        self.builder.build_bitcast(gep, to, "wrcast")
+        let gep = unsafe { self.builder.build_struct_gep(**sr, 1, "srwrgep") };
+        LLValue::from(self.builder.build_bitcast(gep, to, "wrcast"), wr_ty)
     }
 
-    fn cast_to_interface(
-        &mut self,
-        object: &Expr,
-        implementor: &Type,
-        to: &Type,
-    ) -> BasicValueEnum {
+    fn cast_to_interface(&mut self, object: &Expr, implementor: &Type, to: &Type) -> LLValue {
         let obj = self.expression(object);
         let iface_ty = self.ir_ty_generic(to).into_struct_type();
         let vtable_ty = iface_ty.get_field_types()[1]
@@ -641,9 +659,9 @@ impl IRGenerator {
             .into_struct_type();
 
         let vtable = self.get_vtable(implementor, to, vtable_ty);
-        let store = self.create_alloc(iface_ty.into(), false);
-        self.write_struct(store, [self.coerce_to_void_ptr(obj), vtable].iter());
-        self.builder.build_load(store, "ifaceload")
+        let store = LLPtr::from(self.create_alloc(to.clone(), iface_ty.into(), false), &to);
+        self.write_struct(&store, &[self.coerce_to_void_ptr(*obj), vtable]);
+        LLValue::from(self.builder.build_load(*store, "ifaceload"), to)
     }
 
     /// Returns the vtable of the interface implementor given.
@@ -698,16 +716,16 @@ impl IRGenerator {
         }
     }
 
-    pub(crate) fn intrinsic(&mut self, int: &Intrinsic) -> BasicValueEnum {
+    pub(crate) fn intrinsic(&mut self, int: &Intrinsic) -> LLValue {
         match int {
             Intrinsic::IncRc(val) => {
                 let val = self.expression(val);
-                self.increment_refcount(val, false)
+                self.increment_refcount(&val)
             }
 
             Intrinsic::DecRc(val) => {
                 let val = self.expression(val);
-                self.decrement_refcount(val, false)
+                self.decrement_refcount(&val)
             }
 
             Intrinsic::Free(val) => {
@@ -719,6 +737,7 @@ impl IRGenerator {
                 iface,
                 index,
                 arguments,
+                ret_type,
             } => {
                 let callee = self.expression(iface).into_struct_value();
                 let vtable = self
@@ -737,18 +756,20 @@ impl IRGenerator {
                 let first_arg = self.builder.build_extract_value(callee, 0, "implementor");
                 let args = first_arg
                     .into_iter()
-                    .chain(arguments.iter().map(|e| self.expression(e)))
+                    .chain(arguments.iter().map(|e| *self.expression(e)))
                     .collect::<Vec<_>>();
 
-                return self
-                    .builder
-                    .build_call(func, &args, "vcall")
-                    .try_as_basic_value()
-                    .left()
-                    .unwrap_or(self.none_const);
+                return LLValue::from(
+                    self.builder
+                        .build_call(func, &args, "vcall")
+                        .try_as_basic_value()
+                        .left()
+                        .unwrap_or(*self.none_const),
+                    ret_type,
+                );
             }
         }
-        self.none_const
+        self.none_const.clone()
     }
 }
 

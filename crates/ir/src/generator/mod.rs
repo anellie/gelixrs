@@ -18,17 +18,20 @@ use inkwell::{
     context::Context,
     module::Module,
     types::BasicTypeEnum,
-    values::{BasicValueEnum, FunctionValue, PointerValue},
+    values::{BasicValueEnum, FunctionValue},
 };
 
 use gir_generator::CompiledGIR;
 use gir_ir_adapter::IRAdapter;
 use inkwell::types::StructType;
-use std::{cell::Ref, option::Option::Some};
+use std::option::Option::Some;
+
+use self::type_adapter::{IRType, LLPtr, LLValue};
 
 mod expr;
 mod gc;
 mod intrinsics;
+mod type_adapter;
 mod types;
 mod values;
 
@@ -44,32 +47,27 @@ pub struct IRGenerator {
     /// The currently compiled function.
     function: Option<FunctionValue>,
 
-    /// All local stores in this function that need their refcount
-    /// to be decremented when the function returns.
-    /// This also includes locally declared variables.
+    /// All local stores in this function that need to be either freed (WR) or
+    /// have their refcount decremented (SR).
     /// This is a vector to account for local variables that are not available
     /// during all parts of the function - locals declared inside of an if clause for example.
-    ///
-    /// The `bool` specifies if the value is a pointer or a value in
-    /// the context of the GIR type system.
-    locals: Vec<Vec<(BasicValueEnum, bool)>>,
-    local_allocs: Vec<Vec<PointerValue>>,
-    /// All blocks in the current function.
-    blocks: Vec<BasicBlock>,
+    /// Whenever a scope containing a local is left, that local is deallocated.
+    /// Locals are either 'borrowed' or 'owned' - parameters or ADT fields for example
+    /// are borrowed, only local allocations using an alloca or malloc are owned
+    /// and are handled inside this vector.
+    locals: Vec<Vec<LLPtr>>,
     /// The block that was last inserted to, or the one still inserting to.
     last_block: Option<BasicBlock>,
     /// All local variables in the current function.
-    variables: HashMap<Variable, PointerValue>,
+    variables: HashMap<Variable, LLPtr>,
 
-    /// A map of types based on their names in IR to allow for backwards lookup.
-    types_bw: HashMap<String, Type>,
     /// A constant that is used for expressions that don't produce a value but are required to,
     /// like return or break expressions.
-    none_const: BasicValueEnum,
+    none_const: LLValue,
     /// The type for type info that is baked into every value
     type_info_type: StructType,
     /// Type arguments to substitute if encountering Type::Variable
-    type_args: Vec<Option<Rc<TypeArguments>>>,
+    type_args: Vec<Rc<TypeArguments>>,
 
     /// A list of functions that still require being generated.
     /// The compiler only generates `main` and a few intrinsic functions first,
@@ -86,13 +84,13 @@ pub struct IRGenerator {
 
 impl IRGenerator {
     /// Generates IR. Will process all GIR modules given.
-    #[allow(clippy::needless_collect)] // Not needless! Changes execution order.
     pub fn generate(self) -> Module {
         bench!("ir", self.generate_())
     }
 
+    #[allow(clippy::needless_collect)] // Not needless! Changes execution order.
     fn generate_(mut self) -> Module {
-        // Get required-to-compile fns from INTRINSICS
+        // Get required-to-compile fns from intrinsics
         let required_fns = mem::replace(&mut self.gir_data.intrinsics.required_compile_fns, vec![]);
         // Declare them and collect into new vec
         let fns_ir = required_fns
@@ -105,10 +103,10 @@ impl IRGenerator {
             .zip(required_fns.into_iter())
             .for_each(|(ir, f)| self.function(&f, ir.unwrap()));
 
-        // Compile all functions out from required, See docs on functions_left
+        // Compile all functions out from required, See docs on functions_left.
         while let Some((func, args)) = self.functions_left.pop() {
-            self.push_ty_args(Some(&args));
             let ir = func.borrow().ir.borrow().get_inst(&args).unwrap();
+            self.push_ty_args(args);
             self.function(&func, ir);
             self.pop_ty_args();
         }
@@ -140,8 +138,7 @@ impl IRGenerator {
     }
 
     fn get_or_create(&mut self, func: &Instance<Function>) -> FunctionValue {
-        let args = func.args();
-        let args = self.process_args(args);
+        let args = self.process_args(func.args());
 
         let func_ref = func.ty.borrow();
         let mut ir = func_ref.ir.borrow_mut();
@@ -149,17 +146,17 @@ impl IRGenerator {
         if let Some(ir) = inst {
             ir
         } else {
-            self.create_function(func, &mut *ir, args)
+            self.queue_function(func, &mut *ir, args)
         }
     }
 
-    fn create_function(
+    fn queue_function(
         &mut self,
         func: &Instance<Function>,
         ir: &mut IRFunction,
         args: Rc<TypeArguments>,
     ) -> FunctionValue {
-        self.push_ty_args(Some(&args));
+        self.push_ty_args(Rc::clone(&args));
         let func_ir = self.declare_function_inst(&func.ty.borrow(), &format!("[{}]", ir.count()));
         ir.add_inst(&args, func_ir);
         self.functions_left.push((Rc::clone(&func.ty), args));
@@ -167,7 +164,7 @@ impl IRGenerator {
         func_ir
     }
 
-    /// Declares a function.
+    /// Declares a function. Will only declare functions without type parameters.
     fn declare_function(&mut self, func: &MutRc<Function>) -> Option<FunctionValue> {
         let func = func.borrow();
         let mut ir = func.ir.borrow_mut();
@@ -181,8 +178,9 @@ impl IRGenerator {
         }
     }
 
-    /// Declares a single function instance
-    fn declare_function_inst(&mut self, func: &Ref<Function>, suffix: &str) -> FunctionValue {
+    /// Declares a single function instance.
+    /// Type args should be pushed onto `self.type_args`.
+    fn declare_function_inst(&mut self, func: &Function, suffix: &str) -> FunctionValue {
         let params = func.parameters.iter().map(|param| &param.ty);
         let fn_ty = self.fn_type_from_raw(params, &func.ret_type, func.variadic);
 
@@ -206,18 +204,18 @@ impl IRGenerator {
         }
     }
 
-    /// Generates a function's body.
-    fn function_body(&mut self, func: &Ref<Function>, func_val: FunctionValue) {
+    /// Generates a functions body.
+    fn function_body(&mut self, func: &Function, func_val: FunctionValue) {
         self.function = Some(func_val);
-        self.blocks.clear();
-
         self.prepare_function(&func, func_val);
 
         for (name, var) in &func.variables {
             let alloc_ty = self.ir_ty_allocs(&var.ty);
             let alloca = self.builder.build_alloca(alloc_ty, &name);
-            self.variables
-                .insert(Variable::Local(Rc::clone(var)), alloca);
+            self.variables.insert(
+                Variable::Local(Rc::clone(var)),
+                LLPtr::from(alloca, &var.ty),
+            );
         }
 
         for expr in &func.exprs {
@@ -238,21 +236,17 @@ impl IRGenerator {
     /// It inserts the entry BB in IR, and build all parameter alloca.
     /// self.builder will be positioned after the entry alloca after calling this method.
     /// Returns the entry basic block.
-    fn prepare_function(&mut self, func: &Ref<Function>, func_val: FunctionValue) {
-        self.blocks.clear();
+    fn prepare_function(&mut self, func: &Function, func_val: FunctionValue) {
         self.variables.clear();
         self.locals.clear();
-        self.local_allocs.clear();
         self.push_local_scope();
 
         let entry_bb = self.context.append_basic_block(&func_val, "entry");
-        self.blocks.push(entry_bb);
-
         self.position_at_block(entry_bb);
         self.build_parameter_alloca(&func, func_val);
     }
 
-    fn build_parameter_alloca(&mut self, func: &Ref<Function>, func_val: FunctionValue) {
+    fn build_parameter_alloca(&mut self, func: &Function, func_val: FunctionValue) {
         for (arg, arg_val) in func.parameters.iter().zip(func_val.get_param_iter()) {
             if let Type::ClosureCaptured(captured) = &arg.ty {
                 // If this is the first arg on a closure containing all captured variables,
@@ -260,19 +254,20 @@ impl IRGenerator {
                 // so they can be used like regular variables.
                 let arg_val = *arg_val.as_pointer_value();
                 for (i, var) in captured.iter().enumerate() {
-                    let field = self.struct_gep(arg_val, i);
+                    let field = self.struct_gep(&LLPtr::from(arg_val, &arg.ty), i);
                     self.variables
-                        .insert(Variable::Local(Rc::clone(var)), field);
+                        .insert(Variable::Local(Rc::clone(var)), LLPtr::from(field, &var.ty));
                 }
             } else if let BasicValueEnum::PointerValue(ptr) = arg_val {
-                // If the type of the function parameter is a pointer (aka a struct or function),
-                // creating an alloca isn't needed; the pointer can be used directly.
-                self.variables.insert(Variable::Local(Rc::clone(arg)), ptr);
+                // Creating an alloca isn't needed if the type of the function parameter is a pointer;
+                // the pointer can be used directly.
+                self.variables
+                    .insert(Variable::Local(Rc::clone(arg)), LLPtr::from(ptr, &arg.ty));
             } else {
                 let alloc = self.builder.build_alloca(arg_val.get_type(), &arg.name);
                 self.builder.build_store(alloc, arg_val);
                 self.variables
-                    .insert(Variable::Local(Rc::clone(arg)), alloc);
+                    .insert(Variable::Local(Rc::clone(arg)), LLPtr::from(alloc, &arg.ty));
             }
         }
     }
@@ -283,19 +278,16 @@ impl IRGenerator {
     }
 
     fn append_block(&mut self, name: &'static str) -> BasicBlock {
-        let bb = self
-            .context
-            .append_basic_block(&self.function.unwrap(), name);
-        self.blocks.push(bb);
-        bb
+        self.context
+            .append_basic_block(&self.function.unwrap(), name)
     }
 
     fn last_block(&self) -> BasicBlock {
         self.last_block.unwrap()
     }
 
-    fn push_ty_args(&mut self, args: Option<&Rc<TypeArguments>>) {
-        self.type_args.push(args.map(|a| Rc::clone(a)));
+    fn push_ty_args(&mut self, args: Rc<TypeArguments>) {
+        self.type_args.push(args);
     }
 
     fn pop_ty_args(&mut self) {
@@ -322,14 +314,11 @@ impl IRGenerator {
             function: None,
 
             locals: Vec::with_capacity(10),
-            local_allocs: Vec::with_capacity(10),
-            blocks: Vec::with_capacity(10),
             last_block: None,
             variables: HashMap::with_capacity(30),
 
-            types_bw: HashMap::with_capacity(50),
             type_info_type,
-            none_const: none_const.into(),
+            none_const: LLValue::cpy(none_const.into(), &IRType::None),
             type_args: Vec::with_capacity(3),
             functions_left: Vec::with_capacity(20),
 
@@ -339,9 +328,9 @@ impl IRGenerator {
     }
 }
 
-pub struct LoopData {
+pub(crate) struct LoopData {
     /// The block to jump to using break expressions;
     /// the block at the end of the loop.
     pub end_block: BasicBlock,
-    pub phi_nodes: Option<Vec<(BasicValueEnum, BasicBlock)>>,
+    pub phi_nodes: Option<Vec<(LLValue, BasicBlock)>>,
 }

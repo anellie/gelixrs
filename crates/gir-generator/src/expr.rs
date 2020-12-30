@@ -588,7 +588,7 @@ impl GIRGenerator {
         let cond = Expr::binary(
             SyntaxKind::Is,
             Expr::lvar(&loop_var),
-            Expr::type_get(some_ty.clone()),
+            Expr::type_get(some_ty),
         );
 
         self.begin_scope();
@@ -859,19 +859,17 @@ impl GIRGenerator {
             .ret_type()
             .map(|ty| self.find_type(&ty))
             .transpose()?;
-        let params = signature
-            .parameters()
-            .map(|ast| Ok((ast.name(), self.find_type(&ast._type())?)))
-            .collect::<Vec<_>>();
-
         let mut gen = Self::for_closure(self);
+
         let function = gen.create_function(FnSig {
             name: SmolStr::new_inline(&format!(
                 "closure-{}",
-                u32::from(signature.cst.text_range().start)
+                signature.cst.text_range().start
             )),
             visibility: Visibility::Private,
-            params: box params.into_iter(),
+            params: box signature
+                .parameters()
+                .map(|ast| Ok((ast.name(), self.find_type(&ast._type())?))),
             type_parameters: Rc::new(vec![]),
             ret_type,
             ast: Some(func.clone()),

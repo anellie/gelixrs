@@ -64,6 +64,7 @@ extern "C" {
     fn malloc(x: i64) -> i64;
 }
 
+#[allow(clippy::let_and_return)] // Remove once todo is fixed.
 extern "C" fn test_malloc(size: i64) -> i64 {
     let ptr = unsafe { malloc(size) };
     // TODO reenable once IR is fixed

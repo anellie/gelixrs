@@ -99,6 +99,7 @@ impl GIRGenerator {
             Expr::lvar(&function.borrow().parameters[0]),
             index + 1,
             args,
+            function.borrow().ret_type.clone(),
         )
     }
 

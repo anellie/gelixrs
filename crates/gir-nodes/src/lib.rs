@@ -24,7 +24,7 @@ pub use visitor::Visitor;
 pub fn gir_err(cst: CSTNode, err: GErr) -> Error {
     Error {
         // TODO: This index includes whitespace when it should not
-        index: ErrorSpan::Span(cst.text_range().into()),
+        index: ErrorSpan::Span(cst.text_range()),
         kind: err,
     }
 }

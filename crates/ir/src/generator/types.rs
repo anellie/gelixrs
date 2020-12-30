@@ -19,9 +19,10 @@ use inkwell::{
 use std::{cell::Ref, rc::Rc};
 
 use super::IRGenerator;
+use crate::generator::type_adapter::IRType;
 
 impl IRGenerator {
-    /// Converts a `MIRType` to the corresponding LLVM type.
+    /// Converts a GIR type to the corresponding LLVM type.
     /// This generic variant is used for:
     /// - Function parameters & return type
     /// - ADT fields/members
@@ -30,7 +31,7 @@ impl IRGenerator {
         self.ir_ty_generic_full(gir).0
     }
 
-    /// Converts a `MIRType` to the corresponding LLVM type.
+    /// Converts a GIR type to the corresponding LLVM type.
     /// This variant is used for allocations.
     pub(crate) fn ir_ty_allocs(&mut self, gir: &Type) -> BasicTypeEnum {
         self.ir_ty_generic_full(gir).0
@@ -85,15 +86,15 @@ impl IRGenerator {
 
             Type::ClosureCaptured(captured) => (self.build_captured_type(captured).into(), None),
 
-            Type::StrongRef(inst) => (
-                self.get_or_build_adt(inst).strong.into(),
-                Some(self.build_type_info()),
-            ),
+            Type::StrongRef(inst) => {
+                let adt = self.get_or_build_adt(inst);
+                (adt.strong.into(), Some(adt.typeinfo))
+            }
 
-            Type::Value(inst) | Type::WeakRef(inst) => (
-                self.get_or_build_adt(inst).weak.into(),
-                Some(self.build_type_info()),
-            ),
+            Type::Value(inst) | Type::WeakRef(inst) => {
+                let adt = self.get_or_build_adt(inst);
+                (adt.weak.into(), Some(adt.typeinfo))
+            }
 
             Type::RawPtr(inner) => {
                 let (inner, ptr) = self.ir_ty_generic_full(inner);
@@ -125,7 +126,7 @@ impl IRGenerator {
 
     pub(crate) fn unwrap_var(&self, var: &TypeVariable) -> Type {
         let index = self.type_args.len() - 1;
-        let ty = self.type_args[index].as_ref().unwrap()[var.index].clone();
+        let ty = self.type_args[index][var.index].clone();
         match var.modifier {
             VariableModifier::Value => ty,
             VariableModifier::Weak => ty.to_weak(),
@@ -151,7 +152,7 @@ impl IRGenerator {
     }
 
     fn build_adt(&mut self, inst: &Instance<ADT>, weak: bool, prefix: &str) -> StructType {
-        self.push_ty_args(Some(inst.args()));
+        self.push_ty_args(Rc::clone(inst.args()));
         let adt = inst.ty.borrow();
         let ret = match adt.ty {
             ADTType::Class { external } if external => self.build_struct(
@@ -170,14 +171,6 @@ impl IRGenerator {
                 true,
             ),
         };
-        self.types_bw.insert(
-            ret.get_name().unwrap().to_str().unwrap().to_string(),
-            if weak {
-                Type::WeakRef(inst.clone())
-            } else {
-                Type::StrongRef(inst.clone())
-            },
-        );
         self.pop_ty_args();
         ret
     }
@@ -343,6 +336,10 @@ impl IRGenerator {
                 .into()]),
         );
         global.as_pointer_value()
+    }
+
+    pub(crate) fn refcount_before_tyinfo(ty: &IRType) -> bool {
+        matches!(ty, IRType::StrongRef(_))
     }
 
     pub(crate) fn void_ptr(&self) -> PointerType {

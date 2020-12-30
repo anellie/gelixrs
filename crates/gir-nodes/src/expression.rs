@@ -263,11 +263,12 @@ impl Expr {
         Expr::Intrinsic(Intrinsic::Free(box val))
     }
 
-    pub fn iface_call(callee: Expr, index: usize, arguments: Vec<Expr>) -> Expr {
+    pub fn iface_call(callee: Expr, index: usize, arguments: Vec<Expr>, ret_type: Type) -> Expr {
         Expr::Intrinsic(Intrinsic::IfaceCall {
             iface: box callee,
             index,
             arguments,
+            ret_type,
         })
     }
 
@@ -547,6 +548,7 @@ pub enum Intrinsic {
         iface: Box<Expr>,
         index: usize,
         arguments: Vec<Expr>,
+        ret_type: Type,
     },
 }
 

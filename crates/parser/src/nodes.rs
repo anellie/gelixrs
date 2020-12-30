@@ -70,6 +70,7 @@ impl fmt::Debug for NodeOrToken {
 pub(crate) type NodeVec = SmallVec<[NodeOrToken; 5]>;
 
 #[derive(Clone, Hash, Eq)]
+#[allow(clippy::derive_hash_xor_eq)]
 pub struct Node {
     children: Rc<NodeVec>,
     kind: SyntaxKind,

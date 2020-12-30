@@ -190,6 +190,7 @@ impl Type {
     pub fn is_ptr(&self) -> bool {
         self.is_strong_ref()
             || self.is_weak_ref()
+            || self.is_closure()
             || self.is_var_with_marker(Bound::StrongRef)
             || self.is_var_with_marker(Bound::WeakRef)
     }

@@ -1,6 +1,9 @@
 #![feature(try_find)]
 #![feature(box_syntax)]
 
+// Often required due to clones; also false positives from type aliases
+#![allow(clippy::ptr_arg)]
+
 use crate::intrinsics::Intrinsics;
 use common::{bench, mutrc_new, ModulePath, MutRc};
 use either::Either;
@@ -326,7 +329,7 @@ impl GIRGenerator {
 
     /// Returns a field of the given expression/object,
     /// where a field can be either a member or a method.
-    fn get_field(&mut self, get: &Get) -> Res<(Expr, Either<Rc<Field>, MutRc<Function>>)> {
+    fn get_field(&mut self, get: &Get) -> Res<(Expr, FieldOrMethod)> {
         let object = self.expression(&get.callee());
         let ty = object.get_type();
 
@@ -579,3 +582,5 @@ struct ClosureData {
     /// inside the closure and therefore 'captured'
     pub captured: Vec<Rc<LocalVariable>>,
 }
+
+type FieldOrMethod = Either<Rc<Field>, MutRc<Function>>;
