@@ -21,6 +21,13 @@ func main() {
     print(c.b)
 }
 
+func a(a: A) {
+    when (a) {
+        A:A -> {}
+        A:B -> {}
+    }
+}
+
 enum A {
 
     var a = 5

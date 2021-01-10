@@ -339,7 +339,11 @@ impl IRGenerator {
     }
 
     pub(crate) fn refcount_before_tyinfo(ty: &IRType) -> bool {
-        matches!(ty, IRType::StrongRef(_))
+        if let IRType::StrongRef(adt) = ty {
+            adt.ty.borrow().ty.ref_is_ptr()
+        } else {
+            false
+        }
     }
 
     pub(crate) fn void_ptr(&self) -> PointerType {

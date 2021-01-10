@@ -6,12 +6,7 @@ use gir_nodes::{
     expression::{CastType, Intrinsic},
     Expr, Function, Instance, Literal, Type, ADT,
 };
-use inkwell::{
-    basic_block::BasicBlock,
-    types::{BasicTypeEnum, StructType},
-    values::{BasicValueEnum, PointerValue},
-    FloatPredicate, IntPredicate,
-};
+use inkwell::{FloatPredicate, IntPredicate, basic_block::BasicBlock, types::{AnyTypeEnum, BasicTypeEnum, StructType}, values::{BasicValueEnum, PointerValue}};
 use std::mem;
 use syntax::kind::SyntaxKind;
 
@@ -101,7 +96,7 @@ impl IRGenerator {
 
             Expr::Call { callee, arguments } => {
                 let ir_callee = self.expression(callee);
-                self.build_call(ir_callee.into_pointer_value(), callee.get_type(), arguments)
+                self.build_call(ir_callee.into_pointer_value(), expr.get_type(), arguments)
             }
 
             Expr::If {
@@ -319,6 +314,7 @@ impl IRGenerator {
             })
             .unzip();
 
+        let callee = self.callee_ir(callee);
         let ret = self
             .builder
             .build_call(callee, &ir_args, "call")
@@ -334,6 +330,16 @@ impl IRGenerator {
         }
 
         LLValue::from(ret, &ret_type)
+    }
+
+    fn callee_ir(&mut self, callee: PointerValue) -> PointerValue {
+        match callee.get_type().get_element_type() {
+            // Function
+            AnyTypeEnum::FunctionType(_) => callee,
+            // Closure
+            AnyTypeEnum::StructType(_) => self.builder.build_load(self.struct_gep_raw(callee, 1), "clsfnload").into_pointer_value(),
+            _ => panic!("Can't call this!")
+        }
     }
 
     fn literal(&mut self, literal: &Literal) -> LLValue {
@@ -410,7 +416,7 @@ impl IRGenerator {
             let val = self.expression(expr);
             let bb = self.last_block();
             if phi {
-                self.pop_locals_remove(val.ptr());
+                self.pop_locals_remove(&val);
             } else {
                 self.pop_dec_locals()
             }
@@ -454,7 +460,7 @@ impl IRGenerator {
             self.push_local_scope();
             let value = self.expression(branch);
             if phi {
-                self.pop_locals_remove(value.ptr())
+                self.pop_locals_remove(&value)
             } else {
                 self.pop_dec_locals()
             };
@@ -471,7 +477,7 @@ impl IRGenerator {
         self.push_local_scope();
         let else_val = self.expression(else_);
         if phi {
-            self.pop_locals_remove(else_val.ptr())
+            self.pop_locals_remove(&else_val)
         } else {
             self.pop_dec_locals()
         };
@@ -646,7 +652,7 @@ impl IRGenerator {
         }
 
         let to = self.ir_ty_generic(wr_ty);
-        let gep = unsafe { self.builder.build_struct_gep(**sr, 1, "srwrgep") };
+        let gep = self.struct_gep_raw(**sr, 1);
         LLValue::from(self.builder.build_bitcast(gep, to, "wrcast"), wr_ty)
     }
 
@@ -744,14 +750,11 @@ impl IRGenerator {
                     .builder
                     .build_extract_value(callee, 1, "vtable")
                     .unwrap();
-                let func = unsafe {
-                    let ptr = self.builder.build_struct_gep(
-                        vtable.into_pointer_value(),
-                        *index as u32,
-                        "ifacefn",
-                    );
-                    self.builder.build_load(ptr, "fnload").into_pointer_value()
-                };
+                let ptr = self.struct_gep_raw(
+                    vtable.into_pointer_value(),
+                    *index as u32
+                );
+                let func = self.builder.build_load(ptr, "fnload").into_pointer_value();
 
                 let first_arg = self.builder.build_extract_value(callee, 0, "implementor");
                 let args = first_arg

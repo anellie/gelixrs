@@ -1,19 +1,20 @@
 use gir_nodes::{types::ClosureType, Instance, Type, ADT};
 use inkwell::values::{BasicValue, BasicValueEnum, PointerValue};
-use std::{ops::Deref, rc::Rc};
+use std::{ops::{Deref, DerefMut}, rc::Rc};
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub(crate) enum IRType {
     StrongRef(Instance<ADT>),
     WeakRef(Instance<ADT>),
     Value(Instance<ADT>),
     Closure(Rc<ClosureType>),
     RawPtr,
+    Primitive,
     Other,
     None,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub(crate) struct V<T: Copy> {
     v: T,
     pub(crate) ty: IRType,
@@ -30,6 +31,7 @@ impl<T: Copy> V<T> {
                 Type::Value(r) => IRType::Value(r.clone()),
                 Type::RawPtr(_) => IRType::RawPtr,
                 Type::Any | Type::None => IRType::None,
+                _ if ty.is_primitive() => IRType::Primitive,
                 _ => IRType::Other,
             },
         }
@@ -54,6 +56,12 @@ impl<T: Copy> Deref for V<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         &self.v
+    }
+}
+
+impl<T: Copy> DerefMut for V<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.v
     }
 }
 

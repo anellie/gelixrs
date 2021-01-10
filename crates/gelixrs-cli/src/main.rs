@@ -51,7 +51,7 @@ struct Opt {
 fn main() {
     run(Opt::from_args()).map_err(|e| println!("{}", e)).ok();
     if cfg!(debug_assertions) {
-        println!("benchmark results:\n{}", gelixrs::BENCH.lock().unwrap())
+        println!("\nCompiler benchmark results:\n{}", gelixrs::BENCH.lock().unwrap())
     }
 }
 
@@ -120,10 +120,12 @@ fn run(args: Opt) -> Result<(), &'static str> {
     }
 
     if args.run {
+        println!("Compiled successfully, running '{}'...", args.file.display());
         let mut engine = gelixrs::JIT::new(module);
         unsafe {
             engine.call("main");
         }
+        println!("\nProgram exited, exiting compiler.");
         return Ok(());
     }
 

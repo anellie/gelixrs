@@ -68,15 +68,20 @@ impl IRGenerator {
         }
     }
 
-    fn mod_refcount_adt(&mut self, ptr: PointerValue, adt: &Instance<ADT>, decrement: bool) {
+    fn mod_refcount_adt(&mut self, mut ptr: PointerValue, adt: &Instance<ADT>, decrement: bool) {
         if adt.ty.borrow().ty.is_extern_class() {
             return;
         }
         if let Some(destructor) = &adt.ty.borrow().methods.get("free-sr") {
+            if ptr.get_type().get_element_type().is_pointer_type() {
+                ptr = self.builder.build_load(ptr, "gcload").into_pointer_value();
+            }
+            let ptr = ptr;
+
             let inst = Instance::new(Rc::clone(destructor), Rc::clone(adt.args()));
             let func = self.get_or_create(&inst);
 
-            let refcount = unsafe { self.builder.build_struct_gep(ptr, 0, "rcgep") };
+            let refcount = self.struct_gep_raw(ptr, 0);
             let refcount = self.write_new_refcount(refcount, decrement);
             if decrement {
                 self.build_maybe_free(refcount, &mut |this, pred| {
@@ -112,8 +117,12 @@ impl IRGenerator {
             .build_call(func, &[first.into(), second.into()], "rc");
     }
 
-    fn mod_refcount_closure(&self, ptr: LLPtr, decrement: bool) {
-        let refcount = unsafe { self.builder.build_struct_gep(*ptr, 0, "rcgep") };
+    fn mod_refcount_closure(&self, mut ptr: LLPtr, decrement: bool) {
+        if ptr.get_type().get_element_type().is_pointer_type() {
+            *ptr = self.builder.build_load(*ptr, "gcload").into_pointer_value();
+        }
+
+        let refcount = self.struct_gep_raw(*ptr, 0);
         self.write_new_refcount(refcount, decrement);
         if decrement {
             let free_fn = self.struct_gep(&ptr, 1);

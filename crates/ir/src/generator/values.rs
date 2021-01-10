@@ -75,11 +75,12 @@ impl IRGenerator {
     pub(crate) fn load_ptr_(&self, ptr: &LLPtr, call: bool) -> LLValue {
         LLValue::cpy(
             match (ptr.get_type().get_element_type(), &ptr.ty) {
-                (AnyTypeEnum::FunctionType(_), _) | (_, IRType::RawPtr) => (**ptr).into(),
+                (AnyTypeEnum::PointerType(_), _) => self.builder.build_load(**ptr, "dptrload"),
+                (AnyTypeEnum::FunctionType(_), _) | (_, IRType::RawPtr) | (_, IRType::Other)=> (**ptr).into(),
 
                 (AnyTypeEnum::StructType(_), IRType::StrongRef(i))
                 | (AnyTypeEnum::StructType(_), IRType::WeakRef(i))
-                    if !i.ty.borrow().ty.ref_is_ptr() =>
+                    if i.ty.borrow().ty.ref_is_ptr() =>
                 {
                     (**ptr).into()
                 }
@@ -114,13 +115,10 @@ impl IRGenerator {
     }
 
     pub(crate) fn get_type_info_field(&self, ptr: &LLPtr) -> PointerValue {
-        unsafe {
-            self.builder.build_struct_gep(
-                **ptr,
-                Self::refcount_before_tyinfo(&ptr.ty) as u32,
-                "gep",
-            )
-        }
+        self.struct_gep_raw(
+            **ptr,
+            Self::refcount_before_tyinfo(&ptr.ty) as u32
+        )
     }
 
     pub(crate) fn get_struct_offset(&self, ptr: &LLPtr) -> u32 {
@@ -230,18 +228,21 @@ impl IRGenerator {
         let mut locals = self.locals.pop().unwrap();
 
         if !locals.is_empty() && lift.try_ptr().is_some() {
-            let index = locals.iter().position(|l| **l == **lift).unwrap();
-            locals.swap_remove(index);
-            self.increment_refcount(&lift);
-            self.locals().push(lift.try_ptr().unwrap());
+            let index = locals.iter().position(|l| **l == **lift);
+            // todo is this correct? was unwrap before
+            if let Some(index) = index {
+                locals.swap_remove(index);
+                self.increment_refcount(&lift);
+                self.locals().push(lift.try_ptr().unwrap());
+            }
         }
 
         self.decrement_locals(&locals);
     }
 
-    pub(crate) fn pop_locals_remove(&mut self, lift: LLPtr) {
+    pub(crate) fn pop_locals_remove(&mut self, lift: &LLValue) {
         let locals = self.locals.pop().unwrap();
-        self.increment_refcount(&lift.val());
+        self.increment_refcount(lift);
         self.decrement_locals(&locals);
     }
 
@@ -287,7 +288,7 @@ impl IRGenerator {
     pub(crate) fn build_phi(&mut self, nodes: &[(LLValue, BasicBlock)]) -> BasicValueEnum {
         let nodes = nodes
             .iter()
-            .filter(|(v, _)| matches!(v.ty, IRType::None))
+            .filter(|(v, _)| !matches!(v.ty, IRType::None))
             .collect::<Vec<_>>();
 
         match nodes.len() {
