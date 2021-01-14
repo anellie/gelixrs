@@ -320,7 +320,7 @@ impl IRGenerator {
             .build_call(callee, &ir_args, "call")
             .try_as_basic_value();
         let ret = ret.left().unwrap_or(*self.none_const);
-        if ret_type.is_ptr() {
+        if ret_type.is_ptr() && ret.is_pointer_value() {
             self.locals()
                 .push(LLPtr::from(ret.into_pointer_value(), &ret_type));
         }

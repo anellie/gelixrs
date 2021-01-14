@@ -143,7 +143,7 @@ pub enum ADTType {
     /// An enum, with unknown case.
     Enum {
         /// All cases.
-        cases: HashMap<SmolStr, MutRc<ADT>>,
+        cases: Rc<HashMap<SmolStr, MutRc<ADT>>>,
     },
 
     /// An enum with known case.
@@ -151,11 +151,6 @@ pub enum ADTType {
 }
 
 impl ADTType {
-    /// Does this type has members that need to populated?
-    pub fn has_members(&self) -> bool {
-        self.is_class() || self.is_enum_case() || self.is_enum()
-    }
-
     /// Returns the cases of an enum type.
     /// Use on any other type will result in a panic.
     pub fn cases(&self) -> &HashMap<SmolStr, MutRc<ADT>> {
@@ -193,7 +188,9 @@ pub struct Field {
     /// The type of this field, either specified or inferred by initializer
     pub ty: Type,
     /// The initializer for this field, if any.
-    pub initializer: RefCell<Option<Box<Expr>>>,
+    pub initializer: RefCell<Option<Expr>>,
+    /// If this type had an initializer (it is captured and removed by the generator, so this is needed)
+    pub initialized: bool,
     /// The index of the field inside the ADT.
     pub index: usize,
 }

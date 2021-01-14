@@ -29,7 +29,7 @@ impl GIRGenerator {
         bench!("gir stage 2", {
             self.run_adt(Self::declare_methods);
             self.fill_impls();
-            self.run_dec(Self::insert_adt_fields);
+            self.run_adt(Self::insert_adt_fields);
             self.run_adt(Self::constructor_setters);
             self.run_adt(Self::declare_lifecycle_methods);
             self.run_adt(Self::generate_lifecycle_methods);

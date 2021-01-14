@@ -80,10 +80,10 @@ impl GIRGenerator {
         let var = Rc::clone(&func.borrow().parameters[0]);
 
         for field in adt.borrow().fields.values() {
-            if let Some(init) = field.initializer.take().take() {
+            if let Some(init) = field.initializer.take() {
                 self.insert_at_ptr(Expr::store(
                     Expr::load(Expr::lvar(&var), field),
-                    *init,
+                    init,
                     true,
                 ))
             }

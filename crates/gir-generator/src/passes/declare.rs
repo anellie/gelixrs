@@ -23,6 +23,9 @@ impl GIRGenerator {
     }
 
     fn adt_from_ast(&mut self, ast: ast::Adt, parent: Option<MutRc<ADT>>) -> MutRc<ADT> {
+        let name = ast.name();
+        let mut adt_name = name.name();
+
         let ty = match ast.kind() {
             SyntaxKind::Class => ADTType::Class {
                 external: ast.modifiers().any(|m| m == SyntaxKind::Extern),
@@ -31,23 +34,26 @@ impl GIRGenerator {
             SyntaxKind::Interface => ADTType::Interface,
 
             SyntaxKind::Enum => ADTType::Enum {
-                cases: HashMap::new(),
+                cases: Rc::new(HashMap::new()),
             },
 
             // Enum cases can have multiple starting tokens, just use the catch-all
-            _ => ADTType::EnumCase {
-                parent: parent.clone().expect("Unknown ADT?"),
-                simple: ast.cst.children().count() == 1, // Only identifier as child = simple
+            _ => {
+                let parent = parent.clone().expect("Unknown ADT?");
+                adt_name = SmolStr::new(&format!("{}:{}", parent.borrow().name, adt_name));
+                ADTType::EnumCase {
+                    parent,
+                    simple: ast.cst.children().count() == 1, // Only identifier as child = simple
+                }
             },
         };
 
-        let name = ast.name();
         let type_parameters = self.ast_generics_to_gir(
             name.type_parameters(),
             parent.map(|p| Rc::clone(&p.borrow().type_parameters)),
         );
         let adt = mutrc_new(ADT {
-            name: name.name(), // TODO: FIXME: Enum case names need changing
+            name: adt_name.clone(),
             visibility: self.visibility_from_modifiers(ast.modifiers()),
             fields: IndexMap::with_capacity(10),
             methods: IndexMap::with_capacity(10),
@@ -62,7 +68,7 @@ impl GIRGenerator {
         self.module
             .borrow_mut()
             .declarations
-            .insert(name.name(), Declaration::Adt(Rc::clone(&adt)));
+            .insert(adt_name, Declaration::Adt(Rc::clone(&adt)));
 
         self.maybe_enum_cases(&adt);
         adt
@@ -83,7 +89,7 @@ impl GIRGenerator {
                     .collect()
             };
             if let ADTType::Enum { ref mut cases } = &mut adt_rc.borrow_mut().ty {
-                *cases = enum_cases;
+                *cases = Rc::new(enum_cases);
             }
         }
     }

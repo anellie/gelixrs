@@ -144,7 +144,7 @@ impl GIRGenerator {
                 .parameters()
                 .filter(|p| p.maybe_type().is_none())
                 .any(|p| &p.name() == name);
-            if !initialized && mem.initializer.borrow().is_none() {
+            if !initialized && !mem.initialized {
                 self.uninitialized_this_fields.insert(Rc::clone(&mem));
             }
         }

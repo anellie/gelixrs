@@ -29,14 +29,14 @@ impl IRGenerator {
     /// is_ptr specifies if the value is a pointer or a value in
     /// the context of the MIR type system.
     pub(crate) fn increment_refcount(&mut self, value: &LLValue) {
-        self.mod_refcount(value, false)
+        // self.mod_refcount(value, false)
     }
 
     /// Decrement the refcount of a value, and check if it needs to be freed
     /// is_ptr specifies if the value is a pointer or a value in
     /// the context of the MIR type system.
-    pub(crate) fn decrement_refcount(&mut self, value: &LLValue) {
-        self.mod_refcount(value, true)
+    pub(crate) fn decrement_refcount(&mut self, value: &LLValue ) {
+        // self.mod_refcount(value, true)
     }
 
     fn mod_refcount(&mut self, value: &LLValue, decrement: bool) {

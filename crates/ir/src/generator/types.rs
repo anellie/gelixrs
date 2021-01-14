@@ -125,6 +125,11 @@ impl IRGenerator {
     }
 
     pub(crate) fn unwrap_var(&self, var: &TypeVariable) -> Type {
+        // Edge case in intrinsc generator...
+        if self.type_args.is_empty() {
+            return Type::None;
+        }
+
         let index = self.type_args.len() - 1;
         let ty = self.type_args[index][var.index].clone();
         match var.modifier {

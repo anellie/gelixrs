@@ -1,7 +1,7 @@
 import std/intrinsics/+
 import std/math/max
 import std/memory/+
-// import std/ops/Add
+import std/ops/Add
 
 /// A UTF-8 string.
 /// Currently, strings are null-terminated.
@@ -16,6 +16,7 @@ class String {
     /// capacity of 0 results in no allocation until first insertion.
     construct(capacity) {
         this.ptr = allocate[i8](capacity)
+        write_value(this.ptr, 0) // Write null terminator
         this.length = 0
     }
 
@@ -71,7 +72,7 @@ class String {
     }
 }
 
-impl Free for &String {
+impl Free for String {
     func free() {
         if (this.capacity > 0) drop(this.ptr)
     }
@@ -81,16 +82,15 @@ impl ToString for String {
     func to_string() -> String = this
 }
 
-/*
-impl Add[&ToString, String] for &String {
-    func add(other: &ToString) -> String {
+impl Add[ToString, String] for &String {
+    func add(other: ToString) -> String {
         val other = other.to_string()
         // +1 to account for the null terminator
-        val new_str = new String:Heap(this.len() + other.len() + 1)
+        val new_str = new String(this.len() + other.len() + 1)
         new_str.append(this)
         new_str.append(other)
     }
-}*/
+}
 
 // An interface for types that can be represented as a string.
 // Note that generally, ToString should not expose the implementation

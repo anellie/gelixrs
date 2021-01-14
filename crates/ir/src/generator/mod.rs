@@ -248,13 +248,14 @@ impl IRGenerator {
 
     fn build_parameter_alloca(&mut self, func: &Function, func_val: FunctionValue) {
         for (arg, arg_val) in func.parameters.iter().zip(func_val.get_param_iter()) {
-            if let Type::ClosureCaptured(captured) = &arg.ty {
+            let arg_ty = self.maybe_unwrap_var(&arg.ty);
+            if let Type::ClosureCaptured(captured) = &arg_ty {
                 // If this is the first arg on a closure containing all captured variables,
                 // 'unpack' them and create separate entries for each in self.variables
                 // so they can be used like regular variables.
                 let arg_val = *arg_val.as_pointer_value();
                 for (i, var) in captured.iter().enumerate() {
-                    let field = self.struct_gep(&LLPtr::from(arg_val, &arg.ty), i);
+                    let field = self.struct_gep(&LLPtr::from(arg_val, &arg_ty), i);
                     self.variables
                         .insert(Variable::Local(Rc::clone(var)), LLPtr::from(field, &var.ty));
                 }
@@ -262,12 +263,12 @@ impl IRGenerator {
                 // Creating an alloca isn't needed if the type of the function parameter is a pointer;
                 // the pointer can be used directly.
                 self.variables
-                    .insert(Variable::Local(Rc::clone(arg)), LLPtr::from(ptr, &arg.ty));
+                    .insert(Variable::Local(Rc::clone(arg)), LLPtr::from(ptr, &arg_ty));
             } else {
                 let alloc = self.builder.build_alloca(arg_val.get_type(), &arg.name);
                 self.builder.build_store(alloc, arg_val);
                 self.variables
-                    .insert(Variable::Local(Rc::clone(arg)), LLPtr::from(alloc, &arg.ty));
+                    .insert(Variable::Local(Rc::clone(arg)), LLPtr::from(alloc, &arg_ty));
             }
         }
     }
