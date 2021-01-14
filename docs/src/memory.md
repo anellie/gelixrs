@@ -1,97 +1,85 @@
 # Memory Management
 
 Memory management in gelix is mostly automatic. However, gelix's type system differentiates
-values of a given type based on their origin (stack or heap).
+values based on how they're stored and copied.
 
 This allows for better performance and fine-grained control of where a value resides,
-at a slight cost of type system complexity.
+at a slight cost of (optional) type system complexity.
 
 ## Different types of values
 
-There are 4 different types of values in gelix, based on where they are located:
+There are 2 different types of values in gelix:
 
-#### Weak Reference
+### Reference Types
 
-The first type is a weak reference. A weak reference is a pointer to a value
-that resides either on the heap or the stack and is simply the name of the type.
+Reference types are types where creating a copy, for example by storing it
+into a variable, only causes the *reference* to the value to be copied.
 
-Due to the fact that the value can be on the stack, usage is restricted. A weak reference may
-not leave a function that uses it or dangle, which means that you cannot:
-- Assign the value to a field, as the field may outlive the value
-- Return a weak reference from a function, as that would outlive the value
-- Have a block evaluate to a weak reference created inside the block
-
-Additionally, a field may not be a weak reference.
-
-They are written with a `&` in front,for example `&String`.
+This is the same semantics as classes/objects in most mainstream OOP languages,
+and classes are reference types by default:
 
 ```java
+class MyClass {
+    var a = 4
+}
+
 func main() {
-    a(Array())
-}
+    val m1 = MyClass()
+    print(m1.a) // 4
 
-func a(a: &Array<i64>) {}
+    val m2 = m1 // Create a copy
+    m1.a = 664 // Change field on m1
 
-class A {
-    val a: Array<i64>
-    construct(a)
-}
-
-// This would be a compile error: You cannot assign a weak reference to a field.
-func b(b: &Array<i64>) {
-    A(b)
+    // Because they're pointing to the same object, 
+    // the field on m2 changes as well:
+    print(m2.a) // 664 
 }
 ```
 
-#### Strong Reference
+In general, the following behaves like this:
 
-The second type is a strong reference. A strong reference is also a pointer, except it is
-guaranteed to reside on the heap. SRs are always reference counted and automatically 
-garbage collected.
+- All classes and enums without the `value` modifier (shown later)
+- All interfaces (value types are *boxed*, or encapsulated inside a reference type)
+- All raw pointers (see below) and `extern` classes (explained in the [FFI chapter](ffi.md))
 
-They are simply the type name without any additions.
+Except for `extern` classes and raw pointers, reference types are generally
+heap-allocated and reference-counted.
 
-Lastly, SRs will automatically cast to WRs.
+#### Value Types
+
+Value types are types where creating a copy actually copies the entire value.
+
+This is done for:
+
+- All primitive types (`bool`, all numeric types)
+- Classes and enums with the `value` modifier
 
 ```java
-// The above example would've been a compile error with WRs, but SRs make it possible
-func b(b: Array<i64>) {
-    A(b)
+value class Point {
+    var x = 0
+    var y = 0
+}
+
+func main() {
+    val m1 = Point()
+    print(m1.x) // 0
+
+    val m2 = m1 // Create a copy
+    m1.x = 664 // Change field on m1
+
+    // Because creating a copy cloned the entire
+    // value, they point to different objects:
+    print(m2.x) // 0 
 }
 ```
 
+Being able to create your own value types is useful when you want to prevent heap allocation 
+or having values scattered across the heap. 
+Be warned however that big types (many members) will be quite slow with `value`.
 
-#### Direct values
+**If you are unsure if your class should use `value`, it is recommended to avoid it.**
 
-Direct values are not pointers, but instead values directly. This has a few implications:
-- When used as function parameter, the argument is copied on every call
-- When used as a field, the value is part of the parent data structure instead of a pointer
-- A direct value cannot be used as a SR, but can cast to a WR.
-- SRs and WRs will automatically cast to direct values
-
-To use direct values, put a `~` in front, like `~String`.
-
-```java
-class A {
-    // Because of the type, the "A" datatype is one block in memory
-    // instead of being split across the heap like it would be with pointers
-    val a: ~String = "hmm"
-    // Note that string literals are always of type ~String, making
-    // the type annotation omittable
-}
-
-func b(a: ~A) {
-    // The value can be used like normal:
-    print(a.a)
-
-    // If you need to promote the value to a strong reference, you can use
-    // std/memory/promote:
-    promote(a)
-    // This will allocate on the heap and copy the value.
-}
-```
-
-#### Raw Pointers
+## Raw Pointers
 
 Lastly, gelix also offers you raw pointers. You should in general refrain from using them
 unless absolutely necessary, as they are rarely needed outside of C interop.
@@ -99,24 +87,9 @@ unless absolutely necessary, as they are rarely needed outside of C interop.
 To use raw pointers, put a `*` in front, like `*String`.
 
 Note that the above will actually be a double pointer, since `String` is itself
-already a pointer. If you want a raw single pointer, combine raw pointers with direct
-values, like `*~String`.
+already a reference type and therefore a pointer. If you want a raw single pointer, 
+combine raw pointers with the deref type operator, like `*~String`.
 
 Compared to references, raw pointers allow direct modification by using the functions
-provided in the `std/memory` module. Use `std/ptr/allocate` to obtain a raw pointer.
-
-
-### Creating new values
-
-You already saw the constructor syntax for classes in the last chapter. Calling a data structure
-directly will simply create a weak reference on the stack.
-
-If you want to create a strong reference on the heap, put the `new` keyword before it:
-
-```java
-// Weak reference
-Array<i64>()
-
-// Strong reference
-new Array<i64>()
-```
+provided in the `std/memory` and `std/ptr` modules. 
+Use `std/ptr/allocate` to obtain a raw pointer.

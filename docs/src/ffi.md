@@ -23,13 +23,7 @@ class T {
 }
 ```
 
-Gelix will compile the class into different LLVM types depending on it's usage:
-
-Usage | Gelix | LLVM | Notes
---- | --- | --- | ---
-Strong Reference | `T` | `&{ i32, *TypeInfo, i64, f64 }` | Contains reference count and type info
-Weak Reference | `&T` | `&{ *TypeInfo, i64, f64 }` | Simple pointer, only additional type info
-Direct Value | `~T` | `{ i64, f64 }` | Not a pointer
+Gelix will compile the class into the LLVM type `*{ i32, *TypeInfo, i64, f64 }`.
 
 Note that user fields are always in the order they were declared.
 
@@ -37,9 +31,8 @@ While this format is good for standalone gelix, the additional fields and more
 sophisticated type system make it hard to interop with C. As a solution, 
 gelix has the `extern` keyword on classes, which will:
 
-- Make the struct only consist of the class members defined by the user, even with strong refs
-- *Disable* the GC on strong references, relying on the programmer to free it with
-`std/memory/free`
+- Make the struct only consist of the class members defined by the user
+- *Disable* the GC, relying on the programmer to free it with `std/memory/free`
 - *Disable* runtime reflection, making things like the `is` operator unavailable
 - Easily allow defining C structs and using them in gelix, making interop seamless and zero-cost
 
@@ -58,7 +51,7 @@ extern class T {
 // %T = type { i64, f64 }
 
 // You can create an object on the heap like normal:
-val a = new T()
+val a = T()
 // But you *need* to call free on it, otherwise your program will leak memory!
 import std/memory/free
 free(a)
