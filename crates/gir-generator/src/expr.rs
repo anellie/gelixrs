@@ -9,7 +9,7 @@ use gir_nodes::{
     declaration::{ADTType, LocalVariable, Variable, Visibility},
     expression::CastType,
     gir_err,
-    types::{TypeArguments, TypeParameter, VariableModifier},
+    types::{TypeArguments, TypeParameter},
     Expr, Function, IFaceImpls, Instance, Literal, Type, ADT,
 };
 use num_traits::Num;
@@ -59,7 +59,7 @@ impl GIRGenerator {
 
             AExpr::LiteralClosure(closure) => self.closure(closure),
 
-            AExpr::Prefix(expr) => self.prefix(expr.operator(), expr.right(), &expr.cst),
+            AExpr::Prefix(expr) => Ok(self.prefix(expr.operator(), expr.right(), &expr.cst)),
 
             AExpr::Return(ret) => self.return_(ret),
 
@@ -317,7 +317,7 @@ impl GIRGenerator {
 
                     callee_type.set_type_args(ty_vars);
                     Ok(Expr::Allocate {
-                        ty: callee_type.into_type().to_weak(),
+                        ty: *callee_type.into_type(),
                         constructor,
                         args,
                     })
@@ -497,13 +497,10 @@ impl GIRGenerator {
 
     fn match_param(&self, param: &Type, arg: &Type, ty_param: &TypeParameter) -> Option<Type> {
         match (param, arg) {
-            (Type::Variable(var), _) if var.name == ty_param.name => match var.modifier {
-                VariableModifier::Value => Some(arg.clone()),
-                VariableModifier::Weak => Some(arg.to_value()),
-                VariableModifier::Strong => Some(arg.to_value()),
-            },
+            (Type::Variable(var), _) if var.name == ty_param.name => Some(arg.clone()),
 
-            (Type::RawPtr(param_inner), Type::RawPtr(arg_inner)) => {
+            (Type::RawPtr(param_inner), Type::RawPtr(arg_inner))
+            | (Type::Nullable(param_inner), Type::Nullable(arg_inner)) => {
                 self.match_param(param_inner, arg_inner, ty_param)
             }
 
@@ -564,6 +561,9 @@ impl GIRGenerator {
             loop_res
         }
     }
+
+    TODO: FIXME: Opt and Some have been retired in favor of nullable types.
+    Redo this code appropriately.
     */
     fn for_iter(&mut self, cond: ForIterCond, body: AExpr, else_b: Option<AExpr>) -> Res<Expr> {
         self.begin_scope();
@@ -579,7 +579,7 @@ impl GIRGenerator {
             let cases = adt.ty.cases();
             Rc::clone(cases.get("Some").unwrap())
         };
-        let some_ty = Type::StrongRef(Instance::new(Rc::clone(&some_adt), Rc::clone(&elem_ty)));
+        let some_ty = Type::Adt(Instance::new(Rc::clone(&some_adt), Rc::clone(&elem_ty)));
 
         let next_call = Expr::call(Expr::var(Variable::Function(next_fn)), vec![iter_value]);
         let (inital_store_expr, loop_var) = self.temp_variable(next_call.clone(), cond.name());
@@ -623,7 +623,7 @@ impl GIRGenerator {
     ) -> Res<(Expr, Instance<Function>, Rc<TypeArguments>)> {
         let find_iface = |name: &str| {
             impls.interfaces.iter().find(|(iface, _)| {
-                let iface = iface.as_strong_ref().ty.borrow();
+                let iface = iface.as_adt().ty.borrow();
                 iface.name == name && iface.module.borrow().path.is(&["std", "iter"])
             })
         };
@@ -668,7 +668,7 @@ impl GIRGenerator {
                 if let Some(case) = cases.get(&name) {
                     match ADT::get_singleton_inst(case, ty.args()) {
                         Some(inst) if allow_simple => Ok(inst),
-                        _ => Ok(Expr::TypeGet(Type::Value(Instance::new(
+                        _ => Ok(Expr::TypeGet(Type::Adt(Instance::new(
                             Rc::clone(case),
                             Rc::clone(ty.args()),
                         )))),
@@ -729,13 +729,7 @@ impl GIRGenerator {
                 }
 
                 (SyntaxKind::Is, Expr::Variable(Variable::Local(var))) => {
-                    let ty = right.get_type().into_type();
-                    let ty = if var.ty.is_weak_ref() {
-                        ty.to_weak()
-                    } else {
-                        ty.to_strong()
-                    };
-
+                    let ty = *right.get_type().into_type();
                     let mut clone = (**var).clone();
                     clone.ty = ty.clone();
                     let new_var = self.define_variable_(clone, None);
@@ -862,10 +856,7 @@ impl GIRGenerator {
         let mut gen = Self::for_closure(self);
 
         let function = gen.create_function(FnSig {
-            name: SmolStr::new_inline(&format!(
-                "closure-{}",
-                signature.cst.text_range().start
-            )),
+            name: SmolStr::new_inline(&format!("closure-{}", signature.cst.text_range().start)),
             visibility: Visibility::Private,
             params: box signature
                 .parameters()
@@ -892,7 +883,7 @@ impl GIRGenerator {
         Ok(store)
     }
 
-    fn prefix(&mut self, operator: SyntaxKind, ast_right: AExpr, cst: &CSTNode) -> Res<Expr> {
+    fn prefix(&mut self, operator: SyntaxKind, ast_right: AExpr, cst: &CSTNode) -> Expr {
         let right = self.expression(&ast_right);
         let ty = right.get_type();
 
@@ -903,29 +894,10 @@ impl GIRGenerator {
                 self.err(cst.clone(), GErr::E228)
             }
 
-            SyntaxKind::New => return self.alloc_heap(right, cst),
-
             _ => (),
         };
 
-        Ok(Expr::unary(operator, right))
-    }
-
-    fn alloc_heap(&mut self, inner: Expr, err_cst: &CSTNode) -> Res<Expr> {
-        if let Expr::Allocate {
-            ty,
-            constructor,
-            args,
-        } = inner
-        {
-            Ok(Expr::Allocate {
-                ty: ty.to_strong(),
-                constructor,
-                args,
-            })
-        } else {
-            Err(gir_err(err_cst.clone(), GErr::E226))
-        }
+        Expr::unary(operator, right)
     }
 
     fn return_(&mut self, ret: &Return) -> Res<Expr> {
@@ -1092,7 +1064,7 @@ impl GIRGenerator {
                 return false;
             };
             let ty = right.get_type();
-            let adt = ty.as_type().as_value();
+            let adt = ty.as_type().as_adt();
             let i = cases.iter().position(|c| Rc::ptr_eq(c, &adt.ty));
             if let Some(i) = i {
                 cases.remove(i);

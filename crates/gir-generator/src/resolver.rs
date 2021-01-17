@@ -6,9 +6,9 @@ use common::{mutrc_new, MutRc};
 use error::{GErr, Res};
 use gir_nodes::{
     declaration::ADTType,
-    expression::{CastType, CastType::Bitcast},
+    expression::CastType::Bitcast,
     gir_err,
-    types::{ClosureType, TypeParameters, TypeVariable, VariableModifier},
+    types::{ClosureType, TypeParameters, TypeVariable},
     Expr, IFaceImpls, Instance, Type,
 };
 use smol_str::SmolStr;
@@ -38,31 +38,11 @@ impl GIRGenerator {
                 }
             }
 
-            ast::TypeE::Weak(inner) => {
+            ast::TypeE::Nullable(inner) => {
                 let inner = self.find_type(&inner)?;
                 match inner {
-                    Type::StrongRef(adt) | Type::Value(adt) | Type::WeakRef(adt) => {
-                        Ok(Type::WeakRef(adt))
-                    }
-                    Type::Variable(mut var) => {
-                        var.modifier = VariableModifier::Weak;
-                        Ok(Type::Variable(var))
-                    }
-                    _ => Err(gir_err(ast.cst(), GErr::E302)),
-                }
-            }
-
-            ast::TypeE::Value(inner) => {
-                let inner = self.find_type(&inner)?;
-                match inner {
-                    Type::StrongRef(adt) | Type::Value(adt) | Type::WeakRef(adt) => {
-                        Ok(Type::Value(adt))
-                    }
-                    Type::Variable(mut var) => {
-                        var.modifier = VariableModifier::Value;
-                        Ok(Type::Variable(var))
-                    }
-                    _ => Err(gir_err(ast.cst(), GErr::E303)),
+                    Type::Nullable(_) => Err(gir_err(ast.cst(), GErr::E302)),
+                    _ => Ok(Type::Nullable(box inner)),
                 }
             }
 
@@ -177,21 +157,8 @@ impl GIRGenerator {
 
         (
             match self.can_cast_type(&val_ty, ty) {
+                Some(cast) => Expr::cast(value, ty.clone(), cast),
                 None => return (value, false),
-
-                // The case of "to value, then bitcast" needs special handling to reverse order
-                // since values cannot be bitcast
-                Some((CastType::Bitcast, Some((CastType::ToValue, _)))) => Expr::cast(
-                    Expr::cast(value, ty.to_weak(), CastType::Bitcast),
-                    ty.clone(),
-                    CastType::ToValue,
-                ),
-
-                Some((outer, Some((inner, inner_ty)))) => {
-                    Expr::cast(Expr::cast(value, inner_ty, inner), ty.clone(), outer)
-                }
-
-                Some((outer, None)) => Expr::cast(value, ty.clone(), outer),
             },
             true,
         )
@@ -220,7 +187,7 @@ impl GIRGenerator {
         }
 
         // If both are enum cases, they need special handling to cast to their supertype
-        let (left_adt, right_adt) = (left_ty.try_adt(), right_ty.try_adt());
+        let (left_adt, right_adt) = (left_ty.try_adt_nullable(), right_ty.try_adt_nullable());
         if let (
             Some(ADTType::EnumCase { parent: p1, .. }),
             Some(ADTType::EnumCase { parent: p2, .. }),
@@ -231,8 +198,8 @@ impl GIRGenerator {
             if Rc::ptr_eq(&p1, &p2) && left_adt.unwrap().args() == right_adt.unwrap().args() {
                 let inst = Instance::new(p1, Rc::clone(left_adt.unwrap().args()));
                 let ty = match (left_ty, right_ty) {
-                    (Type::StrongRef(_), Type::StrongRef(_)) => Type::StrongRef(inst),
-                    _ => Type::WeakRef(inst),
+                    (Type::Adt(_), Type::Adt(_)) => Type::Adt(inst),
+                    _ => Type::Nullable(box Type::Adt(inst)),
                 };
 
                 // Run this function a second time to convert any

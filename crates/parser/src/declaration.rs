@@ -11,7 +11,7 @@ static MODIFIERS: [SyntaxKind; 5] = [
     SyntaxKind::Priv,
     SyntaxKind::Extern,
     SyntaxKind::Variadic,
-    SyntaxKind::Strong,
+    SyntaxKind::Value,
 ];
 
 // All tokens that can be modifiers on any declaration.
@@ -20,7 +20,7 @@ static GLOBAL_MODIFIERS: [SyntaxKind; 2] = [SyntaxKind::Mod, SyntaxKind::Priv];
 // All tokens that can be modifiers on a class member.
 static MEMBER_MODIFIERS: [SyntaxKind; 0] = [];
 // All tokens that can be modifiers on a method.
-static METHOD_MODIFIERS: [SyntaxKind; 1] = [SyntaxKind::Strong];
+static METHOD_MODIFIERS: [SyntaxKind; 0] = [];
 // All tokens that can be modifiers on a constructor.
 static CONSTRUCTOR_MODIFIERS: [SyntaxKind; 0] = [];
 
@@ -327,6 +327,7 @@ impl<'p> Parser<'p> {
 
     /// Reads a type name.
     pub fn type_(&mut self) {
+        let check = self.checkpoint();
         self.start_node(SyntaxKind::Type);
         let token = self.advance();
         match token.kind {
@@ -345,7 +346,7 @@ impl<'p> Parser<'p> {
             }
 
             // Read inner
-            SyntaxKind::Tilde | SyntaxKind::AndSym | SyntaxKind::Star => self.type_(),
+            SyntaxKind::Tilde | SyntaxKind::Star => self.type_(),
 
             SyntaxKind::LeftParen => {
                 if !self.check(SyntaxKind::RightParen) {
@@ -365,6 +366,12 @@ impl<'p> Parser<'p> {
 
             _ => self.error_at_current(GErr::E003),
         }
+
+        if self.check(SyntaxKind::QuestionMark) {
+            self.start_node_at(check, SyntaxKind::Type);
+            self.end_node();
+            self.advance();
+        }
         self.end_node();
     }
 }
@@ -380,7 +387,7 @@ struct ADTConfig {
 
 const CLASS_CONF: ADTConfig = ADTConfig {
     name: "class",
-    modifiers: &[SyntaxKind::Extern],
+    modifiers: &[SyntaxKind::Extern, SyntaxKind::Value],
     has_members: true,
     has_constructors: true,
     has_cases: false,
@@ -398,7 +405,7 @@ const IFACE_CONF: ADTConfig = ADTConfig {
 
 const ENUM_CONF: ADTConfig = ADTConfig {
     name: "enum",
-    modifiers: &[],
+    modifiers: &[SyntaxKind::Value],
     has_members: true,
     has_constructors: false,
     has_cases: true,

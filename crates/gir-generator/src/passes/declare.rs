@@ -6,7 +6,8 @@ use common::{mutrc_new, MutRc};
 use error::{GErr, Res};
 use gir_nodes::{
     declaration::{ADTType, IRAdt, IRFunction, LocalVariable, Visibility},
-    types::{TypeParameter, TypeParameterBound, TypeParameters},
+    gir_err,
+    types::{TypeKind, TypeParameter, TypeParameterBound, TypeParameters},
     Declaration, Function, IFaceImpl, Type, ADT,
 };
 use indexmap::IndexMap;
@@ -18,18 +19,28 @@ impl GIRGenerator {
         for ast in ast.adts() {
             let name = ast.name();
             self.try_reserve_name(&name.cst, &name.name());
-            self.adt_from_ast(ast, None);
+            let res = self.adt_from_ast(ast, None);
+            self.eat(res);
         }
     }
 
-    fn adt_from_ast(&mut self, ast: ast::Adt, parent: Option<MutRc<ADT>>) -> MutRc<ADT> {
+    fn adt_from_ast(&mut self, ast: ast::Adt, parent: Option<MutRc<ADT>>) -> Res<MutRc<ADT>> {
         let name = ast.name();
         let mut adt_name = name.name();
+        let type_kind = if ast.modifiers().any(|m| m == SyntaxKind::Value) {
+            TypeKind::Value
+        } else {
+            TypeKind::Reference
+        };
 
         let ty = match ast.kind() {
             SyntaxKind::Class => ADTType::Class {
                 external: ast.modifiers().any(|m| m == SyntaxKind::Extern),
             },
+
+            SyntaxKind::Interface if type_kind == TypeKind::Value => {
+                return Err(gir_err(name.cst(), GErr::E303))
+            }
 
             SyntaxKind::Interface => ADTType::Interface,
 
@@ -45,7 +56,7 @@ impl GIRGenerator {
                     parent,
                     simple: ast.cst.children().count() == 1, // Only identifier as child = simple
                 }
-            },
+            }
         };
 
         let type_parameters = self.ast_generics_to_gir(
@@ -55,6 +66,7 @@ impl GIRGenerator {
         let adt = mutrc_new(ADT {
             name: adt_name.clone(),
             visibility: self.visibility_from_modifiers(ast.modifiers()),
+            type_kind,
             fields: IndexMap::with_capacity(10),
             methods: IndexMap::with_capacity(10),
             constructors: Vec::with_capacity(5),
@@ -70,28 +82,29 @@ impl GIRGenerator {
             .declarations
             .insert(adt_name, Declaration::Adt(Rc::clone(&adt)));
 
-        self.maybe_enum_cases(&adt);
-        adt
+        self.maybe_enum_cases(&adt)?;
+        Ok(adt)
     }
 
-    fn maybe_enum_cases(&mut self, adt_rc: &MutRc<ADT>) {
+    fn maybe_enum_cases(&mut self, adt_rc: &MutRc<ADT>) -> Res<()> {
         if matches!(adt_rc.borrow().ty, ADTType::Enum { .. }) {
             let enum_cases = {
                 let adt = adt_rc.borrow();
                 adt.ast
                     .cases()
                     .map(|case| {
-                        (
+                        Ok((
                             case.name().name(),
-                            self.adt_from_ast(case, Some(Rc::clone(&adt_rc))),
-                        )
+                            self.adt_from_ast(case, Some(Rc::clone(&adt_rc)))?,
+                        ))
                     })
-                    .collect()
+                    .collect::<Res<_>>()?
             };
             if let ADTType::Enum { ref mut cases } = &mut adt_rc.borrow_mut().ty {
                 *cases = Rc::new(enum_cases);
             }
         }
+        Ok(())
     }
 
     /// Takes a list of type parameters of an AST node and
@@ -134,16 +147,16 @@ impl GIRGenerator {
         let implementor = eat!(self, self.find_type(&iface_impl.implementor()));
 
         let iface = eat!(self, self.find_type(&iface_impl.iface()));
-        if !iface.is_strong_ref() || !iface.as_strong_ref().ty.borrow().ty.is_interface() {
+        if !iface.is_adt() || !iface.as_adt().ty.borrow().ty.is_interface() {
             self.err(iface_impl.iface().cst(), GErr::E307);
             return;
         }
-        let iface_adt = iface.as_strong_ref();
+        let iface_adt = iface.as_adt();
 
         let impls = self.get_iface_impls(&implementor);
         let gir_impl = IFaceImpl {
             implementor,
-            iface: iface.as_strong_ref().clone(),
+            iface: iface.as_adt().clone(),
             methods: HashMap::with_capacity(iface_adt.ty.borrow().methods.len()),
             module: Rc::clone(&self.module),
             ast: iface_impl.clone(),
@@ -216,7 +229,7 @@ impl GIRGenerator {
     /// The main use of this method is validation of the function.
     pub(crate) fn create_function(&self, sig: FnSig) -> Res<MutRc<Function>> {
         let ret_type = sig.ret_type.unwrap_or_default();
-        if !ret_type.can_escape() {
+        if !ret_type.can_assign() {
             self.err(
                 sig.ast.as_ref().unwrap().sig().ret_type().unwrap().cst,
                 GErr::E308,

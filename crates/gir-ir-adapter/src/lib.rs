@@ -103,8 +103,8 @@ impl<'a, T: Copy, A: Hash + Eq> Iterator for AdapterIter<'a, T, A> {
 
 #[derive(Copy, Clone)]
 pub struct IRAdtInfo {
-    pub strong: StructType,
-    pub weak: StructType,
+    pub adt: StructType,
+    pub nullable: StructType,
     pub typeinfo: PointerValue,
 }
 

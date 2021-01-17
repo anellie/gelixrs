@@ -50,7 +50,7 @@ class String {
     /// Appends the given string to itself.
     /// Will not modify the other string.
     /// Returns itself for easy chaining.
-    strong func append(other: &String) -> String {
+    func append(other: String) -> String {
         this.reserve(other.length)
         copy_ptr(other.ptr, index_ptr(this.ptr, this.length), other.length)
         this.length = this.length + other.len()
@@ -82,11 +82,11 @@ impl ToString for String {
     func to_string() -> String = this
 }
 
-impl Add[ToString, String] for &String {
+impl Add[ToString, String] for String {
     func add(other: ToString) -> String {
         val other = other.to_string()
         // +1 to account for the null terminator
-        val new_str = new String(this.len() + other.len() + 1)
+        val new_str = String(this.len() + other.len() + 1)
         new_str.append(this)
         new_str.append(other)
     }
@@ -110,9 +110,9 @@ impl ToString for bool {
 }
 
 /// Simply creates a buffer and writes to it with sprintf.
-func sprintf_buf[T: Primitive](buf_len: usize, format: String, value: T) -> String {
-    var buffer = new String(buf_len)
-    buffer.length = snprintf(buffer.ptr, buf_len, format.ptr, value)
+func sprintf_buf[T: Primitive](buf_len: usize, format: String, prim: T) -> String {
+    var buffer = String(buf_len)
+    buffer.length = snprintf(buffer.ptr, buf_len, format.ptr, prim)
     buffer
 }
 

@@ -8,7 +8,7 @@ use common::MutRc;
 use gir_ir_adapter::IRAdtInfo;
 use gir_nodes::{
     declaration::{ADTType, LocalVariable},
-    types::{ClosureType, TypeArguments, TypeVariable, VariableModifier},
+    types::{ClosureType, TypeArguments, TypeKind, TypeVariable},
     Function, Instance, Type, ADT,
 };
 use inkwell::{
@@ -44,7 +44,9 @@ impl IRGenerator {
         let raw = self.ir_ty_raw(gir);
         (
             match self.maybe_unwrap_var(gir) {
-                Type::StrongRef(inst) | Type::WeakRef(inst) if inst.ty.borrow().ty.ref_is_ptr() => {
+                Type::Adt(inst) | Type::Nullable(box Type::Adt(inst))
+                    if inst.ty.borrow().is_ptr() =>
+                {
                     raw.0.ptr_type(Generic).into()
                 }
                 Type::Closure(_) | Type::ClosureCaptured(_) => raw.0.ptr_type(Generic).into(),
@@ -86,15 +88,19 @@ impl IRGenerator {
 
             Type::ClosureCaptured(captured) => (self.build_captured_type(captured).into(), None),
 
-            Type::StrongRef(inst) => {
+            Type::Adt(inst) => {
                 let adt = self.get_or_build_adt(inst);
-                (adt.strong.into(), Some(adt.typeinfo))
+                (adt.adt.into(), Some(adt.typeinfo))
             }
 
-            Type::Value(inst) | Type::WeakRef(inst) => {
+            Type::Nullable(box Type::Adt(inst))
+                if inst.ty.borrow().type_kind == TypeKind::Reference =>
+            {
                 let adt = self.get_or_build_adt(inst);
-                (adt.weak.into(), Some(adt.typeinfo))
+                (adt.adt.into(), Some(adt.typeinfo))
             }
+
+            Type::Nullable(_) => todo!("value nullables"),
 
             Type::RawPtr(inner) => {
                 let (inner, ptr) = self.ir_ty_generic_full(inner);
@@ -131,12 +137,7 @@ impl IRGenerator {
         }
 
         let index = self.type_args.len() - 1;
-        let ty = self.type_args[index][var.index].clone();
-        match var.modifier {
-            VariableModifier::Value => ty,
-            VariableModifier::Weak => ty.to_weak(),
-            VariableModifier::Strong => ty.to_strong(),
-        }
+        self.type_args[index][var.index].clone()
     }
 
     fn get_or_build_adt(&mut self, inst: &Instance<ADT>) -> IRAdtInfo {
@@ -146,8 +147,8 @@ impl IRGenerator {
             Some(info) => info,
             None => {
                 let info = IRAdtInfo {
-                    strong: self.build_adt(&inst, false, "SR"),
-                    weak: self.build_adt(&inst, true, "WR"),
+                    adt: self.build_adt(&inst, false, ""),
+                    nullable: self.build_adt(&inst, true, "nullable-"),
                     typeinfo: self.build_type_info(),
                 };
                 inst.ty.borrow_mut().ir.add_inst(inst.args(), info);
@@ -170,7 +171,7 @@ impl IRGenerator {
             ADTType::Interface => self.build_iface_type(adt, weak),
 
             _ => self.build_struct(
-                &format!("{}-{}-{}", prefix, &adt.name, adt.ir.count()),
+                &format!("{}{}-{}", prefix, &adt.name, adt.ir.count()),
                 adt.fields.iter().map(|(_, m)| &m.ty),
                 !weak,
                 true,
@@ -344,8 +345,8 @@ impl IRGenerator {
     }
 
     pub(crate) fn refcount_before_tyinfo(ty: &IRType) -> bool {
-        if let IRType::StrongRef(adt) = ty {
-            adt.ty.borrow().ty.ref_is_ptr()
+        if let IRType::Adt(adt) = ty {
+            adt.ty.borrow().refcounted()
         } else {
             false
         }

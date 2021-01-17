@@ -1,6 +1,9 @@
 use common::MutRc;
 use error::GErr;
-use gir_nodes::{ADT, declaration::{ADTType, Field}};
+use gir_nodes::{
+    declaration::{ADTType, Field},
+    ADT,
+};
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{eat, GIRGenerator};
@@ -20,7 +23,7 @@ impl GIRGenerator {
                 }
             }
 
-            _ => ()
+            _ => (),
         }
     }
 
@@ -45,7 +48,7 @@ impl GIRGenerator {
                 )
             );
 
-            if !ty.can_escape() {
+            if !ty.can_assign() {
                 self.err(field.cst(), GErr::E234);
             }
 
@@ -59,9 +62,7 @@ impl GIRGenerator {
                 index,
             });
 
-            let existing_entry = adt
-                .fields
-                .insert(field.name(), Rc::clone(&member));
+            let existing_entry = adt.fields.insert(field.name(), Rc::clone(&member));
             if existing_entry.is_some() {
                 self.err(field.cst(), GErr::E235);
             }

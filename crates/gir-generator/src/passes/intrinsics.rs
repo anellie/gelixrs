@@ -1,7 +1,7 @@
 use crate::GIRGenerator;
 use common::{ModPath, MutRc};
 use error::Errors;
-use gir_nodes::{Instance, Module, Type};
+use gir_nodes::{types::ToInstance, Module};
 use std::rc::Rc;
 
 impl GIRGenerator {
@@ -15,7 +15,7 @@ impl GIRGenerator {
             self.intrinsics.fill_ops_table(module);
         } else if module.path.is(&["std", "string"]) {
             let str_ty = module.find_decl("String").map(|d| d.into_adt()).unwrap();
-            self.intrinsics.string_type = Some(Type::StrongRef(Instance::new_(str_ty)))
+            self.intrinsics.string_type = Some(str_ty.to_type())
         } else if module.path.is(&["std", "memory"]) {
             self.intrinsics.free_iface = module.find_decl("Free").map(|d| d.into_adt());
         } else if module.path.is(&["std", "iter"]) {

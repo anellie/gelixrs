@@ -68,10 +68,10 @@ class Array[E] {
         if (this.len == 0) return Opt[E]:None
 
         this.len = this.len - 1
-        val value = this.get(this.len)
+        val v = this.get(this.len)
 
-        dec_ref(value)
-        new Opt:Some(value)
+        dec_ref(v)
+        Opt:Some(v)
     }
 
     func maybe_extend() {
@@ -88,7 +88,7 @@ class Array[E] {
 }
 
 /*
-impl Free for &Array[E] {
+impl Free for Array[E] {
     func free() {
         // TODO: Fix for-iter loops
         var i = 0

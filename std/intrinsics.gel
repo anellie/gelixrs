@@ -27,10 +27,10 @@ extern mod func gelixrs_int_to_ptr[T](ptr: usize) -> *T
 extern mod func gelixrs_gep[T](ptr: *T, index: u64) -> *T
 
 /// Increments the refcount on the value
-extern mod func gelixrs_inc_ref[T](value: T)
+extern mod func gelixrs_inc_ref[T](v: T)
 
 /// Decrements the refcount on the value
-extern mod func gelixrs_dec_ref[T](value: T)
+extern mod func gelixrs_dec_ref[T](v: T)
 
 /// These 2 functions are used to increment/decrement the refcount on interfaces.
 /// The parameters are split into 2 since interfaces are StructValues,
@@ -40,10 +40,10 @@ extern mod func gelixrs_dec_ref_iface(implementor: usize, vtable: usize)
 
 /// Will call the given value's destructor, causing it to be deallocated
 /// immediately. Can be very unsafe - does not check for dangling references!
-extern mod func gelixrs_free_type[T](value: T)
+extern mod func gelixrs_free_type[T](v: T)
 
 /// Will load the given pointer's value
-extern mod func gelixrs_load_value[T](value: *T) -> T
+extern mod func gelixrs_load_value[T](v: *T) -> T
 
 /// libc puts
 extern mod func puts(s: *i8)

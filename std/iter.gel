@@ -32,15 +32,15 @@ interface ToIter[E, I: Iter[E]] {
 /// A simple iterator that infinitely returns the same value.
 class Repeat[T] {
     
-    val value: Opt[T]
+    val inner: Opt[T]
 
-    construct(value: T) {
-        this.value = Opt:Some(value)
+    construct(inner: T) {
+        this.inner = Opt:Some(inner)
     }
 }
 
 impl Iter[T] for Repeat[T] {
-    func next() -> Opt[T] = this.value
+    func next() -> Opt[T] = this.inner
 }
 
 /// An iterator that returns the first X values of the inner iter.
@@ -94,12 +94,12 @@ class Range[T: Integer] {
 }
 
 // TODO: Generic impl once impl type args are stable
-impl Iter[i64] for &Range[i64] {
+impl Iter[i64] for Range[i64] {
     func next() -> Opt[i64] {
         if (this.start >= this.end) Opt[i64]:None
         else {
             this.start = this.start + this.step
-            new Opt[i64]:Some(this.start - this.step)
+            Opt[i64]:Some(this.start - this.step)
         }
     }
 }

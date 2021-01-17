@@ -101,8 +101,6 @@ pub enum GErr {
     E224,
     // Static access is not supported on values
     E225,
-    // 'new' can only be used with constructors
-    E226,
     // '!' can only be used on boolean values
     E227,
     // '-' can only be used on signed integers and floats
@@ -117,7 +115,7 @@ pub enum GErr {
     E232,
     // Numeric literal does not fit into target type.
     E233,
-    // ADT member may not be a weak reference
+    // This type cannot be assigned to a field.
     E234,
     // ADT member cannot be defined twice
     E235,
@@ -134,9 +132,9 @@ pub enum GErr {
     E300(String),
     // Cannot use function as type
     E301,
-    // Weak is only applicable to ADTs
+    // Nullable cannot be applied multiple times
     E302,
-    // Value is only applicable to ADTs
+    // 'value' modifier cannot be applied to interfaces
     E303,
     // Type does not take type arguments
     E304,
@@ -276,7 +274,6 @@ impl GErr {
             E223 => "Unknown enum case.",
             E224 => "Static access is only supported on enum types.",
             E225 => "Static access is not supported on values.",
-            E226 => "'new' can only be used with constructors.",
             E227 => "'!' can only be used on boolean values.",
             E228 => "'-' can only be used on signed integers and floats.",
             E229 => "Branches of when must be of same type as the value compared.",
@@ -289,8 +286,8 @@ impl GErr {
             E238 => "Cannot use string literals with no_std enabled.",
 
             E301 => "Functions cannot be used as types.",
-            E302 => "Weak is only applicable to ADTs.",
-            E303 => "Value is only applicable to ADTs.",
+            E302 => "Nullable cannot be applied multiple times.",
+            E303 => "'value' modifier cannot be applied to interfaces.",
             E304 => "Type does not take type arguments.",
             E305 => "Can't define main multiple times.",
             E306 => "Interface already defined for type.",

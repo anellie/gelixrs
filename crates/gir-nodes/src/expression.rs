@@ -46,8 +46,7 @@ pub enum Expr {
     /// Simply a variable use/load.
     Variable(Variable),
 
-    /// Allocate a value of the given type,
-    /// usually [Type::WeakRef] or [Type::StrongRef].
+    /// Allocate a value of the given type, should always be Type::Adt.
     Allocate {
         ty: Type,
         constructor: MutRc<Function>,
@@ -253,6 +252,10 @@ impl Expr {
             to,
             method,
         }
+    }
+
+    pub fn inc_rc(val: Expr) -> Expr {
+        Expr::Intrinsic(Intrinsic::IncRc(box val))
     }
 
     pub fn dec_rc(val: Expr) -> Expr {
@@ -556,12 +559,18 @@ pub enum Intrinsic {
 pub enum CastType {
     /// A numeric cast between any number type
     Number,
-    /// A cast of strong ref to weak
-    StrongToWeak,
     /// A cast of strong or weak ref to value
     ToValue,
     /// A bitcast ( = reinterpretation of bits)
     Bitcast,
+    /// Cast a type to its nullable representation.
+    /// Bitcast for all reference types, since `null` there
+    /// is simply a 0 pointer;
+    /// value types instead have a bool added to them to indicated nullability.
+    ToNullable,
+    /// Cast from nullable to the given type. Does not
+    /// actually verify that a value is not null, careful!
+    FromNullable,
     // Type is the implementor type
     ToInterface(Type),
 }

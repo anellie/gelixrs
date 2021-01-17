@@ -83,7 +83,7 @@ impl Node {
             .filter_map(NodeOrToken::into_node)
     }
 
-    pub fn children_with_tokens(&self) -> impl Iterator<Item = NodeOrToken> + '_ {
+    pub fn children_with_tokens(&self) -> impl DoubleEndedIterator<Item = NodeOrToken> + '_ {
         self.children.iter().cloned()
     }
 
@@ -102,6 +102,13 @@ impl Node {
             NodeOrToken::Token(t) => Some(t),
             NodeOrToken::Node(n) => n.first_token_nest(),
         }
+    }
+
+    pub fn last_token(&self) -> Option<Token> {
+        self.children_with_tokens()
+            .rev()
+            .filter_map(NodeOrToken::into_token)
+            .next()
     }
 
     pub fn kind(&self) -> SyntaxKind {

@@ -52,12 +52,11 @@ pub enum Type {
     /// The first parameter on a closure function
     ClosureCaptured(Rc<Vec<Rc<LocalVariable>>>),
 
-    /// An ADT used as a value.
-    Value(Instance<ADT>),
-    /// A strong ADT reference.
-    StrongRef(Instance<ADT>),
-    /// A weak ADT reference.
-    WeakRef(Instance<ADT>),
+    /// An ADT.
+    Adt(Instance<ADT>),
+
+    /// A nullable ADT that requires null checks before being usable.
+    Nullable(Box<Type>),
 
     /// A raw pointer of a type.
     /// Can only be interacted with using special
@@ -82,9 +81,9 @@ impl Type {
 
             (Self::Function(f), Self::Function(o)) => f == o,
             (Self::Closure(f), Self::Closure(o)) => f == o,
-            (Self::Value(v), Self::Value(o)) => v == o,
-            (Self::StrongRef(v), Self::StrongRef(o)) => v == o,
-            (Self::WeakRef(v), Self::WeakRef(o)) => v == o,
+            (Self::Adt(v), Self::Adt(o)) => v == o,
+            (Self::Nullable(v), Self::Nullable(o)) => v == o,
+            (Self::Type(v), Self::Type(o)) => v == o,
             (Self::Variable(i), Self::Variable(o)) => i.index == o.index,
             (Self::RawPtr(p), Self::RawPtr(o)) => p == o,
 
@@ -96,8 +95,8 @@ impl Type {
     pub fn type_args(&self) -> Option<Rc<TypeArguments>> {
         match self {
             Self::Function(inst) => Some(&inst.args),
-            Self::Value(inst) | Self::WeakRef(inst) | Self::StrongRef(inst) => Some(&inst.args),
-            Self::Type(ty) => return ty.type_args(),
+            Self::Adt(inst) => Some(&inst.args),
+            Self::Type(ty) | Self::RawPtr(ty) | Self::Nullable(ty) => return ty.type_args(),
             _ => None,
         }
         .cloned()
@@ -107,10 +106,8 @@ impl Type {
     pub fn type_params(&self) -> Option<Rc<TypeParameters>> {
         Some(match self {
             Self::Function(inst) => Rc::clone(&inst.ty.borrow().type_parameters),
-            Self::Value(inst) | Self::WeakRef(inst) | Self::StrongRef(inst) => {
-                Rc::clone(&inst.ty.borrow().type_parameters)
-            }
-            Self::Type(ty) => return ty.type_params(),
+            Self::Adt(inst) => Rc::clone(&inst.ty.borrow().type_parameters),
+            Self::Type(ty) | Self::RawPtr(ty) | Self::Nullable(ty) => return ty.type_params(),
             _ => return None,
         })
     }
@@ -123,19 +120,20 @@ impl Type {
                 inst.args = args;
                 true
             }
-            Self::Value(inst) | Self::WeakRef(inst) | Self::StrongRef(inst) => {
+            Self::Adt(inst) => {
                 inst.args = args;
                 true
             }
-            Self::Type(ty) => ty.set_type_args(args),
+            Self::Type(ty) | Self::RawPtr(ty) | Self::Nullable(ty) => ty.set_type_args(args),
             _ => false,
         }
     }
 
     /// A list of all primitive types that are not defined in any gelix code,
     /// but are instead indirectly globally defined.
-    pub fn primitives() -> [Type; 12] {
+    pub fn primitives() -> [Type; 13] {
         [
+            Type::Any,
             Type::None,
             Type::Bool,
             Type::I8,
@@ -186,15 +184,6 @@ impl Type {
         matches!(self, Type::F32 | Type::F64) || self.is_var_with_marker(Bound::Float)
     }
 
-    /// Is this type a pointer at machine level?
-    pub fn is_ptr(&self) -> bool {
-        self.is_strong_ref()
-            || self.is_weak_ref()
-            || self.is_closure()
-            || self.is_var_with_marker(Bound::StrongRef)
-            || self.is_var_with_marker(Bound::WeakRef)
-    }
-
     /// Can this type be assigned to variables?
     /// True for everything but static ADTs.
     pub fn is_assignable(&self) -> bool {
@@ -207,10 +196,18 @@ impl Type {
         self.is_function() || self.is_closure()
     }
 
-    /// Can this type 'escape' the function it is in?
-    /// True for everything except weak references.
-    pub fn can_escape(&self) -> bool {
-        !self.is_weak_ref()
+    /// Can this type be assigned and stored?
+    pub fn can_assign(&self) -> bool {
+        !self.is_type()
+    }
+
+    /// Is this type a reference ADT?
+    pub fn is_ref_adt(&self) -> bool {
+        if let Type::Adt(inst) | Type::Nullable(box Type::Adt(inst)) = self {
+            inst.ty.borrow().type_kind == TypeKind::Reference
+        } else {
+            false
+        }
     }
 
     pub fn is_var_with_marker(&self, marker: Bound) -> bool {
@@ -229,30 +226,19 @@ impl Type {
     /// if it contains one.
     pub fn try_adt(&self) -> Option<&Instance<ADT>> {
         match self {
-            Type::Value(adt) | Type::WeakRef(adt) | Type::StrongRef(adt) => Some(adt),
+            Type::Adt(adt) => Some(adt),
             _ => None,
         }
     }
 
-    pub fn to_strong(&self) -> Type {
-        self.try_adt()
-            .cloned()
-            .map(Type::StrongRef)
-            .unwrap_or_else(|| self.clone())
-    }
-
-    pub fn to_weak(&self) -> Type {
-        self.try_adt()
-            .cloned()
-            .map(Type::WeakRef)
-            .unwrap_or_else(|| self.clone())
-    }
-
-    pub fn to_value(&self) -> Type {
-        self.try_adt()
-            .cloned()
-            .map(Type::Value)
-            .unwrap_or_else(|| self.clone())
+    /// Try turning this type into an ADT or nullable,
+    /// if it contains one.
+    pub fn try_adt_nullable(&self) -> Option<&Instance<ADT>> {
+        match self {
+            Type::Adt(adt) => Some(adt),
+            Type::Nullable(nil) => nil.try_adt_nullable(),
+            _ => None,
+        }
     }
 
     pub fn type_or_none(self) -> Option<Type> {
@@ -280,15 +266,10 @@ impl Type {
 
     pub fn resolve(&self, args: &Rc<TypeArguments>) -> Type {
         // Start by replacing any type variables with their concrete type
-        let replace = |var: &TypeVariable| match var.modifier {
-            VariableModifier::Value => args[var.index].clone(),
-            VariableModifier::Weak => args[var.index].to_weak(),
-            VariableModifier::Strong => args[var.index].to_strong(),
-        };
         let mut ty = match self {
-            Type::Variable(var) if var.index < args.len() => replace(var),
+            Type::Variable(var) if var.index < args.len() => args[var.index].clone(),
             Type::RawPtr(box Type::Variable(var)) if var.index < args.len() => {
-                Type::RawPtr(box replace(var))
+                Type::RawPtr(box args[var.index].clone())
             }
             _ => self.clone(),
         };
@@ -325,9 +306,8 @@ impl Hash for Type {
         // todo bad!!
         match self {
             Self::Function(v) => v.ty.borrow().name.hash(state),
-            Self::Value(v) | Self::StrongRef(v) | Self::WeakRef(v) => {
-                v.ty.borrow().name.hash(state)
-            }
+            Self::Adt(v) => v.ty.borrow().name.hash(state),
+            Self::Type(v) | Self::RawPtr(v) | Self::Nullable(v) => v.hash(state),
             _ => std::mem::discriminant(self).hash(state),
         }
     }
@@ -344,17 +324,15 @@ impl Display for Type {
         match self {
             Type::Function(_) => write!(f, "<function>"),
             Type::Closure(closure) => write!(f, "{}", closure),
-            Type::Value(adt) => write!(f, "~{}", adt),
-            Type::WeakRef(adt) => write!(f, "&{}", adt),
+            Type::Adt(adt) => write!(f, "{}", adt),
+            Type::Nullable(adt) => write!(f, "{}?", adt),
             Type::RawPtr(inner) => write!(f, "*{}", inner),
-            Type::StrongRef(adt) => write!(f, "@{}", adt),
             Type::Variable(var) => write!(f, "{}: {}", var.name, var.bound),
             Type::Type(ty) => match **ty {
                 Type::Function(_) => write!(f, "<function>"),
                 Type::Closure(_) => write!(f, "<closure>"),
-                Type::Value(_) => write!(f, "<ADT>"),
-                Type::WeakRef(_) => write!(f, "<weak ref>"),
-                Type::StrongRef(_) => write!(f, "<strong ref>"),
+                Type::Adt(_) => write!(f, "<ADT>"),
+                Type::Nullable(_) => write!(f, "<nullable ADT>"),
                 _ => write!(f, "<{:?}>", self),
             },
             _ => write!(f, "{:?}", self),
@@ -467,7 +445,7 @@ impl ToInstance<ADT> for MutRc<ADT> {
     }
 
     fn to_type(&self) -> Type {
-        Type::StrongRef(self.to_inst())
+        Type::Adt(self.to_inst())
     }
 }
 
@@ -486,7 +464,6 @@ impl ToInstance<Function> for MutRc<Function> {
 pub struct TypeVariable {
     pub index: usize,
     pub name: SmolStr,
-    pub modifier: VariableModifier,
     pub bound: TypeParameterBound,
 }
 
@@ -495,17 +472,9 @@ impl TypeVariable {
         TypeVariable {
             index: param.index,
             name: param.name.clone(),
-            modifier: VariableModifier::Strong,
             bound: param.bound.clone(),
         }
     }
-}
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum VariableModifier {
-    Value,
-    Weak,
-    Strong,
 }
 
 /// A closure signature.
@@ -576,7 +545,14 @@ pub enum Bound {
     SignedInt,
     UnsignedInt,
     Float,
+    Adt,
+    Nullable,
+}
+
+/// The kind a type can be - either a reference type,
+/// or a value type. See gelix docs for more info and differences.
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum TypeKind {
+    Reference,
     Value,
-    StrongRef,
-    WeakRef,
 }

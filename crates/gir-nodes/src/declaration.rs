@@ -1,5 +1,5 @@
 use crate::{
-    types::{ClosureType, TypeArguments, TypeParameters},
+    types::{ClosureType, TypeArguments, TypeKind, TypeParameters},
     Expr, Instance, Module, Type,
 };
 use common::{ModPath, MutRc};
@@ -31,7 +31,7 @@ impl Declaration {
     pub fn to_type(&self) -> Type {
         match self {
             Self::Function(f) => Type::Function(Instance::new_(Rc::clone(f))),
-            Self::Adt(a) => Type::StrongRef(Instance::new_(Rc::clone(a))),
+            Self::Adt(a) => Type::Adt(Instance::new_(Rc::clone(a))),
         }
     }
 
@@ -78,6 +78,8 @@ pub struct ADT {
     pub fields: IndexMap<SmolStr, Rc<Field>>,
     /// The visibility of this ADT, determining its ability to be imported.
     pub visibility: Visibility,
+    /// The type kind of this ADT, default to Ref, Value with `value` modifier
+    pub type_kind: TypeKind,
 
     /// All methods of this ADT.
     /// Some ADTs have a few more special methods:
@@ -103,6 +105,14 @@ pub struct ADT {
 }
 
 impl ADT {
+    pub fn is_ptr(&self) -> bool {
+        self.type_kind == TypeKind::Reference && !matches!(self.ty, ADTType::Interface)
+    }
+
+    pub fn refcounted(&self) -> bool {
+        self.is_ptr()
+    }
+
     pub fn visible(&self, from: &ModPath) -> bool {
         self.visibility.from(&self.module.borrow().path, from)
     }
@@ -114,7 +124,7 @@ impl ADT {
         {
             if *no_body {
                 Some(Expr::Allocate {
-                    ty: Type::StrongRef(Instance::new(Rc::clone(inst), Rc::clone(args))),
+                    ty: Type::Adt(Instance::new(Rc::clone(inst), Rc::clone(args))),
                     constructor: Rc::clone(&inst.borrow().constructors[0]),
                     args: vec![],
                 })
@@ -159,12 +169,6 @@ impl ADTType {
         } else {
             unreachable!();
         }
-    }
-
-    /// Are strong/weak references of this type a pointer?
-    /// True for all but interfaces.
-    pub fn ref_is_ptr(&self) -> bool {
-        !self.is_interface()
     }
 
     /// Is this an extern class?

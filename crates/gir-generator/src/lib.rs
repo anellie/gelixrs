@@ -1,6 +1,6 @@
 #![feature(try_find)]
 #![feature(box_syntax)]
-
+#![feature(box_patterns)]
 // Often required due to clones; also false positives from type aliases
 #![allow(clippy::ptr_arg)]
 
@@ -221,28 +221,7 @@ impl GIRGenerator {
     ) -> Option<Instance<Function>> {
         let left_ty = left.get_type();
         let interface = self.intrinsics.get_op_iface(op)?;
-
-        if let Some(adt) = left_ty.try_adt() {
-            // If this is an ADT, also make sure that possible implementations
-            // for other representations are checked and casted to
-            self.get_op_method(&interface, &left_ty, right)
-                .or_else(|| {
-                    self.get_op_method(&interface, &Type::WeakRef(adt.clone()), right)
-                        .map(|var| {
-                            self.try_cast_in_place(left, &Type::WeakRef(adt.clone()));
-                            var
-                        })
-                })
-                .or_else(|| {
-                    self.get_op_method(&interface, &Type::Value(adt.clone()), right)
-                        .map(|var| {
-                            self.try_cast_in_place(left, &Type::Value(adt.clone()));
-                            var
-                        })
-                })
-        } else {
-            self.get_op_method(&interface, &left_ty, right)
-        }
+        self.get_op_method(&interface, &left_ty, right)
     }
 
     /// Tries finding a fitting method for an operator overload,
@@ -290,7 +269,7 @@ impl GIRGenerator {
         if let Some(closure_data) = &mut self.closure_data {
             for env in closure_data.outer_env.iter().rev() {
                 if let Some(var) = env.get(name) {
-                    if !var.ty.can_escape() {
+                    if !var.ty.can_assign() {
                         gir_err(cst.clone(), GErr::E205);
                     }
                     closure_data.captured.push(Rc::clone(var));

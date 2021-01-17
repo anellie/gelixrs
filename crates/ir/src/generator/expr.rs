@@ -6,7 +6,12 @@ use gir_nodes::{
     expression::{CastType, Intrinsic},
     Expr, Function, Instance, Literal, Type, ADT,
 };
-use inkwell::{FloatPredicate, IntPredicate, basic_block::BasicBlock, types::{AnyTypeEnum, BasicTypeEnum, StructType}, values::{BasicValueEnum, PointerValue}};
+use inkwell::{
+    basic_block::BasicBlock,
+    types::{AnyTypeEnum, BasicTypeEnum, StructType},
+    values::{BasicValueEnum, PointerValue},
+    FloatPredicate, IntPredicate,
+};
 use std::mem;
 use syntax::kind::SyntaxKind;
 
@@ -181,7 +186,7 @@ impl IRGenerator {
         constructor_args: Vec<LLValue>,
     ) -> LLValue {
         let (ir_ty, tyinfo) = self.ir_ty_raw(ty);
-        let alloc = self.create_alloc(ty.clone(), ir_ty, ty.is_strong_ref());
+        let alloc = self.create_alloc(ty.clone(), ir_ty, ty.is_ref_adt());
 
         let adt = ty.try_adt().unwrap();
         let constructor = self.get_or_create(&Instance::new(
@@ -205,7 +210,7 @@ impl IRGenerator {
     }
 
     fn maybe_init_type_info(&mut self, ty: &MutRc<ADT>, alloc: &LLPtr, info: Option<PointerValue>) {
-        if ty.borrow().ty.ref_is_ptr() && !ty.borrow().ty.is_extern_class() {
+        if !ty.borrow().ty.is_extern_class() {
             let gep = self.get_type_info_field(alloc);
             self.builder.build_store(gep, info.unwrap());
         }
@@ -219,13 +224,8 @@ impl IRGenerator {
         constructor: PointerValue,
         mut arguments: Vec<LLValue>,
     ) -> LLValue {
-        let ptr = if let Type::StrongRef(ty) = ty {
-            self.increment_refcount(&alloc.val());
-            self.cast_sr_to_wr(&alloc, &Type::WeakRef(ty.clone()))
-                .into_ptr()
-        } else {
-            alloc.clone()
-        };
+        self.increment_refcount(&alloc.val());
+        let ptr = alloc.clone();
 
         self.builder
             .build_call(instantiator, &[(*ptr).into()], "inst");
@@ -254,9 +254,10 @@ impl IRGenerator {
                     SyntaxKind::Slash => self.builder.build_int_signed_div(left, right, "div"),
                     SyntaxKind::And => self.builder.build_and(left, right, "and"),
                     SyntaxKind::Or => self.builder.build_or(left, right, "or"),
-                    _ => self
-                        .builder
-                        .build_int_compare(get_predicate(operator), left, right, "cmp")
+                    _ => {
+                        self.builder
+                            .build_int_compare(get_predicate(operator), left, right, "cmp")
+                    }
                 }),
                 &left_.ty,
             ),
@@ -320,7 +321,7 @@ impl IRGenerator {
             .build_call(callee, &ir_args, "call")
             .try_as_basic_value();
         let ret = ret.left().unwrap_or(*self.none_const);
-        if ret_type.is_ptr() && ret.is_pointer_value() {
+        if ret.is_pointer_value() {
             self.locals()
                 .push(LLPtr::from(ret.into_pointer_value(), &ret_type));
         }
@@ -337,8 +338,11 @@ impl IRGenerator {
             // Function
             AnyTypeEnum::FunctionType(_) => callee,
             // Closure
-            AnyTypeEnum::StructType(_) => self.builder.build_load(self.struct_gep_raw(callee, 1), "clsfnload").into_pointer_value(),
-            _ => panic!("Can't call this!")
+            AnyTypeEnum::StructType(_) => self
+                .builder
+                .build_load(self.struct_gep_raw(callee, 1), "clsfnload")
+                .into_pointer_value(),
+            _ => panic!("Can't call this!"),
         }
     }
 
@@ -374,8 +378,7 @@ impl IRGenerator {
                     ty: string_ty,
                 } => {
                     let const_str = self.builder.build_global_string_ptr(&string, "str");
-                    let constructor =
-                        Rc::clone(&string_ty.as_strong_ref().ty.borrow().constructors[1]);
+                    let constructor = Rc::clone(&string_ty.as_adt().ty.borrow().constructors[1]);
 
                     return self.allocate_raw_args(
                         &string_ty,
@@ -618,9 +621,14 @@ impl IRGenerator {
                 LLValue::from(self.builder.build_load(ptr, "vload"), to)
             }
 
-            CastType::StrongToWeak => {
-                let ptr = self.expression(object);
-                self.cast_sr_to_wr(&ptr.into_ptr(), to)
+            CastType::ToNullable => {
+                let ty = self.expression(object);
+                LLValue::from(*ty, to)
+            }
+
+            CastType::FromNullable => {
+                let ty = self.expression(object);
+                LLValue::from(*ty, to)
             }
         }
     }
@@ -644,16 +652,6 @@ impl IRGenerator {
             },
             &expr.ty,
         )
-    }
-
-    pub(crate) fn cast_sr_to_wr(&mut self, sr: &LLPtr, wr_ty: &Type) -> LLValue {
-        if wr_ty.try_adt().unwrap().ty.borrow().ty.is_extern_class() {
-            return sr.val();
-        }
-
-        let to = self.ir_ty_generic(wr_ty);
-        let gep = self.struct_gep_raw(**sr, 1);
-        LLValue::from(self.builder.build_bitcast(gep, to, "wrcast"), wr_ty)
     }
 
     fn cast_to_interface(&mut self, object: &Expr, implementor: &Type, to: &Type) -> LLValue {
@@ -686,7 +684,7 @@ impl IRGenerator {
         let methods_iter = Some(self.get_free_function(&implementor))
             .into_iter()
             .chain(
-                impls.interfaces[&iface.to_strong()]
+                impls.interfaces[&iface]
                     .methods
                     .iter()
                     .map(|(_, method)| self.get_or_create(&Instance::new_(Rc::clone(method)))) // todo tyargs
@@ -710,12 +708,8 @@ impl IRGenerator {
 
     fn get_free_function(&mut self, ty: &Type) -> PointerValue {
         match ty {
-            Type::StrongRef(adt) => self
-                .get_or_create(&adt.get_method("free-sr"))
-                .as_global_value()
-                .as_pointer_value(),
-            Type::WeakRef(adt) => self
-                .get_or_create(&adt.get_method("free-wr"))
+            Type::Adt(adt) => self
+                .get_or_create(&adt.get_method("free-instance"))
                 .as_global_value()
                 .as_pointer_value(),
             _ => self.void_ptr().const_zero(),
@@ -750,10 +744,7 @@ impl IRGenerator {
                     .builder
                     .build_extract_value(callee, 1, "vtable")
                     .unwrap();
-                let ptr = self.struct_gep_raw(
-                    vtable.into_pointer_value(),
-                    *index as u32
-                );
+                let ptr = self.struct_gep_raw(vtable.into_pointer_value(), *index as u32);
                 let func = self.builder.build_load(ptr, "fnload").into_pointer_value();
 
                 let first_arg = self.builder.build_extract_value(callee, 0, "implementor");

@@ -11,7 +11,6 @@ use gir_nodes::{
     Expr, Function, IFaceImpls, Instance, Type, ADT,
 };
 use smol_str::SmolStr;
-use syntax::kind::SyntaxKind;
 
 use super::declare::FnSig;
 use gir_nodes::{declaration::Visibility, types::TypeVariable};
@@ -35,7 +34,6 @@ impl GIRGenerator {
 
     fn declare_user_methods(&mut self, adt: &MutRc<ADT>) {
         let ast = adt.borrow().ast.clone();
-        let is_iface = matches!(adt.borrow().ty, ADTType::Interface);
 
         // This instance with type arguments, like SomeADT[T], as just SomeADT with
         // missing parameters causes issues method generics resolution
@@ -53,12 +51,7 @@ impl GIRGenerator {
 
         for method in ast.methods() {
             let name = method.sig().name().name();
-            let strong_mod = method.modifiers().any(|m| m == SyntaxKind::Strong);
-            let this_type = if is_iface || strong_mod {
-                Type::StrongRef(this_inst.clone())
-            } else {
-                Type::WeakRef(this_inst.clone())
-            };
+            let this_type = Type::Adt(this_inst.clone());
 
             let gir_method = eat!(
                 self,
@@ -105,7 +98,7 @@ impl GIRGenerator {
         for constructor in ast.constructors() {
             let this_param = Some(Ok((
                 SmolStr::new_inline("this"),
-                Type::WeakRef(this_inst.clone()),
+                Type::Adt(this_inst.clone()),
             )));
             let ast_sig = constructor.sig();
             let parameters = ast_sig.parameters().map(|param| {
@@ -153,7 +146,7 @@ impl GIRGenerator {
             Some(FnSig {
                 name: "DEFAULT-constructor".into(),
                 visibility: Visibility::Public,
-                params: box Some(Ok(("this".into(), Type::WeakRef(this_inst.clone())))).into_iter(),
+                params: box Some(Ok(("this".into(), Type::Adt(this_inst.clone())))).into_iter(),
                 type_parameters: Rc::clone(&adt.borrow().type_parameters),
                 ret_type: None,
                 ast: None,

@@ -16,8 +16,6 @@ pub enum Token {
     LeftBrace,
     #[token("}")]
     RightBrace,
-    #[token("&")]
-    AndSym,
     #[token("~")]
     Tilde,
     #[token(",")]
@@ -40,6 +38,8 @@ pub enum Token {
     Star,
     #[token("->")]
     Arrow,
+    #[token("?")]
+    QuestionMark,
 
     #[token("!")]
     Bang,
@@ -99,14 +99,12 @@ pub enum Token {
     Interface,
     #[token("is")]
     Is,
-    #[token("new")]
-    New,
+    #[token("null")]
+    Null,
     #[token("or")]
     Or,
     #[token("return")]
     Return,
-    #[token("strong")]
-    Strong,
     #[token("true")]
     True,
     #[token("var")]
@@ -122,6 +120,8 @@ pub enum Token {
     Priv,
     #[token("extern")]
     Extern,
+    #[token("value")]
+    Value,
     #[token("variadic")]
     Variadic,
 

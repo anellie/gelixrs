@@ -4,7 +4,7 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use gir_nodes::{Instance, ADT};
+use gir_nodes::{declaration::ADTType, Instance, ADT};
 use inkwell::{
     values::{BasicValueEnum, IntValue, PointerValue, StructValue},
     IntPredicate,
@@ -35,30 +35,32 @@ impl IRGenerator {
     /// Decrement the refcount of a value, and check if it needs to be freed
     /// is_ptr specifies if the value is a pointer or a value in
     /// the context of the MIR type system.
-    pub(crate) fn decrement_refcount(&mut self, value: &LLValue ) {
+    pub(crate) fn decrement_refcount(&mut self, value: &LLValue) {
         // self.mod_refcount(value, true)
     }
 
     fn mod_refcount(&mut self, value: &LLValue, decrement: bool) {
         match (**value, &value.ty) {
-            (BasicValueEnum::StructValue(struc), IRType::StrongRef(inst))
-                if !inst.ty.borrow().ty.ref_is_ptr() =>
+            (BasicValueEnum::StructValue(struc), IRType::Adt(inst))
+                if matches!(inst.ty.borrow().ty, ADTType::Interface) =>
             {
                 self.mod_refcount_iface(struc, decrement)
             }
 
-            (BasicValueEnum::PointerValue(ptr), IRType::StrongRef(inst))
-                if inst.ty.borrow().ty.ref_is_ptr() =>
+            (BasicValueEnum::PointerValue(ptr), IRType::Adt(inst))
+                if matches!(inst.ty.borrow().ty, ADTType::Interface) =>
             {
-                self.mod_refcount_adt(ptr, &inst, decrement)
+                self.mod_refcount_iface(
+                    self.builder
+                        .build_load(ptr, "ifaceload")
+                        .into_struct_value(),
+                    decrement,
+                )
             }
 
-            (BasicValueEnum::PointerValue(ptr), IRType::StrongRef(_)) => self.mod_refcount_iface(
-                self.builder
-                    .build_load(ptr, "ifaceload")
-                    .into_struct_value(),
-                decrement,
-            ),
+            (BasicValueEnum::PointerValue(ptr), IRType::Adt(inst)) => {
+                self.mod_refcount_adt(ptr, &inst, decrement)
+            }
 
             (BasicValueEnum::PointerValue(_), IRType::Closure(_)) => {
                 self.mod_refcount_closure(value.ptr(), decrement)

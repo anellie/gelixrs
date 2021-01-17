@@ -1,12 +1,14 @@
 use gir_nodes::{types::ClosureType, Instance, Type, ADT};
 use inkwell::values::{BasicValue, BasicValueEnum, PointerValue};
-use std::{ops::{Deref, DerefMut}, rc::Rc};
+use std::{
+    ops::{Deref, DerefMut},
+    rc::Rc,
+};
 
 #[derive(Debug, Clone)]
 pub(crate) enum IRType {
-    StrongRef(Instance<ADT>),
-    WeakRef(Instance<ADT>),
-    Value(Instance<ADT>),
+    Adt(Instance<ADT>),
+    Nullable(Instance<ADT>),
     Closure(Rc<ClosureType>),
     RawPtr,
     Primitive,
@@ -26,9 +28,8 @@ impl<T: Copy> V<T> {
             v: llvm,
             ty: match ty {
                 Type::Closure(c) => IRType::Closure(c.clone()),
-                Type::StrongRef(r) => IRType::StrongRef(r.clone()),
-                Type::WeakRef(r) => IRType::WeakRef(r.clone()),
-                Type::Value(r) => IRType::Value(r.clone()),
+                Type::Adt(r) => IRType::Adt(r.clone()),
+                Type::Nullable(box Type::Adt(n)) => IRType::Nullable(n.clone()),
                 Type::RawPtr(_) => IRType::RawPtr,
                 Type::Any | Type::None => IRType::None,
                 _ if ty.is_primitive() => IRType::Primitive,

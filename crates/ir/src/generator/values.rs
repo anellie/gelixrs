@@ -4,7 +4,7 @@
  * This file is under the Apache 2.0 license. See LICENSE in the root of this repository for details.
  */
 
-use gir_nodes::{declaration::Variable, Type};
+use gir_nodes::{declaration::Variable, types::TypeKind, Type};
 use inkwell::{
     basic_block::BasicBlock,
     types::{AnyTypeEnum, BasicType, BasicTypeEnum},
@@ -66,26 +66,26 @@ impl IRGenerator {
     /// Loads a pointer, turning it into a value.
     /// Does not load structs or functions, since they are only ever used as pointers.
     pub(crate) fn load_ptr(&self, ptr: &LLPtr) -> LLValue {
-        self.load_ptr_(ptr, false)
+        self.load_ptr_(ptr)
     }
 
     /// Loads a pointer, turning it into a value.
     /// Does not load structs or functions, since they are only ever used as pointers.
     /// `call` indicates that the value is going to be a function argument.
-    pub(crate) fn load_ptr_(&self, ptr: &LLPtr, call: bool) -> LLValue {
+    pub(crate) fn load_ptr_(&self, ptr: &LLPtr) -> LLValue {
         LLValue::cpy(
             match (ptr.get_type().get_element_type(), &ptr.ty) {
                 (AnyTypeEnum::PointerType(_), _) => self.builder.build_load(**ptr, "dptrload"),
-                (AnyTypeEnum::FunctionType(_), _) | (_, IRType::RawPtr) | (_, IRType::Other)=> (**ptr).into(),
-
-                (AnyTypeEnum::StructType(_), IRType::StrongRef(i))
-                | (AnyTypeEnum::StructType(_), IRType::WeakRef(i))
-                    if i.ty.borrow().ty.ref_is_ptr() =>
-                {
+                (AnyTypeEnum::FunctionType(_), _) | (_, IRType::RawPtr) | (_, IRType::Other) => {
                     (**ptr).into()
                 }
 
-                (AnyTypeEnum::StructType(_), IRType::Value(_)) if !call => (**ptr).into(),
+                (AnyTypeEnum::StructType(_), IRType::Adt(i))
+                | (AnyTypeEnum::StructType(_), IRType::Nullable(i)) // todo is loading nullable correct?
+                    if i.ty.borrow().is_ptr() =>
+                {
+                    (**ptr).into()
+                }
 
                 _ => self.builder.build_load(**ptr, "var"),
             },
@@ -115,10 +115,7 @@ impl IRGenerator {
     }
 
     pub(crate) fn get_type_info_field(&self, ptr: &LLPtr) -> PointerValue {
-        self.struct_gep_raw(
-            **ptr,
-            Self::refcount_before_tyinfo(&ptr.ty) as u32
-        )
+        self.struct_gep_raw(**ptr, Self::refcount_before_tyinfo(&ptr.ty) as u32)
     }
 
     pub(crate) fn get_struct_offset(&self, ptr: &LLPtr) -> u32 {
@@ -267,11 +264,13 @@ impl IRGenerator {
     fn free_local(&mut self, ptr: &LLPtr) -> Option<()> {
         let value = self.load_ptr(ptr);
 
-        match ptr.ty {
-            IRType::StrongRef(_) => self.decrement_refcount(&ptr.val()),
+        match &ptr.ty {
+            IRType::Adt(inst) if inst.ty.borrow().type_kind == TypeKind::Reference => {
+                self.decrement_refcount(&ptr.val())
+            }
 
-            IRType::WeakRef(ref adt) => {
-                let method = adt.try_get_method("free-wr")?;
+            IRType::Adt(adt) => {
+                let method = adt.try_get_method("free-instance")?;
                 let ir = self
                     .get_or_create(&method)
                     .as_global_value()

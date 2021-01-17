@@ -6,103 +6,103 @@ use num_traits::FromPrimitive;
 #[allow(non_camel_case_types)]
 #[repr(u16)]
 pub enum SyntaxKind {
-    // The root node of a parse tree.
+    /// The root node of a parse tree.
     Root,
 
-    // An import or export declaration
+    /// An import or export declaration
     ImportDecl,
-    // A top-level function declaration
+    /// A top-level function declaration
     FunctionDecl,
-    // A top-level ADT declaration
+    /// A top-level ADT declaration
     AdtDecl,
-    // A top-level interface implementation declaration
+    /// A top-level interface implementation declaration
     ImplDecl,
 
-    // An identifier of a declaration, containing type parameters.
+    /// An identifier of a declaration, containing type parameters.
     Ident,
-    // A type parameter inside Ident, containing a Type and Identifier/name.
+    /// A type parameter inside Ident, containing a Type and Identifier/name.
     TypeParameter,
-    // A modifier on a declaration.
+    /// A modifier on a declaration.
     Modifier,
 
-    // A function signature.
+    /// A function signature.
     FunctionSignature,
-    // A parameter inside a function signature.
+    /// A parameter inside a function signature.
     Parameter,
-    // A function body.
+    /// A function body.
     FunctionBody,
 
-    // A method inside of another declaration.
+    /// A method inside of another declaration.
     Method,
-    // A constructor
+    /// A constructor
     Constructor,
-    // A field inside of an ADT
+    /// A field inside of an ADT
     AdtMember,
-    // The implementor on iface impls
+    /// The implementor on iface impls
     Implementor,
-    // The implemented iface on iface impls
+    /// The implemented iface on iface impls
     Implementing,
-    // A case inside of an enum declaration
+    /// A case inside of an enum declaration
     EnumCase,
 
-    // An expression.
+    /// An expression.
     Expression,
 
-    // A variable declaration like 'var x: String = "hello"'
+    /// A variable declaration like 'var x: String = "hello"'
     Variable,
-    // An initializer of a variable or member
+    /// An initializer of a variable or member
     Initializer,
-    // A block containing other expressions
+    /// A block containing other expressions
     Block,
-    // An 'if' expression
+    /// An 'if' expression
     IfExpr,
-    // A 'for' expression
+    /// A 'for' expression
     ForExpr,
-    // The iterator condition of a for loop.
-    // Conditional for loops simply use ExprCondition.
+    /// The iterator condition of a for loop.
+    /// Conditional for loops simply use ExprCondition.
     ForIterCond,
-    // A return expression
+    /// A return expression
     ReturnExpr,
-    // A break expression
+    /// A break expression
     BreakExpr,
-    // A when expression
+    /// A when expression
     WhenExpr,
-    // A when branch, containing 1 ExprCondition (missing on else) and 1 ExprBody
+    /// A when branch, containing 1 ExprCondition (missing on else) and 1 ExprBody
     WhenBranch,
 
-    // Condition of if, for and when expressions.
+    /// Condition of if, for and when expressions.
     ExprCondition,
-    // The body of if, for and when expressions.
+    /// The body of if, for and when expressions.
     ExprBody,
-    // The body of the else branch of if, for and when expressions.
+    /// The body of the else branch of if, for and when expressions.
     ExprElse,
-    // A binary expression like '5 + 5'
+    /// A binary expression like '5 + 5'
     BinaryExpr,
-    // A prefix expression, currently only '!false'
+    /// A prefix expression, currently only '!false'
     PrefixExpr,
-    // Operator of a binary or prefix expression.
+    /// Operator of a binary or prefix expression.
     Operator,
-    // A call expression.
+    /// A call expression.
     CallExpr,
-    // A get expression ('x.y', 'Callee.Ident')
+    /// A get expression ('x.y', 'Callee.Ident')
     GetExpr,
-    // A static get expression ('x:y', 'Callee:Ident')
+    /// A static get expression ('x:y', 'Callee:Ident')
     GetStaticExpr,
-    // Callee of a call or get expression
+    /// Callee of a call or get expression
     Callee,
-    // Argument of a call expression
+    /// Argument of a call expression
     CallArgument,
-    // A literal expression, only contains the literal token
+    /// A literal expression, only contains the literal token
     Literal,
-    // A closure literal
+    /// A closure literal
     ClosureLiteral,
-    // A grouping expression, simply '($expr)'
+    /// A grouping expression, simply '($expr)'
     Grouping,
 
-    // A type literal like "String", "&String", "(u32, u32): u64"
+    /// A type literal like "String", "&String", "(u32, u32): u64"
     Type,
 
-    // This special variant is used for SyntaxKind::is_token.
+    /// This special variant is used for SyntaxKind::is_token.
     __TokenStart,
 
     LeftParen,
@@ -111,7 +111,6 @@ pub enum SyntaxKind {
     RightBracket,
     LeftBrace,
     RightBrace,
-    AndSym,
     Tilde,
     Comma,
     Dot,
@@ -123,6 +122,7 @@ pub enum SyntaxKind {
     Slash,
     Star,
     Arrow,
+    QuestionMark,
 
     Bang,
     BangEqual,
@@ -154,10 +154,9 @@ pub enum SyntaxKind {
     In,
     Interface,
     Is,
-    New,
+    Null,
     Or,
     Return,
-    Strong,
     True,
     Var,
     Val,
@@ -166,6 +165,7 @@ pub enum SyntaxKind {
     Mod,
     Priv,
     Extern,
+    Value,
     Variadic,
 
     Error,
@@ -195,7 +195,7 @@ impl SyntaxKind {
 
     pub fn prefix_binding_power(&self) -> Option<u8> {
         Some(match self {
-            Self::Minus | Self::Bang | Self::New => 30,
+            Self::Minus | Self::Bang => 30,
             _ => return None,
         })
     }

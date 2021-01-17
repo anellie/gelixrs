@@ -5,6 +5,10 @@ use syntax::kind::SyntaxKind;
 
 impl Type {
     pub fn get(&self) -> TypeE {
+        if self.cst.last_token().unwrap().kind() == SyntaxKind::QuestionMark {
+            return TypeE::Nullable(self.cst.first_child().map(Self::cast).unwrap().unwrap());
+        }
+
         let token = self.cst.first_token().unwrap();
         match token.kind() {
             SyntaxKind::Identifier if self.cst.first_child().is_none() => {
@@ -21,12 +25,6 @@ impl Type {
                 }
             }
 
-            SyntaxKind::Tilde => {
-                TypeE::Value(self.cst.first_child().map(Self::cast).unwrap().unwrap())
-            }
-            SyntaxKind::AndSym => {
-                TypeE::Weak(self.cst.first_child().map(Self::cast).unwrap().unwrap())
-            }
             SyntaxKind::Star => {
                 TypeE::RawPtr(self.cst.first_child().map(Self::cast).unwrap().unwrap())
             }
@@ -46,8 +44,7 @@ impl Type {
 
 pub enum TypeE {
     Ident(SmolStr),
-    Value(Type),
-    Weak(Type),
+    Nullable(Type),
     RawPtr(Type),
 
     Closure {

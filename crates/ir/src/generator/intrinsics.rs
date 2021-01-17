@@ -126,20 +126,8 @@ impl IRGenerator {
                 let value = ir.get_first_param().unwrap();
                 let elem = &ty_args.unwrap()[0];
                 match elem {
-                    Type::WeakRef(adt) => {
-                        let method = adt.get_method(&Rc::new("free-wr".to_string()));
-                        let destructor = method
-                            .ty
-                            .borrow()
-                            .ir
-                            .borrow()
-                            .get_inst(method.args())
-                            .unwrap();
-                        self.builder.build_call(destructor, &[value], "free");
-                    }
-
-                    Type::StrongRef(adt) => {
-                        let method = adt.get_method(&Rc::new("free-sr".to_string()));
+                    Type::Adt(adt) => {
+                        let method = adt.get_method(&Rc::new("free-instance".to_string()));
                         let destructor = method
                             .ty
                             .borrow()
@@ -176,8 +164,7 @@ impl IRGenerator {
             }
 
             "dec_ref_iface" => {
-                let (func, impl_ptr, impl_ptr_i64, end_bb) =
-                    self.iface_ref_method(ir);
+                let (func, impl_ptr, impl_ptr_i64, end_bb) = self.iface_ref_method(ir);
                 let new_rc = self.write_new_refcount(impl_ptr, false);
 
                 let rc_is_0 = self.builder.build_int_compare(
