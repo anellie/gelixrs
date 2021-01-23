@@ -1,0 +1,10 @@
+// C-ERR
+
+func main() {
+    val a = A()
+}
+
+enum A {
+    AB(val a: String)
+    AC(val b: i64)
+}

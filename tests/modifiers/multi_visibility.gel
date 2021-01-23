@@ -2,4 +2,4 @@
 
 func main() {}
 
-public private func test() {}
+mod priv func test() {}

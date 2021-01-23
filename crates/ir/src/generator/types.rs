@@ -268,7 +268,8 @@ impl IRGenerator {
         }
     }
 
-    const IFACE_EXCLUDE_METHODS: [&'static str; 3] = ["new-instance", "free-wr", "free-sr"];
+    const IFACE_EXCLUDE_METHODS: [&'static str; 3] =
+        ["new-instance", "free-instance", "copy-instance"];
 
     /// Generate the type of an interface when used as a standalone type,
     /// which is a struct with 2 pointers (vtable + implementor).
@@ -345,7 +346,7 @@ impl IRGenerator {
     }
 
     pub(crate) fn refcount_before_tyinfo(ty: &IRType) -> bool {
-        if let IRType::Adt(adt) = ty {
+        if let IRType::RefAdt(adt) | IRType::NullRefAdt(adt) = ty {
             adt.ty.borrow().refcounted()
         } else {
             false

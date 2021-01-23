@@ -7,13 +7,29 @@ use std::{
 
 #[derive(Debug, Clone)]
 pub(crate) enum IRType {
-    Adt(Instance<ADT>),
-    Nullable(Instance<ADT>),
-    Closure(Rc<ClosureType>),
-    RawPtr,
-    Primitive,
-    Other,
     None,
+    Primitive,
+    NullPrimitive,
+
+    ValueRawPtr,
+    RefRawPtr,
+
+    ValueAdt(Instance<ADT>),
+    RefAdt(Instance<ADT>),
+    NullValueAdt(Instance<ADT>),
+    NullRefAdt(Instance<ADT>),
+
+    Closure(Rc<ClosureType>),
+    Other,
+}
+
+fn is_ptr(ty: &Type) -> bool {
+    ty.is_ref_adt()
+        || match ty {
+            Type::Function(_) | Type::Closure(_) | Type::RawPtr(_) => true,
+            Type::Nullable(inner) => is_ptr(inner),
+            _ => false,
+        }
 }
 
 #[derive(Debug, Clone)]
@@ -27,12 +43,21 @@ impl<T: Copy> V<T> {
         Self {
             v: llvm,
             ty: match ty {
-                Type::Closure(c) => IRType::Closure(c.clone()),
-                Type::Adt(r) => IRType::Adt(r.clone()),
-                Type::Nullable(box Type::Adt(n)) => IRType::Nullable(n.clone()),
-                Type::RawPtr(_) => IRType::RawPtr,
                 Type::Any | Type::None => IRType::None,
                 _ if ty.is_primitive() => IRType::Primitive,
+                Type::Nullable(inner) if inner.is_primitive() => IRType::NullPrimitive,
+
+                Type::RawPtr(inner) if is_ptr(inner) => IRType::RefRawPtr,
+                Type::RawPtr(_) => IRType::ValueRawPtr,
+
+                Type::Adt(r) if r.ty.borrow().is_ptr() => IRType::RefAdt(r.clone()),
+                Type::Adt(r) => IRType::ValueAdt(r.clone()),
+                Type::Nullable(box Type::Adt(r)) if r.ty.borrow().is_ptr() => {
+                    IRType::NullRefAdt(r.clone())
+                }
+                Type::Nullable(box Type::Adt(r)) => IRType::NullValueAdt(r.clone()),
+
+                Type::Closure(c) => IRType::Closure(c.clone()),
                 _ => IRType::Other,
             },
         }

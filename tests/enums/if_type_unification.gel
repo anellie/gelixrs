@@ -6,12 +6,12 @@ func main() {
 }
 
 func a() -> A {
-    if (true or !true) new A:A(12i16)
-    else new A:B(23)
+    if (true or !true) A:A(12i16)
+    else A:B(23)
 }
 
 func b() -> A {
-    if (true or !true) new A:A(53i16)
+    if (true or !true) A:A(53i16)
     else a()
 }
 

@@ -326,7 +326,10 @@ impl Expr {
 
             Expr::TypeGet(ty) => Type::Type(Box::new(ty.clone())),
 
-            Expr::Intrinsic(_) => Type::Any,
+            Expr::Intrinsic(intrin) => match intrin {
+                Intrinsic::ConcreteMethodGet(get) => get.iface_method.to_type(),
+                _ => Type::Any,
+            },
         }
     }
 
@@ -553,6 +556,16 @@ pub enum Intrinsic {
         arguments: Vec<Expr>,
         ret_type: Type,
     },
+    ConcreteMethodGet(ConcreteMethodGet),
+}
+
+/// Gets the concrete method of an iface implementor.
+/// Used for generic parameters with interface bounds
+#[derive(Clone, Debug)]
+pub struct ConcreteMethodGet {
+    pub index: usize,
+    pub interface: Type,
+    pub iface_method: MutRc<Function>,
 }
 
 #[derive(Clone, Debug)]

@@ -4,7 +4,7 @@ interface Test {
     func test() -> String
 }
 
-class Implementor {
+class NotActuallyImplementor {
     val a: String
     construct(a)
 }
@@ -14,5 +14,5 @@ func bounded[T: Test](a: T) {
 }
 
 func main() {
-    bounded[Implementor](Implementor("Hello"))
+    bounded[NotActuallyImplementor](NotActuallyImplementor("Hello"))
 }

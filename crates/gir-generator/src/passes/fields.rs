@@ -2,6 +2,7 @@ use common::MutRc;
 use error::GErr;
 use gir_nodes::{
     declaration::{ADTType, Field},
+    types::ToInstance,
     ADT,
 };
 use std::{cell::RefCell, rc::Rc};
@@ -10,6 +11,7 @@ use crate::{eat, GIRGenerator};
 
 impl GIRGenerator {
     pub(super) fn insert_adt_fields(&mut self, adt: &MutRc<ADT>) {
+        self.ty_position = Some(adt.to_type());
         let mut adt = adt.borrow_mut();
         match &adt.ty {
             ADTType::Class { .. } => self.fill_adt(&mut adt),
@@ -25,6 +27,7 @@ impl GIRGenerator {
 
             _ => (),
         }
+        self.ty_position = None;
     }
 
     fn fill_adt(&mut self, adt: &mut ADT) {
@@ -48,13 +51,13 @@ impl GIRGenerator {
                 )
             );
 
-            if !ty.can_assign() {
+            if !ty.is_assignable() {
                 self.err(field.cst(), GErr::E234);
             }
 
             let member = Rc::new(Field {
                 name: field.name(),
-                visibility: self.visibility_from_modifiers(field.modifiers()),
+                visibility: self.visibility_from_modifiers(field.modifiers(), &field.cst),
                 mutable: field.mutable(),
                 ty,
                 initialized: initializer.is_some(),

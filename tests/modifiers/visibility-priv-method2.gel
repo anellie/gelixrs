@@ -1,0 +1,12 @@
+/*
+*/
+
+func main() {
+    A().a()
+}
+
+mod class A {
+    mod func a() { this.t() }
+    priv func t() {}
+}
+

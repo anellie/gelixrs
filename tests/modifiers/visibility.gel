@@ -6,8 +6,8 @@ func main() {}
 priv func puts(a: String) {}
 
 mod class A {
-    private val a = "it's a secret"
-    private func t() {}
+    priv val a = "it's a secret"
+    priv func t() {}
 }
 
 interface B {}

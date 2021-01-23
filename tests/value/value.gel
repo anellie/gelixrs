@@ -10,11 +10,11 @@ func main() {
     print(b(a).a)
 }
 
-func b(a: ~A) -> ~A {
+func b(a: A) -> A {
     print(a.a)
     A()
 }
 
-class A {
+value class A {
     val a = 5
 }

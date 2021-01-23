@@ -1,5 +1,11 @@
-import std/string/+
+import std/string/ToString
 
 func main() {
-   	print(sprintf_buf(32, "%ld", 32))
+	a(45)
+	a("yes")
+	a(4.53)
+}
+
+func a[A: ToString](b: A) {
+    print(b.to_string())
 }

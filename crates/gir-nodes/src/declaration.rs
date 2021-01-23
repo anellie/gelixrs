@@ -118,11 +118,8 @@ impl ADT {
     }
 
     pub fn get_singleton_inst(inst: &MutRc<ADT>, args: &Rc<TypeArguments>) -> Option<Expr> {
-        if let ADTType::EnumCase {
-            simple: no_body, ..
-        } = &inst.borrow().ty
-        {
-            if *no_body {
+        if let ADTType::EnumCase { ty, .. } = &inst.borrow().ty {
+            if *ty == CaseType::Simple {
                 Some(Expr::Allocate {
                     ty: Type::Adt(Instance::new(Rc::clone(inst), Rc::clone(args))),
                     constructor: Rc::clone(&inst.borrow().constructors[0]),
@@ -157,7 +154,7 @@ pub enum ADTType {
     },
 
     /// An enum with known case.
-    EnumCase { parent: MutRc<ADT>, simple: bool },
+    EnumCase { parent: MutRc<ADT>, ty: CaseType },
 }
 
 impl ADTType {
@@ -178,6 +175,22 @@ impl ADTType {
             _ => false,
         }
     }
+
+    /// Does this type allow the default constructor with no arguments?
+    pub fn allow_default_constructor(&self) -> bool {
+        matches!(self, ADTType::Class {.. } | ADTType::EnumCase { .. })
+    }
+}
+
+/// Kind of an enum case.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum CaseType {
+    /// Simply an identifier, 'simple' java-style case
+    Simple,
+    /// A 'data case', a la `Name(val a: String, val b: i64)`
+    Data,
+    /// A full case that behaves like a regular ADT.
+    Adt,
 }
 
 /// Field on an ADT.

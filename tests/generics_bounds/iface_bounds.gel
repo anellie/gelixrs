@@ -20,5 +20,5 @@ func bounded[T: Test](a: T) {
 }
 
 func main() {
-    bounded[Implementor](new Implementor("Hello"))
+    bounded(Implementor("Hello"))
 }

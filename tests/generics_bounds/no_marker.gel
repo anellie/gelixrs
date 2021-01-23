@@ -1,48 +1,7 @@
 // C-ERR
 
-import std/memory/+
-
-class Class {
-    val a: String
-    construct(a)
-}
-
-extern class ExtClass {
-}
-
-interface Iface {
-    func test() -> String
-}
-class IImpl {}
-impl Iface for IImpl {
-    func test() -> String = "hi"
-}
-
-
-func number[T: Number](a: T) = print(a)
-
-func class_[T: Class](a: T) {}
-
-func ext_class[T: ExtClass](a: T) {}
-
-func iface[T: Interface](a: T) {}
-
-func pointer[T: IsPointer](a: T) {}
-
-func value[T: IsValue](a: T) {}
+func nan[T: Adt](a: T) {}
 
 func main() {
-    number[i64](34)
-
-    class_[Class](Class("hi"))
-
-    val ex = ExtClass()
-    ext_class[ExtClass](ex)
-    free[ExtClass](ex)
-
-    iface[Iface](IImpl())
-
-    pointer[Class](Class("hm"))
-
-    value[Class](Class("ok"))
+    nan(34)
 }

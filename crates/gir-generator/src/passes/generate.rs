@@ -3,7 +3,9 @@ use std::rc::Rc;
 use crate::GIRGenerator;
 use common::MutRc;
 use error::GErr;
-use gir_nodes::{declaration::Field, Declaration, Expr, Function, IFaceImpls, Type, ADT};
+use gir_nodes::{
+    declaration::Field, types::ToInstance, Declaration, Expr, Function, IFaceImpls, Type, ADT,
+};
 use indexmap::map::IndexMap;
 use smol_str::SmolStr;
 use std::iter;
@@ -14,11 +16,13 @@ impl GIRGenerator {
             Declaration::Function(func) => self.generate_function(&func),
 
             Declaration::Adt(adt_rc) => {
+                self.ty_position = Some(adt_rc.to_type());
                 let adt = adt_rc.borrow();
                 self.generate_constructors(&adt);
                 for (index, method) in adt.methods.values().enumerate() {
                     self.generate_function_(method, Some(index));
                 }
+                self.ty_position = None;
             }
         }
     }
@@ -33,6 +37,7 @@ impl GIRGenerator {
 
     fn generate_impl(&mut self, impls: &MutRc<IFaceImpls>) {
         let impls = impls.borrow();
+        self.ty_position = Some(impls.implementor.clone());
         for im in impls
             .interfaces
             .values()
@@ -43,6 +48,7 @@ impl GIRGenerator {
                 self.generate_function(method);
             }
         }
+        self.ty_position = None;
     }
 
     pub(crate) fn generate_function(&mut self, function: &MutRc<Function>) {

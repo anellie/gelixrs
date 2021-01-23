@@ -8,7 +8,7 @@ func main() {
 }
 
 class Test {
-    val inner = new Inner()
+    val inner = Inner()
 }
 
 class Inner {

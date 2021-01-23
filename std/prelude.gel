@@ -6,7 +6,7 @@ export std/collections/Array
 export std/iter/Range
 export std/string/String
 
-func print(a: ToString) = puts(a.to_string().ptr)
+func print[S: ToString](a: S) = puts(a.to_string().ptr)
 
 func cast[T](t: T) -> T = t
 
@@ -18,8 +18,8 @@ func try_cast[T, V](v: T) -> Opt[V] {
 */
 
 func panic(msg: String) {
-    // print("[gelix] Panicked at: " + msg)
-    // print("[gelix] Exiting.")
+    print("[gelix] Panicked at: " + msg)
+    print("[gelix] Exiting.")
     quick_exit(1i32)
 }
 

@@ -6,10 +6,7 @@ use syntax::kind::SyntaxKind;
 use crate::{eat, GIRGenerator};
 use common::MutRc;
 use gir_nodes::{
-    declaration::ADTType,
-    expression::CastType,
-    types::{ToInstance, TypeKind},
-    Expr, Function, Type, ADT,
+    declaration::ADTType, expression::CastType, types::ToInstance, Expr, Function, Type, ADT,
 };
 use std::collections::HashMap;
 
@@ -21,7 +18,7 @@ impl GIRGenerator {
     pub(super) fn declare_lifecycle_methods(&mut self, adt: &MutRc<ADT>) {
         let type_params = Rc::clone(&adt.borrow().type_parameters);
         let this_param = (SmolStr::new_inline("this"), Type::Adt(adt.to_inst()));
-        let is_value = adt.borrow().type_kind == TypeKind::Value;
+        let is_value = !adt.borrow().is_ptr();
 
         // TODO: Replace this vec with an array once array.into_iter() is stabilized
         let mut fns: Vec<_> = vec![
@@ -73,7 +70,7 @@ impl GIRGenerator {
     /// declaring them since some of them depend on them being declared on other
     /// types, most notably enum parents need children to have them declared during generation.
     pub(super) fn generate_lifecycle_methods(&mut self, adt: &MutRc<ADT>) {
-        let is_value = adt.borrow().type_kind == TypeKind::Value;
+        let is_value = !adt.borrow().is_ptr();
 
         // TODO: Replace this vec with an array once array.into_iter() is stabilized
         let mut fns: Vec<(_, fn(&mut _, &_, _, _))> = vec![
@@ -95,7 +92,9 @@ impl GIRGenerator {
         let var = Rc::clone(&func.borrow().parameters[0]);
 
         for field in adt.borrow().fields.values() {
-            if let Some(init) = field.initializer.take() {
+            // TODO clone isn't great but otherwise the value is
+            // 'stolen' on enum cases and breaks init
+            if let Some(init) = field.initializer.clone().take() {
                 self.insert_at_ptr(Expr::store(Expr::load(Expr::lvar(&var), field), init, true))
             }
         }

@@ -1,9 +1,0 @@
-// C-ERR
-
-class A {
-    strong func a() {}
-}
-
-func main() {
-    A().a()
-}

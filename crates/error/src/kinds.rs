@@ -80,8 +80,6 @@ pub enum GErr {
         expected: usize,
         was: usize,
     },
-    // This method requires a strong reference
-    E217,
     // Call argument was the wrong type
     E218 {
         expected: String,
@@ -127,6 +125,8 @@ pub enum GErr {
     E238,
     // Type argument does not fulfill required bound
     E239(usize),
+    // Field is not visible
+    E240,
 
     // Unknown type
     E300(String),
@@ -170,6 +170,12 @@ pub enum GErr {
     },
     // Unknown ADT field for constructor setter
     E317,
+    // Cannot have multiple visibilities
+    E318,
+    // Method with same name already defined
+    E319,
+    // Cannot use data cases with enums that have fields
+    E320,
 }
 
 impl GErr {
@@ -266,7 +272,6 @@ impl GErr {
             E211 => "Can only call generic methods directly.",
             E213 => "Cannot use type arguments on local variables.",
             E214 => "Cannot infer types (please specify explicitly).",
-            E217 => "This method requires a strong reference.",
             E219 => "No matching constructor found for arguments.",
             E220 => "Condition must be a boolean.",
             E221 => "Cannot get ADT method (must be called).",
@@ -284,6 +289,7 @@ impl GErr {
             E235 => "ADT member cannot be defined twice.",
             E237 => "Not an iterator (must implement Iter or ToIter).",
             E238 => "Cannot use string literals with no_std enabled.",
+            E240 => "Field is not visible.",
 
             E301 => "Functions cannot be used as types.",
             E302 => "Nullable cannot be applied multiple times.",
@@ -298,6 +304,9 @@ impl GErr {
             E313 => "Method is not defined in interface.",
             E315 => "Mismatched return type on interface method.",
             E317 => "Unknown ADT field for constructor setter.",
+            E318 => "Cannot have multiple visibilities.",
+            E319 => "Method with same name already defined.",
+            E320 => "Cannot use data cases with enums that have fields.",
 
             _ => unreachable!(),
         }

@@ -6,10 +6,12 @@
 
 use crate::intrinsics::Intrinsics;
 use common::{bench, mutrc_new, ModulePath, MutRc};
-use either::Either;
 use gir_nodes::{
-    gir_err, types::ToInstance, Declaration, Expr, Function, IFaceImpls, Instance, Module, Type,
-    ADT,
+    declaration::Visibility,
+    expression::ConcreteMethodGet,
+    gir_err,
+    types::{ToInstance, TypeParameterBound, TypeVariable},
+    Declaration, Expr, Function, IFaceImpls, Instance, Module, Type, ADT,
 };
 use result::EmitGIRError;
 use std::{
@@ -69,6 +71,8 @@ type Environment = HashMap<SmolStr, Rc<LocalVariable>>;
 pub struct GIRGenerator {
     /// Current function inserting into
     position: Option<MutRc<Function>>,
+    /// Current impl type, if inside a method
+    ty_position: Option<Type>,
 
     /// An environment is a scope that variables live in.
     /// This field is used like a stack.
@@ -269,7 +273,7 @@ impl GIRGenerator {
         if let Some(closure_data) = &mut self.closure_data {
             for env in closure_data.outer_env.iter().rev() {
                 if let Some(var) = env.get(name) {
-                    if !var.ty.can_assign() {
+                    if !var.ty.is_assignable() {
                         gir_err(cst.clone(), GErr::E205);
                     }
                     closure_data.captured.push(Rc::clone(var));
@@ -308,7 +312,43 @@ impl GIRGenerator {
 
     /// Returns a field of the given expression/object,
     /// where a field can be either a member or a method.
+    /// Does visibility checks.
     fn get_field(&mut self, get: &Get) -> Res<(Expr, FieldOrMethod)> {
+        let (expr, field) = self.get_field_(get)?;
+        let visibility = match &field {
+            FieldOrMethod::Field(field) => field.visibility,
+            FieldOrMethod::Method(method)
+            | FieldOrMethod::VirtMethod(ConcreteMethodGet {
+                iface_method: method,
+                ..
+            }) => method.borrow().visibility,
+        };
+
+        let ty = expr.get_type();
+        let allowed = match visibility {
+            Visibility::Private => {
+                match (&self.ty_position, &ty) {
+                    // Ensure that ADTs with different type arguments can still access private fields
+                    (Some(Type::Adt(inst1)), Type::Adt(inst2)) => Rc::ptr_eq(&inst1.ty, &inst2.ty),
+                    (Some(ty1), ty2) => ty1 == ty2,
+                    _ => false,
+                }
+            }
+            Visibility::Module if self.module.borrow().path.index(0) == ty.module().as_ref() => {
+                true
+            }
+            Visibility::Public => true,
+            _ => false,
+        };
+
+        if allowed {
+            Ok((expr, field))
+        } else {
+            Err(gir_err(get.cst(), GErr::E240))
+        }
+    }
+
+    fn get_field_(&mut self, get: &Get) -> Res<(Expr, FieldOrMethod)> {
         let object = self.expression(&get.callee());
         let ty = object.get_type();
 
@@ -316,26 +356,50 @@ impl GIRGenerator {
             let adt = adt.ty.borrow();
             let field = adt.fields.get(&get.property().name());
             if let Some(field) = field {
-                return Ok((object, Either::Left(Rc::clone(field))));
+                return Ok((object, FieldOrMethod::Field(Rc::clone(field))));
             }
         }
 
         self.find_associated_method(&ty, &get.property().name())
-            .map(|m| (object, Either::Right(m)))
+            .map(|m| (object, m))
             .or_err(&get.cst, GErr::E210)
     }
 
     /// Searches for an associated method on a type. Can be either an interface
     /// method or a class method.
-    fn find_associated_method(&mut self, ty: &Type, name: &SmolStr) -> Option<MutRc<Function>> {
-        let method = if let Some(adt) = ty.try_adt() {
-            let adt = adt.ty.borrow();
-            adt.methods.get(name).cloned()
-        } else {
-            None
+    fn find_associated_method(&mut self, ty: &Type, name: &SmolStr) -> Option<FieldOrMethod> {
+        let method = match ty {
+            Type::Adt(adt) => {
+                let adt = adt.ty.borrow();
+                adt.methods.get(name).cloned().map(FieldOrMethod::Method)
+            }
+
+            Type::Variable(TypeVariable {
+                index,
+                bound: TypeParameterBound::Interface(interface),
+                ..
+            }) => {
+                let iface = interface.as_adt().ty.borrow();
+                iface.methods.get(name).cloned().map(|iface_method| {
+                    FieldOrMethod::VirtMethod(ConcreteMethodGet {
+                        index: *index,
+                        interface: (**interface).clone(),
+                        iface_method,
+                    })
+                })
+            }
+
+            _ => None,
         };
 
-        method.or_else(|| self.get_iface_impls(ty).borrow().methods.get(name).cloned())
+        method.or_else(|| {
+            self.get_iface_impls(ty)
+                .borrow()
+                .methods
+                .get(name)
+                .cloned()
+                .map(FieldOrMethod::Method)
+        })
     }
 
     /// Creates a new scope. A new scope is created for every function and block,
@@ -494,6 +558,7 @@ impl GIRGenerator {
 
         Self {
             position: None,
+            ty_position: None,
             path,
             module: Rc::clone(&uncompiled[0]),
             modules,
@@ -519,6 +584,7 @@ impl GIRGenerator {
         let path = modules[0].borrow().path.clone();
         Self {
             position: None,
+            ty_position: None,
             path,
             module: Rc::clone(&modules[0]),
             modules,
@@ -562,4 +628,19 @@ struct ClosureData {
     pub captured: Vec<Rc<LocalVariable>>,
 }
 
-type FieldOrMethod = Either<Rc<Field>, MutRc<Function>>;
+#[derive(Debug)]
+pub enum FieldOrMethod {
+    Field(Rc<Field>),
+    Method(MutRc<Function>),
+    VirtMethod(ConcreteMethodGet),
+}
+
+impl FieldOrMethod {
+    pub fn try_field(self) -> Option<Rc<Field>> {
+        if let Self::Field(f) = self {
+            Some(f)
+        } else {
+            None
+        }
+    }
+}

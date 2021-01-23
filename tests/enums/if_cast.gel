@@ -12,9 +12,7 @@ func main() {
 }
 
 enum Krusty {
-
-    val a = 5
-
+                               
     func test() {
         if (this is Krusty:Crab) {
             print(this.b)

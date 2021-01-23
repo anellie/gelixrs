@@ -1,7 +1,8 @@
-// C-ERR
+/*
+it's a secret
+*/
 
 func main() {
-    print(A().a)
     A().t()
 }
 

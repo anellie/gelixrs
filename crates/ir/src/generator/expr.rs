@@ -3,7 +3,8 @@ use std::rc::Rc;
 use common::MutRc;
 use gir_nodes::{
     declaration::Variable,
-    expression::{CastType, Intrinsic},
+    expression::{CastType, ConcreteMethodGet, Intrinsic},
+    types::ToInstance,
     Expr, Function, Instance, Literal, Type, ADT,
 };
 use inkwell::{
@@ -202,7 +203,6 @@ impl IRGenerator {
         self.maybe_init_type_info(&adt.ty, &llptr, tyinfo);
         self.build_alloc_and_init(
             llptr,
-            ty,
             instantiator,
             constructor.as_global_value().as_pointer_value(),
             constructor_args,
@@ -219,7 +219,6 @@ impl IRGenerator {
     fn build_alloc_and_init(
         &mut self,
         alloc: LLPtr,
-        ty: &Type,
         instantiator: PointerValue,
         constructor: PointerValue,
         mut arguments: Vec<LLValue>,
@@ -730,7 +729,9 @@ impl IRGenerator {
 
             Intrinsic::Free(val) => {
                 let val = self.expression(val);
-                self.builder.build_free(val.into_pointer_value());
+                if let BasicValueEnum::PointerValue(ptr) = *val {
+                    self.builder.build_free(ptr);
+                }
             }
 
             Intrinsic::IfaceCall {
@@ -760,6 +761,28 @@ impl IRGenerator {
                         .left()
                         .unwrap_or(*self.none_const),
                     ret_type,
+                );
+            }
+
+            Intrinsic::ConcreteMethodGet(ConcreteMethodGet {
+                index,
+                interface,
+                iface_method,
+            }) => {
+                let method = {
+                    let len = self.type_args.len() - 1;
+                    let implementor = &self.type_args[len][*index];
+
+                    let impls = &self.gir_data.iface_impls[implementor];
+                    let impls = impls.borrow();
+                    let imp = &impls.interfaces[interface];
+                    imp.methods[&iface_method.borrow().name].to_inst()
+                };
+                return LLValue::of(
+                    self.get_or_create(&method)
+                        .as_global_value()
+                        .as_pointer_value()
+                        .into(),
                 );
             }
         }

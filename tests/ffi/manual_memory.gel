@@ -14,6 +14,6 @@ extern class Test {
 }
 
 func main() {
-    val a = new Test()
+    val a = Test()
     drop(a)
 }

@@ -139,15 +139,21 @@ impl GIRGenerator {
     pub(crate) fn visibility_from_modifiers(
         &self,
         mods: impl Iterator<Item = SyntaxKind>,
+        cst: &CSTNode,
     ) -> Visibility {
+        let mut vis = None;
         for m in mods {
-            match m {
-                SyntaxKind::Priv => return Visibility::Private,
-                SyntaxKind::Mod => return Visibility::Module,
-                _ => (),
+            let double = match m {
+                SyntaxKind::Priv => vis.replace(Visibility::Private),
+                SyntaxKind::Mod => vis.replace(Visibility::Module),
+                _ => None,
+            }
+            .is_some();
+            if double {
+                self.err(cst.clone(), GErr::E318);
             }
         }
 
-        Visibility::Public
+        vis.unwrap_or(Visibility::Public)
     }
 }

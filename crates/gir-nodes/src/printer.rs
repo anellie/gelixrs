@@ -1,6 +1,6 @@
 use crate::{
-    declaration::{ADTType, Declaration, Function, Variable, ADT},
-    expression::{CastType, Expr, Intrinsic},
+    declaration::{ADTType, Declaration, Function, Variable, Visibility, ADT},
+    expression::{CastType, ConcreteMethodGet, Expr, Intrinsic},
     module::Module,
     types::print_type_args,
     Literal,
@@ -42,7 +42,7 @@ impl Declaration {
 impl Function {
     fn display(&self, f: &mut Formatter, indent_size: usize) -> R {
         let indent = repeat(' ').take(indent_size).collect::<String>();
-        write!(f, "{}func {}(", indent, self.name)?;
+        write!(f, "{}{} func {}(", indent, self.visibility, self.name)?;
 
         let mut params = self.parameters.iter();
         params
@@ -101,12 +101,12 @@ impl Debug for Function {
 impl ADT {
     fn display(&self, f: &mut Formatter, indent_size: usize) -> R {
         let indent = repeat(' ').take(indent_size).collect::<String>();
-        write!(f, "{}", indent)?;
+        write!(f, "{}{} ", indent, self.visibility)?;
         match self.ty {
             ADTType::Class { .. } => write!(f, "class"),
             ADTType::Interface => write!(f, "interface"),
             ADTType::Enum { .. } => write!(f, "enum"),
-            ADTType::EnumCase { .. } => write!(f, "case"),
+            ADTType::EnumCase { ty, .. } => write!(f, "case({:?})", ty),
         }?;
         writeln!(f, " {} {{\n", self.name)?;
 
@@ -116,8 +116,9 @@ impl ADT {
         for field in self.fields.values() {
             writeln!(
                 f,
-                "    {}{} {}: {}",
+                "    {}{} {} {}: {}",
                 indent,
+                field.visibility,
                 if field.mutable { "var" } else { "val" },
                 field.name,
                 field.ty
@@ -310,12 +311,24 @@ impl Display for Intrinsic {
             Intrinsic::IncRc(_) => write!(f, "dec_rc("),
             Intrinsic::Free(_) => write!(f, "free("),
             Intrinsic::IfaceCall { .. } => write!(f, "vcall("),
+            Intrinsic::ConcreteMethodGet { .. } => write!(f, "method_of("),
         }?;
         match self {
             Intrinsic::IfaceCall { iface: e, .. }
             | Intrinsic::Free(e)
             | Intrinsic::IncRc(e)
             | Intrinsic::DecRc(e) => e.display(f, 0),
+            Intrinsic::ConcreteMethodGet(ConcreteMethodGet {
+                index,
+                interface,
+                iface_method,
+            }) => write!(
+                f,
+                "impl_index = {}, iface = {}, name = {}",
+                index,
+                interface,
+                iface_method.borrow().name
+            ),
         }?;
         write!(f, ")")
     }
@@ -326,6 +339,16 @@ impl Display for CastType {
         match self {
             CastType::ToInterface(t) => write!(f, "ToInterface({})", t),
             _ => Debug::fmt(self, f),
+        }
+    }
+}
+
+impl Display for Visibility {
+    fn fmt(&self, f: &mut Formatter<'_>) -> R {
+        match self {
+            Visibility::Private => write!(f, "priv"),
+            Visibility::Module => write!(f, "mod"),
+            Visibility::Public => write!(f, "public"),
         }
     }
 }

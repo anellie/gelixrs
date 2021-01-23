@@ -33,8 +33,8 @@ impl Equal[IntBox] for IntBox {
 }
 
 func main() {
-    var a = new IntBox()
-    var b = new IntBox()
+    var a = IntBox()
+    var b = IntBox()
     a.int = 4
     b.int = 2
 

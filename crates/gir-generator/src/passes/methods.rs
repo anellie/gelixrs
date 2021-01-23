@@ -5,7 +5,7 @@ use ast::CSTNode;
 use common::MutRc;
 use error::{GErr, Res};
 use gir_nodes::{
-    declaration::{ADTType, LocalVariable},
+    declaration::{ADTType, CaseType, LocalVariable},
     gir_err,
     types::TypeArguments,
     Expr, Function, IFaceImpls, Instance, Type, ADT,
@@ -50,7 +50,7 @@ impl GIRGenerator {
         );
 
         for method in ast.methods() {
-            let name = method.sig().name().name();
+            let name = method.sig().name();
             let this_type = Type::Adt(this_inst.clone());
 
             let gir_method = eat!(
@@ -61,7 +61,11 @@ impl GIRGenerator {
                     Some(Rc::clone(&adt.borrow().type_parameters))
                 )
             );
-            adt.borrow_mut().methods.insert(name, gir_method);
+
+            let existing = adt.borrow_mut().methods.insert(name.name(), gir_method);
+            if existing.is_some() {
+                self.err(name.cst, GErr::E319)
+            }
         }
 
         self.declare_constructors(adt, &ast, this_inst);
@@ -113,7 +117,8 @@ impl GIRGenerator {
 
             let sig = FnSig {
                 name: "constructor".into(),
-                visibility: self.visibility_from_modifiers(constructor.modifiers()),
+                visibility: self
+                    .visibility_from_modifiers(constructor.modifiers(), &constructor.cst),
                 params: box this_param.into_iter().chain(parameters),
                 type_parameters: Rc::clone(&adt.borrow().type_parameters),
                 ret_type: None,
@@ -142,11 +147,33 @@ impl GIRGenerator {
         this_inst: &Instance<ADT>,
     ) -> Option<FnSig> {
         let no_uninitialized_members = || !ast.members().any(|v| v.maybe_initializer().is_none());
-        if ast.constructors().next().is_none() && no_uninitialized_members() {
+        let allow = adt.borrow().ty.allow_default_constructor();
+
+        if allow && ast.constructors().next().is_none() && no_uninitialized_members() {
             Some(FnSig {
                 name: "DEFAULT-constructor".into(),
                 visibility: Visibility::Public,
                 params: box Some(Ok(("this".into(), Type::Adt(this_inst.clone())))).into_iter(),
+                type_parameters: Rc::clone(&adt.borrow().type_parameters),
+                ret_type: None,
+                ast: None,
+            })
+        } else if let ADTType::EnumCase {
+            ty: CaseType::Data, ..
+        } = adt.borrow().ty
+        {
+            Some(FnSig {
+                name: "DEFAULT-constructor".into(),
+                visibility: Visibility::Public,
+                params: box Some(Ok(("this".into(), Type::Adt(this_inst.clone()))))
+                    .into_iter()
+                    .chain(
+                        ast.members()
+                            .map(|f| Ok(("field".into(), self.find_type(&f._type().unwrap())?)))
+                            // TODO not great
+                            .collect::<Vec<_>>()
+                            .into_iter(),
+                    ),
                 type_parameters: Rc::clone(&adt.borrow().type_parameters),
                 ret_type: None,
                 ast: None,
@@ -282,6 +309,25 @@ impl GIRGenerator {
             );
             // (local variable to prevent 'already borrowed' panic)
             func.borrow_mut().exprs = exprs;
+        }
+
+        if let ADTType::EnumCase {
+            ty: CaseType::Data, ..
+        } = adt.ty
+        {
+            // Generate the default constructor for an enum data case
+            let mut block = Vec::new();
+            let cons = &adt.constructors[0];
+            let mut cons = cons.borrow_mut();
+            let adt_param = &cons.parameters[0];
+            for (param, field) in cons.parameters.iter().skip(1).zip(adt.fields.values()) {
+                block.push(Expr::store(
+                    Expr::load(Expr::lvar(adt_param), field),
+                    Expr::lvar(param),
+                    true,
+                ))
+            }
+            cons.exprs = block;
         }
     }
 

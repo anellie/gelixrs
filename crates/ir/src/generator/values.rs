@@ -66,22 +66,24 @@ impl IRGenerator {
     /// Loads a pointer, turning it into a value.
     /// Does not load structs or functions, since they are only ever used as pointers.
     pub(crate) fn load_ptr(&self, ptr: &LLPtr) -> LLValue {
-        self.load_ptr_(ptr)
-    }
-
-    /// Loads a pointer, turning it into a value.
-    /// Does not load structs or functions, since they are only ever used as pointers.
-    /// `call` indicates that the value is going to be a function argument.
-    pub(crate) fn load_ptr_(&self, ptr: &LLPtr) -> LLValue {
         LLValue::cpy(
             match (ptr.get_type().get_element_type(), &ptr.ty) {
-                (AnyTypeEnum::PointerType(_), _) => self.builder.build_load(**ptr, "dptrload"),
-                (AnyTypeEnum::FunctionType(_), _) | (_, IRType::RawPtr) | (_, IRType::Other) => {
+                (AnyTypeEnum::PointerType(ty), IRType::RefRawPtr) if ty.get_element_type().is_pointer_type() => {
+                    self.builder.build_load(**ptr, "tptrload")
+                }
+
+                (AnyTypeEnum::PointerType(_), IRType::RefRawPtr) => {
                     (**ptr).into()
                 }
 
-                (AnyTypeEnum::StructType(_), IRType::Adt(i))
-                | (AnyTypeEnum::StructType(_), IRType::Nullable(i)) // todo is loading nullable correct?
+                (AnyTypeEnum::PointerType(_), _) => self.builder.build_load(**ptr, "dptrload"),
+
+                (AnyTypeEnum::FunctionType(_), _) | (_, IRType::ValueRawPtr) | (_, IRType::Other) => {
+                    (**ptr).into()
+                }
+
+                (AnyTypeEnum::StructType(_), IRType::RefAdt(i))
+                | (AnyTypeEnum::StructType(_), IRType::NullRefAdt(i)) // todo is loading nullable correct?
                     if i.ty.borrow().is_ptr() =>
                 {
                     (**ptr).into()
@@ -265,11 +267,11 @@ impl IRGenerator {
         let value = self.load_ptr(ptr);
 
         match &ptr.ty {
-            IRType::Adt(inst) if inst.ty.borrow().type_kind == TypeKind::Reference => {
+            IRType::RefAdt(inst) if inst.ty.borrow().type_kind == TypeKind::Reference => {
                 self.decrement_refcount(&ptr.val())
             }
 
-            IRType::Adt(adt) => {
+            IRType::ValueAdt(adt) => {
                 let method = adt.try_get_method("free-instance")?;
                 let ir = self
                     .get_or_create(&method)

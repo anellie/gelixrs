@@ -8,8 +8,8 @@ func main() {
     hm(t)
 }
 
-func hm(a: ~Test) {}
+func hm(a: Test) {}
 
-extern class Test {
+extern value class Test {
     val a = 4
 }

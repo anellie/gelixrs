@@ -1,4 +1,4 @@
-use crate::{passes::FnSig, result::EmitGIRError, GIRGenerator};
+use crate::{passes::FnSig, result::EmitGIRError, FieldOrMethod, GIRGenerator};
 use ast::{
     Binary, Block, Break, CSTNode, Call, Expression as AExpr, ForIterCond, GenericIdent, Get,
     GetStatic, LiteralType, Return, When, WhenBranch,
@@ -7,7 +7,7 @@ use common::MutRc;
 use error::{GErr, Res};
 use gir_nodes::{
     declaration::{ADTType, LocalVariable, Variable, Visibility},
-    expression::CastType,
+    expression::{CastType, Intrinsic},
     gir_err,
     types::{TypeArguments, TypeParameter},
     Expr, Function, IFaceImpls, Instance, Literal, Type, ADT,
@@ -202,16 +202,21 @@ impl GIRGenerator {
     fn call(&mut self, call: &Call) -> Res<Expr> {
         let mut args = call.args().map(|a| self.expression(&a)).collect::<Vec<_>>();
 
-        match call.callee() {
+        let ast_callee = call.callee();
+        match &ast_callee {
             // Method call while a `this` member is still uninitialized
             AExpr::Get(get) if !self.uninitialized_this_fields.is_empty() => {
-                Err(gir_err(get.cst, GErr::E203))
+                Err(gir_err(get.cst(), GErr::E203))
             }
 
             // Method call
             AExpr::Get(get) => {
                 let (object, field) = self.get_field(&get)?;
-                let func = field.right().or_err(&get.cst, GErr::E204)?;
+                let func = match &field {
+                    FieldOrMethod::Field(_) => return Err(gir_err(get.cst(), GErr::E204)),
+                    FieldOrMethod::Method(method) => method,
+                    FieldOrMethod::VirtMethod(method) => &method.iface_method,
+                };
 
                 let obj_ty = object.get_type();
                 let parent_ty_args = obj_ty.type_args().unwrap_or_else(|| Rc::new(vec![]));
@@ -234,6 +239,7 @@ impl GIRGenerator {
                 } else {
                     ty_args
                 };
+                self.validate_type_args(&ty_args, &func.borrow().type_parameters, &get.cst);
 
                 let ty_args = parent_ty_args
                     .iter()
@@ -249,7 +255,15 @@ impl GIRGenerator {
                     &get.cst,
                     true,
                 )?;
-                Ok(Expr::call(Expr::var(Variable::Function(func)), args))
+
+                let callee = match field {
+                    FieldOrMethod::Method(_) => Expr::var(Variable::Function(func)),
+                    FieldOrMethod::VirtMethod(v) => {
+                        Expr::Intrinsic(Intrinsic::ConcreteMethodGet(v))
+                    }
+                    _ => unreachable!(),
+                };
+                Ok(Expr::call(callee, args))
             }
 
             // Can be either a constructor or function call
@@ -336,6 +350,11 @@ impl GIRGenerator {
                                 &call.cst,
                             )?)
                         };
+                        self.validate_type_args(
+                            &ty_args,
+                            &func.ty.borrow().type_parameters,
+                            &ast_callee.cst(),
+                        );
                         func.set_args(ty_args)
                     }
 
@@ -381,14 +400,12 @@ impl GIRGenerator {
         if is_method {
             // Remove the "this" argument to get ownership using swap_remove, last arg is now
             // swapped into index 0
-            // Try casting it, if the cast fails then the method is being called with
-            // a WR or DV despite the 'strong' modifier so throw an error
             let arg = self
-                .cast_or_none(
+                .try_cast(
                     args.swap_remove(0),
                     &parameters.next().unwrap().resolve(type_args.unwrap()),
                 )
-                .or_err(err_cst, GErr::E217)?;
+                .0;
             // Put "this" arg at the end and swap them again
             let this_index = args.len();
             args.push(arg);
@@ -479,9 +496,7 @@ impl GIRGenerator {
             })
             .collect::<Option<Vec<_>>>();
 
-        let args = search_res.or_err(err_cst, GErr::E214)?;
-        self.validate_type_args(&args, type_params, err_cst);
-        Ok(args)
+        search_res.or_err(err_cst, GErr::E214)
     }
 
     fn resolve_type_param<'a, T1: Iterator<Item = &'a Type>, T2: Iterator<Item = &'a Type>>(
@@ -645,7 +660,7 @@ impl GIRGenerator {
     // This is special behavior is used for assignment.
     fn get(&mut self, get: &Get, allow_uninit: bool) -> Res<(Expr, bool)> {
         let (object, field) = self.get_field(get)?;
-        let field = field.left().or_err(&get.property().cst, GErr::E221)?;
+        let field = field.try_field().or_err(&get.property().cst, GErr::E221)?;
 
         if allow_uninit || !self.uninitialized_this_fields.contains(&field) {
             Ok((

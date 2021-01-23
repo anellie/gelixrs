@@ -28,26 +28,27 @@ impl IRGenerator {
     /// Increment the refcount of a value.
     /// is_ptr specifies if the value is a pointer or a value in
     /// the context of the MIR type system.
-    pub(crate) fn increment_refcount(&mut self, value: &LLValue) {
+    pub(crate) fn increment_refcount(&mut self, _value: &LLValue) {
         // self.mod_refcount(value, false)
     }
 
     /// Decrement the refcount of a value, and check if it needs to be freed
     /// is_ptr specifies if the value is a pointer or a value in
     /// the context of the MIR type system.
-    pub(crate) fn decrement_refcount(&mut self, value: &LLValue) {
+    pub(crate) fn decrement_refcount(&mut self, _value: &LLValue) {
         // self.mod_refcount(value, true)
     }
 
+    #[allow(dead_code)]
     fn mod_refcount(&mut self, value: &LLValue, decrement: bool) {
         match (**value, &value.ty) {
-            (BasicValueEnum::StructValue(struc), IRType::Adt(inst))
+            (BasicValueEnum::StructValue(struc), IRType::ValueAdt(inst))
                 if matches!(inst.ty.borrow().ty, ADTType::Interface) =>
             {
                 self.mod_refcount_iface(struc, decrement)
             }
 
-            (BasicValueEnum::PointerValue(ptr), IRType::Adt(inst))
+            (BasicValueEnum::PointerValue(ptr), IRType::ValueAdt(inst))
                 if matches!(inst.ty.borrow().ty, ADTType::Interface) =>
             {
                 self.mod_refcount_iface(
@@ -58,7 +59,7 @@ impl IRGenerator {
                 )
             }
 
-            (BasicValueEnum::PointerValue(ptr), IRType::Adt(inst)) => {
+            (BasicValueEnum::PointerValue(ptr), IRType::RefAdt(inst)) => {
                 self.mod_refcount_adt(ptr, &inst, decrement)
             }
 

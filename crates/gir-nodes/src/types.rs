@@ -129,6 +129,13 @@ impl Type {
         }
     }
 
+    pub fn module(&self) -> Option<SmolStr> {
+        match self {
+            Type::Adt(a) => Some(a.ty.borrow().module.borrow().path.index(0).unwrap().clone()),
+            _ => None,
+        }
+    }
+
     /// A list of all primitive types that are not defined in any gelix code,
     /// but are instead indirectly globally defined.
     pub fn primitives() -> [Type; 13] {
@@ -194,11 +201,6 @@ impl Type {
     /// True for functions and closures.
     pub fn is_callable(&self) -> bool {
         self.is_function() || self.is_closure()
-    }
-
-    /// Can this type be assigned and stored?
-    pub fn can_assign(&self) -> bool {
-        !self.is_type()
     }
 
     /// Is this type a reference ADT?

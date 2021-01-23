@@ -1,8 +1,6 @@
 // LEAK
 
-import std/memory/+
-
-class Test {
+extern class Test {
     val a: i64
     val b: i8
 
@@ -13,5 +11,5 @@ class Test {
 }
 
 func main() {
-    val a = new Test()
+    val a = Test()
 }

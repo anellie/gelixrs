@@ -5,7 +5,7 @@ use ast::CSTNode;
 use common::{mutrc_new, MutRc};
 use error::{GErr, Res};
 use gir_nodes::{
-    declaration::{ADTType, IRAdt, IRFunction, LocalVariable, Visibility},
+    declaration::{ADTType, CaseType, IRAdt, IRFunction, LocalVariable, Visibility},
     gir_err,
     types::{TypeKind, TypeParameter, TypeParameterBound, TypeParameters},
     Declaration, Function, IFaceImpl, Type, ADT,
@@ -49,12 +49,29 @@ impl GIRGenerator {
             },
 
             // Enum cases can have multiple starting tokens, just use the catch-all
-            _ => {
+            kind => {
                 let parent = parent.clone().expect("Unknown ADT?");
                 adt_name = SmolStr::new(&format!("{}:{}", parent.borrow().name, adt_name));
                 ADTType::EnumCase {
+                    // Only identifier as child = simple, left paren = beginning of data case
+                    ty: if kind == SyntaxKind::LeftParen {
+                        // Data cases require no parent fields without initializers
+                        if parent
+                            .borrow()
+                            .ast
+                            .members()
+                            .all(|mem| mem.maybe_initializer().is_some())
+                        {
+                            CaseType::Data
+                        } else {
+                            return Err(gir_err(ast.name().cst, GErr::E320));
+                        }
+                    } else if ast.cst.children().count() == 1 {
+                        CaseType::Simple
+                    } else {
+                        CaseType::Adt
+                    },
                     parent,
-                    simple: ast.cst.children().count() == 1, // Only identifier as child = simple
                 }
             }
         };
@@ -65,7 +82,7 @@ impl GIRGenerator {
         );
         let adt = mutrc_new(ADT {
             name: adt_name.clone(),
-            visibility: self.visibility_from_modifiers(ast.modifiers()),
+            visibility: self.visibility_from_modifiers(ast.modifiers(), &name.cst),
             type_kind,
             fields: IndexMap::with_capacity(10),
             methods: IndexMap::with_capacity(10),
@@ -211,7 +228,7 @@ impl GIRGenerator {
 
         self.create_function(FnSig {
             name: name.name(),
-            visibility: self.visibility_from_modifiers(func.modifiers()),
+            visibility: self.visibility_from_modifiers(func.modifiers(), &name.cst),
             params: box this_param.into_iter().map(Ok).chain(
                 signature
                     .parameters()
@@ -229,7 +246,7 @@ impl GIRGenerator {
     /// The main use of this method is validation of the function.
     pub(crate) fn create_function(&self, sig: FnSig) -> Res<MutRc<Function>> {
         let ret_type = sig.ret_type.unwrap_or_default();
-        if !ret_type.can_assign() {
+        if !ret_type.is_assignable() {
             self.err(
                 sig.ast.as_ref().unwrap().sig().ret_type().unwrap().cst,
                 GErr::E308,
@@ -262,6 +279,7 @@ impl GIRGenerator {
             ret_type,
             ast: sig.ast,
             module: Rc::clone(&self.module),
+
             ir: RefCell::new(IRFunction::new(!sig.type_parameters.is_empty())),
             type_parameters: sig.type_parameters,
         });

@@ -36,7 +36,7 @@ lazy_static! {
 /// All possible ways the compiler can fail compilation.
 #[derive(Debug)]
 enum Failure {
-    Parse,
+    Parse(Vec<Errors>),
     Compile(Vec<Errors>),
     IR,
     Panic,
@@ -102,6 +102,10 @@ struct Opt {
     /// but segfault-safe
     #[structopt(long = "no-jit")]
     no_jit: bool,
+
+    /// Don't cache the stdlib and recompile it for every test
+    #[structopt(long = "no-cache")]
+    no_cache: bool,
 
     /// Print each test name before running it
     #[structopt(long)]
@@ -177,21 +181,20 @@ fn print_failed(path: PathBuf, run: &TestRun) {
         )
     };
 
-    if run.options.snapshot {
-        let snapshot = read_to_string(&path).unwrap_or_else(|_| "".to_string());
-        let mut prev_failed = snapshot.lines().collect::<HashSet<&str>>();
-        for fail in &run.failed {
-            if !prev_failed.remove(fail.rel_path.as_str()) {
-                println!("{} {}", RED_BOLD.paint("New failure:"), print_test(fail));
-            }
+    let snapshot = read_to_string(&path).unwrap_or_else(|_| "".to_string());
+    let mut prev_failed = snapshot.lines().collect::<HashSet<&str>>();
+    for fail in &run.failed {
+        if !prev_failed.remove(fail.rel_path.as_str()) && run.options.snapshot {
+            println!("{} {}", RED_BOLD.paint("New failure:"), print_test(fail));
         }
-        for fixed in prev_failed {
-            println!("{} {}", GREEN_BOLD.paint("Test fixed:"), fixed);
-        }
-    } else {
+    }
+    if !run.options.snapshot {
         for fail in run.failed.iter().rev() {
             println!("{}", print_test(fail));
         }
+    }
+    for fixed in prev_failed {
+        println!("{} {}", GREEN_BOLD.paint("Test fixed:"), fixed);
     }
 
     println!("\n{}", BENCH.lock().unwrap());
@@ -232,12 +235,18 @@ fn run_test(path: PathBuf, run: &mut TestRun) {
 
 fn exec(path: PathBuf, run: &mut TestRun) -> TestRes {
     clear_state();
-    maybe_compile_stdlib(run)?;
-    let std = run.gir_stdlib.as_ref().unwrap();
 
-    let code = gelixrs::parse_source(vec![path]).map_err(|_| Failure::Parse)?;
-    let gir = gelixrs::compile_gir_cached_std(code, std, GIRFlags::default())
-        .map_err(Failure::Compile)?;
+    let gir = if run.options.no_cache {
+        let code = gelixrs::parse_source(vec![path, std_mod()]).map_err(Failure::Parse)?;
+        gelixrs::compile_gir(code, GIRFlags::default())
+    } else {
+        maybe_compile_stdlib(run)?;
+        let std = run.gir_stdlib.as_ref().unwrap();
+
+        let code = gelixrs::parse_source(vec![path]).map_err(Failure::Parse)?;
+        gelixrs::compile_gir_cached_std(code, std, GIRFlags::default())
+    }
+    .map_err(Failure::Compile)?;
     let module = gelixrs::compile_ir(run.ir_context.clone(), gir);
 
     if !run.options.no_jit {
@@ -292,7 +301,7 @@ fn get_expected_result(mut path: PathBuf) -> TestRes {
 
     let code = read_to_string(path).expect("Couldn't get wanted result");
     if code.starts_with("// P-ERR") {
-        Err(Failure::Parse)
+        Err(Failure::Parse(vec![]))
     } else if code.starts_with("// C-ERR") {
         Err(Failure::Compile(vec![]))
     } else if code.starts_with("// LEAK") {
@@ -305,16 +314,7 @@ fn get_expected_result(mut path: PathBuf) -> TestRes {
 
 fn maybe_compile_stdlib(run: &mut TestRun) -> Result<(), Failure> {
     if run.gir_stdlib.is_none() {
-        let mut std_mod = PathBuf::from(
-            env::current_dir()
-                .unwrap()
-                .parent()
-                .unwrap()
-                .parent()
-                .unwrap(),
-        );
-        std_mod.push("std");
-        let code = gelixrs::parse_source(vec![std_mod]).map_err(|_| Failure::Parse)?;
+        let code = gelixrs::parse_source(vec![std_mod()]).map_err(Failure::Parse)?;
         let flags = GIRFlags {
             library: true,
             ..GIRFlags::default()
@@ -323,6 +323,19 @@ fn maybe_compile_stdlib(run: &mut TestRun) -> Result<(), Failure> {
         run.gir_stdlib = Some(gir);
     }
     Ok(())
+}
+
+fn std_mod() -> PathBuf {
+    let mut std_mod = PathBuf::from(
+        env::current_dir()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap(),
+    );
+    std_mod.push("std");
+    std_mod
 }
 
 fn relative_path(path: &PathBuf) -> String {
