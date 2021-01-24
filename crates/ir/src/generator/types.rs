@@ -100,7 +100,10 @@ impl IRGenerator {
                 (adt.adt.into(), Some(adt.typeinfo))
             }
 
-            Type::Nullable(_) => todo!("value nullables"),
+            Type::Nullable(inner) => {
+                let inner = self.ir_ty_raw(inner).0;
+                (self.value_nullable_type(inner).into(), None)
+            }
 
             Type::RawPtr(inner) => {
                 let (inner, ptr) = self.ir_ty_generic_full(inner);
@@ -113,6 +116,12 @@ impl IRGenerator {
         };
 
         (ty, ptr)
+    }
+
+    pub(crate) fn value_nullable_type(&mut self, inner: BasicTypeEnum) -> StructType {
+        assert!(!inner.is_pointer_type());
+        self.context
+            .struct_type(&[self.context.bool_type().into(), inner], false)
     }
 
     pub(crate) fn process_args(&self, args: &Rc<TypeArguments>) -> Rc<TypeArguments> {

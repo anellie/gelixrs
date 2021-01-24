@@ -17,6 +17,9 @@ use std::mem;
 use syntax::kind::SyntaxKind;
 
 use super::{type_adapter::IRType, IRGenerator, LLPtr, LLValue, LoopData};
+use crate::generator::type_adapter::is_ptr;
+
+const VALUE_NULLABLE_IS_NULL: u64 = 0;
 
 impl IRGenerator {
     pub(crate) fn expression(&mut self, expr: &Expr) -> LLValue {
@@ -296,6 +299,38 @@ impl IRGenerator {
                     LLValue::cpy(left.into(), &IRType::Primitive),
                     operator,
                     LLValue::cpy(right.into(), &IRType::Primitive),
+                )
+            }
+
+            // Comparision to null
+            (BasicValueEnum::StructValue(str), _) if *right_ == *self.none_const => {
+                let ty = self.context.bool_type();
+                let left = self
+                    .builder
+                    .build_extract_value(str, 0, "nullextr")
+                    .unwrap();
+                let right = ty.const_int(VALUE_NULLABLE_IS_NULL, false);
+                self.binary(
+                    LLValue::cpy(left, &IRType::Primitive),
+                    operator,
+                    LLValue::cpy(right.into(), &IRType::Primitive),
+                )
+            }
+
+            // Nullable value check
+            (BasicValueEnum::StructValue(str1), BasicValueEnum::StructValue(str2)) => {
+                let left = self
+                    .builder
+                    .build_extract_value(str1, 0, "nullextr")
+                    .unwrap();
+                let right = self
+                    .builder
+                    .build_extract_value(str2, 0, "nullextr")
+                    .unwrap();
+                self.binary(
+                    LLValue::cpy(left, &IRType::Primitive),
+                    operator,
+                    LLValue::cpy(right, &IRType::Primitive),
                 )
             }
 
@@ -644,10 +679,24 @@ impl IRGenerator {
                 LLValue::from(self.builder.build_load(ptr, "vload"), to)
             }
 
-            // TODO: Nullable value types
             CastType::ToNullable => {
                 let value = self.expression(object);
-                if *value == *self.none_const {
+
+                if !is_ptr(to) {
+                    let ty = self.ir_ty_generic(to).into_struct_type();
+                    if *value == *self.none_const {
+                        LLValue::from(ty.const_zero().into(), to)
+                    } else {
+                        LLValue::from(
+                            ty.const_named_struct(&[
+                                self.context.bool_type().const_int(1, false).into(),
+                                *value,
+                            ])
+                            .into(),
+                            to,
+                        )
+                    }
+                } else if *value == *self.none_const {
                     let ty = self.ir_ty_generic(to).into_pointer_type();
                     let val = self.builder.build_int_to_ptr(
                         self.context.i64_type().const_int(0, false),
@@ -660,10 +709,18 @@ impl IRGenerator {
                 }
             }
 
-            // TODO: Nullable value types
             CastType::FromNullable => {
-                let ty = self.expression(object);
-                LLValue::from(*ty, to)
+                let value = self.expression(object);
+                if !is_ptr(to) {
+                    LLValue::from(
+                        self.builder
+                            .build_extract_value(value.into_struct_value(), 1, "nullextr")
+                            .unwrap(),
+                        to,
+                    )
+                } else {
+                    LLValue::from(*value, to)
+                }
             }
         }
     }

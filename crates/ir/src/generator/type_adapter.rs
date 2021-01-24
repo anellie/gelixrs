@@ -23,7 +23,7 @@ pub(crate) enum IRType {
     Other,
 }
 
-fn is_ptr(ty: &Type) -> bool {
+pub(crate) fn is_ptr(ty: &Type) -> bool {
     ty.is_ref_adt()
         || match ty {
             Type::Function(_) | Type::Closure(_) | Type::RawPtr(_) => true,

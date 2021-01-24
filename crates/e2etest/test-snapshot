@@ -1,6 +1,5 @@
 for/malloc_in_for.gel
 for/range.gel
-nullable/null_no_assign.gel
 nullable/conditional.gel
 nullable/coalescing_return.gel
 nullable/conditional_not_nullable.gel

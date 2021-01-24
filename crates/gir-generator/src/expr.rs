@@ -595,7 +595,7 @@ impl GIRGenerator {
 
     {
         var i = iter.next()
-        for (i is Opt[i64]:Some) {
+        for (i != null) {
             val i = cast[i64](i)
             val loop_res = { // USER CODE
                 i = 3

@@ -1,0 +1,19 @@
+/*
+1
+2
+3
+4
+*/
+
+func main() {
+    test(1, null)
+}
+
+func test(a: i64?, b: i64?) {
+    if (a != null) print(a)
+    if (b != null) print(b)
+    if (a == null) print(2)
+    if (b == null) print(2)
+    print((a ?? 23) + 2)
+    print(b ?? 4)
+}
