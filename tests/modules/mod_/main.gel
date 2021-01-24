@@ -1,4 +1,4 @@
-import mod/sub/+
+import mod_/sub/+
 
 func main() {
     val s = Sub()

@@ -12,7 +12,6 @@ func main() {
 class Test[A] {
     func whoAmI[B](a: A, b: B) -> A {
         print("I'm a method!")
-        print(b)
         a
     }
 }

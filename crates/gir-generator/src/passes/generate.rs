@@ -177,8 +177,9 @@ impl GIRGenerator {
         self.set_pointer(function);
         self.begin_scope();
         let func = function.borrow();
+        let err_ast = func.ast.as_ref().map(ast::Function::sig).map(|s| s.cst);
         for param in &func.parameters {
-            self.insert_variable(&param, false, None);
+            self.insert_variable(&param, false, err_ast.as_ref());
         }
     }
 }

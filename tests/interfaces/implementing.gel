@@ -10,7 +10,7 @@ class Implementor {
     val a = "ok"
 }
 
-impl Test for &Implementor {
+impl Test for Implementor {
     func test() -> String = this.a
 }
 

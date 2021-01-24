@@ -22,6 +22,6 @@ impl Test[i64] for OtherImpl {
 }
 
 func main() {
-    print(new Implementor().test())
-    print(new OtherImpl().test())
+    print(Implementor().test())
+    print(OtherImpl().test())
 }

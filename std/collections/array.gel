@@ -64,14 +64,14 @@ class Array[E] {
         this.len = this.len + 1
     }
 
-    func pop() -> Opt[E] {
-        if (this.len == 0) return Opt[E]:None
+    func pop() -> E? {
+        if (this.len == 0) return null
 
         this.len = this.len - 1
         val v = this.get(this.len)
 
         dec_ref(v)
-        Opt:Some(v)
+        v
     }
 
     func maybe_extend() {
@@ -90,11 +90,8 @@ class Array[E] {
 /*
 impl Free for Array[E] {
     func free() {
-        // TODO: Fix for-iter loops
-        var i = 0
-        for (i < this.len) {
+        for (i in Range(0, this.len)) {
              dec_ref(this.get(i))
-             i = i + 1
         }
         drop(this.ptr)
     }
@@ -108,16 +105,16 @@ class ArrayIter[E] {
 }
 
 impl Iter[E] for ArrayIter[E] {
-    func next() -> ~Opt[E] {
-        if (this.arr.len == this.index) Opt[E]:None
+    func next() -> E? {
+        if (this.arr.len == this.index) null
         else {
             this.index = this.index + 1
-            Opt:Some(this.arr(this.index - 1))
+            this.arr.get(this.index - 1)
         }
     }
 }
 
 impl ToIter[E, ArrayIter[E]] for Array[E] {
-    func iter() -> ~ArrayIter[E] = ArrayIter(this)
+    func iter() -> ArrayIter[E] = ArrayIter(this)
 }
 */

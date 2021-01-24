@@ -21,6 +21,6 @@ impl Test[String] for Implementor[A] {
 func test[A]() {}
 
 func main() {
-    print(new Implementor[String]("ok").test())
-    print(new Implementor[i64](13).test())
+    print(Implementor[String]("ok").test())
+    print(Implementor[i64](13).test())
 }

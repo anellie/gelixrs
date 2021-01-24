@@ -12,11 +12,11 @@ class Implementor[A] {
     construct(a)
 }
 
-impl Test[A] for Implementor[A] {
+impl[A] Test[A] for Implementor[A] {
     func test() -> A = this.a
 }
 
 func main() {
-    print(new Implementor[String]("ok").test())
-    print(new Implementor[i64](23).test())
+    print(Implementor[String]("ok").test())
+    print(Implementor[i64](23).test())
 }

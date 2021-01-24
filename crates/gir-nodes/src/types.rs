@@ -96,12 +96,12 @@ impl Type {
     /// Returns type arguments of this type, if applicable.
     pub fn type_args(&self) -> Option<Rc<TypeArguments>> {
         match self {
-            Self::Function(inst) => Some(&inst.args),
-            Self::Adt(inst) => Some(&inst.args),
+            Self::Function(inst) => Some(&inst.args).cloned(),
+            Self::Adt(inst) => Some(&inst.args).cloned(),
             Self::Type(ty) | Self::RawPtr(ty) | Self::Nullable(ty) => return ty.type_args(),
+            Self::Variable(TypeVariable { bound: TypeParameterBound::Interface(iface), .. }) => iface.type_args(),
             _ => None,
         }
-        .cloned()
     }
 
     /// Returns type parameters of this type's prototype, if applicable.

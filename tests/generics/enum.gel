@@ -4,6 +4,8 @@ Hello!
 false
 */
 
+import std/string/ToString
+
 func main() {
     val a = A[String]:C("Hello!")
     val c = A[i64]:D(435)
@@ -14,7 +16,7 @@ func main() {
     print(d.print())
 }
 
-enum A[B] {
+enum A[B: ToString] {
 
     val a = 5
 
