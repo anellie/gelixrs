@@ -224,6 +224,15 @@ impl Type {
         }
     }
 
+    /// Is `self` the nullable variant of `other`?
+    pub fn is_nullable_of(&self, other: &Type) -> bool {
+        if let Type::Nullable(inner) = self {
+            other.equal(inner, false)
+        } else {
+            false
+        }
+    }
+
     /// Try turning this type into an ADT,
     /// if it contains one.
     pub fn try_adt(&self) -> Option<&Instance<ADT>> {

@@ -1,0 +1,16 @@
+/*
+good
+hi!
+hi!
+*/
+
+func main() {
+    var a = cast[String?](null)
+
+    if (a != null) print(a)
+    print(a ?? "good")
+
+    a = "hi!"
+    print(a ?? "bad")
+    if (a != null) print(a)
+}

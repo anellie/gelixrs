@@ -279,6 +279,11 @@
                     type: "Get"
                 ),
                 Item(
+                    name: "GetNullable",
+                    kind: "GetNullableExpr",
+                    type: "Get"
+                ),
+                Item(
                     name: "GetStatic",
                     kind: "GetStaticExpr",
                     type: "GetStatic"
@@ -450,11 +455,11 @@
         )
     ),
 
-    // Get
+    // Get & nullable Get
     Node(
         context: Ctx(
             name: "Get",
-            kind: "GetExpr",
+            kind: "GetExpr | SyntaxKind::GetNullableExpr",
             items: [
                 Item(
                     name: "callee",

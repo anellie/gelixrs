@@ -1,0 +1,9 @@
+// C-ERR
+
+func main() {
+    nill("Hello!")
+}
+
+func nill(a: String?) {
+    print(a.len())
+}

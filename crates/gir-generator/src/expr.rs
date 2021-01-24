@@ -47,6 +47,8 @@ impl GIRGenerator {
                 }
             }
 
+            AExpr::GetNullable(_) => todo!(),
+
             AExpr::GetStatic(get) => self.get_static(get, true),
 
             AExpr::Grouping(inner) => Ok(self.expression(&inner.inner())),
@@ -124,17 +126,16 @@ impl GIRGenerator {
         let left_ty = left.get_type();
         let right_ty = right.get_type();
 
+        // TODO is there any way to make this more elegant? ...
         if (left_ty == right_ty && left_ty.is_number())
             || (left_ty.is_int() && right_ty.is_int())
             || left_ty.is_float() && right_ty.is_float()
             || (operator == SyntaxKind::Is && right_ty.is_type())
+            || ((operator == SyntaxKind::BangEqual || operator == SyntaxKind::EqualEqual)
+                && matches!(right, Expr::Literal(Literal::None)))
+            || (operator == SyntaxKind::QuestionQuestion && left_ty.is_nullable_of(&right_ty))
         {
-            if operator == SyntaxKind::And || operator == SyntaxKind::Or {
-                Ok(Self::binary_logic(left, operator, right))
-            } else {
-                let (_, left, right) = self.try_unify_type(left, right);
-                Ok(Expr::binary(operator, left, right))
-            }
+            Ok(self.binary_expr(left, operator, right))
         } else {
             let method_var = self
                 .get_operator_overloading_method(operator, &mut left, &mut right)
@@ -149,24 +150,51 @@ impl GIRGenerator {
         }
     }
 
-    /// Logic operators need special treatment for shortcircuiting behavior
-    fn binary_logic(left: Expr, operator: SyntaxKind, right: Expr) -> Expr {
-        if operator == SyntaxKind::And {
-            // a and b --> if (a) b else false
-            Expr::if_(
-                left,
-                right,
-                Expr::literal(Literal::Bool(false)),
-                Some(Type::Bool),
-            )
-        } else {
-            // a or b --> if (a) true else b
-            Expr::if_(
-                left,
-                Expr::literal(Literal::Bool(true)),
-                right,
-                Some(Type::Bool),
-            )
+    fn binary_expr(&mut self, left: Expr, operator: SyntaxKind, right: Expr) -> Expr {
+        // Logic operators need special treatment for shortcircuiting behavior
+        match operator {
+            SyntaxKind::And => {
+                // a and b --> if (a) b else false
+                Expr::if_(
+                    left,
+                    right,
+                    Expr::literal(Literal::Bool(false)),
+                    Some(Type::Bool),
+                )
+            }
+
+            SyntaxKind::Or => {
+                // a or b --> if (a) true else b
+                Expr::if_(
+                    left,
+                    Expr::literal(Literal::Bool(true)),
+                    right,
+                    Some(Type::Bool),
+                )
+            }
+
+            SyntaxKind::QuestionQuestion => {
+                let (store, var) = self.temp_variable(left, "null-tmp".into());
+                let ty = right.get_type();
+                Expr::Block(vec![
+                    store,
+                    Expr::if_(
+                        Expr::binary(
+                            SyntaxKind::BangEqual,
+                            Expr::lvar(&var),
+                            Expr::literal(Literal::None),
+                        ),
+                        Expr::cast(Expr::lvar(&var), ty.clone(), CastType::FromNullable),
+                        right,
+                        Some(ty),
+                    ),
+                ])
+            }
+
+            _ => {
+                let (_, left, right) = self.try_unify_type(left, right);
+                Expr::binary(operator, left, right)
+            }
         }
     }
 
@@ -737,23 +765,44 @@ impl GIRGenerator {
             right,
         } = expr
         {
-            match (operator, &**left) {
-                (SyntaxKind::And, _) => {
+            // This closure creates a clone of a local variable,
+            // cast to a different type, see below for usage.
+            let mut clone = |var: &Rc<LocalVariable>, ty: Type, cast: CastType| {
+                let mut clone = (**var).clone();
+                clone.mutable = false;
+                clone.ty = ty.clone();
+                let new_var = self.define_variable_(clone, None);
+
+                list.push(Expr::store(
+                    Expr::lvar(&new_var),
+                    Expr::cast(Expr::lvar(var), ty, cast),
+                    true,
+                ));
+            };
+
+            match (operator, &**left, &**right) {
+                (SyntaxKind::And, _, _) => {
                     self.find_casts(list, &left);
                     self.find_casts(list, &right);
                 }
 
-                (SyntaxKind::Is, Expr::Variable(Variable::Local(var))) => {
+                // Enum parent to case (parent is Enum:Case)
+                (SyntaxKind::Is, Expr::Variable(Variable::Local(var)), _) => {
                     let ty = *right.get_type().into_type();
-                    let mut clone = (**var).clone();
-                    clone.ty = ty.clone();
-                    let new_var = self.define_variable_(clone, None);
+                    clone(var, ty, CastType::Bitcast);
+                }
 
-                    list.push(Expr::store(
-                        Expr::lvar(&new_var),
-                        Expr::cast(Expr::lvar(var), ty, CastType::Bitcast),
-                        true,
-                    ));
+                // Nullable to non-null (a != null)
+                (
+                    SyntaxKind::BangEqual,
+                    Expr::Variable(Variable::Local(var)),
+                    Expr::Cast {
+                        inner: box Expr::Literal(Literal::None),
+                        ..
+                    },
+                ) => {
+                    let ty = *left.get_type().into_nullable();
+                    clone(var, ty, CastType::FromNullable);
                 }
 
                 _ => (),
@@ -764,6 +813,7 @@ impl GIRGenerator {
     fn literal(&mut self, literal: &ast::Literal) -> Res<Expr> {
         let (text, ty) = literal.get();
         Ok(match ty {
+            LiteralType::Null => Expr::Literal(Literal::None),
             LiteralType::True => Expr::Literal(Literal::Bool(true)),
             LiteralType::False => Expr::Literal(Literal::Bool(false)),
             LiteralType::Int => Expr::Literal(self.numeric_literal(text, &literal.cst, false)?),

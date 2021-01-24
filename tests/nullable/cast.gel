@@ -1,0 +1,8 @@
+/*
+*/
+
+func main() {
+    nill("Hello!")
+}
+
+func nill(a: String?) {}

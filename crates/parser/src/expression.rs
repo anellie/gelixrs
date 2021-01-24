@@ -183,9 +183,14 @@ impl<'p> Parser<'p> {
                     self.end_node();
                 }
 
-                SyntaxKind::Dot => {
+                SyntaxKind::Dot | SyntaxKind::QuestionDot => {
                     self.start_node_at(checkpoint, SyntaxKind::Callee);
-                    self.start_node_at(checkpoint, SyntaxKind::GetExpr);
+                    let kind = match self.peek() {
+                        SyntaxKind::Dot => SyntaxKind::GetExpr,
+                        SyntaxKind::QuestionDot => SyntaxKind::GetNullableExpr,
+                        _ => unreachable!(),
+                    };
+                    self.start_node_at(checkpoint, kind);
                     self.end_node();
 
                     self.advance(); // Consume '.'
@@ -214,7 +219,8 @@ impl<'p> Parser<'p> {
             | SyntaxKind::True
             | SyntaxKind::Int
             | SyntaxKind::Float
-            | SyntaxKind::String => {
+            | SyntaxKind::String
+            | SyntaxKind::Null => {
                 self.start_node(SyntaxKind::Literal);
                 self.advance();
                 self.end_node();

@@ -57,6 +57,10 @@ pub enum Token {
     Less,
     #[token("<=")]
     LessEqual,
+    #[token("?.")]
+    QuestionDot,
+    #[token("??")]
+    QuestionQuestion,
 
     #[regex("[a-zA-Z_][a-zA-Z0-9_]*")]
     Identifier,

@@ -1,0 +1,8 @@
+// C-ERR
+
+func main() {
+    print(a() ?? a())
+}
+
+func a() -> String? = null
+

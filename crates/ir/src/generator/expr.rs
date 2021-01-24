@@ -275,6 +275,30 @@ impl IRGenerator {
                 &left_.ty,
             ),
 
+            // Pointer comparison, only used for nullable checks ATM
+            (BasicValueEnum::PointerValue(ptr1), BasicValueEnum::PointerValue(ptr2)) => {
+                let ty = self.context.i64_type();
+                let left = self.builder.build_ptr_to_int(ptr1, ty, "ptrtoint");
+                let right = self.builder.build_ptr_to_int(ptr2, ty, "ptrtoint");
+                self.binary(
+                    LLValue::cpy(left.into(), &IRType::Primitive),
+                    operator,
+                    LLValue::cpy(right.into(), &IRType::Primitive),
+                )
+            }
+
+            // Comparision to null
+            (BasicValueEnum::PointerValue(ptr), _) if *right_ == *self.none_const => {
+                let ty = self.context.i64_type();
+                let left = self.builder.build_ptr_to_int(ptr, ty, "ptrtoint");
+                let right = ty.const_int(0, false);
+                self.binary(
+                    LLValue::cpy(left.into(), &IRType::Primitive),
+                    operator,
+                    LLValue::cpy(right.into(), &IRType::Primitive),
+                )
+            }
+
             // One of the operators is `Any`, so it will branch away; return whatever
             _ => LLValue::cpy(
                 self.context.bool_type().const_int(0, false).into(),
@@ -620,11 +644,23 @@ impl IRGenerator {
                 LLValue::from(self.builder.build_load(ptr, "vload"), to)
             }
 
+            // TODO: Nullable value types
             CastType::ToNullable => {
-                let ty = self.expression(object);
-                LLValue::from(*ty, to)
+                let value = self.expression(object);
+                if *value == *self.none_const {
+                    let ty = self.ir_ty_generic(to).into_pointer_type();
+                    let val = self.builder.build_int_to_ptr(
+                        self.context.i64_type().const_int(0, false),
+                        ty,
+                        "nullcast",
+                    );
+                    LLValue::from(val.into(), to)
+                } else {
+                    LLValue::from(*value, to)
+                }
             }
 
+            // TODO: Nullable value types
             CastType::FromNullable => {
                 let ty = self.expression(object);
                 LLValue::from(*ty, to)

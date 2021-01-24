@@ -4,7 +4,6 @@ use num_traits::FromPrimitive;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, FromPrimitive, ToPrimitive)]
 #[allow(non_camel_case_types)]
-#[repr(u16)]
 pub enum SyntaxKind {
     /// The root node of a parse tree.
     Root,
@@ -86,6 +85,8 @@ pub enum SyntaxKind {
     CallExpr,
     /// A get expression ('x.y', 'Callee.Ident')
     GetExpr,
+    /// A nullable get expression ('x?.y', 'Callee?.Ident')
+    GetNullableExpr,
     /// A static get expression ('x:y', 'Callee:Ident')
     GetStaticExpr,
     /// Callee of a call or get expression
@@ -99,7 +100,7 @@ pub enum SyntaxKind {
     /// A grouping expression, simply '($expr)'
     Grouping,
 
-    /// A type literal like "String", "&String", "(u32, u32): u64"
+    /// A type literal like "String", "String?", "(u32, u32): u64"
     Type,
 
     /// This special variant is used for SyntaxKind::is_token.
@@ -132,6 +133,8 @@ pub enum SyntaxKind {
     GreaterEqual,
     Less,
     LessEqual,
+    QuestionDot,
+    QuestionQuestion,
 
     Identifier,
     String,
@@ -181,7 +184,8 @@ impl SyntaxKind {
 
     pub fn infix_binding_power(&self) -> Option<(u8, u8)> {
         Some(match self {
-            Self::Equal => (8, 7),
+            Self::Equal => (6, 5),
+            Self::QuestionQuestion => (8, 7),
             Self::Or => (10, 9),
             Self::And => (12, 11),
             Self::BangEqual | Self::EqualEqual => (14, 13),

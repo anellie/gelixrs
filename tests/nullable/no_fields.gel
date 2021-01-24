@@ -1,0 +1,13 @@
+// C-ERR
+
+class A {
+    var a = 4
+}
+
+func main() {
+    nill(A())
+}
+
+func nill(a: A?) {
+    print(a.a)
+}

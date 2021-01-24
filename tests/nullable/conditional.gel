@@ -1,0 +1,21 @@
+/*
+4
+gday
+good
+*/
+
+class A {
+    val a: i64? = 4
+    val b: String?
+
+    construct(b)
+}
+
+func main() {
+    val a = A("gday")
+    val b = A(null)
+
+    print(a?.a ?? 0)
+    print(a?.b ?? "bad")
+    print(b?.b ?? "good")
+}

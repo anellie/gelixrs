@@ -1,0 +1,13 @@
+/*
+*/
+
+func main() {
+    b()
+}
+
+func a() -> String? = null
+
+func b() {
+    a() ?? (return null)
+    print("bad")
+}

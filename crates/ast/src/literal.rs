@@ -10,6 +10,7 @@ use syntax::kind::SyntaxKind;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum LiteralType {
+    Null,
     True,
     False,
     Int,
@@ -23,6 +24,7 @@ impl Literal {
         let child = self.cst.children_with_tokens().next().unwrap();
         let token = child.as_token().unwrap();
         let kind = match token.kind() {
+            SyntaxKind::Null => LiteralType::Null,
             SyntaxKind::False => LiteralType::False,
             SyntaxKind::True => LiteralType::True,
             SyntaxKind::Int => LiteralType::Int,

@@ -1,0 +1,13 @@
+/*
+replaced
+hi
+*/
+
+func main() {
+    print(a() ?? "replaced")
+    print(b() ?? "bad")
+}
+
+func a() -> String? = null
+
+func b() -> String? = "hi"

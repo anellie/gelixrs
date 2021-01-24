@@ -1,0 +1,20 @@
+/*
+Hello!
+good
+*/
+
+func main() {
+    nill("Hello!")
+}
+
+func nill(a: String?) {
+    if (a != null) {
+        print(a)
+    }
+
+    if (a == null) {
+        print("bad")
+    } else {
+        print("good")
+    }
+}

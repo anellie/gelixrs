@@ -432,6 +432,7 @@ pub enum Expression {
     Call(Call),
     For(ForExpr),
     Get(Get),
+    GetNullable(Get),
     GetStatic(GetStatic),
     Grouping(Grouping),
     If(IfExpr),
@@ -464,6 +465,9 @@ impl Expression {
         }
         if node.kind() == SyntaxKind::GetExpr {
             return Some(Self::Get(Get::cast(node).unwrap()));
+        }
+        if node.kind() == SyntaxKind::GetNullableExpr {
+            return Some(Self::GetNullable(Get::cast(node).unwrap()));
         }
         if node.kind() == SyntaxKind::GetStaticExpr {
             return Some(Self::GetStatic(GetStatic::cast(node).unwrap()));
@@ -506,6 +510,7 @@ impl Expression {
             Self::Call(inner) => inner.cst(),
             Self::For(inner) => inner.cst(),
             Self::Get(inner) => inner.cst(),
+            Self::GetNullable(inner) => inner.cst(),
             Self::GetStatic(inner) => inner.cst(),
             Self::Grouping(inner) => inner.cst(),
             Self::If(inner) => inner.cst(),
@@ -771,7 +776,7 @@ pub struct Get {
 impl Get {
     #[allow(unused)]
     pub fn cast(node: CSTNode) -> Option<Self> {
-        if let SyntaxKind::GetExpr = node.kind() {
+        if let SyntaxKind::GetExpr | SyntaxKind::GetNullableExpr = node.kind() {
             Some(Self { cst: node })
         } else {
             None
