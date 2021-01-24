@@ -5,6 +5,7 @@ use smol_str::SmolStr;
 pub enum Literal {
     Any,
     None,
+    Null,
     Bool(bool),
 
     I8(u8),
@@ -28,6 +29,7 @@ impl Literal {
         match self {
             Literal::Any => Type::Any,
             Literal::None => Type::None,
+            Literal::Null => Type::Null,
             Literal::Bool(_) => Type::Bool,
             Literal::I8(_) => Type::I8,
             Literal::I16(_) => Type::I16,

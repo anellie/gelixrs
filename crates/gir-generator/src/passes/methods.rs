@@ -272,7 +272,13 @@ impl GIRGenerator {
         if impl_method.ret_type != iface_method.ret_type.resolve(iface_args) {
             let sig = ast.sig();
             let tok = sig.ret_type().map_or_else(|| sig.name().cst, |r| r.cst);
-            self.err(tok, GErr::E315);
+            self.err(
+                tok,
+                GErr::E315 {
+                    expected: iface_method.ret_type.resolve(iface_args).to_string(),
+                    was: impl_method.ret_type.to_string(),
+                },
+            );
         }
 
         for (i, (method_param, iface_param)) in impl_method

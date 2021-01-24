@@ -161,8 +161,11 @@ pub enum GErr {
     E313,
     // Missing methods in interface impl
     E314(Vec<SmolStr>),
-    // Mismatched return type on interface method
-    E315,
+    // Incorrect return type on interface method
+    E315 {
+        expected: String,
+        was: String,
+    },
     // Incorrect parameter type on interface method
     E316 {
         expected: String,
@@ -231,6 +234,10 @@ impl GErr {
                 str.push('.');
                 str
             }
+            E315 { expected, was } => format!(
+                "Incorrect return type on interface method (Expected {}, was {}).",
+                expected, was
+            ),
             E316 { expected, was } => format!(
                 "Incorrect parameter type on interface method (Expected {}, was {}).",
                 expected, was
@@ -302,7 +309,6 @@ impl GErr {
             E311 => "Cannot infer type of member with default value (specify type explicitly).",
             E312 => "ADT contains constructors with duplicate signatures.",
             E313 => "Method is not defined in interface.",
-            E315 => "Mismatched return type on interface method.",
             E317 => "Unknown ADT field for constructor setter.",
             E318 => "Cannot have multiple visibilities.",
             E319 => "Method with same name already defined.",

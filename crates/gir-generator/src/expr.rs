@@ -132,7 +132,7 @@ impl GIRGenerator {
             || left_ty.is_float() && right_ty.is_float()
             || (operator == SyntaxKind::Is && right_ty.is_type())
             || ((operator == SyntaxKind::BangEqual || operator == SyntaxKind::EqualEqual)
-                && matches!(right, Expr::Literal(Literal::None)))
+                && right.get_type().is_null())
             || (operator == SyntaxKind::QuestionQuestion && left_ty.is_nullable_of(&right_ty))
         {
             Ok(self.binary_expr(left, operator, right))
@@ -182,7 +182,7 @@ impl GIRGenerator {
                         Expr::binary(
                             SyntaxKind::BangEqual,
                             Expr::lvar(&var),
-                            Expr::literal(Literal::None),
+                            Expr::literal(Literal::Null),
                         ),
                         Expr::cast(Expr::lvar(&var), ty.clone(), CastType::FromNullable),
                         right,
@@ -604,34 +604,25 @@ impl GIRGenerator {
             loop_res
         }
     }
-
-    TODO: FIXME: Opt and Some have been retired in favor of nullable types.
-    Redo this code appropriately.
     */
     fn for_iter(&mut self, cond: ForIterCond, body: AExpr, else_b: Option<AExpr>) -> Res<Expr> {
         self.begin_scope();
 
         let iter_gir = self.expression(&cond.iterator());
+        let (iter_store_expr, iter_gir) = self.temp_variable(iter_gir, "iter".into());
+        let iter_gir = Expr::lvar(&iter_gir);
         let impls = self.get_iface_impls(&iter_gir.get_type());
         let (iter_value, next_fn, elem_ty) =
             self.get_iterator_value(iter_gir, &*impls.borrow(), &cond.cst)?;
-
-        let opt_adt = self.module.borrow().find_decl("Opt").unwrap().into_adt();
-        let some_adt = {
-            let adt = opt_adt.borrow();
-            let cases = adt.ty.cases();
-            Rc::clone(cases.get("Some").unwrap())
-        };
-        let some_ty = Type::Adt(Instance::new(Rc::clone(&some_adt), Rc::clone(&elem_ty)));
 
         let next_call = Expr::call(Expr::var(Variable::Function(next_fn)), vec![iter_value]);
         let (inital_store_expr, loop_var) = self.temp_variable(next_call.clone(), cond.name());
         let next_call_store = Expr::store(Expr::lvar(&loop_var), next_call, false);
 
         let cond = Expr::binary(
-            SyntaxKind::Is,
+            SyntaxKind::BangEqual,
             Expr::lvar(&loop_var),
-            Expr::type_get(some_ty),
+            Expr::Literal(Literal::Null),
         );
 
         self.begin_scope();
@@ -640,7 +631,11 @@ impl GIRGenerator {
         let loop_inner_var = self.define_variable_(clone, None);
         let loop_cast_store = Expr::store(
             Expr::lvar(&loop_inner_var),
-            Expr::cast(Expr::lvar(&loop_var), elem_ty[0].clone(), CastType::Bitcast),
+            Expr::cast(
+                Expr::lvar(&loop_var),
+                elem_ty[0].clone(),
+                CastType::FromNullable,
+            ),
             true,
         );
 
@@ -654,7 +649,7 @@ impl GIRGenerator {
 
         self.end_scope();
         let loop_expr = Expr::loop_(cond, Expr::Block(loop_block), else_, phi_ty);
-        let block = vec![inital_store_expr, loop_expr];
+        let block = vec![iter_store_expr, inital_store_expr, loop_expr];
         Ok(Expr::Block(block))
     }
 
@@ -670,7 +665,8 @@ impl GIRGenerator {
                 iface.name == name && iface.module.borrow().path.is(&["std", "iter"])
             })
         };
-        let iter_impl = find_iface("Iter").or_else(|| find_iface("ToIter"));
+        // TODO: ToIter.
+        let iter_impl = find_iface("Iter");
 
         if let Some((iface, impl_)) = iter_impl {
             let elem_ty = iface.type_args().unwrap();
@@ -797,7 +793,7 @@ impl GIRGenerator {
                     SyntaxKind::BangEqual,
                     Expr::Variable(Variable::Local(var)),
                     Expr::Cast {
-                        inner: box Expr::Literal(Literal::None),
+                        inner: box Expr::Literal(Literal::Null),
                         ..
                     },
                 ) => {
@@ -813,7 +809,7 @@ impl GIRGenerator {
     fn literal(&mut self, literal: &ast::Literal) -> Res<Expr> {
         let (text, ty) = literal.get();
         Ok(match ty {
-            LiteralType::Null => Expr::Literal(Literal::None),
+            LiteralType::Null => Expr::Literal(Literal::Null),
             LiteralType::True => Expr::Literal(Literal::Bool(true)),
             LiteralType::False => Expr::Literal(Literal::Bool(false)),
             LiteralType::Int => Expr::Literal(self.numeric_literal(text, &literal.cst, false)?),

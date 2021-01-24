@@ -26,6 +26,8 @@ pub enum Type {
     Any,
     /// None singleton type used for expressions that do not produce a value
     None,
+    /// Type of the `null` literal, cast to Nullable as appropriate
+    Null,
     /// Simple boolean/i1 type.
     Bool,
 
@@ -192,9 +194,9 @@ impl Type {
     }
 
     /// Can this type be assigned to variables?
-    /// True for everything but static ADTs.
+    /// True for everything but static ADTs and null singleton.
     pub fn is_assignable(&self) -> bool {
-        !self.is_type()
+        !self.is_type() && !self.is_null()
     }
 
     /// Can this type be called?
@@ -281,6 +283,9 @@ impl Type {
             Type::Variable(var) if var.index < args.len() => args[var.index].clone(),
             Type::RawPtr(box Type::Variable(var)) if var.index < args.len() => {
                 Type::RawPtr(box args[var.index].clone())
+            }
+            Type::Nullable(box Type::Variable(var)) if var.index < args.len() => {
+                Type::Nullable(box args[var.index].clone())
             }
             _ => self.clone(),
         };

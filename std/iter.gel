@@ -10,7 +10,7 @@
 /// For an example of how to properly implement the interface,
 /// check out `std/collections/Array` and `ArrayIter` in the same module.
 interface Iter[E] {
-    func next() -> Opt[E]
+    func next() -> E?
 }
 /*
 /// This interface is a supplement to `Iter`. It is intended to be
@@ -31,16 +31,12 @@ interface ToIter[E, I: Iter[E]] {
 
 /// A simple iterator that infinitely returns the same value.
 class Repeat[T] {
-    
-    val inner: Opt[T]
-
-    construct(inner: T) {
-        this.inner = Opt:Some(inner)
-    }
+    val inner: T?
+    construct(inner)
 }
 
 impl Iter[T] for Repeat[T] {
-    func next() -> Opt[T] = this.inner
+    func next() -> T? = this.inner
 }
 
 /// An iterator that returns the first X values of the inner iter.
@@ -53,8 +49,8 @@ class Take[T, I: Iter[T]] {
 }
 
 impl Iter[T] for Take[T] {
-    func next() -> Opt[T] {
-        if (this.left == 0) Opt[T]:None
+    func next() -> T? {
+        if (this.left == 0) null
         else {
             this.left = this.left - 1
             this.inner.next()
@@ -95,11 +91,11 @@ class Range[T: Integer] {
 
 // TODO: Generic impl once impl type args are stable
 impl Iter[i64] for Range[i64] {
-    func next() -> Opt[i64] {
-        if (this.start >= this.end) Opt[i64]:None
+    func next() -> i64? {
+        if (this.start >= this.end) null
         else {
             this.start = this.start + this.step
-            Opt[i64]:Some(this.start - this.step)
+            this.start - this.step
         }
     }
 }

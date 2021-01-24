@@ -63,7 +63,7 @@ impl IRGenerator {
 
     pub(crate) fn ir_ty_raw(&mut self, gir: &Type) -> (BasicTypeEnum, Option<PointerValue>) {
         let (ty, ptr) = match gir {
-            Type::Any | Type::None => (self.none_const.get_type(), None),
+            Type::Any | Type::None | Type::Null => (self.none_const.get_type(), None),
             Type::Bool => (self.context.bool_type().into(), None),
             Type::I8 | Type::U8 => (self.context.i8_type().into(), None),
             Type::I16 | Type::U16 => (self.context.i16_type().into(), None),
@@ -110,7 +110,14 @@ impl IRGenerator {
                 (inner.ptr_type(Generic).into(), ptr)
             }
 
-            Type::Variable(var) => self.ir_ty_raw(&self.unwrap_var(var)),
+            Type::Variable(var) => {
+                let inner = self.unwrap_var(var);
+                if matches!(inner, Type::RawPtr(box Type::Variable(_))) {
+                    // Prevent a stack overflow caused by some bug in array tests, TODO
+                    panic!("broken type args...");
+                }
+                self.ir_ty_raw(&inner)
+            },
 
             Type::Type(_) => panic!("invalid type"),
         };
@@ -140,18 +147,34 @@ impl IRGenerator {
     }
 
     pub(crate) fn unwrap_var(&self, var: &TypeVariable) -> Type {
-        // Edge case in intrinsc generator...
+        // Edge case in intrinsic generator...
         if self.type_args.is_empty() {
             return Type::None;
         }
 
-        let index = self.type_args.len() - 1;
-        self.type_args[index][var.index].clone()
+        let args = self.get_type_args();
+        args[var.index].clone()
+    }
+
+    fn get_type_args(&self) -> &Rc<TypeArguments> {
+        let mut index = self.type_args.len() - 1;
+        while self.type_args[index].is_empty() {
+            index -= 1
+        }
+        &self.type_args[index]
     }
 
     fn get_or_build_adt(&mut self, inst: &Instance<ADT>) -> IRAdtInfo {
         let inst = Instance::new(Rc::clone(&inst.ty), self.process_args(inst.args()));
-        let info = inst.ty.borrow().ir.get_inst(inst.args());
+
+        let inst_args = inst.args();
+        let args = if !inst.ty.borrow().type_parameters.is_empty() && inst_args.is_empty() {
+            self.get_type_args()
+        } else {
+            inst_args
+        };
+
+        let info = inst.ty.borrow().ir.get_inst(args);
         match info {
             Some(info) => info,
             None => {

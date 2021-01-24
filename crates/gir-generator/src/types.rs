@@ -38,8 +38,8 @@ impl GIRGenerator {
             // Type to nullable cast
             (_, Type::Nullable(inner)) if ty.equal(inner, true) => Some(CastType::ToNullable),
 
-            // `None` to nullable cast
-            (Type::None, Type::Nullable(_)) => Some(CastType::ToNullable),
+            // `null` to nullable cast
+            (Type::Null, Type::Nullable(_)) => Some(CastType::ToNullable),
 
             // Enum case to enum cast
             (Type::Adt(adt), Type::Adt(other)) => match &adt.ty.borrow().ty {

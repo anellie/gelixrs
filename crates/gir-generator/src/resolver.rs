@@ -6,7 +6,7 @@ use common::{mutrc_new, MutRc};
 use error::{GErr, Res};
 use gir_nodes::{
     declaration::ADTType,
-    expression::CastType::Bitcast,
+    expression::{CastType, CastType::Bitcast},
     gir_err,
     types::{ClosureType, TypeParameters, TypeVariable},
     Expr, IFaceImpls, Instance, Type,
@@ -203,13 +203,28 @@ impl GIRGenerator {
                 };
 
                 // Run this function a second time to convert any
-                // value/weak/strong mismatches
+                // value/nullable mismatches
                 return self.try_unify_type(
                     Expr::cast(left, ty.clone(), Bitcast),
                     Expr::cast(right, ty, Bitcast),
                 );
             }
         }
+
+        // If one is a `null` literal and the other is some other type, they need
+        // special handling to be cast to the nullable variant of that type
+        match (&left_ty, &right_ty) {
+            (Type::Null, other) | (other, Type::Null) if !matches!(other, Type::None | Type::Null | Type::Nullable(_)) =>
+            {
+                let ty = Type::Nullable(box other.clone());
+                return (
+                    Some(ty.clone()),
+                    Expr::cast(left, ty.clone(), CastType::ToNullable),
+                    Expr::cast(right, ty, CastType::ToNullable),
+                );
+            }
+            _ => (),
+        };
 
         // Simply trying to cast one into the other is enough for all other cases
         let (left, success) = self.try_cast(left, &right_ty);

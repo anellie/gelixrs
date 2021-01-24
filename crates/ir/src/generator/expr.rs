@@ -408,7 +408,7 @@ impl IRGenerator {
         let ty = literal.get_type();
         LLValue::from(
             match literal {
-                Literal::Any | Literal::None => *self.none_const,
+                Literal::Any | Literal::None | Literal::Null => *self.none_const,
                 Literal::Bool(value) => self
                     .context
                     .bool_type()
@@ -687,14 +687,13 @@ impl IRGenerator {
                     if *value == *self.none_const {
                         LLValue::from(ty.const_zero().into(), to)
                     } else {
-                        LLValue::from(
-                            ty.const_named_struct(&[
-                                self.context.bool_type().const_int(1, false).into(),
-                                *value,
-                            ])
-                            .into(),
-                            to,
-                        )
+                        let store =
+                            LLPtr::from(self.create_alloc(to.clone(), ty.into(), false), &to);
+                        self.write_struct(
+                            &store,
+                            &[self.context.bool_type().const_int(1, false).into(), *value],
+                        );
+                        self.load_ptr(&store)
                     }
                 } else if *value == *self.none_const {
                     let ty = self.ir_ty_generic(to).into_pointer_type();

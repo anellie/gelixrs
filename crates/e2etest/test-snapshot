@@ -1,5 +1,3 @@
-for/malloc_in_for.gel
-for/range.gel
 nullable/conditional.gel
 nullable/coalescing_return.gel
 nullable/conditional_not_nullable.gel
@@ -11,8 +9,6 @@ enums/when_omit_else.gel
 enums/simple_with_fields.gel
 enums/casting.gel
 modules/mod
-modules/protos_singular
-modules/protos
 arrays/no_premature_dealloc.gel
 arrays/no_premature_dealloc_2.gel
 arrays/no_leak.gel
@@ -27,7 +23,6 @@ generics/prio.gel
 generics/methods.gel
 generics/as_function_arg.gel
 generics/interface_with_class_seperate.gel
-generics/class_method_prototypes.gel
 generics/infer.gel
 number/cast.gel
 string/escape_invalid.gel

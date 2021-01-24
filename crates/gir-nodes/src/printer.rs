@@ -287,7 +287,8 @@ impl Display for Literal {
     fn fmt(&self, f: &mut Formatter<'_>) -> R {
         match self {
             Literal::Any => write!(f, "Any"),
-            Literal::None => write!(f, "null"),
+            Literal::None => write!(f, "None"),
+            Literal::Null => write!(f, "null"),
             Literal::Bool(b) => write!(f, "{}", b),
             Literal::I8(num) => write!(f, "{}i8", num),
             Literal::I16(num) => write!(f, "{}i16", num),
