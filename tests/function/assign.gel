@@ -1,0 +1,7 @@
+// C-ERR
+
+func main() {
+    val fn = echo
+}
+
+func echo[T: Number](a: T) -> T = a

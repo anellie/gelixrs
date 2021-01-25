@@ -1,0 +1,5 @@
+// C-ERR
+
+func main() {}
+
+func cast() {}

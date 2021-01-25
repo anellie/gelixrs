@@ -283,6 +283,13 @@ impl IRGenerator {
             .append_basic_block(&self.function.unwrap(), name)
     }
 
+    fn unconditional_branch(&self, to: &BasicBlock) {
+        if self.builder.get_insert_block().is_some() {
+            self.builder.build_unconditional_branch(to);
+            self.builder.clear_insertion_position();
+        }
+    }
+
     fn last_block(&self) -> BasicBlock {
         self.last_block.unwrap()
     }

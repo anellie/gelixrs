@@ -126,14 +126,14 @@ impl GIRGenerator {
         let left_ty = left.get_type();
         let right_ty = right.get_type();
 
-        // TODO is there any way to make this more elegant? ...
-        if (left_ty == right_ty && left_ty.is_number())
-            || (left_ty.is_int() && right_ty.is_int())
-            || left_ty.is_float() && right_ty.is_float()
-            || (operator == SyntaxKind::Is && right_ty.is_type())
-            || ((operator == SyntaxKind::BangEqual || operator == SyntaxKind::EqualEqual)
+        if (left_ty == right_ty && left_ty.is_number()) // general numeric
+            || (left_ty.is_int() && right_ty.is_int()) // integers with cast
+            || left_ty.is_float() && right_ty.is_float() // floats with cast
+            || (operator == SyntaxKind::Is && right_ty.is_type()) // `is Type` operator
+            || ((operator == SyntaxKind::BangEqual || operator == SyntaxKind::EqualEqual) // null check
                 && right.get_type().is_null())
             || (operator == SyntaxKind::QuestionQuestion && left_ty.is_nullable_of(&right_ty))
+        // null coalescing
         {
             Ok(self.binary_expr(left, operator, right))
         } else {
@@ -299,10 +299,11 @@ impl GIRGenerator {
                 let mut callee = self.expression(&call.callee());
                 let mut callee_type = callee.get_type();
 
-                if let Some(constructors) = callee_type.get_constructors() {
+                if let Type::Type(box Type::Adt(ty)) = &callee_type {
                     let mut ty_vars = callee_type.type_args().unwrap();
-                    let constructor = Rc::clone(
-                        constructors
+                    let constructor = {
+                        let constructors = &ty.ty.borrow().constructors;
+                        let constructor = constructors
                             .iter()
                             .try_find(|constructor| {
                                 let constructor = constructor.borrow();
@@ -341,8 +342,10 @@ impl GIRGenerator {
 
                                 Ok(correct_args_types)
                             })?
-                            .or_err(&call.cst, GErr::E219)?,
-                    );
+                            .or_err(&call.cst, GErr::E219)?;
+
+                        Rc::clone(constructor)
+                    };
 
                     {
                         // Cast/convert all arguments to fit
@@ -366,7 +369,7 @@ impl GIRGenerator {
                 } else {
                     // If this is a function call, check it has
                     // its type arguments inferred should it have any
-                    if let Expr::Variable(Variable::Function(func)) = &mut callee {
+                    if let Type::Function(mut func) = callee_type {
                         let ty_args = if !func.args().is_empty() {
                             Rc::clone(func.args())
                         } else {
@@ -383,11 +386,12 @@ impl GIRGenerator {
                             &func.ty.borrow().type_parameters,
                             &ast_callee.cst(),
                         );
-                        func.set_args(ty_args)
+                        func.set_args(ty_args);
+                        callee = Expr::Variable(Variable::Function(func));
                     }
 
                     self.check_func_args_(
-                        &callee.get_type(), // Get it again to ensure inferred type args are present
+                        &callee.get_type(),
                         &mut args,
                         call.args(),
                         &call.cst,
@@ -574,7 +578,7 @@ impl GIRGenerator {
 
         let body = self.expression(&body_ast);
         let body_type = body.get_type();
-        self.set_loop_type(&body_type, &body_ast.cst()); // todo maybe elim copy
+        self.set_loop_type(&body_type, &body_ast.cst());
 
         let else_val = else_b.as_ref().map_or(Expr::none_const(), |else_branch| {
             self.expression(&else_branch)
@@ -686,10 +690,19 @@ impl GIRGenerator {
         let (object, field) = self.get_field(get)?;
         let field = field.try_field().or_err(&get.property().cst, GErr::E221)?;
 
-        if allow_uninit || !self.uninitialized_this_fields.contains(&field) {
+        let is_this = !allow_uninit
+            || if let (Expr::Variable(Variable::Local(local)), Some(param)) =
+                (&object, self.cur_fn().borrow().parameters.first())
+            {
+                Rc::ptr_eq(param, local)
+            } else {
+                true
+            };
+
+        if !is_this || allow_uninit || !self.uninitialized_this_fields.contains(&field) {
             Ok((
                 Expr::load(object, &field),
-                !allow_uninit || self.uninitialized_this_fields.remove(&field),
+                !is_this || self.uninitialized_this_fields.remove(&field),
             ))
         } else {
             Err(gir_err(get.property().cst, GErr::E222))

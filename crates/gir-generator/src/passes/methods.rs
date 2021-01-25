@@ -20,7 +20,6 @@ impl GIRGenerator {
     pub(super) fn declare_methods(&mut self, adt: &MutRc<ADT>) {
         self.declare_user_methods(&adt);
 
-        // TODO: This is a little ugly... it works i guess?
         if let ADTType::Enum { cases } = &adt.borrow().ty {
             for case in cases.values() {
                 let mut case = case.borrow_mut();
@@ -170,7 +169,6 @@ impl GIRGenerator {
                     .chain(
                         ast.members()
                             .map(|f| Ok(("field".into(), self.find_type(&f._type().unwrap())?)))
-                            // TODO not great
                             .collect::<Vec<_>>()
                             .into_iter(),
                     ),
@@ -184,7 +182,6 @@ impl GIRGenerator {
     }
 
     pub fn fill_impls(&mut self) {
-        // TODO maybe optimize
         let clone = self.iface_impls.values().cloned().collect::<Vec<_>>();
         for impls in clone {
             self.fill_impls_(impls)

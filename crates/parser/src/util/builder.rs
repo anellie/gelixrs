@@ -39,14 +39,21 @@ impl NodeBuilder {
         let parent = &mut self.nodes[loc.node - 1];
         let mut children: NodeVec =
             SmallVec::with_capacity(parent.children.len() - loc.child_count);
+
+        let mut last_node_end = loc.start;
+        let mut tokens_end = 0;
         for pop in self.nodes[loc.node - 1].children.drain(loc.child_count..) {
+            match &pop {
+                NodeOrToken::Node(node) => {
+                    last_node_end = node.text_range().end;
+                    tokens_end = 0;
+                }
+                NodeOrToken::Token(tok) => tokens_end += tok.text().len() as u32,
+            }
             children.push(pop);
         }
-        let end = children
-            .last()
-            .map(|c| c.as_node().map(|n| n.text_range().end))
-            .flatten()
-            .unwrap_or(loc.start);
+
+        let end = last_node_end + tokens_end;
         self.nodes.insert(
             loc.node,
             WorkNode {
@@ -86,6 +93,7 @@ impl NodeBuilder {
     }
 }
 
+#[derive(Debug)]
 struct WorkNode {
     children: NodeVec,
     kind: SyntaxKind,

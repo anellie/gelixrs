@@ -1,14 +1,7 @@
 use crate::{Function, Instance, Module, Type, ADT};
 use common::MutRc;
 use smol_str::SmolStr;
-use std::{cell::RefCell, collections::HashMap};
-
-thread_local! {
-    /// A map containing all interface implementations.
-    /// This is global state since it is shared across modules.
-    /// TODO: Why the MutRc?
-    pub static IFACE_IMPLS: RefCell<HashMap<Type, MutRc<IFaceImpls>>> = RefCell::new(HashMap::with_capacity(20));
-}
+use std::collections::HashMap;
 
 /// An implementation of an interface.
 #[derive(Debug)]

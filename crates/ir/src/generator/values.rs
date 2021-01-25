@@ -68,22 +68,22 @@ impl IRGenerator {
     pub(crate) fn load_ptr(&self, ptr: &LLPtr) -> LLValue {
         LLValue::cpy(
             match (ptr.get_type().get_element_type(), &ptr.ty) {
-                (AnyTypeEnum::PointerType(ty), IRType::RefRawPtr) if ty.get_element_type().is_pointer_type() => {
+                (AnyTypeEnum::PointerType(ty), IRType::RefRawPtr)
+                    if ty.get_element_type().is_pointer_type() =>
+                {
                     self.builder.build_load(**ptr, "tptrload")
                 }
 
-                (AnyTypeEnum::PointerType(_), IRType::RefRawPtr) => {
-                    (**ptr).into()
-                }
+                (AnyTypeEnum::PointerType(_), IRType::RefRawPtr) => (**ptr).into(),
 
                 (AnyTypeEnum::PointerType(_), _) => self.builder.build_load(**ptr, "dptrload"),
 
-                (AnyTypeEnum::FunctionType(_), _) | (_, IRType::ValueRawPtr) | (_, IRType::Other) => {
-                    (**ptr).into()
-                }
+                (AnyTypeEnum::FunctionType(_), _)
+                | (_, IRType::ValueRawPtr)
+                | (_, IRType::Other) => (**ptr).into(),
 
                 (AnyTypeEnum::StructType(_), IRType::RefAdt(i))
-                | (AnyTypeEnum::StructType(_), IRType::NullRefAdt(i)) // todo is loading nullable correct?
+                | (AnyTypeEnum::StructType(_), IRType::NullRefAdt(i))
                     if i.ty.borrow().is_ptr() =>
                 {
                     (**ptr).into()
@@ -121,7 +121,6 @@ impl IRGenerator {
     }
 
     pub(crate) fn get_struct_offset(&self, ptr: &LLPtr) -> u32 {
-        // todo maybe get rid of remaining llvm type inspection in favor of gir
         let elem_ty = ptr.get_type().get_element_type();
         let struct_type = elem_ty.as_struct_type();
         let mut i = 0;
@@ -228,7 +227,6 @@ impl IRGenerator {
 
         if !locals.is_empty() && lift.try_ptr().is_some() {
             let index = locals.iter().position(|l| **l == **lift);
-            // todo is this correct? was unwrap before
             if let Some(index) = index {
                 locals.swap_remove(index);
                 self.increment_refcount(&lift);

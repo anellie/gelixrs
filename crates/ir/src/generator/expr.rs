@@ -139,8 +139,7 @@ impl IRGenerator {
                         .unwrap()
                         .push(node);
                 }
-                self.builder
-                    .build_unconditional_branch(&self.loop_data.as_ref().unwrap().end_block);
+                self.unconditional_branch(&self.loop_data.as_ref().unwrap().end_block);
                 self.builder.clear_insertion_position();
                 self.none_const.clone()
             }
@@ -476,12 +475,13 @@ impl IRGenerator {
             self.push_local_scope();
             let val = self.expression(expr);
             let bb = self.last_block();
+
             if phi {
                 self.pop_locals_remove(&val);
             } else {
                 self.pop_dec_locals()
             }
-            self.builder.build_unconditional_branch(&cont_bb);
+            self.unconditional_branch(&cont_bb);
             (val, bb)
         };
 
@@ -526,7 +526,7 @@ impl IRGenerator {
                 self.pop_dec_locals()
             };
             phi_nodes.push((value, self.last_block()));
-            self.builder.build_unconditional_branch(&end_bb);
+            self.unconditional_branch(&end_bb);
 
             self.position_at_block(next_bb);
             next_bb = self.append_block("when-case-false");
@@ -543,7 +543,7 @@ impl IRGenerator {
             self.pop_dec_locals()
         };
         let else_end_bb = self.last_block();
-        self.builder.build_unconditional_branch(&end_bb);
+        self.unconditional_branch(&end_bb);
         phi_nodes.push((else_val, else_end_bb));
 
         self.position_at_block(end_bb);
@@ -593,31 +593,41 @@ impl IRGenerator {
         self.push_local_scope();
         let body = self.expression(body);
         let loop_end_bb = self.last_block();
-        if let Some(result_store) = &result_store {
-            self.build_store(result_store, &body, false);
-        }
-        self.pop_dec_locals();
-        let cond = self.expression(condition).into_int_value();
-        let phi_node = if let Some(result_store) = &result_store {
-            Some(self.load_ptr(result_store))
+
+        let phi_node = if self.builder.get_insert_block().is_some() {
+            if let Some(result_store) = &result_store {
+                self.build_store(result_store, &body, false);
+            }
+            self.pop_dec_locals();
+            let cond = self.expression(condition).into_int_value();
+            let phi_node = if let Some(result_store) = &result_store {
+                Some(self.load_ptr(result_store))
+            } else {
+                None
+            };
+            self.builder
+                .build_conditional_branch(cond, &loop_bb, &cont_bb);
+
+            phi_node
         } else {
             None
         };
-        self.builder
-            .build_conditional_branch(cond, &loop_bb, &cont_bb);
 
         self.position_at_block(else_bb);
         self.push_local_scope();
         let else_val = self.expression(else_);
         let else_bb = self.last_block();
         self.pop_dec_locals();
-        self.builder.build_unconditional_branch(&cont_bb);
+        self.unconditional_branch(&cont_bb);
 
         self.position_at_block(cont_bb);
         let loop_data = mem::replace(&mut self.loop_data, prev_loop).unwrap();
+
         if let Some(result_store) = result_store {
             let mut phi_nodes = loop_data.phi_nodes.unwrap();
-            phi_nodes.push((phi_node.unwrap(), loop_end_bb));
+            if let Some(phi_node) = phi_node {
+                phi_nodes.push((phi_node, loop_end_bb));
+            }
             phi_nodes.push((else_val, else_bb));
             let phi_nodes: Vec<_> = phi_nodes.iter().map(|n| (n.0.clone(), n.1)).collect();
             LLValue::cpy(self.build_phi(&phi_nodes), &result_store.ty)

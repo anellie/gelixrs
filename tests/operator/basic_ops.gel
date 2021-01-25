@@ -1,20 +1,23 @@
 /*
 62
+string
 40
 84
 21
 -4
+-4
+4
 */
 
 func main() {
     print(23 + 39)
-    // TODO: Operator overloading
-    // print("str" + "ing")
+    print("str" + "ing")
 
     print(42 - 2)
     print(42 * 2)
     print(42 / 2)
 
     print(-(4))
-    // TODO: float printing
+    print(-4.0)
+    print(4.1 - 0.1)
 }

@@ -78,13 +78,20 @@ impl GIRGenerator {
         params: &[TypeParameter],
         cst: &CSTNode,
     ) {
-        for (i, _) in args
+        for (index, (arg, param)) in args
             .iter()
             .zip(params.iter())
             .filter(|(a, p)| !self.matches_bound(a, &p.bound))
             .enumerate()
         {
-            self.err(cst.clone(), GErr::E239(i))
+            self.err(
+                cst.clone(),
+                GErr::E239 {
+                    index,
+                    argument: arg.to_string(),
+                    bound: param.bound.to_string(),
+                },
+            )
         }
     }
 

@@ -1,0 +1,25 @@
+// C-ERR
+
+func main() {
+    Test("easy!").simple()
+}
+
+class Test {
+
+    var a: String
+
+    construct() {
+        this.a = "oh no..."
+    }
+
+    construct(a: String) {
+        var other = Test()
+        other.a = "hmmm..."
+        print(this.a)
+        this.a = a
+    }
+
+    func simple() {
+        print(this.a)
+    }
+}

@@ -121,11 +121,6 @@ impl Error {
 }
 
 fn span_to_info(src: &str, span: Span) -> (usize, usize, usize) {
-    if src.len() < span.start {
-        // Prevent a possible panic by just returning the first of everything
-        // TODO: Maybe figure out what is causing this to begin with...
-        return (1, 1, 1);
-    }
     let (line, line_offset) = src[0..span.start]
         .lines()
         .rev()

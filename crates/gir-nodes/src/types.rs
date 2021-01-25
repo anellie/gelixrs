@@ -93,13 +93,16 @@ impl Type {
         }
     }
 
-    /// Returns type arguments of this type, if applicable.
+    /// Returns type arguments of this type, ifapplicable.
     pub fn type_args(&self) -> Option<Rc<TypeArguments>> {
         match self {
             Self::Function(inst) => Some(&inst.args).cloned(),
             Self::Adt(inst) => Some(&inst.args).cloned(),
-            Self::Type(ty) | Self::RawPtr(ty) | Self::Nullable(ty) => return ty.type_args(),
-            Self::Variable(TypeVariable { bound: TypeParameterBound::Interface(iface), .. }) => iface.type_args(),
+            Self::Type(ty) | Self::RawPtr(ty) | Self::Nullable(ty) => ty.type_args(),
+            Self::Variable(TypeVariable {
+                bound: TypeParameterBound::Interface(iface),
+                ..
+            }) => iface.type_args(),
             _ => None,
         }
     }
@@ -109,7 +112,13 @@ impl Type {
         Some(match self {
             Self::Function(inst) => Rc::clone(&inst.ty.borrow().type_parameters),
             Self::Adt(inst) => Rc::clone(&inst.ty.borrow().type_parameters),
-            Self::Type(ty) | Self::RawPtr(ty) | Self::Nullable(ty) => return ty.type_params(),
+            Self::Type(ty)
+            | Self::RawPtr(ty)
+            | Self::Nullable(ty)
+            | Self::Variable(TypeVariable {
+                bound: TypeParameterBound::Interface(ty),
+                ..
+            }) => return ty.type_params(),
             _ => return None,
         })
     }
@@ -194,9 +203,9 @@ impl Type {
     }
 
     /// Can this type be assigned to variables?
-    /// True for everything but static ADTs and null singleton.
+    /// True for everything but static ADTs, functions and null singleton.
     pub fn is_assignable(&self) -> bool {
-        !self.is_type() && !self.is_null()
+        !self.is_function() && !self.is_type() && !self.is_null()
     }
 
     /// Can this type be called?
@@ -261,22 +270,6 @@ impl Type {
         }
     }
 
-    /// Returns a list of available constructors, should self be a
-    /// static type access.
-    /// TODO: Copying the list of constructors is not great for performance
-    pub fn get_constructors(&self) -> Option<Vec<MutRc<Function>>> {
-        // Thanks, no box pattern matching!
-        if let Type::Type(ty) = self {
-            if let Some(ty) = ty.try_adt() {
-                Some(ty.ty.borrow().constructors.clone())
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    }
-
     pub fn resolve(&self, args: &Rc<TypeArguments>) -> Type {
         // Start by replacing any type variables with their concrete type
         let mut ty = match self {
@@ -319,11 +312,24 @@ impl Eq for Type {}
 
 impl Hash for Type {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        // todo bad!!
         match self {
             Self::Function(v) => v.ty.borrow().name.hash(state),
+
             Self::Adt(v) => v.ty.borrow().name.hash(state),
+
             Self::Type(v) | Self::RawPtr(v) | Self::Nullable(v) => v.hash(state),
+
+            Self::Closure(cls) => {
+                for param in &cls.parameters {
+                    param.hash(state);
+                }
+                cls.ret_type.hash(state)
+            }
+
+            Self::ClosureCaptured(cap) => cap.iter().for_each(|i| i.ty.hash(state)),
+
+            Self::Variable(var) => var.index.hash(state),
+
             _ => std::mem::discriminant(self).hash(state),
         }
     }

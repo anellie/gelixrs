@@ -75,6 +75,11 @@ impl<'p> Parser<'p> {
         matches
     }
 
+    /// Same as matches, but matches separators between expressions (only `;` currently)
+    fn matches_separator(&mut self) -> bool {
+        self.matches(SyntaxKind::Semicolon)
+    }
+
     fn consume(&mut self, kind: SyntaxKind, want: &'static str, after: &'static str) {
         if self.advance_checked() != kind {
             self.error_at_current(GErr::E001 { want, after });
@@ -131,18 +136,9 @@ impl<'p> Parser<'p> {
         self.peek() == kind
     }
 
-    /// Same as check, but checks for separators between expressions (`;` or newline)
-    fn check_separator(&mut self) -> bool {
-        self.check(SyntaxKind::Semicolon) // || self.previous_line != self.current_line() todo newlines
-    }
-
     /// Is the next token the given kind?
     fn check_next(&mut self, kind: SyntaxKind) -> bool {
-        self.source.save();
-        self.advance();
-        let res = self.check(kind);
-        self.source.restore();
-        res
+        self.peek_next() == kind
     }
 
     fn advance(&mut self) -> Lexeme<'p> {
@@ -175,10 +171,16 @@ impl<'p> Parser<'p> {
         self.source.save();
         self.skip_whitespace();
         self.source.next();
-        self.skip_whitespace();
+        while self.peek_raw().map(|k| k.should_skip()) == Some(true) {
+            self.source.next();
+        }
         let ret = self.peek_raw().unwrap_or(SyntaxKind::EndOfFile);
         self.source.restore();
         ret
+    }
+
+    fn last_was_whitespace(&mut self) -> bool {
+        self.source.get_last().kind.should_skip()
     }
 
     fn peek_raw(&self) -> Option<SyntaxKind> {

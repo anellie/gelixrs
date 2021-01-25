@@ -90,7 +90,7 @@ impl<'p> Parser<'p> {
     fn ret_or_break_expr(&mut self, kind: SyntaxKind) {
         self.start_node(kind);
         self.advance(); // Consume name
-        if !self.check_separator() {
+        if !self.matches_separator() {
             self.expression()
         }
         self.end_node();
@@ -164,7 +164,15 @@ impl<'p> Parser<'p> {
 
         loop {
             match self.peek() {
-                SyntaxKind::LeftParen => {
+                // Do not allow whitespace before a call's parenthesis -
+                // this is to prevent groupings or closure literals on the next
+                // line being incorrectly parsed as a call, for example:
+                //
+                // val a = "hello"
+                // ("in parens")
+                //
+                // This would get parsed as a call `"hello"("in parens")` when it should not.
+                SyntaxKind::LeftParen if !self.last_was_whitespace() => {
                     self.start_node_at(checkpoint, SyntaxKind::Callee);
                     self.start_node_at(checkpoint, SyntaxKind::CallExpr);
                     self.end_node();
@@ -249,13 +257,10 @@ impl<'p> Parser<'p> {
 
     fn grouping_or_closure(&mut self) {
         let checkpoint = self.checkpoint();
-        self.advance(); // Consume '('
+        self.advance();
 
-        if (self.check(SyntaxKind::Identifier)
-            && (self.check_next(SyntaxKind::Colon) || self.check_next(SyntaxKind::Comma)))
-            || self.check(SyntaxKind::RightParen)
-        {
-            self.start_node_at(checkpoint, SyntaxKind::ClosureLiteral);
+        if false {
+            // self.start_node_at(checkpoint, SyntaxKind::ClosureLiteral);
             self.closure()
         } else {
             self.start_node_at(checkpoint, SyntaxKind::Grouping);

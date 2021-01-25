@@ -20,8 +20,7 @@ impl GIRGenerator {
         let this_param = (SmolStr::new_inline("this"), Type::Adt(adt.to_inst()));
         let is_value = !adt.borrow().is_ptr();
 
-        // TODO: Replace this vec with an array once array.into_iter() is stabilized
-        let mut fns: Vec<_> = vec![
+        let mut fns = vec![
             FnSig {
                 name: "new-instance".into(),
                 visibility: Visibility::Private,
@@ -72,7 +71,6 @@ impl GIRGenerator {
     pub(super) fn generate_lifecycle_methods(&mut self, adt: &MutRc<ADT>) {
         let is_value = !adt.borrow().is_ptr();
 
-        // TODO: Replace this vec with an array once array.into_iter() is stabilized
         let mut fns: Vec<(_, fn(&mut _, &_, _, _))> = vec![
             ("new-instance", Self::generate_instantiator),
             ("free-instance", Self::generate_destructor),
@@ -92,8 +90,6 @@ impl GIRGenerator {
         let var = Rc::clone(&func.borrow().parameters[0]);
 
         for field in adt.borrow().fields.values() {
-            // TODO clone isn't great but otherwise the value is
-            // 'stolen' on enum cases and breaks init
             if let Some(init) = field.initializer.clone().take() {
                 self.insert_at_ptr(Expr::store(Expr::load(Expr::lvar(&var), field), init, true))
             }

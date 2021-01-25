@@ -3,6 +3,8 @@
 3425235236
 0
 -4
+123.456
+0.001
 */
 
 func main() {
@@ -11,7 +13,6 @@ func main() {
     print(0)
     print(-4)
 
-    // TODO: Float printing
-    // print(123.456)
-    // print(0.001)
+    print(123.456)
+    print(0.001)
 }

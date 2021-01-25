@@ -76,15 +76,11 @@ static ERROR_STR: &str = "USE AFTER FREE";
 
 extern "C" fn test_free(ptr: i64) {
     MALLOC_LIST.lock().unwrap().remove(&ptr);
-    // TODO: free seems to cause SIGSEGV on some tests,
-    // even though they run fine outside the test runner.
-    // This shouldn't be a very big issue unless more tests
-    // with big memory requirements are added;
-    // not calling free causes the runner to leak less than 1MB of RAM.
-    // unsafe { free(ptr) }
 
     // Write a pointer to an error string to this location -
     // this makes catching use after free bugs much easier
+    // We don't actually free the allocation, so the test runner
+    // leaks a little - this is fine
     unsafe {
         let ptr = ptr as *mut &str;
         ptr.write(ERROR_STR)

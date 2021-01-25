@@ -28,7 +28,6 @@ impl GIRGenerator {
     }
 
     pub(super) fn generate_impls(&mut self) {
-        // TODO Maybe figure out borrowing here, might not be worth it
         let clone = self.iface_impls.values().cloned().collect::<Vec<_>>();
         for impls in clone {
             self.generate_impl(&impls);

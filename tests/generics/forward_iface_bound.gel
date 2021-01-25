@@ -1,0 +1,13 @@
+/*
+Hi!
+6
+*/
+
+import std/string/ToString
+
+func main() {
+    echo("Hi!")
+    echo(6)
+}
+
+func echo[T: ToString](a: T) = print(a)

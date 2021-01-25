@@ -12,7 +12,6 @@ func main() {
 }
 
 func test(a: i64) -> (i64): String {
-    val s = "Hi!"; // FIXME: This ; is required for some reason, parser issue
-
+    val s = "Hi!"
     (b: i64): String -> s
 }

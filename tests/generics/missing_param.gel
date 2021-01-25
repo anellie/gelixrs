@@ -1,0 +1,8 @@
+// C-ERR
+
+func main() {
+}
+
+func a(a: Range) {
+
+}

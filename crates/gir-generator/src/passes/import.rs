@@ -8,6 +8,7 @@ use gir_nodes::{
 };
 
 use crate::{eatc, result::EmitGIRError, GIRGenerator};
+use ast::CSTNode;
 
 impl GIRGenerator {
     pub(super) fn import_stage_1(&mut self, module: MutRc<Module>) {
@@ -84,6 +85,7 @@ impl GIRGenerator {
         }
 
         if !self.flags.no_prelude && !module.borrow().path.is(&["std", "prelude"]) {
+            let dummy = CSTNode::dummy();
             for name in self
                 .intrinsics
                 .std_prelude
@@ -93,9 +95,7 @@ impl GIRGenerator {
                 .declarations
                 .keys()
             {
-                // TODO: NO!
-                let node = self.module.borrow().ast.as_ref().unwrap().cst.clone();
-                self.try_reserve_name(&node, name);
+                self.try_reserve_name(&dummy, name);
             }
         }
     }

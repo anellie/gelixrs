@@ -1,7 +1,7 @@
 /*
 */
 
-func test() = return None
+func test() = return;
 
 func main() {
     test()

@@ -98,11 +98,13 @@ impl fmt::Display for Bench {
         // This method is taken from the `pad` crate, modified
         // to remove a dependency on `unicode-width`
         fn pad(string: &str, width: usize) -> String {
-            let cols = string.len();    
-            let diff = width - cols;    
+            let cols = string.len();
+            let diff = width - cols;
             let mut s = String::new();
             s.push_str(&string);
-            for _ in 0..diff { s.push(' ') }
+            for _ in 0..diff {
+                s.push(' ')
+            }
             s
         }
 

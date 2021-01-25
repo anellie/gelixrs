@@ -117,7 +117,7 @@ impl IRGenerator {
                     panic!("broken type args...");
                 }
                 self.ir_ty_raw(&inner)
-            },
+            }
 
             Type::Type(_) => panic!("invalid type"),
         };

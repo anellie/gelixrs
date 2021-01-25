@@ -119,6 +119,14 @@ impl Node {
         self.span.clone()
     }
 
+    pub fn dummy() -> Self {
+        Self {
+            children: Rc::new(NodeVec::new()),
+            kind: SyntaxKind::EndOfFile,
+            span: 0..0,
+        }
+    }
+
     pub fn new(children: Rc<NodeVec>, kind: SyntaxKind, span: Range<u32>) -> Self {
         Self {
             children,

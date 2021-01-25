@@ -1,0 +1,28 @@
+/*
+no.
+easy!
+*/
+
+func main() {
+    Test("easy!").simple()
+}
+
+class Test {
+
+    var a: String
+
+    construct() {
+        this.a = "yes."
+    }
+
+    construct(a: String) {
+        var other = Test()
+        this.a = a
+        other.a = "no."
+        print(other.a)
+    }
+
+    func simple() {
+        print(this.a)
+    }
+}

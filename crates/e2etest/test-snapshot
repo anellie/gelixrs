@@ -2,6 +2,7 @@ nullable/conditional.gel
 nullable/coalescing_return.gel
 nullable/conditional_not_nullable.gel
 memory/closure_capture.gel
+memory/enums.gel
 enums/when_cast.gel
 enums/methods.gel
 enums/identity.gel
@@ -9,6 +10,7 @@ enums/when_omit_else.gel
 enums/fields.gel
 enums/simple_with_fields.gel
 enums/casting.gel
+modules/collide_prelude2.gel
 arrays/no_premature_dealloc.gel
 arrays/no_premature_dealloc_2.gel
 arrays/no_leak.gel
@@ -18,16 +20,19 @@ value/value.gel
 generics/interface_with_class.gel
 generics/enum.gel
 generics/interface_with_class_no_iface.gel
+generics/forward_iface_bound.gel
 generics/methods.gel
 generics/infer.gel
 closures/no_loop_leak.gel
 closures/no_weak.gel
+closures/wrong_param_type.gel
 closures/capture_class.gel
 closures/none_ret_type.gel
 closures/closure.gel
 closures/no_return_leak.gel
 closures/capture.gel
 closures/as_func_type.gel
+closures/wrong_ret_type.gel
 ffi/value_types.gel
 ffi/manual_memory.gel
 ffi/no_gc.gel

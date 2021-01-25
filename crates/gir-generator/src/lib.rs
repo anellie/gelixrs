@@ -93,11 +93,6 @@ pub struct GIRGenerator {
     /// Because of this, calling is_empty() on this set
     /// can be used to determine if 'this' is fully
     /// initialized yet and if methods can be used.
-    ///
-    /// TODO: The code checking for illegal uninitialized access
-    /// does not validate that the object the access occurs on is 'this'.
-    /// Because of this, accesses of members on other objects of the same type
-    /// (that ARE initialized) will be considered illegal.
     uninitialized_this_fields: HashSet<Rc<Field>>,
 
     /// Closure-related data, if compiling a closure.
@@ -287,7 +282,6 @@ impl GIRGenerator {
     fn find_global_var(&self, name: &SmolStr) -> Option<Variable> {
         let decl = self.module.borrow().find_decl(name)?;
         match decl {
-            // TODO: Reject if missing params
             Declaration::Function(func) => Some(Variable::Function(Instance::new_(func))),
             _ => None,
         }
@@ -603,7 +597,6 @@ impl GIRGenerator {
 
     fn reset_modules(modules: &[MutRc<Module>]) {
         for module in modules.iter() {
-            // TODO: This first loop can be removed once IR GC is fixed.
             for decl in module.borrow().declarations.values() {
                 match decl {
                     Declaration::Function(func) => func.borrow().ir.borrow_mut().clear(),

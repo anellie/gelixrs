@@ -13,7 +13,7 @@ func a() -> String {
 
 func b() -> B {
     val string = "I am still allocated!"
-    val a = new A(string)
+    val a = A(string)
     c(a)
 }
 

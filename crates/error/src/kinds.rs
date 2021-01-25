@@ -124,7 +124,11 @@ pub enum GErr {
     // Cannot use string literals with no_std enabled
     E238,
     // Type argument does not fulfill required bound
-    E239(usize),
+    E239 {
+        index: usize,
+        argument: String,
+        bound: String,
+    },
     // Field is not visible
     E240,
 
@@ -179,6 +183,8 @@ pub enum GErr {
     E319,
     // Cannot use data cases with enums that have fields
     E320,
+    // Incorrect amount of type parameters
+    E321,
 }
 
 impl GErr {
@@ -211,9 +217,15 @@ impl GErr {
             ),
             E230(ty) => format!("Cannot assign type '{}' to a variable.", ty),
             E236(name) => format!("Cannot have member and method '{}' with same name.", name),
-            E239(index) => format!(
-                "Type argument at position {} does not fulfill required bound.",
-                index + 1
+            E239 {
+                index,
+                argument,
+                bound,
+            } => format!(
+                "Type argument at position {} ({}) does not fulfill required bound ({}).",
+                index + 1,
+                argument,
+                bound
             ),
 
             E300(name) => format!("Unknown type '{}'.", name),
@@ -313,6 +325,7 @@ impl GErr {
             E318 => "Cannot have multiple visibilities.",
             E319 => "Method with same name already defined.",
             E320 => "Cannot use data cases with enums that have fields.",
+            E321 => "Incorrect amount of type parameters.",
 
             _ => unreachable!(),
         }

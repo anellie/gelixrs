@@ -29,12 +29,12 @@ impl GIRGenerator {
                 let ty = self.search_type_param(&tok);
                 let ty = ty.or_else(|| self.symbol(&tok));
                 let ty = ty.or_err(&ast.cst, GErr::E300(tok.to_string()))?;
-                // TODO generics validation
+                Self::check_args_count(&ty, &ast.cst)?;
 
-                if !ty.is_function() || allow_fn {
-                    Ok(ty)
-                } else {
+                if ty.is_function() && !allow_fn {
                     Err(gir_err(ast.cst(), GErr::E301))
+                } else {
+                    Ok(ty)
                 }
             }
 
@@ -107,7 +107,6 @@ impl GIRGenerator {
         args: T,
         cst: &CSTNode,
     ) -> Res<Type> {
-        // TODO: more validation
         let mut ty = self
             .symbol(ident)
             .or_err(cst, GErr::E300(ident.to_string()))?;
@@ -121,6 +120,16 @@ impl GIRGenerator {
             self.validate_type_args(&args, &ty.type_params().unwrap(), cst);
         }
         Ok(ty)
+    }
+
+    fn check_args_count(ty: &Type, cst: &CSTNode) -> Res<()> {
+        let param_count = ty.type_params().map(|p| p.len()).unwrap_or(0);
+        let args_count = ty.type_args().map(|a| a.len()).unwrap_or(0);
+        if param_count == args_count {
+            Ok(())
+        } else {
+            Err(gir_err(cst.clone(), GErr::E321))
+        }
     }
 
     fn search_type_param(&self, name: &str) -> Option<Type> {

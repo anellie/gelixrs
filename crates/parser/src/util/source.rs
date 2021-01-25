@@ -11,6 +11,10 @@ impl<'s> Source<'s> {
         self.lexemes.get(self.current).copied()
     }
 
+    pub fn get_last(&self) -> Lexeme<'s> {
+        self.lexemes.get(self.current - 1).copied().unwrap()
+    }
+
     pub fn position(&self) -> usize {
         self.current
     }
