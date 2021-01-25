@@ -1,6 +1,5 @@
 use indexmap::map::IndexMap;
 use lazy_static::lazy_static;
-use pad::PadStr;
 use std::{
     fmt,
     sync::Mutex,
@@ -96,10 +95,21 @@ impl Bench {
 
 impl fmt::Display for Bench {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // This method is taken from the `pad` crate, modified
+        // to remove a dependency on `unicode-width`
+        fn pad(string: &str, width: usize) -> String {
+            let cols = string.len();    
+            let diff = width - cols;    
+            let mut s = String::new();
+            s.push_str(&string);
+            for _ in 0..diff { s.push(' ') }
+            s
+        }
+
         write!(
             f,
             "bench {}: total {}ms over {} times",
-            self.name.pad_to_width(15),
+            pad(&self.name, 15),
             self.total_time.as_millis(),
             self.count,
         )
