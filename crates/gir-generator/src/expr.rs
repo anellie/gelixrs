@@ -47,7 +47,13 @@ impl GIRGenerator {
                 }
             }
 
-            AExpr::GetNullable(_) => todo!(),
+            AExpr::GetNullable(get) => {
+                if get.property().type_args().next().is_some() {
+                    Err(gir_err(get.property().cst, GErr::E211))
+                } else {
+                    self.get_nullable(get)
+                }
+            }
 
             AExpr::GetStatic(get) => self.get_static(get, true),
 
@@ -239,60 +245,21 @@ impl GIRGenerator {
 
             // Method call
             AExpr::Get(get) => {
-                let (object, field) = self.get_field(&get)?;
-                let func = match &field {
-                    FieldOrMethod::Field(_) => return Err(gir_err(get.cst(), GErr::E204)),
-                    FieldOrMethod::Method(method) => method,
-                    FieldOrMethod::VirtMethod(method) => &method.iface_method,
-                };
-
-                let obj_ty = object.get_type();
-                let parent_ty_args = obj_ty.type_args().unwrap_or_else(|| Rc::new(vec![]));
-                args.insert(0, object);
-
-                let ty_args = get
-                    .property()
-                    .type_args()
-                    .map(|t| self.find_type(&t))
-                    .collect::<Res<Vec<_>>>()?;
-
-                let ty_args = if ty_args.is_empty() {
-                    self.maybe_infer_ty_args(
-                        &func.borrow().parameters,
-                        &func.borrow().type_parameters,
-                        &args,
-                        parent_ty_args.len(),
-                        &get.cst,
-                    )?
-                } else {
-                    ty_args
-                };
-                self.validate_type_args(&ty_args, &func.borrow().type_parameters, &get.cst);
-
-                let ty_args = parent_ty_args
-                    .iter()
-                    .cloned()
-                    .chain(ty_args.into_iter())
-                    .collect::<Vec<_>>();
-                let func = Instance::new(Rc::clone(&func), Rc::new(ty_args));
-
-                self.check_func_args_(
-                    &Type::Function(func.clone()),
-                    &mut args,
-                    call.args(),
-                    &get.cst,
-                    true,
-                )?;
-
-                let callee = match field {
-                    FieldOrMethod::Method(_) => Expr::var(Variable::Function(func)),
-                    FieldOrMethod::VirtMethod(v) => {
-                        Expr::Intrinsic(Intrinsic::ConcreteMethodGet(v))
-                    }
-                    _ => unreachable!(),
-                };
-                Ok(Expr::call(callee, args))
+                let object = self.expression(&get.callee());
+                let ty = object.get_type();
+                self.get_call(object, &ty, args, get, call.args())
             }
+
+            // Nullable method call
+            AExpr::GetNullable(get) => self.conditional_nullable(get, |this, inner, var| {
+                this.get_call(
+                    Expr::cast(Expr::lvar(&var), inner.clone(), CastType::FromNullable),
+                    &inner,
+                    args,
+                    get,
+                    call.args(),
+                )
+            }),
 
             // Can be either a constructor or function call
             _ => {
@@ -401,6 +368,67 @@ impl GIRGenerator {
                 }
             }
         }
+    }
+
+    fn get_call(
+        &mut self,
+        object: Expr,
+        ty: &Type,
+        mut args: Vec<Expr>,
+        get: &Get,
+        ast_args: impl Iterator<Item = ast::Expression>,
+    ) -> Res<Expr> {
+        let field = self.get_field(ty, &get)?;
+        let func = match &field {
+            FieldOrMethod::Field(_) => return Err(gir_err(get.cst(), GErr::E204)),
+            FieldOrMethod::Method(method) => method,
+            FieldOrMethod::VirtMethod(method) => &method.iface_method,
+        };
+
+        let obj_ty = object.get_type();
+        let parent_ty_args = obj_ty.type_args().unwrap_or_else(|| Rc::new(vec![]));
+        args.insert(0, object);
+
+        let ty_args = get
+            .property()
+            .type_args()
+            .map(|t| self.find_type(&t))
+            .collect::<Res<Vec<_>>>()?;
+
+        let ty_args = if ty_args.is_empty() {
+            self.maybe_infer_ty_args(
+                &func.borrow().parameters,
+                &func.borrow().type_parameters,
+                &args,
+                parent_ty_args.len(),
+                &get.cst,
+            )?
+        } else {
+            ty_args
+        };
+        self.validate_type_args(&ty_args, &func.borrow().type_parameters, &get.cst);
+
+        let ty_args = parent_ty_args
+            .iter()
+            .cloned()
+            .chain(ty_args.into_iter())
+            .collect::<Vec<_>>();
+        let func = Instance::new(Rc::clone(&func), Rc::new(ty_args));
+
+        self.check_func_args_(
+            &Type::Function(func.clone()),
+            &mut args,
+            ast_args,
+            &get.cst,
+            true,
+        )?;
+
+        let callee = match field {
+            FieldOrMethod::Method(_) => Expr::var(Variable::Function(func)),
+            FieldOrMethod::VirtMethod(v) => Expr::Intrinsic(Intrinsic::ConcreteMethodGet(v)),
+            _ => unreachable!(),
+        };
+        Ok(Expr::call(callee, args))
     }
 
     /// Check a function call's arguments for correctness,
@@ -687,7 +715,10 @@ impl GIRGenerator {
     // Return value also specifies if the value was uninitialized if allow_uninit is true.
     // This is special behavior is used for assignment.
     fn get(&mut self, get: &Get, allow_uninit: bool) -> Res<(Expr, bool)> {
-        let (object, field) = self.get_field(get)?;
+        let object = self.expression(&get.callee());
+        let ty = object.get_type();
+
+        let field = self.get_field(&ty, get)?;
         let field = field.try_field().or_err(&get.property().cst, GErr::E221)?;
 
         let is_this = !allow_uninit
@@ -706,6 +737,63 @@ impl GIRGenerator {
             ))
         } else {
             Err(gir_err(get.property().cst, GErr::E222))
+        }
+    }
+
+    fn get_nullable(&mut self, get: &Get) -> Res<Expr> {
+        self.conditional_nullable(get, |this, inner, var| {
+            let field = this.get_field(&inner, get)?;
+            let field = field.try_field().or_err(&get.property().cst, GErr::E221)?;
+            Ok(Expr::load(
+                Expr::cast(Expr::lvar(var), inner.clone(), CastType::FromNullable),
+                &field,
+            ))
+        })
+    }
+
+    // General conditional nullable generator.
+    // `a?.b` into `var tmp = a; if (tmp != null) tmp.b else null`
+    fn conditional_nullable(
+        &mut self,
+        get: &Get,
+        then_expr: impl FnOnce(&mut Self, &Type, &Rc<LocalVariable>) -> Res<Expr>,
+    ) -> Res<Expr> {
+        let object = self.expression(&get.callee());
+        let ty = object.get_type();
+
+        if let Type::Nullable(inner) = &ty {
+            let (store, var) = self.temp_variable(object, "nullcall".into());
+
+            let then_expr = then_expr(self, inner, &var)?;
+            let phi_type = then_expr.get_type();
+
+            let (then, phi_type) = if let Type::Nullable(_) = &phi_type {
+                (then_expr, phi_type)
+            } else {
+                let phi_type = Type::Nullable(box phi_type);
+                (
+                    Expr::cast(then_expr, phi_type.clone(), CastType::ToNullable),
+                    phi_type,
+                )
+            };
+
+            let expr = Expr::if_(
+                Expr::binary(
+                    SyntaxKind::BangEqual,
+                    Expr::lvar(&var),
+                    Expr::Literal(Literal::Null),
+                ),
+                then,
+                Expr::cast(
+                    Expr::Literal(Literal::Null),
+                    phi_type.clone(),
+                    CastType::ToNullable,
+                ),
+                Some(phi_type),
+            );
+            Ok(Expr::Block(vec![store, expr]))
+        } else {
+            Err(gir_err(get.callee().cst(), GErr::E241))
         }
     }
 

@@ -720,7 +720,9 @@ impl IRGenerator {
 
             CastType::FromNullable => {
                 let value = self.expression(object);
-                if !is_ptr(to) {
+                if let Type::None | Type::Any | Type::Null = to {
+                    self.none_const.clone()
+                } else if !is_ptr(to) {
                     LLValue::from(
                         self.builder
                             .build_extract_value(value.into_struct_value(), 1, "nullextr")

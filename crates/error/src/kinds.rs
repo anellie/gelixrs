@@ -131,6 +131,8 @@ pub enum GErr {
     },
     // Field is not visible
     E240,
+    // '?.' can only be used with nullable values
+    E241,
 
     // Unknown type
     E300(String),
@@ -309,6 +311,7 @@ impl GErr {
             E237 => "Not an iterator (must implement Iter or ToIter).",
             E238 => "Cannot use string literals with no_std enabled.",
             E240 => "Field is not visible.",
+            E241 => "'?.' can only be used with nullable values.",
 
             E301 => "Functions cannot be used as types.",
             E302 => "Nullable cannot be applied multiple times.",

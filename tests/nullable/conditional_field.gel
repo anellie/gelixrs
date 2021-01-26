@@ -1,7 +1,8 @@
 /*
 4
+4
 gday
-good
+0
 */
 
 class A {
@@ -12,10 +13,11 @@ class A {
 }
 
 func main() {
-    val a = A("gday")
-    val b = A(null)
+    val a = cast[A?](A("gday"))
+    val b = cast[A?](A(null))
 
     print(a?.a ?? 0)
+    print(a?.b?.len() ?? 0)
     print(a?.b ?? "bad")
-    print(b?.b ?? "good")
+    print(b?.b?.len() ?? 0)
 }

@@ -257,10 +257,13 @@ impl<'p> Parser<'p> {
 
     fn grouping_or_closure(&mut self) {
         let checkpoint = self.checkpoint();
-        self.advance();
+        self.advance(); // Consume '('
 
-        if false {
-            // self.start_node_at(checkpoint, SyntaxKind::ClosureLiteral);
+        if (self.check(SyntaxKind::Identifier)
+            && (self.check_next(SyntaxKind::Colon) || self.check_next(SyntaxKind::Comma)))
+            || self.check(SyntaxKind::RightParen)
+        {
+            self.start_node_at(checkpoint, SyntaxKind::ClosureLiteral);
             self.closure()
         } else {
             self.start_node_at(checkpoint, SyntaxKind::Grouping);

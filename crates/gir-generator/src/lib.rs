@@ -307,8 +307,8 @@ impl GIRGenerator {
     /// Returns a field of the given expression/object,
     /// where a field can be either a member or a method.
     /// Does visibility checks.
-    fn get_field(&mut self, get: &Get) -> Res<(Expr, FieldOrMethod)> {
-        let (expr, field) = self.get_field_(get)?;
+    fn get_field(&mut self, ty: &Type, get: &Get) -> Res<FieldOrMethod> {
+        let field = self.get_field_(ty, get)?;
         let visibility = match &field {
             FieldOrMethod::Field(field) => field.visibility,
             FieldOrMethod::Method(method)
@@ -318,13 +318,12 @@ impl GIRGenerator {
             }) => method.borrow().visibility,
         };
 
-        let ty = expr.get_type();
         let allowed = match visibility {
             Visibility::Private => {
                 match (&self.ty_position, &ty) {
                     // Ensure that ADTs with different type arguments can still access private fields
                     (Some(Type::Adt(inst1)), Type::Adt(inst2)) => Rc::ptr_eq(&inst1.ty, &inst2.ty),
-                    (Some(ty1), ty2) => ty1 == ty2,
+                    (Some(ty1), ty2) => ty1 == *ty2,
                     _ => false,
                 }
             }
@@ -336,26 +335,22 @@ impl GIRGenerator {
         };
 
         if allowed {
-            Ok((expr, field))
+            Ok(field)
         } else {
             Err(gir_err(get.cst(), GErr::E240))
         }
     }
 
-    fn get_field_(&mut self, get: &Get) -> Res<(Expr, FieldOrMethod)> {
-        let object = self.expression(&get.callee());
-        let ty = object.get_type();
-
+    fn get_field_(&mut self, ty: &Type, get: &Get) -> Res<FieldOrMethod> {
         if let Some(adt) = ty.try_adt() {
             let adt = adt.ty.borrow();
             let field = adt.fields.get(&get.property().name());
             if let Some(field) = field {
-                return Ok((object, FieldOrMethod::Field(Rc::clone(field))));
+                return Ok(FieldOrMethod::Field(Rc::clone(field)));
             }
         }
 
         self.find_associated_method(&ty, &get.property().name())
-            .map(|m| (object, m))
             .or_err(&get.cst, GErr::E210)
     }
 

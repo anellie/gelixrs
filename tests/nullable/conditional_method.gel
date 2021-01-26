@@ -1,0 +1,24 @@
+/*
+4
+gday
+good
+*/
+
+class A {
+    val a: i64? = 4
+    val b: String?
+
+    construct(b)
+
+    func aa() -> i64? = this.a
+    func bb() -> String? = this.b
+}
+
+func main() {
+    val a = cast[A?](A("gday"))
+    val b = cast[A?](A(null))
+
+    print(a?.aa() ?? 0)
+    print(a?.bb() ?? "bad")
+    print(b?.bb() ?? "good")
+}

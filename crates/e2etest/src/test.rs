@@ -155,6 +155,7 @@ fn main() {
     let mut snapshot = cwd;
     snapshot.push("test-snapshot");
     print_failed(snapshot, &run);
+    fs::remove_file("invalid_code.ll").ok();
 
     println!(
         "\n{} out of {} tests succeeded\n",
@@ -213,8 +214,8 @@ fn run_test(path: PathBuf, run: &mut TestRun) {
     let expected = get_expected_result(path.clone());
     let result = catch_unwind_silent(|| exec(path.clone(), run)).unwrap_or(Err(Failure::Panic));
 
-    let style = if result == expected {
-        GREEN_BOLD
+    if result == expected {
+        print!("{}", GREEN_BOLD.paint("."));
     } else {
         let rel_path = relative_path(&path);
         run.failed.push(FailedTest {
@@ -223,9 +224,8 @@ fn run_test(path: PathBuf, run: &mut TestRun) {
             result,
             expected,
         });
-        RED_BOLD
+        print!("{}", RED_BOLD.paint("F"));
     };
-    print!("{}", style.paint("."));
     io::stdout().flush().unwrap();
 }
 

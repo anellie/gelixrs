@@ -6,5 +6,5 @@ class A {
 
 func main() {
     val a = A()
-    print(a.a ?? 0)
+    print(a?.a ?? 0)
 }

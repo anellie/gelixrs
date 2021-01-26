@@ -8,6 +8,6 @@ func main() {
 func a() -> String? = null
 
 func b() {
-    a() ?? (return null)
+    a() ?? (return;)
     print("bad")
 }
