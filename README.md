@@ -18,9 +18,10 @@ rust compiler for some experimental rust features used.
 
 To compile gelixrs, simply use cargo with `cargo build`.
 
-To run the test suite, use `cargo test -- --nocapture` to prevent
-the test runner output from being captured by cargo.
+To run the test suite, use `cargo test -p e2e`.
 
-### Code style
+### Current status
 
-Follow the style used by rustfmt.
+Gelix was mainly intended as a way for me to learn more about programming language
+development, and it has fulfilled that purpose. Because of this, it is no longer
+being actively worked on and *should not be used for any production use*.

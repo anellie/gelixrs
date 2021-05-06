@@ -16,3 +16,9 @@ Note that gelix and all the projects related to it are still in active
 development. They *should* work as described, but are not yet production-ready
 and breakage is to be expected. The gelix syntax and general language features
 are still being worked on and can change at any time.
+
+### Current status
+
+Gelix was mainly intended as a way for me to learn more about programming language
+development, and it has fulfilled that purpose. Because of this, it is no longer
+being actively worked on and *should not be used for any production use*.

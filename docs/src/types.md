@@ -1,7 +1,6 @@
 # Types
 
-Now that you know how to manage your memory when using gelix and can
-write simple gelix programs, it's time to learn about more advanced
+Now it's time to learn about more advanced
 datatypes and how to use them.
 
 Gelix implements the following types for you to define:
@@ -9,3 +8,4 @@ Gelix implements the following types for you to define:
 - Interfaces, which allow defining shared behavior between types
 - Enums, which are used to replace OOP-style inheritance in gelix
 - Closures, which are functions treatable like data
+- Nullables, which are not a type by themselves, but still quite important

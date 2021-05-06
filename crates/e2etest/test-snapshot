@@ -12,6 +12,7 @@ arrays/no_premature_dealloc.gel
 arrays/no_premature_dealloc_2.gel
 arrays/no_leak.gel
 arrays/nested.gel
+value/ref_methods.gel
 value/enum.gel
 value/value.gel
 generics/interface_with_class.gel
